@@ -1,0 +1,808 @@
+{
+  "@@locale": "fr",
+  
+  "nouveautes": "Nouveautés",
+  "@nouveautes": {
+    "description": "Titre pour la section Nouveautés"
+  },
+
+  "populaires": "Populaires",
+  "@populaires": {
+    "description": "Titre pour la section Populaires"
+  },
+
+  "profilePageTitle": "Profil Producteur",
+  "@profilePageTitle": {
+    "description": "Titre pour la page profil producteur"
+  },
+
+  "nameOrCompany": "Nom ou société",
+  "@nameOrCompany": {
+    "description": "Libellé pour le champ nom ou société dans le profil"
+  },
+
+  "phoneNumber": "Numéro de téléphone",
+  "@phoneNumber": {
+    "description": "Libellé pour le champ numéro de téléphone dans le profil"
+  },
+
+  "email": "Email",
+  "@email": {
+    "description": "Libellé pour le champ email dans le profil"
+  },
+
+  "password": "Mot de passe",
+  "@password": {
+    "description": "Libellé pour le champ mot de passe dans le profil"
+  },
+
+  "updateButton": "Mettre à jour",
+  "@updateButton": {
+    "description": "Texte du bouton de mise à jour dans le profil"
+  },
+
+  "french": "Français",
+  "@french": {
+    "description": "Option de langue française"
+  },
+
+  "english": "Anglais",
+  "@english": {
+    "description": "Option de langue anglaise"
+  },
+
+  "@@locale": "fr",
+  "pageNotFound": "Page non trouvée",
+  "@pageNotFound": {
+    "description": "Titre pour la page d'erreur 404"
+  },
+  "pageNotFoundMessage": "Désolé, la page que vous avez demandée n'existe pas.",
+  "@pageNotFoundMessage": {
+    "description": "Message pour la page d'erreur 404"
+  },
+  "profileUpdated": "Profil mis à jour avec succès.",
+  "@profileUpdated": {
+    "description": "Message affiché lorsque le profil utilisateur est mis à jour"
+  },
+  "privacySettings": "Paramètres de confidentialité",
+  "@privacySettings": {
+    "description": "Titre pour la section des paramètres de confidentialité"
+  },
+  "helpSupport": "Aide et Support",
+  "@helpSupport": {
+    "description": "Titre pour la section d'aide et support"
+  },
+  
+  "errorLoadingImage": "Erreur lors du chargement de l'image",
+  "@errorLoadingImage": {
+    "description": "Message affiché lorsqu'une image ne peut pas être chargée"
+  },
+
+  "selectFromGallery": "Sélectionner depuis la galerie",
+  "@selectFromGallery": {
+    "description": "Option pour choisir une photo dans la galerie"
+  },
+
+  "takePhoto": "Prendre une photo",
+  "@takePhoto": {
+    "description": "Option pour prendre une photo avec l'appareil photo"
+  },
+
+  "cancel": "Annuler",
+  "@cancel": {
+    "description": "Bouton pour annuler une action"
+  },
+
+  "changePhotoTooltip": "Changer la photo de profil",
+  "@changePhotoTooltip": {
+    "description": "Tooltip affiché sur le bouton de changement de photo de profil"
+  },
+
+  "errorNameRequired": "Le nom est obligatoire",
+  "@errorNameRequired": {
+    "description": "Message d'erreur lorsque le nom n'est pas renseigné"
+  },
+
+  "errorPhoneRequired": "Le numéro de téléphone est obligatoire",
+  "@errorPhoneRequired": {
+    "description": "Message d'erreur lorsque le téléphone n'est pas renseigné"
+  },
+
+  "errorPhoneInvalid": "Numéro de téléphone invalide",
+  "@errorPhoneInvalid": {
+    "description": "Message d'erreur lorsque le numéro de téléphone n'est pas valide"
+  },
+
+  "errorPasswordTooShort": "Le mot de passe est trop court",
+  "@errorPasswordTooShort": {
+    "description": "Message d'erreur lorsque le mot de passe est trop court"
+  },
+
+  "saving": "Sauvegarde...",
+  "@saving": {
+    "description": "Message affiché lors de la sauvegarde"
+  },
+
+  "updateButton": "Mettre à jour",
+  "@updateButton": {
+    "description": "Libellé du bouton de mise à jour"
+  },
+
+  "errorSavingProfile": "Erreur lors de la sauvegarde du profil",
+  "@errorSavingProfile": {
+    "description": "Message d'erreur lors de la sauvegarde du profil"
+  },
+  
+  "change": "Changer",
+  "@change": {
+    "description": "Bouton pour lancer la modification du mot de passe"
+  },
+  "changePassword": "Changer le mot de passe",
+  "@changePassword": {
+    "description": "Titre du dialogue de changement de mot de passe"
+  },
+  "newPassword": "Nouveau mot de passe",
+  "@newPassword": {
+    "description": "Champ pour saisir le nouveau mot de passe"
+  },
+  "confirmPassword": "Confirmer le mot de passe",
+  "@confirmPassword": {
+    "description": "Champ pour confirmer le nouveau mot de passe"
+  },
+  "save": "Enregistrer",
+  "@save": {
+    "description": "Bouton pour sauvegarder le changement"
+  },
+  "fillAllFields": "Veuillez remplir tous les champs",
+  "@fillAllFields": {
+    "description": "Message d'erreur lorsque tous les champs ne sont pas remplis"
+  },
+  "passwordsDoNotMatch": "Les mots de passe ne correspondent pas",
+  "@passwordsDoNotMatch": {
+    "description": "Message d'erreur lorsque les mots de passe saisis ne sont pas identiques"
+  },
+  "passwordUpdated": "Mot de passe mis à jour",
+  "@passwordUpdated": {
+    "description": "Message de succès après mise à jour du mot de passe"
+  },
+
+  "privacySettings": "Paramètres de confidentialité",
+  "@privacySettings": {
+    "description": "Titre de la page de paramètres de confidentialité"
+  },
+  "shareDataWithPartners": "Partager mes données avec les partenaires",
+  "@shareDataWithPartners": {
+    "description": "Option pour activer ou désactiver le partage de données"
+  },
+  "shareDataWithPartnersDescription": "Autoriser le partage de données anonymisées avec nos partenaires pour améliorer le service.",
+  "@shareDataWithPartnersDescription": {
+    "description": "Description de l'option de partage de données"
+  },
+  "showEmailPublic": "Afficher mon email publiquement",
+  "@showEmailPublic": {
+    "description": "Option pour rendre l'email public ou non"
+  },
+  "showEmailPublicDescription": "Les autres utilisateurs pourront voir votre email sur votre profil.",
+  "@showEmailPublicDescription": {
+    "description": "Description de l'option d'affichage de l'email"
+  },
+  "enableTwoFactorAuth": "Activer l'authentification à deux facteurs",
+  "@enableTwoFactorAuth": {
+    "description": "Option pour activer la 2FA"
+  },
+  "enableTwoFactorAuthDescription": "Ajoute une couche de sécurité supplémentaire lors de la connexion.",
+  "@enableTwoFactorAuthDescription": {
+    "description": "Description de l'option 2FA"
+  },
+  "saveSettings": "Enregistrer les paramètres",
+  "@saveSettings": {
+    "description": "Bouton pour sauvegarder les paramètres"
+  },
+  "settingsSaved": "Paramètres enregistrés",
+  "@settingsSaved": {
+    "description": "Message affiché après avoir sauvegardé les paramètres"
+  },
+
+  "privacySettingsDescription": "Gérez vos préférences en matière de confidentialité et de collecte de données.",
+  "@privacySettingsDescription": {
+    "description": "Description générale en haut de la page paramètres de confidentialité"
+  },
+
+  "acceptAnalyticsTracking": "Accepter le suivi analytique",
+  "@acceptAnalyticsTracking": {
+    "description": "Option pour accepter ou refuser le suivi des données d'utilisation"
+  },
+
+  "acceptAnalyticsTrackingDescription": "Nous utilisons ces données pour améliorer votre expérience.",
+  "@acceptAnalyticsTrackingDescription": {
+    "description": "Texte explicatif sous le bouton pour accepter ou refuser le suivi analytique"
+  },
+
+  "viewPrivacyPolicy": "Voir la politique de confidentialité",
+  "@viewPrivacyPolicy": {
+    "description": "Bouton pour ouvrir la politique de confidentialité"
+  },
+
+  "privacyPolicy": "Politique de confidentialité",
+  "@privacyPolicy": {
+    "description": "Titre de la page Politique de confidentialité"
+  },
+  "privacyPolicyTitle": "Notre politique de confidentialité",
+  "@privacyPolicyTitle": {
+    "description": "Titre principal de la politique de confidentialité"
+  },
+  "privacyPolicyIntroductionTitle": "Introduction",
+  "privacyPolicyIntroductionContent": "Nous accordons une grande importance à la confidentialité de vos données personnelles.",
+  
+  "privacyPolicyDataCollectedTitle": "Données collectées",
+  "privacyPolicyDataCollectedContent": "Nous pouvons collecter les données suivantes :",
+  "privacyPolicyDataCollectedItem1": "Informations de compte",
+  "privacyPolicyDataCollectedItem2": "Données de navigation",
+  "privacyPolicyDataCollectedItem3": "Préférences utilisateur",
+  
+  "privacyPolicyDataUsageTitle": "Utilisation des données",
+  "privacyPolicyDataUsageContent": "Nous utilisons vos données pour améliorer nos services et personnaliser votre expérience.",
+  
+  "privacyPolicyDataSharingTitle": "Partage des données",
+  "privacyPolicyDataSharingContent": "Nous ne partageons pas vos données avec des tiers sans votre consentement, sauf obligation légale.",
+  
+  "privacyPolicyUserRightsTitle": "Vos droits",
+  "privacyPolicyUserRightsContent": "Vous disposez de plusieurs droits concernant vos données personnelles :",
+  "privacyPolicyUserRightsItem1": "Droit d’accès",
+  "privacyPolicyUserRightsItem2": "Droit de rectification",
+  "privacyPolicyUserRightsItem3": "Droit de suppression",
+  
+  "privacyPolicyCookiesTitle": "Cookies",
+  "privacyPolicyCookiesContent": "Nous utilisons des cookies pour améliorer la navigation et analyser le trafic du site.",
+  
+  "privacyPolicySecurityTitle": "Sécurité",
+  "privacyPolicySecurityContent": "Nous mettons en œuvre des mesures de sécurité pour protéger vos données.",
+  
+  "privacyPolicyChangesTitle": "Modifications de cette politique",
+  "privacyPolicyChangesContent": "Nous pouvons mettre à jour cette politique de confidentialité à tout moment. Les changements seront publiés sur cette page.",
+  
+  "privacyPolicyContactTitle": "Contact",
+  "privacyPolicyContactContent": "Pour toute question, contactez-nous à l'adresse suivante : support@example.com",
+  
+  "privacyPolicyLastUpdate": "Dernière mise à jour : {date}",
+  "@privacyPolicyLastUpdate": {
+    "description": "Texte affichant la dernière date de mise à jour de la politique",
+    "placeholders": {
+      "date": {
+        "type": "String",
+        "example": "01/01/2023"
+      }
+    }
+  }, 
+  "emailLaunchError": "Impossible d'ouvrir l'application de messagerie.",
+"@emailLaunchError": {
+  "description": "Message d'erreur affiché lorsqu'il est impossible d'ouvrir le client email"
+},
+
+
+  "helpSupportTitle": "Aide et Support",
+  "@helpSupportTitle": {
+    "description": "Titre de la page d'aide et support"
+  },
+  
+  "helpSupportTitle": "Aide & Support",
+  "helpCenterTitle": "Centre d'aide Ephrata",
+  
+  "videoTutorialsTitle": "Tutoriels vidéo",
+  "helpSupportVideo1Title": "Comment créer un profil",
+  "helpSupportVideo2Title": "Ajouter vos produits",
+  "helpSupportVideo3Title": "Gérer vos commandes",
+  
+  "faqTitle": "Questions fréquentes",
+  "helpSupportFaq1Question": "Comment modifier mes informations?",
+  "helpSupportFaq1Answer": "Allez dans Paramètres > Mon compte",
+  "helpSupportFaq2Question": "Problème de connexion?",
+  "helpSupportFaq2Answer": "Réinitialisez votre mot de passe",
+  
+  "contactSupportTitle": "Contactez notre support",
+  "contactEmailLabel": "Email",
+  "contactEmail": "support@ephrata.com",
+  "contactPhoneFrLabel": "Téléphone France",
+  "contactPhoneFr": "+33 6 83 63 70 52",
+  "contactPhoneCiLabel": "Téléphone Côte d'Ivoire",
+  "contactPhoneCi": "+225 05 86 75 89 89",
+  "contactWhatsAppLabel": "WhatsApp",
+  "contactWhatsApp": "+225 05 86 75 86 96",
+
+  "loginPageTitle": "GESTIONNAIRE EKEFLICKS",
+  "emailLabel": "Email",
+  "passwordLabel": "Mot de passe",
+  "loginButton": "SE CONNECTER",
+  "forgotPassword": "Mot de passe oublié ?",
+  "emailValidationError": "Email invalide",
+  "passwordValidationError": "Minimum 6 caractères",
+  "changeLanguage": "Changer la langue",
+  
+  "dashboardTab": "Tableau de bord",
+  "moviesTab": "Films",
+  "seriesTab": "Séries",
+  "uploadTab": "Dépôt",
+  "financeTab": "Finances",
+  "supportTab": "Support",
+  "profileTab": "Mon compte",
+  "logout": "Déconnexion",
+  "notificationsTitle": "Notifications",
+  "notificationNewComment": "Nouveau commentaire",
+  "notificationOnContent": "Sur \"{content}\"",
+  "notificationPayment": "Paiement reçu",
+  "yesterday": "Hier",
+  "close": "Fermer",
+  "changeLanguage": "Changer la langue",
+  
+  "dashboardTitle": "Tableau de bord",
+  "publishedVideos": "Vidéos publiées",
+  "totalViews": "Vues totales",
+  "estimatedRevenue": "Revenus estimés",
+  "pendingItems": "En attente",
+  "subscribers": "Abonnés",
+  "engagementRate": "Taux d'engagement",
+  "recentActivity": "Activité récente",
+  "newVideoPublished": "Nouvelle vidéo publiée",
+  "videoTitle": "Vidéo : {title}",
+  "paymentReceived": "Paiement reçu",
+  "timeAgo": "Il y a {count} {unit}",
+  "hour": "heure",
+  "hours": "heures",
+  "yesterday": "Hier",
+
+  "@@locale": "fr",
+  "uploadFormTitle": "Formulaire Upload Vidéo",
+  "contentTypeLabel": "Type de contenu",
+  "titleLabel": "Titre",
+  "descriptionLabel": "Description",
+  "genresLabel": "Genres",
+  "languageLabel": "Langue",
+  "languageSpecifyLabel": "Précisez la langue",
+  "countryLabel": "Pays",
+  "otherOption": "Autres",
+  "countrySpecifyLabel": "Précisez le pays",
+  "releaseYearLabel": "Année de sortie",
+  "productionTeamTitle": "Équipe de production",
+  "directorLabel": "Nom du réalisateur",
+  "screenwriterLabel": "Nom du scénariste",
+  "producersLabel": "Producteurs",
+  "actorsLabel": "Acteurs",
+  "seasonManagementTitle": "Gestion des saisons",
+  "seasonsLabel": "Saisons",
+  "seasonLabel": "Saison",
+  "episodesLabel": "Épisodes",
+  "episodeLabel": "Épisode",
+  "trailerLabel": "Bande annonce",
+  "mediaFilesTitle": "Fichiers multimédias",
+  "posterLabel": "Poster",
+  "bannerLabel": "Bannière",
+  "mainVideoLabel": "Vidéo principale",
+  "addProducerTitle": "Ajouter un producteur",
+  "addActorTitle": "Ajouter un acteur",
+  "nameLabel": "Nom",
+  "addImageButton": "Ajouter image",
+  "cancelButton": "Annuler",
+  "addButton": "Ajouter",
+  "deleteButton": "Supprimer",
+  "requiredFieldError": "Ce champ est requis",
+  "formValidationError": "Veuillez remplir correctement le formulaire",
+  "genreSelectionError": "Veuillez sélectionner au moins un genre",
+  "languageSelectionError": "Veuillez sélectionner la langue",
+  "languageSpecifyError": "Veuillez préciser la langue",
+  "countrySelectionError": "Veuillez sélectionner un pays",
+  "countrySpecifyError": "Veuillez préciser le pays",
+  "yearSelectionError": "Veuillez sélectionner l'année de sortie",
+  "directorNameError": "Veuillez renseigner le nom du réalisateur",
+  "screenwriterNameError": "Veuillez renseigner le nom du scénariste",
+  "posterSelectionError": "Veuillez sélectionner une image poster",
+  "bannerSelectionError": "Veuillez sélectionner une image banner",
+  "videoSelectionError": "Veuillez sélectionner une vidéo",
+  "seasonSelectionError": "Veuillez ajouter au moins une saison pour une série",
+  "seasonValidationError": "Veuillez compléter toutes les saisons et épisodes",
+  "formSubmissionSuccess": "Formulaire soumis avec succès !",
+  "submitButton": "Soumettre le formulaire",
+  "addSeasonButton": "Ajouter une saison",
+  "addTrailerButton": "Ajouter une bande-annonce",
+  "addPosterButton": "Ajouter Poster",
+  "addBannerButton": "Ajouter Bannière",
+  "addVideoButton": "Ajouter Vidéo",
+  "seasonDescriptionLabel": "Description de la saison",
+  "episodeDescriptionLabel": "Description de l'épisode",
+  "seasonTrailerLabel": "Bande-annonce de la saison",
+  "addSeasonPosterButton": "Ajouter poster (saison)",
+  "addSeasonBannerButton": "Ajouter bannière (saison)",
+  "addEpisodeTooltip": "Ajouter un épisode",
+  "removeSeasonTooltip": "Supprimer la saison",
+  "confirmationTitle": "Confirmation",
+  "confirmationMessage": "Voulez-vous supprimer cet élément ?",
+  
+  
+  "titleHint": "Entrez le titre",
+  "selectVideoFirst": "Veuillez sélectionner une vidéo d'abord",
+
+  "addSeason": "Ajouter une saison",
+  "seasonTitleLabel": "Titre de la saison",
+  "seasonTitleHint": "Ex: Saison 3",
+  "addEpisode": "Ajouter un épisode (Saison {seasonNumber})",
+  "detailsTab": "Détails",
+  "videoTab": "Vidéo",
+  "episodeTitleLabel": "Titre de l'épisode",
+  "episodeTitleHint": "Titre de l'épisode",
+  "episodeDescriptionLabel": "Description",
+  "durationLabel": "Durée (minutes)",
+  "selectedFile": "Fichier sélectionné",
+  "uploadVideo": "Télécharger vidéo",
+  "selectVideoPrompt": "Veuillez sélectionner une vidéo",
+  "requiredField": "Champ requis",
+  "invalidNumber": "Nombre invalide",
+  "cancel": "Annuler",
+  "add": "Ajouter",
+
+  "secure_access": "Accès sécurisé",
+  "enter_pin": "Veuillez entrer votre code PIN pour accéder à vos finances.",
+  "invalid_code": "Code invalide",
+  "validate": "Valider",
+  "my_finances": "Finances",
+  "available_balance": "Solde disponible",
+  "last_withdrawal": "Dernier retrait",
+  "date": "Date",
+  "pending_payments": "Paiements en attente",
+  "available_in_48h": "Disponible dans 48h",
+  "request_withdrawal": "Demander un retrait",
+  "withdrawal_request": "Demande de retrait",
+  "amount": "Montant",
+  "enter_amount": "Veuillez saisir un montant",
+  "amount_positive": "Le montant doit être positif",
+  "amount_exceeds_balance": "Le montant dépasse le solde disponible ({balance} €)",
+  "payment_method": "Méthode de paiement",
+  "phone_number": "Numéro de téléphone",
+  "enter_number": "Veuillez saisir votre numéro",
+  "iban": "IBAN",
+  "enter_iban": "Veuillez saisir l'IBAN",
+  "beneficiary_name": "Nom du bénéficiaire",
+  "enter_name": "Veuillez saisir le nom",
+  "confirm_withdrawal": "Confirmer le retrait",
+  "success": "réussi",
+
+  "payment_not_received": "Paiement non reçu",
+  "claim_status_in_progress": "En cours",
+  "payment_issue_desc": "Le paiement n'a pas été reçu pour cette commande.",
+  "high_priority": "Haute priorité",
+  "video_rejected": "Vidéo rejetée",
+  "claim_status_resolved": "Résolu",
+  "rejection_issue_desc": "La vidéo a été rejetée pour non-conformité.",
+  "medium_priority": "Priorité moyenne",
+  "rejection_response": "Réponse du support",
+  "my_claims": "Mes réclamations",
+  "search_claims": "Rechercher des réclamations",
+  "support_response": "Réponse du support",
+  "new_claim": "Nouvelle réclamation",
+  "claim_title": "Titre de la réclamation",
+  "required_field": "Champ requis",
+  "claim_description": "Description de la réclamation",
+  "low_priority": "Basse priorité",
+  "priority": "Priorité",
+  "status": "Statut",
+  "description": "Description",
+  "submit": "Soumettre",
+  "claim_submitted": "Réclamation soumise avec succès",
+
+  "searchFilmHint": "Rechercher un film...",
+  "publishedStatus": "Publié",
+  "pendingStatus": "En attente",
+  "rejectedStatus": "Rejeté",
+  "synopsisTitle": "📜 Synopsis",
+  "informationTitle": "🎬 Informations",
+  "teamTitle": "👨‍🎤 Équipe",
+  "statsTitle": "📊 Statistiques",
+  "commentsTitle": "💬 Commentaires récents",
+  "metadataTitle": "💾 Métadonnées",
+  "editButton": "Modifier",
+  "closeButton": "Fermer",
+  "directorLabel": "Réalisateur",
+  "screenwriterLabel": "Scénariste",
+  "producersLabel": "Producteur(s)",
+  "mainActorsLabel": "Acteurs principaux",
+  "publicationHistoryLabel": "Historique de publication",
+  "availableSubtitlesLabel": "Sous-titres disponibles",
+  "viewsLabel": "Vues",
+  "likesLabel": "Likes",
+  "commentsLabel": "Commentaires",
+  "ratingLabel": "Note",
+  "genresLabel": "Genre(s)",
+  "languageLabel": "Langue",
+  "yearLabel": "Année",
+  "durationLabel": "Durée",
+  "countryLabel": "Pays",
+  "resolutionLabel": "Résolution",
+  "formatLabel": "Format",
+  "codecLabel": "Codec",
+  "minutesLabel": "minutes",
+  
+  "searchSeriesHint": "Rechercher une série...",
+  "publishedStatus": "Publié",
+  "pendingStatus": "En attente",
+  "rejectedStatus": "Rejeté",
+  "synopsisTitle": "📜 Synopsis",
+  "informationTitle": "🎬 Informations",
+  "teamTitle": "👨‍🎤 Équipe",
+  "statsTitle": "📊 Statistiques",
+  "seasonsEpisodesTitle": "📺 Saisons & Épisodes",
+  "commentsTitle": "💬 Commentaires",
+  "editButton": "Modifier",
+  "closeButton": "Fermer",
+  "directorLabel": "Réalisateur",
+  "screenwriterLabel": "Scénariste",
+  "producersLabel": "Producteur(s)",
+  "mainActorsLabel": "Acteurs principaux",
+  "publicationHistoryLabel": "Historique de publication",
+  "viewsLabel": "vues",
+  "likesLabel": "Likes",
+  "commentsLabel": "Commentaires",
+  "ratingLabel": "Note",
+  "genresLabel": "Genre(s)",
+  "languageLabel": "Langue",
+  "yearLabel": "Année",
+  "countryLabel": "Pays",
+  "seasonLabel": "Saison",
+  "episodeLabel": "Épisode",
+  "episodesLabel": "épisode(s)",
+  "addSeasonButton": "Ajouter une saison",
+  "addEpisodeButton": "Ajouter un épisode",
+  "descriptionToComplete": "Description à compléter",
+  "filtersToImplement": "Filtres à implémenter",
+
+  "usersTab": "Utilisateurs",
+  "producersTab": "Producteurs",
+  "adminTab": "Administrateurs",
+  "statisticsTab": "Statistiques",
+
+  "recentVideos": "Vidéos récentes",
+  "recentPayments": "Paiements récents",
+
+  "usersManagement": "Gestion des utilisateurs",
+  "addUser": "Ajouter un utilisateur",
+  "id": "ID",
+  "name": "Nom",
+  "subscription": "Abonnement",
+  "joinDate": "Date d'inscription",
+  "actions": "Actions",
+  "searchUsers": "Rechercher des utilisateurs",
+
+  "producersManagement": "Gestion des producteurs",
+  "addProducer": "Ajouter un producteur",
+  "searchProducers": "Rechercher des producteurs",
+  "allStatus": "Tous les statuts",
+  "active": "Actif",
+  "inactive": "Inactif",
+
+  "adminManagement": "Gestion des administrateurs",
+  "addAdmin": "Ajouter un administrateur",
+  "role": "Rôle",
+  "lastLogin": "Dernière connexion",
+  "edit": "Modifier",
+  "delete": "Supprimer",
+
+  "statistics": "Statistiques",
+  "users": "Utilisateurs",
+  "producers": "Producteurs",
+  "videos": "Vidéos",
+  "earnings": "Revenus",
+  "usersGrowth": "Croissance des utilisateurs",
+  "videosByStatus": "Vidéos par statut",
+
+  "daily": "Quotidien",
+  "weekly": "Hebdomadaire",
+  "monthly": "Mensuel",
+  "yearly": "Annuel",
+
+  "adminDashboardTitle": "Tableau de bord administrateur",
+  "totalUsers": "Utilisateurs totaux",
+  "activeProducers": "Producteurs actifs", 
+  "videosToReview": "Vidéos à examiner",
+  "monthlyRevenue": "Revenu mensuel",
+  "platformActivity": "Activité de la plateforme",
+  "newVideoSubmitted": "Nouvelle vidéo soumise",
+  "paymentRequest": "Demande de paiement",
+
+  "totalVideos": "Total vidéos",
+  "publishedVideos": "Vidéos publiées",
+
+  
+  "noUsersFound": "Aucun utilisateur trouvé",
+  "editUser": "Modifier l'utilisateur",
+  "update": "Mettre à jour",
+  "deleteUser": "Supprimer l'utilisateur",
+  "deleteUserConfirmation": "Êtes-vous sûr de vouloir supprimer cet utilisateur ?",
+  "userDeleted": "Utilisateur supprimé avec succès",
+  "pending": "En attente",
+  "nameRequired": "Le nom est requis",
+  "emailRequired": "L'email est requis",
+  "invalidEmail": "Adresse email invalide",
+  "status": "Statut",
+
+  "phone": "Téléphone",
+  "country": "Pays",
+  "editUser": "Modifier l'utilisateur",
+  "transactions": "Transactions",
+  "linkedProfiles": "Profils liés",
+
+  "subscriptionStart": "Date début abonnement",
+  "subscriptionEnd": "Date fin abonnement",
+
+  "transactionsHistory": "Historique des transactions",
+  "noTransactions": "Aucune transaction",
+  "close": "Fermer",
+  "pending": "En attente",
+  "completed": "Complété",
+  "failed": "Échoué",
+  "refunded": "Remboursé",
+  
+  "fullName": "Nom complet",
+  "email": "Email",
+  "password": "Mot de passe",
+  "phone": "Téléphone",
+  "country": "Pays",
+  "subscription": "Abonnement",
+  "subscriptionStart": "Date début abonnement",
+  "subscriptionEnd": "Date fin abonnement",
+  "status": "Statut",
+  "save": "Enregistrer",
+  "generatePassword": "Générer mot de passe",
+ 
+  "producerName": "Nom du producteur",
+  "address": "Adresse",
+  "generateNewPassword": "Générer un nouveau mot de passe",
+  "addProducer": "Ajouter un producteur",
+  "save": "Enregistrer",
+  "cancel": "Annuler",
+  "name": "Nom",
+  "email": "Email",
+  "phone": "Téléphone",
+  "password": "Mot de passe",
+  "country": "Pays",
+  "status": "Statut",
+  "subscriptionStart": "Début de l'abonnement",
+  "subscriptionEnd": "Fin de l'abonnement",
+  
+  "enterName": "Veuillez saisir un nom",
+  "enterValidEmail": "Veuillez saisir un email valide",
+  "enterPhone": "Veuillez saisir un numéro de téléphone",
+  "regeneratePassword": "Générer un mot de passe",
+  "financialCode": "Financial Access Code",
+
+  "financialCode": "Code d'accès financier",
+  "generateCodeHint": "Générer un code à 4 chiffres",
+  "generate": "Générer",
+  "codeValidForXMinutes": "Code valable %d minutes",
+
+  "claim_status_rejected": "Rejetée",
+  "group_response_subject": "Objet de la réponse groupée",
+  "individual_response_subject": "Objet de la réponse individuelle",
+  "send_group_email": "Envoyer un email groupé",
+  "send_individual_email": "Envoyer un email individuel",
+  "subject": "Sujet",
+  "message": "Message",
+  "send": "Envoyer",
+  "claims_management": "Gestion des réclamations",
+  "all_statuses": "Tous les statuts",
+  "filter_by_status": "Filtrer par statut",
+  "attachments": "Pièces jointes",
+  "response": "Réponse",
+  "enter_response": "Entrez votre réponse",
+
+  "no_claims_found": "Aucune réclamation trouvée",
+
+  "communication_tooltip": "Envoyer une communication",
+  "communication_title": "Communication",
+  "communication_type": "Type de communication",
+  "notification": "Notification",
+  "sending_mode": "Mode d’envoi",
+  "individual": "Individuel",
+  "group": "Groupe",
+  "selected_recipients": "destinataires sélectionnés",
+  "confirm_send": "Confirmer l’envoi",
+  "confirm_group_email": "Voulez-vous envoyer un email à {count} destinataires ?",
+  "confirm_individual_email": "Voulez-vous envoyer un email à ce destinataire ?",
+  "confirm_notification": "Voulez-vous envoyer une notification à {count} destinataires ?",
+  "email_sent": "Email envoyé avec succès",
+  "notification_sent": "Notification envoyée avec succès",
+  "email_error": "Erreur lors de l’envoi de l’email",
+  "notification_error": "Erreur lors de l’envoi de la notification",
+  
+  
+  "my_finances": "Finances",
+  "secure_access": "Accès Sécurisé",
+  "enter_pin": "Veuillez entrer votre code PIN",
+  "validate": "Valider",
+  "invalid_code": "Code invalide",
+  
+  "request_withdrawal": "Demande de retrait de",
+  "success": "a été effectuée avec succès",
+  "available_balance": "Solde Disponible",
+  "last_withdrawal": "Dernier retrait",
+  "pending_payments": "Paiements en attente",
+  "available_in_48h": "Disponible dans 48h",
+  "withdrawal_request": "Demande de Retrait",
+  
+  "amount": "Montant",
+  "enter_amount": "Veuillez entrer un montant",
+  "amount_positive": "Le montant doit être positif",
+  "amount_exceeds_balance": "Le montant dépasse votre solde de {amount}€",
+  "payment_method": "Méthode de Paiement",
+  "phone_number": "Numéro de Téléphone",
+  "enter_number": "Veuillez entrer un numéro",
+  "iban": "IBAN",
+  "enter_iban": "Veuillez entrer un IBAN",
+  "beneficiary_name": "Nom du Bénéficiaire",
+  "enter_name": "Veuillez entrer un nom",
+  "confirm_withdrawal": "Confirmer le Retrait",
+  
+  "withdrawal_requests": "Demandes de Retrait",
+  "method": "Méthode",
+  "reject": "Rejeter",
+  "approve": "Approuver",
+  "status": "Statut",
+  "pending": "En Attente",
+  "approved": "Approuvé",
+  "rejected": "Rejeté",
+  "processed_on": "Traité le",
+  
+  "revenue_details": "Détails des Revenus",
+  "producer": "Producteur",
+  "views": "Vues",
+  "revenue": "Revenus",
+  
+  "statistics": "Statistiques",
+  "subscribers": "Abonnés",
+  "monthly_revenue": "Revenus Mensuels",
+  "date": "Date",
+
+  "streaming_analytics": "Analytique Streaming",
+  "time_period": "Période",
+  "content_type": "Type de Contenu",
+  "all_content": "Tous Contenus",
+  "movies": "Films",
+  "series": "Séries",
+  "documentaries": "Documentaires",
+  "new_users": "Nouveaux",
+  "returning_users": "Récurrents",
+  "premium": "Premium",
+  "trial": "Essai",
+  "total_viewers": "Spectateurs Totaux",
+  "watch_time": "Temps de Visionnage",
+  "avg_session": "Session Moyenne",
+  "viewership_trends": "Tendances Audience",
+  "content_performance": "Performance Contenus",
+  "user_engagement": "Engagement Utilisateurs",
+  "geo_distribution": "Répartition Géographique",
+
+  "user_growth": "Croissance utilisateurs",
+  "video_status_distribution": "Répartition des vidéos par statut",
+  "avg_watch_time": "Temps moyen de visionnage",
+  "popular_genres": "Genres les plus regardés",
+  "subscriber_retention": "Taux de rétention des abonnés",
+  "monthly_revenue": "Revenus par mois",
+  "devices_used": "Appareils utilisés",
+  "published": "Publié",
+  "pending": "En attente",
+  "draft": "Brouillon",
+  "rejected": "Rejeté",
+  "archived": "Archivé"
+}
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+

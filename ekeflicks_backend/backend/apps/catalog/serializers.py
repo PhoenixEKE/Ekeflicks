@@ -1,0 +1,232 @@
+from rest_framework import serializers
+
+from core.models import (
+    Content,
+    ContentSimilarity,
+    ContentStatus,
+    Emission,
+    Episode,
+    Genre,
+    Season,
+)
+
+
+class GenreSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Genre
+        fields = ['id', 'name', 'slug', 'description', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class EmissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Emission
+        fields = ['id', 'name', 'slug', 'description', 'display_order', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class ContentStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContentStatus
+        fields = ['id', 'name', 'description']
+        read_only_fields = ['id']
+
+
+class EpisodeSerializer(serializers.ModelSerializer):
+    season_id = serializers.PrimaryKeyRelatedField(
+        source='season',
+        queryset=Season.objects.all(),
+        write_only=True,
+        required=True,
+    )
+    content_id = serializers.PrimaryKeyRelatedField(
+        source='content',
+        queryset=Content.objects.all(),
+        write_only=True,
+        required=False,
+    )
+
+    class Meta:
+        model = Episode
+        fields = [
+            'id',
+            'season',
+            'season_id',
+            'content',
+            'content_id',
+            'episode_number',
+            'title',
+            'description',
+            'duration',
+            'video_url',
+            'thumbnail_url',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'season', 'content', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        season = attrs.get('season') or getattr(self.instance, 'season', None)
+        content = attrs.get('content') or getattr(self.instance, 'content', None)
+
+        if season and not content:
+            attrs['content'] = season.content
+        elif season and content and season.content_id != content.id:
+            raise serializers.ValidationError(
+                {'content_id': "Le contenu doit correspondre a la saison."}
+            )
+
+        return attrs
+
+
+class SeasonSerializer(serializers.ModelSerializer):
+    content_id = serializers.PrimaryKeyRelatedField(
+        source='content',
+        queryset=Content.objects.all(),
+        write_only=True,
+        required=True,
+    )
+    episodes = EpisodeSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Season
+        fields = [
+            'id',
+            'content',
+            'content_id',
+            'season_number',
+            'title',
+            'episode_count',
+            'episodes',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'content', 'episodes', 'created_at', 'updated_at']
+
+
+class ContentListSerializer(serializers.ModelSerializer):
+    genres = GenreSerializer(many=True, read_only=True)
+    emissions = EmissionSerializer(many=True, read_only=True)
+    status = serializers.StringRelatedField()
+    producer = serializers.PrimaryKeyRelatedField(read_only=True)
+    producer_email = serializers.EmailField(source='producer.email', read_only=True)
+
+    class Meta:
+        model = Content
+        fields = [
+            'id',
+            'title',
+            'original_title',
+            'description',
+            'type',
+            'poster_url',
+            'backdrop_url',
+            'banner_url',
+            'trailer_url',
+            'release_year',
+            'release_date',
+            'duration',
+            'age_rating',
+            'is_hd',
+            'is_4k',
+            'is_hdr',
+            'rating_avg',
+            'rating_count',
+            'view_count',
+            'popularity_score',
+            'ia_score',
+            'trending_score',
+            'status',
+            'producer',
+            'producer_email',
+            'producer_submission_status',
+            'genres',
+            'emissions',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'producer',
+            'producer_email',
+            'producer_submission_status',
+            'created_at',
+            'updated_at',
+        ]
+
+
+class ContentDetailSerializer(ContentListSerializer):
+    status_id = serializers.PrimaryKeyRelatedField(
+        source='status',
+        queryset=ContentStatus.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
+    genre_ids = serializers.PrimaryKeyRelatedField(
+        source='genres',
+        queryset=Genre.objects.all(),
+        many=True,
+        write_only=True,
+        required=False,
+    )
+    emission_ids = serializers.PrimaryKeyRelatedField(
+        source='emissions',
+        queryset=Emission.objects.all(),
+        many=True,
+        write_only=True,
+        required=False,
+    )
+    seasons = SeasonSerializer(many=True, read_only=True)
+    reviewed_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    reviewed_by_email = serializers.EmailField(source='reviewed_by.email', read_only=True)
+
+    class Meta(ContentListSerializer.Meta):
+        fields = ContentListSerializer.Meta.fields + [
+            'synopsis',
+            'video_url',
+            'available_from',
+            'available_until',
+            'producer_notes',
+            'review_reason',
+            'submitted_at',
+            'reviewed_by',
+            'reviewed_by_email',
+            'reviewed_at',
+            'status_id',
+            'genre_ids',
+            'emission_ids',
+            'seasons',
+        ]
+        read_only_fields = ContentListSerializer.Meta.read_only_fields + [
+            'review_reason',
+            'submitted_at',
+            'reviewed_by',
+            'reviewed_by_email',
+            'reviewed_at',
+        ]
+
+
+class ContentSimilaritySerializer(serializers.ModelSerializer):
+    content = ContentListSerializer(source='content_2', read_only=True)
+
+    class Meta:
+        model = ContentSimilarity
+        fields = ['id', 'content', 'similarity_score', 'calculated_at']
+        read_only_fields = fields
+
+
+class ContentMediaUploadSerializer(serializers.Serializer):
+    file = serializers.FileField(required=True)
+
+
+class ContentSubmitSerializer(serializers.Serializer):
+    producer_notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class ContentReviewSerializer(serializers.Serializer):
+    reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class ContentRejectSerializer(serializers.Serializer):
+    reason = serializers.CharField(required=True, allow_blank=False)

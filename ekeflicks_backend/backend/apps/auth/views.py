@@ -1,0 +1,316 @@
+from django.utils import timezone
+from rest_framework import exceptions, generics, permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from apps.notifications.services import notify_user
+from apps.auth.services import (
+    create_email_change_support_request,
+    create_account_closure_request,
+    process_account_closure_request,
+    process_due_account_closure_requests,
+    reset_password,
+    send_email_verification,
+    send_password_reset,
+    verify_email_token,
+)
+from apps.auth.serializers import (
+    AccountClosureRequestSerializer,
+    AccountClosureReviewSerializer,
+    EmailChangeSupportRequestSerializer,
+    EmailVerificationSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    UserPersonalInfoSerializer,
+    UserCreateSerializer,
+    UserSerializer,
+)
+from core.models.profiles import Profile
+from core.models.users import AccountClosureRequest, EmailChangeSupportRequest, User
+
+
+class LoginView(TokenObtainPairView):
+    pass
+
+
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserCreateSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        profile = Profile.objects.filter(user=user, is_active=True).first()
+        refresh = RefreshToken.for_user(user)
+
+        response_data = {
+            'user': UserSerializer(user).data,
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
+        if profile:
+            response_data['profile'] = {
+                'id': str(profile.id),
+                'name': profile.name,
+                'avatar_url': profile.avatar_url,
+                'type': profile.type.name if profile.type else None,
+            }
+        send_email_verification(user, request)
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+
+class MeView(generics.RetrieveUpdateAPIView):
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+
+class PersonalInfoView(generics.RetrieveUpdateAPIView):
+    serializer_class = UserPersonalInfoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+
+class VerifyEmailView(generics.GenericAPIView):
+    serializer_class = EmailVerificationSerializer
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        token_value = request.query_params.get('token')
+        serializer = self.get_serializer(data={'token': token_value})
+        serializer.is_valid(raise_exception=True)
+        return self._verify(serializer.validated_data['token'])
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self._verify(serializer.validated_data['token'])
+
+    def _verify(self, token_value):
+        user = verify_email_token(token_value)
+        if not user:
+            raise exceptions.ValidationError({'token': 'Lien de validation invalide ou expire.'})
+        return Response({'status': 'verified', 'email': user.email}, status=status.HTTP_200_OK)
+
+
+class ResendEmailVerificationView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.is_verified:
+            return Response({'status': 'already_verified'}, status=status.HTTP_200_OK)
+        send_email_verification(request.user, request)
+        return Response({'status': 'sent'}, status=status.HTTP_200_OK)
+
+
+class PasswordResetRequestView(generics.GenericAPIView):
+    serializer_class = PasswordResetRequestSerializer
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = User.objects.filter(email__iexact=serializer.validated_data['email']).first()
+        if user:
+            send_password_reset(user, request)
+        return Response({'status': 'sent_if_account_exists'}, status=status.HTTP_200_OK)
+
+
+class PasswordResetConfirmView(generics.GenericAPIView):
+    serializer_class = PasswordResetConfirmSerializer
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = reset_password(
+            serializer.validated_data['token'],
+            serializer.validated_data['password'],
+        )
+        if not user:
+            raise exceptions.ValidationError({'token': 'Lien de reinitialisation invalide ou expire.'})
+        return Response({'status': 'password_changed'}, status=status.HTTP_200_OK)
+
+
+class LogoutView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            refresh_token = request.data.get('refresh')
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            return Response({'message': 'Deconnecte avec succes'}, status=status.HTTP_200_OK)
+        except Exception:
+            return Response({'message': 'Deconnecte'}, status=status.HTTP_200_OK)
+
+
+class AccountClosureRequestViewSet(viewsets.ModelViewSet):
+    serializer_class = AccountClosureRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in {'approve', 'reject', 'process_due'}:
+            return [permissions.IsAdminUser()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        queryset = AccountClosureRequest.objects.select_related('user', 'reviewed_by').order_by('-created_at')
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(user=self.request.user)
+        status_name = self.request.query_params.get('status')
+        if status_name:
+            queryset = queryset.filter(status=status_name)
+        return queryset
+
+    def perform_create(self, serializer):
+        closure_request = create_account_closure_request(
+            user=self.request.user,
+            request_type=serializer.validated_data['request_type'],
+            reason=serializer.validated_data.get('reason', ''),
+            requested_for=serializer.validated_data.get('requested_for'),
+        )
+        serializer.instance = closure_request
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        closure_request = self.get_object()
+        if closure_request.status == 'processed':
+            raise exceptions.ValidationError({'status': 'Une demande deja traitee ne peut pas etre annulee.'})
+        closure_request.status = 'cancelled'
+        closure_request.save(update_fields=['status', 'updated_at'])
+        return Response(self.get_serializer(closure_request).data)
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        serializer = AccountClosureReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        closure_request = self.get_object()
+        closure_request.status = 'approved'
+        closure_request.admin_reason = serializer.validated_data.get('reason', '')
+        closure_request.reviewed_by = request.user
+        closure_request.reviewed_at = timezone.now()
+        closure_request.save(update_fields=['status', 'admin_reason', 'reviewed_by', 'reviewed_at', 'updated_at'])
+        return Response(self.get_serializer(closure_request).data)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        serializer = AccountClosureReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        closure_request = self.get_object()
+        closure_request.status = 'rejected'
+        closure_request.admin_reason = serializer.validated_data.get('reason', '')
+        closure_request.reviewed_by = request.user
+        closure_request.reviewed_at = timezone.now()
+        closure_request.save(update_fields=['status', 'admin_reason', 'reviewed_by', 'reviewed_at', 'updated_at'])
+        return Response(self.get_serializer(closure_request).data)
+
+    @action(detail=True, methods=['post'])
+    def process(self, request, pk=None):
+        closure_request = self.get_object()
+        if not request.user.is_staff and closure_request.user_id != request.user.id:
+            raise exceptions.PermissionDenied()
+        processed = process_account_closure_request(closure_request)
+        return Response(self.get_serializer(processed).data)
+
+    @action(detail=False, methods=['post'], url_path='process-due')
+    def process_due(self, request):
+        processed = process_due_account_closure_requests()
+        return Response({'processed': processed})
+
+
+class EmailChangeSupportRequestViewSet(viewsets.ModelViewSet):
+    serializer_class = EmailChangeSupportRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in {'resolve', 'reject'}:
+            return [permissions.IsAdminUser()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        queryset = EmailChangeSupportRequest.objects.select_related('user', 'reviewed_by').order_by('-created_at')
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(user=self.request.user)
+        status_name = self.request.query_params.get('status')
+        if status_name:
+            queryset = queryset.filter(status=status_name)
+        return queryset
+
+    def perform_create(self, serializer):
+        support_request = create_email_change_support_request(
+            user=self.request.user,
+            requested_email=serializer.validated_data['requested_email'],
+            reason=serializer.validated_data.get('reason', ''),
+        )
+        serializer.instance = support_request
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        support_request = self.get_object()
+        if support_request.user_id != request.user.id and not request.user.is_staff:
+            raise exceptions.PermissionDenied()
+        support_request.status = 'cancelled'
+        support_request.save(update_fields=['status', 'updated_at'])
+        return Response(self.get_serializer(support_request).data)
+
+    @action(detail=True, methods=['post'])
+    def resolve(self, request, pk=None):
+        serializer = AccountClosureReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        support_request = self.get_object()
+        support_request.status = 'resolved'
+        support_request.admin_reason = serializer.validated_data.get('reason', '')
+        support_request.reviewed_by = request.user
+        support_request.reviewed_at = timezone.now()
+        support_request.save(update_fields=[
+            'status',
+            'admin_reason',
+            'reviewed_by',
+            'reviewed_at',
+            'updated_at',
+        ])
+        notify_user(
+            support_request.user,
+            'email_change_support_resolved',
+            message=support_request.admin_reason or 'Votre demande de changement email a ete traitee.',
+            data={'email_change_request_id': str(support_request.id)},
+        )
+        return Response(self.get_serializer(support_request).data)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        serializer = AccountClosureReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        support_request = self.get_object()
+        support_request.status = 'rejected'
+        support_request.admin_reason = serializer.validated_data.get('reason', '')
+        support_request.reviewed_by = request.user
+        support_request.reviewed_at = timezone.now()
+        support_request.save(update_fields=[
+            'status',
+            'admin_reason',
+            'reviewed_by',
+            'reviewed_at',
+            'updated_at',
+        ])
+        notify_user(
+            support_request.user,
+            'email_change_support_rejected',
+            message=support_request.admin_reason or 'Votre demande de changement email a ete refusee.',
+            data={'email_change_request_id': str(support_request.id)},
+        )
+        return Response(self.get_serializer(support_request).data)

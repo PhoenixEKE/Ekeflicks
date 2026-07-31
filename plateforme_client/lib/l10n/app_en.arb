@@ -1,0 +1,2341 @@
+{
+  "@@locale": "en",
+  "nouveautes": "New Releases",
+  "@nouveautes": {
+    "description": "Title for the New Releases section"
+  },
+  "populaires": "Popular",
+  "@populaires": {
+    "description": "Title for the Popular section"
+  },
+  "leRoiDuDesert": "The Desert King",
+  "@leRoiDuDesert": {
+    "description": "Title of a specific movie"
+  },
+  "nouveauFilm": "New Movie",
+  "@nouveauFilm": {
+    "description": "Generic title for new movies"
+  },
+  "populaire": "Popular",
+  "@populaire": {
+    "description": "Generic title for popular items"
+  },
+  "featureTvTitle": "Enjoy on your TV",
+  "@featureTvTitle": {
+    "description": "Title for TV feature"
+  },
+
+  "featureTvDesc": "Watch on smart TVs, phones, Xbox, Chromecast, Apple TV, Blu-ray players and more.",
+  "@featureTvDesc": {
+    "description": "Description of TV feature"
+  },
+
+  "featureAnywhereTitle": "Watch anywhere",
+  "@featureAnywhereTitle": {
+    "description": "Title for anywhere feature"
+  },
+
+  "featureAnywhereDesc": "Unlimited streaming of movies and series on phone, tablet, computer and TV.",
+  "@featureAnywhereDesc": {
+    "description": "Description of anywhere feature"
+  },
+
+  "featureOfflineTitle": "Watch offline",
+  "@featureOfflineTitle": {
+    "description": "Title for offline feature"
+  },
+
+  "featureOfflineDesc": "Download your series to watch offline.",
+  "@featureOfflineDesc": {
+    "description": "Description of offline feature"
+  },
+
+  "featureStreamingTitle": "Get comfortable",
+  "@featureStreamingTitle": {
+    "description": "Title for streaming feature"
+  },
+
+  "featureStreamingDesc": "EKEFlicks, the African streaming platform.",
+  "@featureStreamingDesc": {
+    "description": "Description of streaming feature"
+  },
+
+  "footerCopyright": "© 2023 EkeFlicks. All rights reserved.",
+  "@footerCopyright": {
+    "description": "Copyright text"
+  },
+  "footerContact": "Contact",
+  "@footerContact": {
+    "description": "Contact section title"
+  },
+  "footerEmail": "Email",
+  "@footerEmail": {
+    "description": "Email label"
+  },
+  "footerPhone": "Phone",
+  "@footerPhone": {
+    "description": "Phone label"
+  },
+  "footerWhatsApp": "WhatsApp",
+  "@footerWhatsApp": {
+    "description": "WhatsApp label"
+  },
+  "footerCompany": "Company",
+  "@footerCompany": {
+    "description": "Company section title"
+  },
+  "footerPrivacyPolicy": "Privacy Policy",
+  "@footerPrivacyPolicy": {
+    "description": "Privacy policy link"
+  },
+  "footerTerms": "Terms of Service",
+  "@footerTerms": {
+    "description": "Terms link"
+  },
+  
+  "faq": "FAQ",
+  "@faq": {
+    "description": "Button to access the FAQ"
+  },
+  "changeLanguage": "Change language",
+  "@changeLanguage": {
+    "description": "Language button tooltip"
+  },
+  "selectLanguage": "Select Language",
+  "@selectLanguage": {
+    "description": "Language selection dialog title"
+  },
+  "lightTheme": "Light theme",
+  "@lightTheme": {
+    "description": "Light theme tooltip"
+  },
+  "darkTheme": "Dark theme",
+  "@darkTheme": {
+    "description": "Dark theme tooltip"
+  },
+  "connexion": "Login",
+  "@connexion": {
+    "description": "Login button text"
+  },
+  "menu": "Menu",
+  "@menu": {
+    "description": "Menu button tooltip"
+  },
+  "sinscrire": "Sign Up",
+  "@sinscrire": {
+    "description": "Sign up button text"
+  },
+  "play": "Play",
+  "@play": {
+    "description": "Play button label"
+  },
+  "pause": "Pause",
+  "@pause": {
+    "description": "Pause button label"
+  },
+  "mute": "Mute",
+  "@mute": {
+    "description": "Mute button label"
+  },
+  "unmute": "Unmute",
+  "@unmute": {
+    "description": "Unmute button label"
+  },
+  "subtitlesOn": "Subtitles ON",
+  "@subtitlesOn": {
+    "description": "Subtitles enabled label"
+  },
+  "subtitlesOff": "Subtitles OFF",
+  "@subtitlesOff": {
+    "description": "Subtitles disabled label"
+  },
+  "fullscreen": "Fullscreen",
+  "@fullscreen": {
+    "description": "Enter fullscreen label"
+  },
+  "exitFullscreen": "Exit fullscreen",
+  "@exitFullscreen": {
+    "description": "Exit fullscreen label"
+  },
+  "videoPlaybackError": "Video playback error",
+  "@videoPlaybackError": {
+    "description": "Video error message"
+  },
+  "retry": "Retry",
+  "@retry": {
+    "description": "Retry button label"
+  },
+  "trailer": "Trailer",
+  "@trailer": {
+    "description": "Trailer button label"
+  },
+  "share": "Share",
+  "@share": {
+    "description": "Share button label"
+  },
+  "download": "Download",
+  "@download": {
+    "description": "Download button label"
+  },
+  "favorites": "Add to favorites",
+  "@favorites": {
+    "description": "Add to favorites label"
+  },
+  "addToList": "Add to list",
+  "@addToList": {
+    "description": "Add to list button label"
+  },
+  "synopsis": "Synopsis",
+  "@synopsis": {
+    "description": "Synopsis section title"
+  },
+  "seeMore": "See more",
+  "@seeMore": {
+    "description": "See more text"
+  },
+  "seeLess": "See less",
+  "@seeLess": {
+    "description": "See less text"
+  },
+  "seasons": "seasons",
+  "@seasons": {
+    "description": "Seasons label"
+  },
+  "contactUs": "Contact Us",
+  "@contactUs": {
+    "description": "Contact form title"
+  },
+  "name": "Name",
+  "@name": {
+    "description": "Name field label"
+  },
+  "fieldRequired": "This field is required",
+  "@fieldRequired": {
+    "description": "Required field error"
+  },
+  "email": "Email",
+  "@email": {
+    "description": "Email field label"
+  },
+  "invalidEmail": "Please enter a valid email",
+  "@invalidEmail": {
+    "description": "Email validation error"
+  },
+  "message": "Message",
+  "@message": {
+    "description": "Message field label"
+  },
+  "send": "Send",
+  "@send": {
+    "description": "Send button label"
+  },
+  "orContactUsMobile": "Or contact us via:",
+  "@orContactUsMobile": {
+    "description": "Alternative contact methods text"
+  },
+  
+  "popupTitreAccueil": "Welcome to Ekeflicks!\n Africa shines on the big screen, with its unique and captivating stories.\n",
+  "@popupTitreAccueil": {
+    "description": "Title of the welcome popup"
+  },
+  "popupTexteAccueil": "Also discover movies from around the world, with unlimited access starting at {prix}, cancellable at any time.",
+  "@popupTexteAccueil": {
+    "description": "Content text of the welcome popup",
+    "placeholders": {
+      "prix": {}
+    }
+  },
+  
+  "fermer": "Close",
+  "@fermer": {
+    "description": "Close button text"
+  },
+  
+  "changerDeLangue": "Change language",
+  "@changerDeLangue": {
+    "description": "Language change option text"
+  },
+  
+  
+  "politiqueConfidentialite": "Privacy policy",
+  "@politiqueConfidentialite": {
+    "description": "Privacy policy link text"
+  },
+  
+  "conditionsUtilisation": "Terms of use",
+  "@conditionsUtilisation": {
+    "description": "Terms of use link text"
+  },
+  
+  "contact": "Contact",
+  "@contact": {
+    "description": "Contact section title"
+  },
+  
+  "changerDeTheme": "Change theme",
+  "@changerDeTheme": {
+    "description": "Theme change option text"
+  },
+  
+  "rechercher": "Search",
+  "@rechercher": {
+    "description": "Search field placeholder"
+  },
+
+  "continueWatching": "Continue Watching",
+  "@continueWatching": {
+    "description": "Title for continue watching section"
+  },
+
+  "recommended": "Recommended",
+  "@recommended": {
+    "description": "Title for recommended content section"
+  },
+
+  "popular": "Popular",
+  "@popular": {
+    "description": "Title for popular content section"
+  },
+
+  "newReleases": "New Releases",
+  "@newReleases": {
+    "description": "Title for new releases section"
+  },
+
+  "directorLabel": "Director",
+  "@directorLabel": {
+    "description": "Label for the director name"
+  },
+
+  "castLabel": "Cast",
+  "@castLabel": {
+    "description": "Label for the list of actors"
+  },
+
+  "seasonsLabel": "Seasons",
+  "@seasonsLabel": {
+    "description": "Section title for the list of seasons"
+  },
+
+  "seasonsPlaceholder": "Season list coming soon.",
+  "@seasonsPlaceholder": {
+    "description": "Placeholder text for seasons when data is missing"
+  },
+
+  "similarContentLabel": "Similar Content",
+  "@similarContentLabel": {
+    "description": "Title for similar content section"
+  },
+
+  "featureTvTitle": "Enjoy on your TV",
+  "@featureTvTitle": {
+    "description": "Title for TV feature"
+  },
+
+  "featureTvDesc": "Watch on smart TVs, phones, Xbox, Chromecast, Apple TV, Blu-ray players and more.",
+  "@featureTvDesc": {
+    "description": "Description of TV feature"
+  },
+
+  "featureAnywhereTitle": "Watch anywhere",
+  "@featureAnywhereTitle": {
+    "description": "Title for anywhere feature"
+  },
+
+  "featureAnywhereDesc": "Unlimited streaming of movies and series on phone, tablet, computer and TV.",
+  "@featureAnywhereDesc": {
+    "description": "Description of anywhere feature"
+  },
+
+  "featureOfflineTitle": "Watch offline",
+  "@featureOfflineTitle": {
+    "description": "Title for offline feature"
+  },
+
+  "linkOpenError": "Could not open link",
+  "@linkOpenError": {
+    "description": "Error message when failing to open a URL link"
+  },
+
+  "footerLegal": "Legal",
+  "@footerLegal": {
+    "description": "Title for the legal section in the footer"
+  },
+
+  "footerCookies": "Cookies Policy",
+  "@footerCookies": {
+    "description": "Label for the cookies policy link in the footer"
+  },
+
+  "footerDownloadApp": "Download the App",
+  "@footerDownloadApp": {
+    "description": "Title for the app download section in the footer"
+  },
+
+  "footerPaymentMethods": "Payment Methods",
+  "@footerPaymentMethods": {
+    "description": "Title for the payment methods section in the footer"
+  },
+
+  "noFeaturedContent": "No featured content available",
+  "@noFeaturedContent": {
+    "description": "Shown when there are no featured contents to display"
+  },
+  "videoNotAvailable": "Video not available",
+  "@videoNotAvailable": {
+    "description": "Message shown when video content is unavailable"
+  },
+  "retry": "Retry",
+  "@retry": {
+    "description": "Text for retry button"
+  },
+  "footerPaymentMethods": "Payment Methods",
+  "@footerPaymentMethods": {
+    "description": "Title for the payment methods section in the footer"
+  },
+  "footerFollowUs": "Follow us on",
+  "@footerFollowUs": {
+    "description": "Invitation to follow on social media"
+  },
+  "seasons": "Seasons",
+  "@seasons": {
+    "description": "Title of section listing series seasons"
+  },
+
+  "season": "Season",
+  "@season": {
+    "description": "Title of section a serie season"
+  },
+
+  "episodes": "Episodes",
+  "@episodes": {
+    "description": "Title of section listing episodes"
+  },
+
+  "episode": "Episode",
+  "@episode": {
+    "description": "Title of section one episode"
+  },
+
+  "similarContent": "Similar content",
+  "@similarContent": {
+    "description": "Title for section showing similar content"
+  },
+
+  "distribution": "Cast & Crew",
+  "@distribution": {
+    "description": "Title of the section showing the cast and crew of the movie or show"
+  },
+
+  "noDescriptionAvailable": "No description available",
+  "@noDescriptionAvailable": {
+    "description": "Default message when there is no description"
+  },
+
+  
+  "nouveautes": "New Releases",
+  "@nouveautes": {
+    "description": "Title for the New Releases section"
+  },
+
+  "nouveauFilm": "New Movie",
+  "@nouveauFilm": {
+    "description": "Prefix for a new movie title with number"
+  },
+
+  "populaires": "Popular",
+  "@populaires": {
+    "description": "Title for the Popular section"
+  },
+
+  "popularGenres": "Popular Genres",
+  "@popularGenres": {
+    "description": "Title for the section displaying popular genres"
+  },
+
+  "genres": "Genres",
+  "@genres": {
+    "description": "Title for the section displaying genres"
+  },
+
+  "populaire": "Popular",
+  "@populaire": {
+    "description": "Prefix for a popular movie title with number"
+  },
+
+  "seriesAfricaines": "African Series",
+  "@seriesAfricaines": {
+    "description": "Title for the African Series section"
+  },
+
+  "serieAfrique": "African Series",
+  "@serieAfrique": {
+    "description": "Prefix for an African series title with number"
+  },
+
+  "voirLesFilms": "View All Movies",
+  "@voirLesFilms": {
+    "description": "Button text to view all movies"
+  },
+
+  "changerDeLangue": "Change Language",
+  "@changerDeLangue": {
+    "description": "Tooltip text for language change button"
+  },
+
+  "sinscrire": "Sign Up",
+  "@sinscrire": {
+    "description": "Sign up button text"
+  },
+
+  "connexion": "Login",
+  "@connexion": {
+    "description": "Login button text"
+  },
+
+  "changerDeTheme": "Change Theme",
+  "@changerDeTheme": {
+    "description": "Tooltip text for theme change button"
+  },
+
+  "regarder": "Watch",
+  "@regarder": {
+    "description": "Label for watch movie button"
+  },
+
+  "infos": "Info",
+  "@infos": {
+    "description": "Label for movie info button"
+  },
+
+  "offresAbonnement": "Subscription Plans",
+  "@offresAbonnement": {
+    "description": "Title for subscription plans block"
+  },
+
+  "plan": "Plan",
+  "@plan": {
+    "description": "Prefix for subscription plan number"
+  },
+
+  "descriptionPlan": "Subscription plan description",
+  "@descriptionPlan": {
+    "description": "Description text in a subscription plan card"
+  },
+
+  "souscrire": "Subscribe",
+  "@souscrire": {
+    "description": "Button text to subscribe to a plan"
+  },
+
+  "mentionLegale": "Legal Notice",
+  "@mentionLegale": {
+    "description": "Footer text for legal notices"
+  },
+
+  "contact": "Contact",
+  "@contact": {
+    "description": "Footer text for contact information"
+  },
+
+  "noBannersAvailable": "No banners available",
+  "@noBannersAvailable": {
+    "description": "Message displayed when there are no banners"
+  },
+
+  "leRoiDuDesert": "The Desert King",
+  "@leRoiDuDesert": {
+    "description": "Title of the movie The Desert King"
+  },
+
+  "descLeRoiDuDesert": "An epic drama available now.",
+  "@descLeRoiDuDesert": {
+    "description": "Description of The Desert King movie"
+  },
+
+  "etoileDuNord": "The North Star",
+  "@etoileDuNord": {
+    "description": "Title of the movie The North Star"
+  },
+
+  "descEtoileDuNord": "An exciting adventure awaits you.",
+  "@descEtoileDuNord": {
+    "description": "Description of The North Star movie"
+  },
+
+  "coeurAfricain": "African Heart",
+  "@coeurAfricain": {
+    "description": "Title of the movie African Heart"
+  },
+
+  "descCoeurAfricain": "A journey to the heart of tradition.",
+  "@descCoeurAfricain": {
+    "description": "Description of African Heart movie"
+  },
+
+  "fonctionnalites": "Features",
+  "@fonctionnalites": {
+    "description": "Title for the Features section"
+  },
+
+  "featureTvTitle": "Enjoy on your TV",
+  "@featureTvTitle": {
+    "description": "Title for TV feature"
+  },
+
+  "featureTvDesc": "Watch on smart TVs, phones, Xbox, Chromecast, Apple TV, Blu-ray players and more.",
+  "@featureTvDesc": {
+    "description": "Description of TV feature"
+  },
+
+  "featureAnywhereTitle": "Watch anywhere",
+  "@featureAnywhereTitle": {
+    "description": "Title for anywhere feature"
+  },
+
+  "featureAnywhereDesc": "Unlimited streaming of movies and series on phone, tablet, computer and TV.",
+  "@featureAnywhereDesc": {
+    "description": "Description of anywhere feature"
+  },
+
+  "featureOfflineTitle": "Watch offline",
+  "@featureOfflineTitle": {
+    "description": "Title for offline feature"
+  },
+
+  "featureOfflineDesc": "Download your series to watch offline.",
+  "@featureOfflineDesc": {
+    "description": "Description of offline feature"
+  },
+
+  "featureStreamingTitle": "Get comfortable",
+  "@featureStreamingTitle": {
+    "description": "Title for streaming feature"
+  },
+
+  "featureStreamingDesc": "EKEFlicks, the African streaming platform.",
+  "@featureStreamingDesc": {
+    "description": "Description of streaming feature"
+  },
+
+  "footerContact": "Contact",
+  "@footerContact": {
+    "description": "Title for contact section in footer"
+  },
+
+  "footerEmail": "Email",
+  "@footerEmail": {
+    "description": "Label for email contact"
+  },
+
+  "footerPhone": "Phone",
+  "@footerPhone": {
+    "description": "Label for phone contact"
+  },
+
+  "footerWhatsApp": "WhatsApp",
+  "@footerWhatsApp": {
+    "description": "Label for WhatsApp contact"
+  },
+
+  "footerCompany": "Company",
+  "@footerCompany": {
+    "description": "Label for company section"
+  },
+
+  "footerPrivacyPolicy": "Privacy Policy",
+  "@footerPrivacyPolicy": {
+    "description": "Link to privacy policy"
+  },
+
+  "footerTerms": "Terms of Use",
+  "@footerTerms": {
+    "description": "Link to terms of use"
+  },
+
+  "footerDownloadApp": "Download on mobile",
+  "@footerDownloadApp": {
+    "description": "Short invitation to download the app"
+  },
+
+  "footerPaymentMethods": "Payment Methods",
+  "@footerPaymentMethods": {
+    "description": "Title for payment methods section"
+  },
+
+  "footerCopyright": "© 2026 EKEflicks - EPHRATA, All rights reserved. Developed by EPHRATA.",
+  "@footerCopyright": {
+    "description": "Copyright message"
+  },
+
+  "menu": "Menu",
+  "@menu": {
+    "description": "Tooltip text or label for menu button"
+  },
+
+  "politiqueConfidentialite": "Privacy Policy",
+  "@politiqueConfidentialite": {
+    "description": "Title for privacy policy"
+  },
+
+  "conditionsUtilisation": "Terms of Use",
+  "@conditionsUtilisation": {
+    "description": "Title for terms of use"
+  },
+
+  "abonnementTitre": "Subscription Title",
+  "@abonnementTitre": {
+    "description": "Title for subscription section"
+  },
+
+  "abonnementDesc": "Subscription description",
+  "@abonnementDesc": {
+    "description": "Description text for subscription"
+  },
+
+  "footerFollowUs": "Follow us on",
+  "@footerFollowUs": {
+    "description": "Invitation to follow on social media"
+  },
+
+  "connexionTitre": "Login",
+  "@connexionTitre": {
+    "description": "Login page title"
+  },
+
+  "emailObligatoire": "Email required",
+  "@emailObligatoire": {
+    "description": "Error message if email is empty"
+  },
+
+  "emailInvalide": "Invalid email address",
+  "@emailInvalide": {
+    "description": "Error message if email format is invalid"
+  },
+
+  "motDePasse": "Password",
+  "@motDePasse": {
+    "description": "Password field label"
+  },
+
+  "motDePasseObligatoire": "Password required",
+  "@motDePasseObligatoire": {
+    "description": "Error message if password is empty"
+  },
+
+  "motDePasseTropCourt": "Password must contain at least 8 characters",
+  "@motDePasseTropCourt": {
+    "description": "Error message if password is too short"
+  },
+
+  "motDePasseOublie": "Forgot password?",
+  "@motDePasseOublie": {
+    "description": "Link to reset password"
+  },
+
+  "seConnecter": "Sign In",
+  "@seConnecter": {
+    "description": "Button text to sign in"
+  },
+
+  "pasEncoreCompte": "Don't have an account yet?",
+  "@pasEncoreCompte": {
+    "description": "Invitation to sign up"
+  },
+
+  "connexionReussie": "Login successful!",
+  "@connexionReussie": {
+    "description": "Message displayed after successful login"
+  },
+
+  "retour": "Back",
+  "@retour": {
+    "description": "Tooltip for back button"
+  },
+
+  "valider": "Validate",
+  "@valider": {
+    "description": "Button text to validate a form"
+  },
+
+  "retourConnexion": "Back to login page?",
+  "@retourConnexion": {
+    "description": "Text inviting to return to login page"
+  },
+
+  "emailEnvoye": "If this email exists, a reset link has been sent.",
+  "@emailEnvoye": {
+    "description": "Message after sending reset form"
+  },
+
+  "inscriptionTitre": "Create your account",
+  "@inscriptionTitre": {
+    "description": "Sign up page title"
+  },
+
+  "nom": "Last Name",
+  "@nom": {
+    "description": "Last name field label"
+  },
+
+  "prenom": "First Name",
+  "@prenom": {
+    "description": "First name field label"
+  },
+
+  "nomObligatoire": "Last name is required",
+  "@nomObligatoire": {
+    "description": "Error message if last name is empty"
+  },
+
+  "prenomObligatoire": "First name is required",
+  "@prenomObligatoire": {
+    "description": "Error message if first name is empty"
+  },
+
+  "acceptationTexte1": "By clicking Create, you accept our",
+  "@acceptationTexte1": {
+    "description": "Text before terms and policy links"
+  },
+
+  "et": "and",
+  "@et": {
+    "description": "Connecting word between terms and policy"
+  },
+
+  "inscriptionReussie": "Sign up successful",
+  "@inscriptionReussie": {
+    "description": "Message after successful sign up"
+  },
+
+  "nomTropCourt": "Last name must contain at least 3 characters.",
+  "@nomTropCourt": {
+    "description": "Error message if last name is too short"
+  },
+
+  "prenomTropCourt": "First name must contain at least 3 characters.",
+  "@prenomTropCourt": {
+     "description": "Error message if first name is too short"
+  },
+  
+  "termsTitle": "EKEflicks Terms of Use",
+  "@termsTitle": {
+    "description": "Main title for terms of use"
+  },
+
+  "termsIntro": "Welcome to Ekeflicks, your streaming platform dedicated to African cinema. By using our service, you accept these Terms of Use. Please read them carefully.",
+  "@termsIntro": {
+    "description": "Introduction to terms of use"
+  },
+
+  "terms1Title": "1. Acceptance of Terms",
+  "@terms1Title": {
+    "description": "Title for acceptance section"
+  },
+
+  "terms1Content": "By accessing or using our platform, you agree to comply with these Terms of Use and all applicable laws and regulations. If you do not accept these terms, please do not use our service.",
+  "@terms1Content": {
+    "description": "Text for acceptance section"
+  },
+
+  "terms2Title": "2. Modification of Terms",
+  "@terms2Title": {
+    "description": "Title for modifications section"
+  },
+
+  "terms2Content": "We reserve the right to modify these Terms of Use at any time. Changes will take effect upon publication on our site. Your continued use of our service after any changes constitutes your acceptance of the new terms.",
+  "@terms2Content": {
+    "description": "Text about modifications"
+  },
+
+  "terms3Title": "3. User Account",
+  "@terms3Title": {
+    "description": "Title for user account section"
+  },
+
+  "terms3Content": "3.1. Registration\nTo access certain features of our service, you must create an account. You must provide accurate and complete information during registration and update this information if necessary.\n\n3.2. Responsibility\nYou are responsible for the confidentiality of your login credentials and all activities that occur under your account. You must immediately inform us of any unauthorized use of your account.",
+  "@terms3Content": {
+    "description": "Text about user account"
+  },
+
+  "terms4Title": "4. Use of Service",
+  "@terms4Title": {
+    "description": "Title for service use section"
+  },
+
+  "terms4Content": "4.1. Access\nWe grant you a limited, non-exclusive, non-transferable and revocable right to use our service for your personal and non-commercial use.\n\n4.2. Restrictions\nYou agree not to reproduce, distribute, modify, transmit, display, perform, publish, create derivative works or exploit in any way any content from our service without our prior authorization.",
+  "@terms4Content": {
+    "description": "Text about use and restrictions"
+  },
+
+  "terms5Title": "5. Content",
+  "@terms5Title": {
+    "description": "Title for content section"
+  },
+
+  "terms5Content": "5.1. Ownership\nAll content available on Ekeflicks, including videos, images, texts, and graphics, is protected by copyright and other intellectual property rights.\n\n5.2. License\nBy accessing our service, we grant you a limited license to view content only for your personal and non-commercial use.",
+  "@terms5Content": {
+    "description": "Text about content and ownership"
+  },
+
+  "terms6Title": "6. Subscriptions and Payments",
+  "@terms6Title": {
+    "description": "Title for subscriptions and payments section"
+  },
+
+  "terms6Content": "6.1. Subscriptions\nOur subscriptions are subject to the terms of the current offer. Subscription fees may vary and will be clearly indicated at registration.\n\n6.2. Payment\nYou agree to provide valid payment information and pay all applicable fees for your subscription. We reserve the right to suspend or terminate your access if payment is declined.",
+  "@terms6Content": {
+    "description": "Text about subscriptions and payments"
+  },
+
+  "terms7Title": "7. Termination",
+  "@terms7Title": {
+    "description": "Title for termination section"
+  },
+
+  "terms7Content": "7.1. By you\nYou may cancel your subscription at any time through your account. Fees already paid will not be refunded for unused subscription periods.\n\n7.2. By us\nWe reserve the right to suspend or terminate your access to our service if you violate these Terms of Use.",
+  "@terms7Content": {
+    "description": "Text about termination terms"
+  },
+
+  "terms8Title": "8. Liability",
+  "@terms8Title": {
+    "description": "Title for liability section"
+  },
+
+  "terms8Content": "8.1. Limitation\nEkeflicks will not be liable for indirect, special, incidental or consequential damages resulting from your use or inability to use our service, even if we have been informed of the possibility of such damages.\n\n8.2. Indemnification\nYou agree to indemnify and hold Ekeflicks harmless from any claim or demand made by a third party related to your use of our service or violation of these Terms of Use.",
+  "@terms8Content": {
+    "description": "Text about limitation and indemnification"
+  },
+
+  "terms9Title": "9. Intellectual Property",
+  "@terms9Title": {
+    "description": "Title for intellectual property section"
+  },
+
+  "terms9Content": "All content and technologies used to provide our service are the property of Ekeflicks or its licensors. You acquire no ownership rights to the content by using our service.",
+  "@terms9Content": {
+    "description": "Text about intellectual property"
+  },
+
+  "terms10Title": "10. Applicable Laws",
+  "@terms10Title": {
+    "description": "Title for applicable laws section"
+  },
+
+  "terms10Content": "These Terms of Use are governed by the laws of Ivory Coast. Any dispute arising from or related to these terms will be submitted to the competent courts of France or Côte d'Ivoire.",
+  "@terms10Content": {
+    "description": "Text about applicable jurisdiction"
+  },
+
+  "terms11Title": "11. Contact",
+  "@terms11Title": {
+    "description": "Title for contact section"
+  },
+
+  "terms11Content": "Ekeflicks\n9 Jules Caesar Street, Bordeaux-France\n+33 06 84 57 69\n",
+  "@terms11Content": {
+    "description": "Contact text"
+  },
+
+  "terms12Content": "\nVITIB, Bassam-Côte d'Ivoire\n+225 07 16 09 69 40\n\nsupport@ekeflicks.com",
+  "@terms11Content": {
+    "description": "Contact text"
+  },
+
+  "privacyPolicyTitle": "EKEflicks Privacy Policy",
+  "@privacyPolicyTitle": {
+    "description": "Title of the Privacy Policy page"
+  },
+
+  "privacyPolicyIntro": "Welcome to EKEflicks' Privacy Policy. We place great importance on protecting your personal information. This policy explains how we collect, use, share and protect your data. By using our platform, you accept the practices described in this policy.",
+  "@privacyPolicyIntro": {
+    "description": "Introduction to Privacy Policy"
+  },
+
+  "section1Title": "1. Collected Information",
+  "@section1Title": {
+    "description": "Title for section 1"
+  },
+
+  "section1_1Title": "1.1. Information Provided by User",
+  "@section1_1Title": {
+    "description": "Title for subsection 1.1"
+  },
+
+  "section1_1Text": "When creating an account, subscribing to services or communicating with our support team, you may provide us with information such as your name, email address, billing address, etc.",
+  "@section1_1Text": {
+    "description": "Text for subsection 1.1"
+  },
+
+  "section1_2Title": "1.2. Automatically Collected Information",
+  "@section1_2Title": {
+    "description": "Title for subsection 1.2"
+  },
+
+  "section1_2Text": "We may automatically collect information through the use of cookies and similar technologies, such as login data, device information, IP address, etc.",
+  "@section1_2Text": {
+    "description": "Text for subsection 1.2"
+  },
+
+  "section2Title": "2. Use of Information",
+  "@section2Title": {
+    "description": "Title for section 2"
+  },
+
+  "section2_1Title": "2.1. Provision of Services",
+  "@section2_1Title": {
+    "description": "Title for subsection 2.1"
+  },
+
+  "section2_1Text": "We use your information to provide you with the requested services, including video streaming, user account management and payment processing.",
+  "@section2_1Text": {
+    "description": "Text for subsection 2.1"
+  },
+
+  "section2_2Title": "2.2. Service Improvement",
+  "@section2_2Title": {
+    "description": "Title for subsection 2.2"
+  },
+
+  "section2_2Text": "We use collected data to improve the quality of our services, personalize your user experience and develop new features.",
+  "@section2_2Text": {
+    "description": "Text for subsection 2.2"
+  },
+
+  "section2_3Title": "2.3. Communication with User",
+  "@section2_3Title": {
+    "description": "Title for subsection 2.3"
+  },
+
+  "section2_3Text": "We may use your information to send you service-related communications, updates, special offers and information about new content.",
+  "@section2_3Text": {
+    "description": "Text for subsection 2.3"
+  },
+
+  "section3Title": "3. Sharing of Information",
+  "@section3Title": {
+    "description": "Title for section 3"
+  },
+
+  "section3_1Title": "3.1. Sharing with Partners",
+  "@section3_1Title": {
+    "description": "Title for subsection 3.1"
+  },
+
+  "section3_1Text": "We may share certain information with trusted partners for the provision of additional services, such as payment processing.",
+  "@section3_1Text": {
+    "description": "Text for subsection 3.1"
+  },
+
+  "section3_2Title": "3.2. Legal Compliance",
+  "@section3_2Title": {
+    "description": "Title for subsection 3.2"
+  },
+
+  "section3_2Text": "We may disclose information in compliance with applicable laws, legal proceedings, and to protect our legal rights.",
+  "@section3_2Text": {
+    "description": "Text for subsection 3.2"
+  },
+
+  "section4Title": "4. Data Security",
+  "@section4Title": {
+    "description": "Title for section 4"
+  },
+
+  "section4Text": "We implement appropriate security measures to protect your information against unauthorized access, disclosure, alteration and destruction.",
+  "@section4Text": {
+    "description": "Text for section 4"
+  },
+
+  "section5Title": "5. User Rights",
+  "@section5Title": {
+    "description": "Title for section 5"
+  },
+
+  "section5Text": "You have the right to access your information, rectify it, delete it, or restrict its processing. To exercise these rights, please contact us at support@ekeflicks.com.",
+  "@section5Text": {
+    "description": "Text for section 5"
+  },
+
+  "section6Title": "6. Privacy Policy Changes",
+  "@section6Title": {
+    "description": "Title for section 6"
+  },
+
+  "section6Text": "We reserve the right to update this Privacy Policy. Any changes will be published on EKEflicks. By continuing to use our services after these changes, you accept the revised terms.",
+  "@section6Text": {
+    "description": "Text for section 6"
+  },
+
+  "privacyPolicyThanks": "Thank you for using EKEflicks. For any questions regarding this policy, please contact us at support@ekeflicks.com.",
+  "@privacyPolicyThanks": {
+    "description": "Acknowledgements at end of Privacy Policy"
+  },
+
+  "termsOfUseTitle": "Terms of Use",
+  "@termsOfUseTitle": {
+    "description": "Title for Terms of Use page"
+  },
+
+  "contactUs": "Contact Us",
+  "@contactUs": {
+    "description": "Title of contact form"
+  },
+
+  "message": "Message",
+  "@message": {
+    "description": "Message field"
+  },
+
+  "send": "Send",
+  "@send": {
+    "description": "Button to send message"
+  },
+
+  "fieldRequired": "This field is required.",
+  "@fieldRequired": {
+    "description": "Error message for empty field"
+  },
+
+  "invalidEmail": "Invalid email.",
+  "@invalidEmail": {
+    "description": "Error message for invalid email"
+  },
+
+  "orContactUsMobile": "Or contact us directly:",
+  "@orContactUsMobile": {
+    "description": "Text for WhatsApp and phone contacts section"
+  },
+
+  "seDeconnecter": "Log Out",
+  "@seDeconnecter": {
+    "description": "Button to log out and return to home page"
+  },
+
+  "etape1sur2": "Step 1 of 2",
+  "@etape1sur2": {
+    "description": "Progress indicator for step 1 of 2"
+  },
+
+  "choisissezVotreOffre": "Choose the offer that suits you",
+  "@choisissezVotreOffre": {
+    "description": "Introductory message for offer selection"
+  },
+
+  "resolution": "Resolution",
+  "@resolution": {
+    "description": "Label for offer resolution"
+  },
+
+  "appareilsPrisEnCharge": "Supported devices",
+  "@appareilsPrisEnCharge": {
+    "description": "Label for compatible devices with the offer"
+  },
+
+  "appareilsSimultanes": "Simultaneous devices allowed",
+  "@appareilsSimultanes": {
+    "description": "Label for number of simultaneous users"
+  },
+
+  "telechargement": "Devices allowed for download",
+  "@telechargement": {
+    "description": "Label for devices that can download videos"
+  },
+
+  "pubs": "Ads",
+  "@pubs": {
+    "description": "Indicates if the offer contains advertisements"
+  },
+
+  "suivant": "Next",
+  "@suivant": {
+    "description": "Button text to go to next step"
+  },
+
+  "texteExplicatifAbonnement": "If you select an offer with ads, we will ask you to provide your date of birth to personalize advertisements, as well as for other purposes in accordance with the Privacy Statement.\n\nAvailability of Full HD (1080p), Ultra HD (4K) and HDR depends on your internet connection and device capabilities. Not all content is available in all resolutions.\n\nOnly people who live with you can use your account. Live events are not included in the offers.",
+  "@texteExplicatifAbonnement": {
+    "description": "Information text under subscription offers"
+  },
+
+  "erreurAuthentification": "Authentication error, please try again.",
+  "@erreurAuthentification": {
+    "description": "Error message displayed when authentication fails"
+  },
+
+  "erreurInscription": "Registration error, please try again.",
+  "@erreurInscription": {
+    "description": "Error message displayed when registration fails"
+  },
+  
+  "prixParMois": "{price} / month",
+  "@prixParMois": {
+    "description": "Format to display monthly price",
+    "placeholders": {
+      "price": {
+        "type": "String",
+        "example": "9.99" 
+      }
+    }
+  },
+
+  "publicites": "Advertisements",
+  "@publicites": {
+    "description": "Label for advertisements"
+  },
+
+  "email": "Email",
+  "@email": {
+    "description": "Email field"
+  },
+
+  "name": "Name",
+  "@name": {
+    "description": "Name field"
+  },
+
+  "prixNonDisponible": "Price not available",
+  "@prixNonDisponible": {
+    "description": "Message displayed when price is not available"
+  },
+
+  "abonnementMensuel": "Monthly subscription",
+  "@abonnementMensuel": {
+    "description": "Label for monthly subscription"
+  },
+
+  "qualite": "Quality",
+  "@qualite": {
+    "description": "Label for video quality"
+  },
+
+  "step2of2": "Step 2 of 2",
+  "@step2of2": {
+    "description": "Text indicating step 2 of 2 in subscription process"
+  },
+
+  "chooseYourPaymentMethodForOffer": "Choose your payment method for the {offerTitle} offer ({offerPrice})",
+  "@chooseYourPaymentMethodForOffer": {
+    "description": "Main title of step 2 page inviting user to choose payment method. Variables: offerTitle, offerPrice",
+    "placeholders": {
+      "offerTitle": {},
+      "offerPrice": {}
+    }
+  },
+
+  "paymentSecureInfo": "Secure payment - End-to-end encrypted - Easy cancellation - Modifiable at any time.",
+  "@paymentSecureInfo": {
+    "description": "Informative message about payment security and flexibility"
+  },
+
+  "paymentPageComingSoon": "Payment page under development.",
+  "@paymentPageComingSoon": {
+    "description": "Message displayed when payment page is not yet available"
+  },
+
+  "continuerLecture": "Continue watching",
+  "@continuerLecture": {
+    "description": "Title for movies to continue section"
+  },
+  
+  "recommandePourVous": "Recommended for you",
+  "@recommandePourVous": {
+    "description": "Title for recommended movies"
+  },
+
+  "chatbot": "Assistant",
+  "@chatbot": {
+    "description": "Label for chatbot access button"
+  },
+
+  "films": "Movies",
+  "@films": {
+    "description": "Main menu Movies"
+  },
+
+  "series": "Series",
+  "@series": {
+    "description": "Main menu Series"
+  },
+
+  "documentaires": "Documentaries",
+  "@documentaires": {
+    "description": "Main menu Documentaries"
+  },
+
+  "telerealites": "Reality TV",
+  "@telerealites": {
+    "description": "Main menu Reality TV"
+  },
+
+  "live": "Live",
+  "@live": {
+    "description": "Main menu Live"
+  },
+
+  "explorerParPays": "Explore by country",
+  "@explorerParPays": {
+    "description": "Main menu Explore by country"
+  },
+
+  "rechercher": "Search...",
+  "@rechercher": {
+    "description": "Placeholder in search bar"
+  },
+
+  "notifications": "Notifications",
+  "@notifications": {
+    "description": "Icon or label Notifications"
+  },
+
+  "changerProfil": "Change profile",
+  "@changerProfil": {
+    "description": "Menu option to change user profile"
+  },
+
+  "compte": "Account",
+  "@compte": {
+    "description": "Menu option to access user account"
+  },
+
+  "deconnexion": "Log Out",
+  "@deconnexion": {
+    "description": "Menu option to log out"
+  },
+
+  "appTitle": "Ekeflicks",
+  "@appTitle": {
+    "description": "Main title of the application"
+  },
+
+  "newReleases": "New Releases",
+  "@newReleases": {
+    "description": "Section title for new content"
+  },
+
+  "popularOnEkeflicks": "Popular on Ekeflicks",
+  "@popularOnEkeflicks": {
+    "description": "Section title for trends"
+  },
+
+  "play": "Play",
+  "@play": {
+    "description": "Button text to play content"
+  },
+
+  "seeAll": "See All",
+  "@seeAll": {
+    "description": "Button text to display all items in a section"
+  },
+
+  "movies": "Movies",
+  "@movies": {
+    "description": "Label or title for the Movies section"
+  },
+
+  "serie": "Series",
+  "@serie": {
+    "description": "Prefix for series titles"
+  },
+
+  "newRelease": "New Release",
+  "@newRelease": {
+    "description": "Prefix for new release titles"
+  },
+
+  "recommended": "Recommended",
+  "@recommended": {
+    "description": "Prefix for recommended content titles"
+  },
+
+  "errorLoadingContent": "Error loading content",
+  "@errorLoadingContent": {
+    "description": "Error message when loading fails"
+  },
+  
+  "noContentAvailable": "No content available",
+  "@noContentAvailable": {
+    "description": "Message when no data is available"
+  }, 
+  
+  "addToList": "Add to my list",
+  "@addToList": {
+    "description": "Button to add content to user's list"
+  },
+
+  "addedToList": "Added to my list",
+  "@addedToList": {
+    "description": "Button to add content to user's list"
+  },
+  
+  "moreInfo": "More information",
+  "@moreInfo": {
+    "description": "Button to display content_info_sheet widget"
+  },
+
+  "removedFromList": "Removed from list",
+  "@removedFromList": {
+    "description": "Message displayed when an item is removed from the list"
+  },
+
+  "seeLess": "See less",
+  "@seeLess": {
+    "description": "Button to reduce or hide detailed information"
+  },
+
+  "seeMore": "See more",
+  "@seeMore": {
+    "description": "Button to expand detailed information"
+  },
+
+  "addedToWatchlist": "Added to your list",
+  "@addedToWatchlist": {
+    "description": "Confirmation message when an item is added"
+  },
+
+  "watchTrailer": "Trailer",
+  "@watchTrailer": {
+    "description": "Button label to watch trailer"
+  },
+
+  "moreDetails": "Show more details",
+  "@moreDetails": {
+    "description": "Button to display more information"
+  },
+
+  "hideDetails": "Hide details",
+  "@hideDetails": {
+    "description": "Button to hide technical information"
+  },
+
+  "yourRating": "Your rating:",
+  "@yourRating": {
+    "description": "Label to invite user to rate"
+  },
+
+  "technicalInformation": "Technical Information",
+  "@technicalInformation": {
+    "description": "Title for technical details section"
+  },
+
+  "labelDirector": "Director",
+  "@labelDirector": {
+    "description": "Label for director"
+  },
+
+  "labelActors": "Actors",
+  "@labelActors": {
+    "description": "Label for actors"
+  },
+
+  "labelGenre": "Genre",
+  "@labelGenre": {
+    "description": "Label for genre"
+  },
+
+  "labelLanguage": "Language",
+  "@labelLanguage": {
+    "description": "Label for language"
+  },
+
+  "labelYear": "Year",
+  "@labelYear": {
+    "description": "Label for year"
+  },
+
+  "labelCountry": "Country",
+  "@labelCountry": {
+    "description": "Label for country"
+  },
+
+  "notSpecified": "Not specified",
+  "@notSpecified": {
+    "description": "Default text when information is missing"
+  },
+
+  "myList": "My list",
+  "@myList": {
+    "description": "Label to add to list"
+  },
+
+  "share": "Share",
+  "@share": {
+    "description": "Share button"
+  },
+
+  "details": "Details",
+  "@details": {
+    "description": "Button to display details"
+  },
+  
+  "fermer": "Close",
+  "@fermer": {
+    "description": "Button to close dialogs or menus"
+  },
+
+  "noDescriptionAvailable": "No description available",
+  "@noDescriptionAvailable": {
+    "description": "Default message when there is no description"
+  },
+
+  "yes": "Yes",
+  "@yes": {
+    "description": "Affirmative answer"
+  },
+
+  "oui": "Yes",
+  "@oui": {
+    "description": "Affirmative answer"
+  },
+
+  "no": "No",
+  "@no": {
+    "description": "Negative answer"
+  },
+ 
+  "non": "No",
+  "@non": {
+    "description": "Negative answer"
+  },
+
+  "plus": "More",
+  "@plus": {
+    "description": "Menu containing Documentaries, Reality TV, Live"
+  },
+
+  "inWatchlist": "In my list",
+  "@inWatchlist": {
+    "description": "Text indicating content is in user's list"
+  },
+
+  "removedFromWatchlist": "Removed from my list",
+  "@removedFromWatchlist": {
+    "description": "Text displayed when content is removed from user's list"
+  },
+
+  "forKids": "For kids",
+  "@forKids": {
+    "description": "Label for kid-friendly content"
+  },
+
+  "videoNotAvailable": "Video not available",
+  "@videoNotAvailable": {
+    "description": "Message displayed when video cannot be played or is unavailable"
+  },
+
+  "addToWatchlist": "Add to my list",
+  "@addToWatchlist": {
+    "description": "Message displayed when content is added to user's list"
+  },
+
+  "loginRequired": "You must be logged in to access this feature.",
+  "@loginRequired": {
+    "description": "Message displayed when an action requires the user to be logged in."
+  },
+
+  "mute": "Mute",
+  "@mute": {
+    "description": "Tooltip for mute button"
+  },
+  "unmute": "Unmute",
+  "@unmute": {
+    "description": "Tooltip for unmute button"
+  },
+  "subtitlesOn": "Turn off subtitles",
+  "@subtitlesOn": {
+    "description": "Tooltip for disabling subtitles"
+  },
+  "subtitlesOff": "Turn on subtitles",
+  "@subtitlesOff": {
+    "description": "Tooltip for enabling subtitles"
+  },
+  "fullscreen": "Fullscreen",
+  "@fullscreen": {
+    "description": "Tooltip for entering fullscreen"
+  },
+  "exitFullscreen": "Exit fullscreen",
+  "@exitFullscreen": {
+    "description": "Tooltip for exiting fullscreen"
+  },
+
+  "download": "Download",
+  "@download": {
+    "description": "Button label to download video"
+  },
+
+  "downloading": "Downloading",
+  "@downloading": {
+    "description": "Text displayed during download start"
+  },
+
+  "trailer": "Trailer",
+  "@trailer": {
+    "description": "Button to watch trailer"
+  },
+
+  "share": "Share",
+  "@share": {
+    "description": "Button to share content"
+  },
+
+  "download": "Download",
+  "@download": {
+    "description": "Button to download content"
+  },
+
+  "favorites": "Favorites",
+  "@favorites": {
+    "description": "Button to add or remove from favorites"
+  },
+
+  "synopsis": "Synopsis",
+  "@synopsis": {
+    "description": "Title of section containing content summary"
+  },
+
+  "seasons": "Seasons",
+  "@seasons": {
+    "description": "Title of section listing series seasons"
+  },
+
+  "season": "Season",
+  "@season": {
+    "description": "Title of section a serie season"
+  },
+
+  "episodes": "Episodes",
+  "@episodes": {
+    "description": "Title of section listing episodes"
+  },
+
+  "episode": "Episode",
+  "@episode": {
+    "description": "Title of section one episode"
+  },
+
+  "similarContent": "Similar content",
+  "@similarContent": {
+    "description": "Title for section showing similar content"
+  },
+
+  "distribution": "Cast & Crew",
+  "@distribution": {
+    "description": "Title of the section showing the cast and crew of the movie or show"
+  },
+
+  "postLoginTitle": "Dashboard",
+  "@postLoginTitle": {
+    "description": "Title shown after successful login"
+  },
+  
+  "postLoginWelcome": "Welcome to your space",
+  "@postLoginWelcome": {
+    "description": "Welcome message on post-login page"
+  },
+  
+  "bienvenueRetour": "Good to see you again!",
+  "@bienvenueRetour": {
+    "description": "Welcome back message on login screen"
+  },
+
+  "allRightsReserved": "All rights reserved",
+  "@allRightsReserved": {
+    "description": "Legal message footer: all rights reserved"
+  },
+
+  "entrerEmailRecuperation": "Please enter your email address to reset your password.",
+  "@entrerEmailRecuperation": {
+    "description": "Instruction text on the password reset screen"
+  },
+
+  "ou": "or",
+  "@ou": {
+    "description": "Word used between two options (e.g. 'or' between buttons)"
+  },
+
+  "regarderMaintenant": "Watch now",
+  "@regarderMaintenant": {
+    "description": "Button text to start watching a tutorial"
+  },
+
+  "cliquerPourVoir": "Click to view",
+  "@cliquerPourVoir": {
+    "description": "Text for a button or link to view a tutorial"
+  },
+
+  "error": "Error",
+  "@error": {
+    "description": "Title of the error dialog"
+  },
+
+  "ok": "OK",
+  "@ok": {
+    "description": "Button text to close a dialog"
+  },
+
+  "loadingVideo": "Loading video...",
+  "@loadingVideo": {
+    "description": "Message shown while the video player is loading"
+  },
+
+  "acceptTermsError": "You must accept the terms of use.",
+  "@acceptTermsError": {
+    "description": "Error message displayed if the user doesn't accept terms during sign-up"
+  },
+
+  "inscriptionSousTitre": "Create your account to continue.",
+  "@inscriptionSousTitre": {
+    "description": "Subtitle on the sign-up screen"
+  },
+
+  "dejaUnCompte": "Already have an account?",
+  "@dejaUnCompte": {
+    "description": "Text prompting the user to sign in if they already have an account"
+  },
+
+  "connectezVous": "Sign in",
+  "@connectezVous": {
+    "description": "Text for the sign-in button or link"
+  },
+
+  "signUp": "Sign Up",
+  "@signUp": {
+    "description": "Button text or title for the sign-up page"
+  },
+
+  "continueWatching": "Continue Watching",
+  "@continueWatching": {
+    "description": "Title of the section showing content the user has already started"
+  },
+
+  "recommendedForYou": "Recommended for You",
+  "@recommendedForYou": {
+    "description": "Title of the section with recommended content for the user"
+  },
+
+  "adventure": "Adventure",
+  "@adventure": {
+    "description": "Genre for adventure movies or series"
+  },
+
+  "notificationsNonImpl": "Notifications are not yet implemented.",
+  "@notificationsNonImpl": {
+    "description": "Message shown when the notification feature is not available"
+  },
+
+  "newRelease": "New Release",
+  "@newRelease": {
+    "description": "Title of the section displaying newly added content"
+  },
+
+  "popularContent": "Popular Content",
+  "@popularContent": {
+    "description": "Title of the section showing trending or frequently watched content"
+  },
+
+  "home": "Home",
+  "@home": {
+    "description": "Label for the home tab or icon"
+  },
+
+  "search": "Search",
+  "@search": {
+    "description": "Label for the search tab or icon"
+  },
+
+  "profile": "Profile",
+  "@profile": {
+    "description": "Label for the user profile tab or icon"
+  },
+
+  "pause": "Pause",
+  "@pause": {
+    "description": "Libellé du bouton pour mettre en pause la vidéo"
+  },
+
+  "watchAgain": "Regarder à nouveau",
+  "@watchAgain": {
+    "description": "Bouton pour revoir un contenu déjà visionné"
+  },
+
+  "alreadyWatched": "Already watched",
+  "@alreadyWatched": {
+    "description": "Text shown when content has already been watched by the user",
+    "type": "text",
+    "placeholders": {}
+  },
+
+  "action": "Action",
+  "@action": {
+    "description": "Genre label for Action movies"
+  },
+  "comedy": "Comedy",
+  "@comedy": {
+    "description": "Genre label for Comedy movies"
+  },
+  "drama": "Drama",
+  "@drama": {
+    "description": "Genre label for Drama movies"
+  },
+  "sciFi": "Sci-Fi",
+  "@sciFi": {
+    "description": "Genre label for Science Fiction movies"
+  },
+
+  "documentary": "Documentary",
+  "@documentary": {
+    "description": "Genre label for Documentary films"
+  },
+
+  "videoPlaybackError": "An error occurred during playback.",
+  "@videoPlaybackError": {
+    "description": "Error message when video playback fails"
+  },
+
+  "retry": "Retry",
+  "@retry": {
+    "description": "Label for retry button after an error"
+  },
+  
+  "animation": "Animation",
+  "@animation": {
+    "description": "Label for the Animation genre"
+  },
+
+  "horror": "Horror",
+  "@horror": {
+    "description": "Label for the Horror genre"
+  },
+
+  "fantasy": "Fantasy",
+  "@fantasy": {
+    "description": "Label for the Fantasy genre"
+  },
+
+  "romance": "Romance",
+  "@romance": {
+    "description": "Label for the Romance genre"
+  },
+
+  "titles": "titles",
+  "@titles": {
+    "description": "Label used to indicate the number of titles (e.g. '12 titles')"
+  },
+
+  "allContents": "All titles",
+  "@allContents": {
+    "description": "Label used to indicate the list of all content items"
+  },
+
+  "adultProfile": "Adult Profile",
+  "@adultProfile": {
+    "description": "Label for adult user profile"
+  },
+
+  "childProfile": "Child Profile",
+  "@childProfile": {
+    "description": "Label for child user profile"
+  },
+
+  "guestProfile": "Guest",
+  "@guestProfile": {
+    "description": "Label for guest user profile"
+  },
+
+  "chooseProfile": "Choose a Profile",
+  "@chooseProfile": {
+    "description": "Title to choose user profile"
+  },
+
+  "addProfile": "Add Profile",
+  "@addProfile": {
+    "description": "Label for adding a new user profile"
+  },
+
+  "profileName": "Profile Name",
+  "@profileName": {
+    "description": "Field label for entering the profile name"
+  },
+
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel button label"
+  },
+
+  "save": "Save",
+  "@save": {
+    "description": "Save button label"
+  },
+
+  "profileChangedTo": "Profile changed to",
+  "@profileChangedTo": {
+    "description": "Message shown when user switches profile"
+  },
+
+  "logout": "Logout",
+  "@logout": {
+    "description": "Action to log out of the account"
+  },
+  "logoutConfirmation": "Are you sure you want to log out?",
+  "@logoutConfirmation": {
+    "description": "Confirmation message when logging out"
+  },
+  "myAccount": "My Account",
+  "@myAccount": {
+    "description": "Title for the user's account section"
+  },
+  "personalInformation": "Personal Information",
+  "@personalInformation": {
+    "description": "Title for the personal information section"
+  },
+  "fullName": "Full Name",
+  "@fullName": {
+    "description": "Field for the full name"
+  },
+  "email": "Email",
+  "@email": {
+    "description": "Field for the user's email address"
+  },
+  "phoneNumber": "Phone Number",
+  "@phoneNumber": {
+    "description": "Field for the user's phone number"
+  },
+  "country": "Country",
+  "@country": {
+    "description": "Field for the user's country"
+  },
+  "security": "Security",
+  "@security": {
+    "description": "Account security section"
+  },
+  "changePassword": "Change Password",
+  "@changePassword": {
+    "description": "Option to change the password"
+  },
+
+  "myContent": "My Content",
+  "@myContent": {
+    "description": "Title for the user's personal content section"
+  },
+
+  "favoritesList": "Favorites",
+  "@favoritesList": {
+    "description": "List of favorite contents"
+  },
+
+  "downloads": "Downloads",
+  "@downloads": {
+    "description": "Section for downloaded content"
+  },
+
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel button label"
+  },
+   
+  "settings": "Settings",
+  "@settings": {
+    "description": "Label for the settings section"
+  },
+
+  "profileSettings": "Profile Settings",
+  "@profileSettings": {
+    "description": "Title for accessing profile settings"
+  },
+  
+  "accountSettings": "Account Settings",
+  "@accountSettings": {
+    "description": "Title for accessing account settings"
+  },
+
+  "paymentMethod": "Payment Method",
+  "@paymentMethod": {
+    "description": "Label for the user's selected payment method"
+  },
+
+  "billingDate": "Billing Date",
+  "@billingDate": {
+    "description": "Label for the billing date"
+  },
+
+  "deviceManagement": "Device Management",
+  "@deviceManagement": {
+    "description": "Title for managing connected devices"
+  },
+
+  "appSettings": "App Settings",
+  "@appSettings": {
+    "description": "Title for general app settings"
+  },
+
+  "appLanguage": "App Language",
+  "@appLanguage": {
+    "description": "Label for selecting the application language"
+  },
+
+  "notificationSettings": "Notification Settings",
+  "@notificationSettings": {
+    "description": "Title for notification preferences"
+  },
+
+  "dataSaverMode": "Data Saver Mode",
+  "@dataSaverMode": {
+    "description": "Option to reduce data usage"
+  },
+
+  "parentalControls": "Parental Controls",
+  "@parentalControls": {
+    "description": "Title for parental control settings"
+  },
+
+  "contentRestrictions": "Content Restrictions",
+  "@contentRestrictions": {
+    "description": "Label for restricted content settings"
+  },
+
+  "watchTimeLimit": "Watch Time Limit",
+  "@watchTimeLimit": {
+    "description": "Option to set a viewing time limit"
+  },
+
+  "purchaseLock": "Purchase Lock",
+  "@purchaseLock": {
+    "description": "Option to lock purchases with a PIN or password"
+  },
+
+  "lightMode": "Light Mode",
+  "@lightMode": {
+    "description": "Label for light theme mode"
+  },
+
+  "darkMode": "Dark Mode",
+  "@darkMode": {
+    "description": "Label for dark theme mode"
+  },
+
+  "changerLangue": "Change Language",
+  "@changerLangue": {
+    "description": "Label for the button to change the app language"
+  },
+
+  "annuler": "Cancel",
+  "nomProfil": "Profile name",
+  "typeProfil": "Profile type",
+  "couleurProfil": "Profile color",
+  "adulte": "Adult",
+  "supprimer": "Delete",
+  "sauvegarder": "Save",
+  "choisirProfil": "choose profile",
+
+  "afficherClavier": "Show keyboard",
+  "masquerClavier": "Hide keyboard",
+
+  "creerProfil": "Create new profile",
+  "nomProfil": "Profile name",
+  "profilEnfant": "Child profile",
+  "creer": "Create",
+
+  "quiRegarde": "Who's watching",
+  "retour": "Back",
+  "profilSelectionne": "Profile",
+  "selectionne": "selected",
+  "enfant": "Child",
+  "ajouter": "Add",
+
+  "espaceClavier": "Space",
+  "entreeClavier": "Enter",
+
+  "profilDe": "Profile of",
+  "prenom": "First name",
+  "nom": "Last name",
+  "email": "Email",
+  "telephone": "Phone",
+  "enregistrer": "Save",
+  "annuler": "Cancel",
+  "modifier": "Edit",
+  "supprimer": "Delete",
+  "supprimerProfil": "Delete profile",
+  "confirmationSuppressionProfil": "Are you sure you want to delete this profile?",
+  "profilMisAJour": "Profile updated successfully",
+  "profilSupprime": "Profile deleted successfully",
+  "avatarModifie": "Avatar modified successfully",
+  "masquerClavier": "Hide Keyboard",
+  "afficherClavier": "Show Keyboard",
+
+  "cliquerAvatarModifier": "Click on the avatar to edit",
+
+  "welcome": "Welcome",
+
+  "connectedDevices": "Connected devices",
+  
+  "erreurConnexion": "Connection error",
+  "error": "Error",
+  "emailAlreadyExists": "This email is already in use. Please choose another one.",
+  "connectionError": "Connection error. Please try again.",
+  "genericError": "An error occurred, please try again later.",
+  "loginError": "Unable to log in after signup.",
+  "emailOrPasswordIncorrect": "email Or Password Incorrect",
+  
+  "serverError": "Server error. Please try again later.",
+  "emailAlreadyExists": "This email is already in use.",
+  "connectionError": "Connection error. Check your internet.",
+  "genericError": "An error occurred. Please try again.",
+
+  "reinitialiserMotDePasse": "Reset Password",
+  "nouveauMotDePasse": "New Password",
+  "motDePasseObligatoire": "Password is required",
+  "motDePasseCourt": "Password is too short",
+  "confirmerMotDePasse": "Confirm Password",
+  "motsDePasseDifferents": "Passwords do not match",
+  "valider": "Submit",
+
+  "connectedDevices": "Connected Devices",
+  "aucunAppareil": "No devices connected",
+  "motDePasseChange": "Password changed successfully",
+
+  "actuel": "Current",
+  "ajouterProfil": "Add profile",
+  "profilPrincipal": "Main profile",
+  "profilInvite": "Guest profile",
+  "descriptionProfilEnfant": "Content suitable for children",
+  "descriptionProfilInvite": "Temporary limited access",
+  "descriptionProfilPrincipal": "Full access to all content",
+  "informationsProfil": "Profile information",
+  "facturation": "Billing history",
+  "favoris": "Favorites",
+  "telechargements": "Downloads",
+  "controleParental": "Parental control",
+  "ageMaximal": "Maximum age",
+  "definirHeureLimite": "Set time limit",
+  "enregistrerControles": "Save controls",
+  "parametres": "Settings",
+  "appareilsConnectes": "Connected devices",
+  "retour": "Back",
+
+  "loginFailed": "Login failed",
+  "invalidCredentials": "Incorrect email or password",
+  "maxConnectionsReached": "Maximum simultaneous connections reached",
+  "networkError": "Connection error. Please check your internet access",
+  "timeoutError": "Connection timed out. Please try again",
+  "genericError": "An error occurred, please try again later",
+
+  "modifierProfil": "Edit profile",
+
+  "chargementProfils": "Loading profiles...",
+  
+  "selectionAge": "Select an age",
+  "ageActuel": "Current age",
+  "valider": "Confirm",
+  "erreurInattendue": "Unexpected error",
+  "ageModifie": "Age updated successfully",
+  "age": "Age",
+  "nonDefini": "Undefined",
+
+  "impossibleSupprimerProfilAjouter": "Cannot delete the Add Profile card",
+  "impossibleSupprimerDernierProfil": "Cannot delete the last profile",
+  "confirmerSuppressionProfil": "Are you sure you want to delete the profile",
+  "erreurSuppressionProfil": "Error while deleting profile",
+  "maximumProfilsAtteint": "Maximum of 4 profiles reached",
+  "maximumProfils": "(Maximum 4 profiles)",
+
+  "profil": "Profile",
+  "aucuneFacture": "No invoice available",
+  "aucunFavori": "No favorites yet",
+  "aucunTelechargement": "No downloads",
+
+  "modifierMotDePasse": "Change Password",
+  "motDePasseActuel": "Current Password",
+  "nouveauMotDePasse": "New Password", 
+  "confirmerMotDePasse": "Confirm Password",
+  "modifier": "Update",
+
+  "faq": "FAQ", 
+  "@faq": {
+    "description": "FAQ page title"
+  },
+  "faqCategoryAccount": "Account & Profile",
+  "@faqCategoryAccount": {
+    "description": "FAQ category for account questions"
+  },
+  "faqCategorySubscription": "Subscription & Payment",
+  "@faqCategorySubscription": {
+    "description": "FAQ category for subscription questions"
+  },
+  "faqCategoryContent": "Content & Streaming", 
+  "@faqCategoryContent": {
+    "description": "FAQ category for content questions"
+  },
+  "faqCategoryTechnical": "Technical Support",
+  "@faqCategoryTechnical": {
+    "description": "FAQ category for technical questions"
+  },
+
+  "faqQuestion1": "How do I create an account on EkeFlicks?",
+  "@faqQuestion1": {
+    "description": "FAQ question about account creation"
+  },
+  "faqAnswer1": "To create an account, click the 'Sign Up' button in the top right corner of the homepage. Fill out the form with your email, a secure password, and your personal information. You will receive a confirmation email to activate your account.",
+  "@faqAnswer1": {
+    "description": "Answer to account creation question"
+  },
+
+  "faqQuestion2": "Can I modify my profile information?",
+  "@faqQuestion2": {
+    "description": "FAQ question about profile modification"
+  },
+  "faqAnswer2": "Yes, you can modify your profile at any time. Go to 'My Account' from the navigation menu. You can change your profile picture, name, email, and notification preferences.",
+  "@faqAnswer2": {
+    "description": "Answer to profile modification question"
+  },
+
+  "faqQuestion3": "How do I create family profiles?",
+  "@faqQuestion3": {
+    "description": "FAQ question about family profiles"
+  },
+  "faqAnswer3": "EkeFlicks allows up to 5 profiles per account. In 'Profile Management', click 'Add Profile'. You can create child profiles with appropriate content restrictions, or adult profiles for other family members.",
+  "@faqAnswer3": {
+    "description": "Answer to family profiles question"
+  },
+
+  "faqQuestion4": "What payment methods are accepted?",
+  "@faqQuestion4": {
+    "description": "FAQ question about payment methods"
+  },
+  "faqAnswer4": "We accept credit cards (Visa, MasterCard, American Express), debit cards, PayPal, and e-wallets depending on your region. All payments are secure and encrypted.",
+  "@faqAnswer4": {
+    "description": "Answer to payment methods question"
+  },
+
+  "faqQuestion5": "How do I cancel my subscription?",
+  "@faqQuestion5": {
+    "description": "FAQ question about cancellation"
+  },
+  "faqAnswer5": "You can cancel at any time without fees. Go to 'My Subscription' in your account settings, click 'Manage Subscription' and follow the instructions. Your access will remain active until the end of the paid period.",
+  "@faqAnswer5": {
+    "description": "Answer to cancellation question"
+  },
+
+  "faqQuestion6": "Do you offer refunds?",
+  "@faqQuestion6": {
+    "description": "FAQ question about refunds"
+  },
+  "faqAnswer6": "We offer a 14-day satisfaction guarantee for new subscriptions. For existing subscriptions, refunds are evaluated case by case. Contact our customer service for any requests.",
+  "@faqAnswer6": {
+    "description": "Answer to refunds question"
+  },
+
+  "faqQuestion7": "What's the difference between the plans?",
+  "@faqQuestion7": {
+    "description": "FAQ question about different plans"
+  },
+  "faqAnswer7": "EkeFlicks offers 3 plans: Basic (1 screen, SD), Standard (2 screens, HD), and Premium (4 screens, 4K UHD). All include full access to our catalog and offline downloads.",
+  "@faqAnswer7": {
+    "description": "Answer to plans question"
+  },
+
+  "faqQuestion8": "Can I download content to watch offline?",
+  "@faqQuestion8": {
+    "description": "FAQ question about downloads"
+  },
+  "faqAnswer8": "Yes! Most movies and series can be downloaded for offline viewing. Look for the download icon next to content. Downloads are available for 30 days once started, and 48 hours after playback begins.",
+  "@faqAnswer8": {
+    "description": "Answer to downloads question"
+  },
+
+  "faqQuestion9": "Is content available in all languages?",
+  "@faqQuestion9": {
+    "description": "FAQ question about available languages"
+  },
+  "faqAnswer9": "Our catalog offers dubbing and subtitles in French, English, Spanish, and several African languages depending on content. Availability varies by licenses. You can change the language in playback settings.",
+  "@faqAnswer9": {
+    "description": "Answer to languages question"
+  },
+
+  "faqQuestion10": "On how many devices can I use my account?",
+  "@faqQuestion10": {
+    "description": "FAQ question about compatible devices"
+  },
+  "faqAnswer10": "You can use EkeFlicks on as many devices as you want, but the number of simultaneous screens depends on your plan: 1 for Basic, 2 for Standard, 4 for Premium. Compatible with smartphones, tablets, TVs, computers.",
+  "@faqAnswer10": {
+    "description": "Answer to devices question"
+  },
+
+  "faqQuestion11": "What to do if I have playback issues?",
+  "@faqQuestion11": {
+    "description": "FAQ question about technical issues"
+  },
+  "faqAnswer11": "If you encounter problems: 1) Check your internet connection 2) Restart the app 3) Update the app 4) Clear cache. If the problem persists, contact our technical support with error details.",
+  "@faqAnswer11": {
+    "description": "Answer to technical issues question"
+  },
+
+  "faqQuestion12": "How to contact customer support?",
+  "@faqQuestion12": {
+    "description": "FAQ question about customer support"
+  },
+  "faqAnswer12": "Our support team is available 24/7 via live chat, email at support@ekeflicks.com, or phone at +33 1 23 45 67 89. Average response time: less than 2 hours for chat, 24 hours for emails.",
+  "@faqAnswer12": {
+    "description": "Answer to customer support question"
+  },
+
+  "tutoriels": "Tutorials",
+  "@tutoriels": {
+    "description": "Tutorials page title"
+  },
+  "tutorial1Title": "Getting Started with EkeFlicks",
+  "tutorial1Desc": "Learn how to set up your account and navigate the app",
+  "tutorial2Title": "Family Profiles Management",
+  "tutorial2Desc": "Learn to create and manage profiles for all family members", 
+  "tutorial3Title": "Offline Downloads",
+  "tutorial3Desc": "Complete guide to download your favorite content",
+  "tutorial4Title": "Parental Controls Settings",
+  "tutorial4Desc": "Configure content restrictions for child profiles",
+  "tutorial5Title": "Video Quality Optimization",
+  "tutorial5Desc": "Adjust settings for the best streaming experience",
+
+  "regarderMaintenant": "Watch now",
+  "cliquerPourVoir": "Click to view tutorial", 
+  "retour": "Back",
+  "changerLangue": "Change language",
+  "changeLanguage": "Change language",
+  "selectLanguage": "Select language",
+  "menu": "Menu",
+  "connexion": "Login",
+  "sinscrire": "Sign Up",
+  "darkTheme": "Dark theme",
+  "lightTheme": "Light theme", 
+  "darkMode": "Dark mode",
+  "lightMode": "Light mode",
+  "compte": "My account",
+  "changerProfil": "Switch profile",
+  "profileChangedTo": "Profile changed to",
+  "deconnexion": "Logout",
+  "logoutConfirmation": "Are you sure you want to logout?",
+  "cancel": "Cancel",
+  "logout": "Logout", 
+  "notifications": "Notifications",
+  "notificationsNonImpl": "Notifications not implemented",
+  "search": "Search",
+  "rechercher": "Search",
+  "films": "Movies",
+  "series": "Series",
+  "plus": "More", 
+  "documentaires": "Documentaries",
+  "telerealites": "Reality TV",
+  "live": "Live",
+  "explorerParPays": "Explore by country",
+  "nouveautes": "New Releases",
+  "populaires": "Popular",
+
+  "popupTitreAccueil": "Welcome to EkeFlicks!\nAfrica shines on the big screen, with its unique and captivating stories.",
+  "popupTexteAccueil": "Also discover movies from around the world, with unlimited access from {prix}, cancel anytime.",
+
+  "featureTvTitle": "Watch on your TV",
+  "featureTvDesc": "Smart TV, PlayStation, Xbox, Chromecast and more.",
+  "featureAnywhereTitle": "Watch everywhere",
+  "featureAnywhereDesc": "Unlimited streaming on your phone, tablet and computer.",
+  "featureOfflineTitle": "Download offline", 
+  "featureOfflineDesc": "Save your favorite content to watch without connection.",
+  "featureStreamingTitle": "High quality streaming",
+  "featureStreamingDesc": "Enjoy your movies in Full HD and 4K quality."
+}

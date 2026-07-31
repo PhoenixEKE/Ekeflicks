@@ -1,0 +1,229 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:app_ekeflicks/models/content_model.dart';
+import 'hero_banner_bloc.dart';
+import 'package:app_ekeflicks/core/app_theme.dart';
+
+class HeroBanner extends StatelessWidget {
+  final List<Content> contents;
+  final bool autoPlay;
+  final Duration interval;
+  final void Function(Content)? onPlayPressed;
+  final void Function(Content)? onInfoPressed;
+  final bool isMobile;
+
+  const HeroBanner({
+    Key? key,
+    required this.contents,
+    this.autoPlay = true,
+    this.interval = const Duration(seconds: 5),
+    this.onPlayPressed,
+    this.onInfoPressed,
+    this.isMobile = false,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    if (contents.isEmpty) {
+      return SizedBox(
+        height: isMobile ? 200 : 500,
+        child: Center(child: Text('Aucun contenu disponible')),
+      );
+    }
+
+    return BlocProvider(
+      create: (_) => HeroBannerCubit(
+        contents,
+        interval: interval,
+        autoPlay: autoPlay,
+      ),
+      child: _HeroBannerView(
+        onPlayPressed: onPlayPressed,
+        onInfoPressed: onInfoPressed,
+        isMobile: isMobile,
+      ),
+    );
+  }
+}
+
+class _HeroBannerView extends StatelessWidget {
+  final void Function(Content)? onPlayPressed;
+  final void Function(Content)? onInfoPressed;
+  final bool isMobile;
+
+  const _HeroBannerView({
+    this.onPlayPressed,
+    this.onInfoPressed,
+    required this.isMobile,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<HeroBannerCubit>();
+    final theme = Theme.of(context);
+
+    return BlocBuilder<HeroBannerCubit, int>(
+      builder: (context, currentPage) {
+        return MouseRegion(
+          onEnter: (_) => cubit.pauseAutoPlay(),
+          onExit: (_) => cubit.resumeAutoPlay(),
+          child: Column(
+            children: [
+              SizedBox(
+                height: isMobile ? 200 : 500,
+                child: PageView.builder(
+                  controller: cubit.pageController,
+                  itemCount: cubit.contents.length,
+                  onPageChanged: (index) => cubit.emit(index),
+                  itemBuilder: (context, index) {
+                    final content = cubit.contents[index];
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Image de fond
+                        if (content.backdropUrl != null && content.backdropUrl!.isNotEmpty)
+                          Image.network(
+                            content.backdropUrl!,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return Container(
+                                color: Colors.grey[800],
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    value: progress.expectedTotalBytes != null
+                                        ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              color: Colors.grey[800],
+                              child: Center(
+                                child: Icon(Icons.error, color: Colors.white),
+                              ),
+                            ),
+                          )
+                        else
+                          Container(color: Colors.grey[800]),
+
+                        // Overlay sombre
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [
+                                Colors.black.withOpacity(0.8),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Contenu textuel
+                        Positioned(
+                          left: isMobile ? 16 : 48,
+                          right: isMobile ? 16 : 48,
+                          bottom: isMobile ? 24 : 48,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                content.title,
+                                style: theme.textTheme.headlineMedium?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [
+                                    Shadow(
+                                      blurRadius: 6,
+                                      color: Colors.black.withOpacity(0.5),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                content.description ?? '',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: Colors.white,
+                                  shadows: [
+                                    Shadow(
+                                      blurRadius: 4,
+                                      color: Colors.black.withOpacity(0.5),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  ElevatedButton.icon(
+                                    icon: const Icon(Icons.play_arrow),
+                                    label: const Text('Lire'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      foregroundColor: Colors.black,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                    onPressed: () => onPlayPressed?.call(content),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  OutlinedButton.icon(
+                                    icon: const Icon(Icons.info_outline),
+                                    label: const Text('Détails'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      side: const BorderSide(color: Colors.white),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                    onPressed: () => onInfoPressed?.call(content),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+
+              // Indicateurs de page (points)
+              if (cubit.contents.length > 1)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(cubit.contents.length, (index) {
+                      return Container(
+                        width: 8,
+                        height: 8,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: currentPage == index
+                              ? AppTheme.primaryOrange
+                              : AppTheme.primaryOrange.withOpacity(0.5),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}

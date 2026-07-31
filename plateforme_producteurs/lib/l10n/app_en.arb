@@ -1,0 +1,694 @@
+{
+  "@@locale": "en",
+
+  "nouveautes": "New Releases",
+  "@nouveautes": { "description": "Title for the New Releases section" },
+
+  "populaires": "Popular",
+  "@populaires": { "description": "Title for the Popular section" },
+
+  "profilePageTitle": "Producer Profile",
+  "@profilePageTitle": { "description": "Title for the producer profile page" },
+
+  "nameOrCompany": "Name or Company",
+  "@nameOrCompany": { "description": "Label for the name or company field" },
+
+  "phoneNumber": "Phone Number",
+  "@phoneNumber": { "description": "Label for the phone number field" },
+
+  "email": "Email",
+  "@email": { "description": "Label for the email field" },
+
+  "password": "Password",
+  "@password": { "description": "Label for the password field" },
+
+  "updateButton": "Update",
+  "@updateButton": { "description": "Update button text" },
+
+  "french": "French",
+  "@french": { "description": "French language option" },
+
+  "english": "English",
+  "@english": { "description": "English language option" },
+
+  "pageNotFound": "Page Not Found",
+  "@pageNotFound": { "description": "Title for the 404 error page" },
+
+  "pageNotFoundMessage": "Sorry, the page you requested does not exist.",
+  "@pageNotFoundMessage": { "description": "Message for the 404 error page" },
+
+  "profileUpdated": "Profile updated successfully.",
+  "@profileUpdated": { "description": "Message displayed when the user profile is updated" },
+
+  "privacySettings": "Privacy Settings",
+  "@privacySettings": { "description": "General title for privacy" },
+
+  "helpSupport": "Help & Support",
+  "@helpSupport": { "description": "Title for help and support section" },
+
+  "errorLoadingImage": "Error loading image",
+  "@errorLoadingImage": { "description": "Message displayed when an image fails to load" },
+
+  "selectFromGallery": "Select from Gallery",
+  "@selectFromGallery": { "description": "Option to pick a photo from gallery" },
+
+  "takePhoto": "Take Photo",
+  "@takePhoto": { "description": "Option to take a photo with the camera" },
+
+  "cancel": "Cancel",
+  "@cancel": { "description": "Cancel button" },
+
+  "changePhotoTooltip": "Change profile photo",
+  "@changePhotoTooltip": { "description": "Tooltip on the profile photo change button" },
+
+  "errorNameRequired": "Name is required",
+  "@errorNameRequired": { "description": "Error when name is missing" },
+
+  "errorPhoneRequired": "Phone number is required",
+  "@errorPhoneRequired": { "description": "Error when phone number is missing" },
+
+  "errorPhoneInvalid": "Invalid phone number",
+  "@errorPhoneInvalid": { "description": "Error when phone number is invalid" },
+
+  "errorPasswordTooShort": "Password is too short",
+  "@errorPasswordTooShort": { "description": "Error when password is too short" },
+
+  "saving": "Saving...",
+  "@saving": { "description": "Saving message" },
+
+  "errorSavingProfile": "Error saving profile",
+  "@errorSavingProfile": { "description": "Error when saving profile" },
+
+  "change": "Change",
+  "@change": { "description": "Button to start password change" },
+
+  "changePassword": "Change Password",
+  "@changePassword": { "description": "Password change dialog title" },
+
+  "newPassword": "New Password",
+  "@newPassword": { "description": "Field for new password" },
+
+  "confirmPassword": "Confirm Password",
+  "@confirmPassword": { "description": "Field to confirm the new password" },
+
+  "save": "Save",
+  "@save": { "description": "Save button" },
+
+  "fillAllFields": "Please fill all fields",
+  "@fillAllFields": { "description": "Error when not all fields are filled" },
+
+  "passwordsDoNotMatch": "Passwords do not match",
+  "@passwordsDoNotMatch": { "description": "Error when passwords mismatch" },
+
+  "passwordUpdated": "Password updated",
+  "@passwordUpdated": { "description": "Success message for updated password" },
+
+  "shareDataWithPartners": "Share my data with partners",
+  "@shareDataWithPartners": { "description": "Option to enable/disable data sharing" },
+
+  "shareDataWithPartnersDescription": "Allow anonymized data sharing with partners to improve the service.",
+  "@shareDataWithPartnersDescription": { "description": "Description of data sharing option" },
+
+  "showEmailPublic": "Show my email publicly",
+  "@showEmailPublic": { "description": "Option to make email public" },
+
+  "showEmailPublicDescription": "Other users will be able to see your email on your profile.",
+  "@showEmailPublicDescription": { "description": "Description of the public email option" },
+
+  "enableTwoFactorAuth": "Enable two-factor authentication",
+  "@enableTwoFactorAuth": { "description": "Option to enable 2FA" },
+
+  "enableTwoFactorAuthDescription": "Adds an extra layer of security during login.",
+  "@enableTwoFactorAuthDescription": { "description": "Description of 2FA" },
+
+  "saveSettings": "Save Settings",
+  "@saveSettings": { "description": "Save settings button" },
+
+  "settingsSaved": "Settings saved",
+  "@settingsSaved": { "description": "Message displayed after saving settings" },
+
+  "privacySettingsDescription": "Manage your privacy and data collection preferences.",
+  "@privacySettingsDescription": { "description": "General description for privacy settings" },
+
+  "acceptAnalyticsTracking": "Accept analytics tracking",
+  "@acceptAnalyticsTracking": { "description": "Option to accept analytics tracking" },
+
+  "acceptAnalyticsTrackingDescription": "We use this data to improve your experience.",
+  "@acceptAnalyticsTrackingDescription": { "description": "Analytics tracking explanation" },
+
+  "viewPrivacyPolicy": "View Privacy Policy",
+  "@viewPrivacyPolicy": { "description": "Button to open privacy policy" },
+
+  "privacyPolicy": "Privacy Policy",
+  "@privacyPolicy": { "description": "Privacy policy page title" },
+
+  "privacyPolicyTitle": "Our Privacy Policy",
+  "@privacyPolicyTitle": { "description": "Main title of privacy policy" },
+
+  "emailLaunchError": "Unable to open email application.",
+  "@emailLaunchError": { "description": "Error when no mail app available" },
+
+  "helpSupportTitle": "Help & Support",
+  "@helpSupportTitle": { "description": "Help & Support page title" },
+
+  "helpCenterTitle": "Ephrata Help Center",
+  "@helpCenterTitle": { "description": "Help center title" },
+
+  "videoTutorialsTitle": "Video Tutorials",
+  "@videoTutorialsTitle": { "description": "Video tutorials section title" },
+
+  "helpSupportVideo1Title": "How to create a profile",
+  "@helpSupportVideo1Title": { "description": "Video tutorial 1 title" },
+
+  "helpSupportVideo2Title": "Add your products",
+  "@helpSupportVideo2Title": { "description": "Video tutorial 2 title" },
+
+  "helpSupportVideo3Title": "Manage your orders",
+  "@helpSupportVideo3Title": { "description": "Video tutorial 3 title" },
+
+  "faqTitle": "Frequently Asked Questions",
+  "@faqTitle": { "description": "FAQ title" },
+
+  "helpSupportFaq1Question": "How do I edit my information?",
+  "@helpSupportFaq1Question": { "description": "FAQ question 1" },
+
+  "helpSupportFaq1Answer": "Go to Settings > My Account",
+  "@helpSupportFaq1Answer": { "description": "FAQ answer 1" },
+
+  "helpSupportFaq2Question": "Login issue?",
+  "@helpSupportFaq2Question": { "description": "FAQ question 2" },
+
+  "helpSupportFaq2Answer": "Reset your password",
+  "@helpSupportFaq2Answer": { "description": "FAQ answer 2" },
+
+  "contactSupportTitle": "Contact our support",
+  "@contactSupportTitle": { "description": "Support contact title" },
+
+  "contactEmailLabel": "Email",
+  "@contactEmailLabel": { "description": "Email label" },
+
+  "contactEmail": "support@ephrata.com",
+  "@contactEmail": { "description": "Support email" },
+
+  "contactPhoneFrLabel": "Phone France",
+  "@contactPhoneFrLabel": { "description": "Phone France label" },
+
+  "contactPhoneFr": "+33 6 83 63 70 52",
+  "@contactPhoneFr": { "description": "France phone number" },
+
+  "contactPhoneCiLabel": "Phone Ivory Coast",
+  "@contactPhoneCiLabel": { "description": "Phone CI label" },
+
+  "contactPhoneCi": "+225 05 86 75 89 89",
+  "@contactPhoneCi": { "description": "Ivory Coast phone number" },
+
+  "contactWhatsAppLabel": "WhatsApp",
+  "@contactWhatsAppLabel": { "description": "WhatsApp label" },
+
+  "contactWhatsApp": "+225 05 86 75 86 96",
+  "@contactWhatsApp": { "description": "WhatsApp number" },
+
+  "loginPageTitle": "PRODUCER LOGIN",
+  "@loginPageTitle": { "description": "Login page title" },
+
+  "emailLabel": "Email",
+  "@emailLabel": { "description": "Email label" },
+
+  "passwordLabel": "Password",
+  "@passwordLabel": { "description": "Password label" },
+
+  "loginButton": "LOGIN",
+  "@loginButton": { "description": "Login button" },
+
+  "forgotPassword": "Forgot password?",
+  "@forgotPassword": { "description": "Forgot password link" },
+
+  "emailValidationError": "Invalid email",
+  "@emailValidationError": { "description": "Email validation error" },
+
+  "passwordValidationError": "Minimum 6 characters",
+  "@passwordValidationError": { "description": "Password too short error" },
+
+  "changeLanguage": "Change language",
+  "@changeLanguage": { "description": "Change language button" },
+
+  "dashboardTab": "Dashboard",
+  "@dashboardTab": { "description": "Dashboard tab" },
+
+  "moviesTab": "Movies",
+  "@moviesTab": { "description": "Movies tab" },
+
+  "seriesTab": "Series",
+  "@seriesTab": { "description": "Series tab" },
+
+  "uploadTab": "Upload",
+  "@uploadTab": { "description": "Upload tab" },
+
+  "financeTab": "Finances",
+  "@financeTab": { "description": "Finances tab" },
+
+  "supportTab": "Support",
+  "@supportTab": { "description": "Support tab" },
+
+  "profileTab": "My Account",
+  "@profileTab": { "description": "Profile tab" },
+
+  "logout": "Logout",
+  "@logout": { "description": "Logout button" },
+
+  "notificationsTitle": "Notifications",
+  "@notificationsTitle": { "description": "Notifications title" },
+
+  "notificationNewComment": "New comment",
+  "@notificationNewComment": { "description": "New comment notification" },
+
+  "notificationOnContent": "On \"{content}\"",
+  "@notificationOnContent": { "description": "Notification on content" },
+
+  "notificationPayment": "Payment received",
+  "@notificationPayment": { "description": "Payment notification" },
+
+  "yesterday": "Yesterday",
+  "@yesterday": { "description": "Yesterday text" },
+
+  "close": "Close",
+  "@close": { "description": "Close button" },
+
+  "dashboardTitle": "Dashboard",
+  "@dashboardTitle": { "description": "Dashboard title" },
+
+  "publishedVideos": "Published videos",
+  "@publishedVideos": { "description": "Published videos label" },
+
+  "totalViews": "Total views",
+  "@totalViews": { "description": "Total views label" },
+
+  "estimatedRevenue": "Estimated revenue",
+  "@estimatedRevenue": { "description": "Estimated revenue label" },
+
+  "pendingItems": "Pending",
+  "@pendingItems": { "description": "Pending label" },
+
+  "subscribers": "Subscribers",
+  "@subscribers": { "description": "Subscribers label" },
+
+  "engagementRate": "Engagement rate",
+  "@engagementRate": { "description": "Engagement rate label" },
+
+  "recentActivity": "Recent activity",
+  "@recentActivity": { "description": "Recent activity label" },
+
+  "newVideoPublished": "New video published",
+  "@newVideoPublished": { "description": "New video notification" },
+
+  "videoTitle": "Video: {title}",
+  "@videoTitle": { "description": "Video title with variable" },
+
+  "paymentReceived": "Payment received",
+  "@paymentReceived": { "description": "Payment received notification" },
+
+  "timeAgo": "{count} {unit} ago",
+  "@timeAgo": { "description": "X time ago text" },
+
+  "hour": "hour",
+  "@hour": { "description": "Hour unit" },
+
+  "hours": "hours",
+  "@hours": { "description": "Hours unit" },
+
+  "uploadFormTitle": "Video Upload Form",
+  "@uploadFormTitle": { "description": "Upload video form title" },
+
+  "contentTypeLabel": "Content type",
+  "@contentTypeLabel": { "description": "Content type label" },
+
+  "titleLabel": "Title",
+  "@titleLabel": { "description": "Title label" },
+
+  "descriptionLabel": "Description",
+  "@descriptionLabel": { "description": "Description label" },
+
+  "genresLabel": "Genres",
+  "@genresLabel": { "description": "Genres label" },
+
+  "languageLabel": "Language",
+  "@languageLabel": { "description": "Language label" },
+
+  "languageSpecifyLabel": "Specify the language",
+  "@languageSpecifyLabel": { "description": "Specify language label" },
+
+  "countryLabel": "Country",
+  "@countryLabel": { "description": "Country label" },
+
+  "otherOption": "Other",
+  "@otherOption": { "description": "Other option" },
+
+  "countrySpecifyLabel": "Specify the country",
+  "@countrySpecifyLabel": { "description": "Specify country label" },
+
+  "releaseYearLabel": "Release year",
+  "@releaseYearLabel": { "description": "Release year label" },
+
+  "productionTeamTitle": "Production team",
+  "@productionTeamTitle": { "description": "Production team title" },
+
+  "directorLabel": "Director name",
+  "@directorLabel": { "description": "Director label" },
+
+  "screenwriterLabel": "Screenwriter name",
+  "@screenwriterLabel": { "description": "Screenwriter label" },
+
+  "producersLabel": "Producers",
+  "@producersLabel": { "description": "Producers label" },
+
+  "actorsLabel": "Actors",
+  "@actorsLabel": { "description": "Actors label" },
+
+  "seasonManagementTitle": "Season management",
+  "@seasonManagementTitle": { "description": "Season management title" },
+
+  "seasonsLabel": "Seasons",
+  "@seasonsLabel": { "description": "Seasons label" },
+
+  "seasonLabel": "Season",
+  "@seasonLabel": { "description": "Season label" },
+
+  "episodesLabel": "Episodes",
+  "@episodesLabel": { "description": "Episodes label" },
+
+  "episodeLabel": "Episode",
+  "@episodeLabel": { "description": "Episode label" },
+
+  "trailerLabel": "Trailer",
+  "@trailerLabel": { "description": "Trailer label" },
+
+  "mediaFilesTitle": "Media files",
+  "@mediaFilesTitle": { "description": "Media files title" },
+
+  "posterLabel": "Poster",
+  "@posterLabel": { "description": "Poster label" },
+
+  "bannerLabel": "Banner",
+  "@bannerLabel": { "description": "Banner label" },
+
+  "mainVideoLabel": "Main video",
+  "@mainVideoLabel": { "description": "Main video label" },
+
+  "addProducerTitle": "Add a producer",
+  "@addProducerTitle": { "description": "Add producer title" },
+
+  "addActorTitle": "Add an actor",
+  "@addActorTitle": { "description": "Add actor title" },
+
+  "nameLabel": "Name",
+  "@nameLabel": { "description": "Name label" },
+
+  "addImageButton": "Add image",
+  "@addImageButton": { "description": "Add image button" },
+
+  "cancelButton": "Cancel",
+  "@cancelButton": { "description": "Cancel button" },
+
+  "addButton": "Add",
+  "@addButton": { "description": "Add button" },
+
+  "deleteButton": "Delete",
+  "@deleteButton": { "description": "Delete button" },
+
+  "requiredFieldError": "This field is required",
+  "@requiredFieldError": { "description": "Required error" },
+
+  "formValidationError": "Please fill the form correctly",
+  "@formValidationError": { "description": "Form validation error" },
+
+  "genreSelectionError": "Please select at least one genre",
+  "@genreSelectionError": { "description": "Genre required error" },
+
+  "languageSelectionError": "Please select a language",
+  "@languageSelectionError": { "description": "Language required error" },
+
+  "languageSpecifyError": "Please specify the language",
+  "@languageSpecifyError": { "description": "Specify language error" },
+
+  "countrySelectionError": "Please select a country",
+  "@countrySelectionError": { "description": "Country required" },
+
+  "countrySpecifyError": "Please specify the country",
+  "@countrySpecifyError": { "description": "Specify country error" },
+
+  "yearSelectionError": "Please select the release year",
+  "@yearSelectionError": { "description": "Release year error" },
+
+  "directorNameError": "Please enter the director's name",
+  "@directorNameError": { "description": "Director error" },
+
+  "screenwriterNameError": "Please enter the screenwriter's name",
+  "@screenwriterNameError": { "description": "Screenwriter error" },
+
+  "posterSelectionError": "Please select a poster image",
+  "@posterSelectionError": { "description": "Poster error" },
+
+  "bannerSelectionError": "Please select a banner image",
+  "@bannerSelectionError": { "description": "Banner error" },
+
+  "videoSelectionError": "Please select a video",
+  "@videoSelectionError": { "description": "Video error" },
+
+  "seasonSelectionError": "Please add at least one season for a series",
+  "@seasonSelectionError": { "description": "Season required" },
+
+  "seasonValidationError": "Please complete all seasons and episodes",
+  "@seasonValidationError": { "description": "Season/episode validation error" },
+
+  "formSubmissionSuccess": "Form submitted successfully!",
+  "@formSubmissionSuccess": { "description": "Success message" },
+
+  "submitButton": "Submit form",
+  "@submitButton": { "description": "Submit button" },
+
+  "addSeasonButton": "Add season",
+  "@addSeasonButton": { "description": "Add season button" },
+
+  "addTrailerButton": "Add trailer",
+  "@addTrailerButton": { "description": "Add trailer button" },
+
+  "addPosterButton": "Add Poster",
+  "@addPosterButton": { "description": "Add poster button" },
+
+  "addBannerButton": "Add Banner",
+  "@addBannerButton": { "description": "Add banner button" },
+
+  "addVideoButton": "Add Video",
+  "@addVideoButton": { "description": "Add video button" },
+
+  "seasonDescriptionLabel": "Season description",
+  "@seasonDescriptionLabel": { "description": "Season description" },
+
+  "episodeDescriptionLabel": "Episode description",
+  "@episodeDescriptionLabel": { "description": "Episode description" },
+
+  "seasonTrailerLabel": "Season trailer",
+  "@seasonTrailerLabel": { "description": "Season trailer label" },
+
+  "addSeasonPosterButton": "Add poster (season)",
+  "@addSeasonPosterButton": { "description": "Add season poster button" },
+
+  "addSeasonBannerButton": "Add banner (season)",
+  "@addSeasonBannerButton": { "description": "Add season banner button" },
+
+  "addEpisodeTooltip": "Add an episode",
+  "@addEpisodeTooltip": { "description": "Add episode tooltip" },
+
+  "removeSeasonTooltip": "Remove season",
+  "@removeSeasonTooltip": { "description": "Remove season tooltip" },
+
+  "confirmationTitle": "Confirmation",
+  "@confirmationTitle": { "description": "Confirmation dialog title" },
+
+  "confirmationMessage": "Do you want to delete this item?",
+  "@confirmationMessage": { "description": "Delete confirmation message" },
+
+  "titleHint": "Enter the title",
+  "@titleHint": { "description": "Title hint" },
+
+  "selectVideoFirst": "Please select a video first",
+  "@selectVideoFirst": { "description": "Select video first text" },
+
+  "addSeason": "Add season",
+  "@addSeason": { "description": "Add season text" },
+
+  "seasonTitleLabel": "Season title",
+  "@seasonTitleLabel": { "description": "Season title label" },
+
+  "seasonTitleHint": "Ex: Season 3",
+  "@seasonTitleHint": { "description": "Season title hint" },
+
+  "addEpisode": "Add an episode (Season {seasonNumber})",
+  "@addEpisode": { "description": "Add episode with variable" },
+
+  "detailsTab": "Details",
+  "@detailsTab": { "description": "Details tab" },
+
+  "videoTab": "Video",
+  "@videoTab": { "description": "Video tab" },
+
+  "episodeTitleLabel": "Episode title",
+  "@episodeTitleLabel": { "description": "Episode title label" },
+
+  "episodeTitleHint": "Episode title",
+  "@episodeTitleHint": { "description": "Episode title hint" },
+
+  "durationLabel": "Duration (minutes)",
+  "@durationLabel": { "description": "Duration label" },
+
+  "selectedFile": "Selected file",
+  "@selectedFile": { "description": "Selected file text" },
+
+  "uploadVideo": "Upload video",
+  "@uploadVideo": { "description": "Upload video button" },
+
+  "selectVideoPrompt": "Please select a video",
+  "@selectVideoPrompt": { "description": "Select video text" },
+
+  "requiredField": "Required field",
+  "@requiredField": { "description": "Required text" },
+
+  "invalidNumber": "Invalid number",
+  "@invalidNumber": { "description": "Invalid number error" },
+
+  "add": "Add",
+  "@add": { "description": "Add button" },
+
+  "secure_access": "Secure access",
+  "@secure_access": { "description": "Secure access title" },
+
+  "enter_pin": "Please enter your PIN to access your finances.",
+  "@enter_pin": { "description": "Enter PIN text" },
+
+  "invalid_code": "Invalid code",
+  "@invalid_code": { "description": "Invalid code error" },
+
+  "validate": "Validate",
+  "@validate": { "description": "Validate button" },
+
+  "my_finances": "My finances",
+  "@my_finances": { "description": "My finances title" },
+
+  "available_balance": "Available balance",
+  "@available_balance": { "description": "Available balance label" },
+
+  "last_withdrawal": "Last withdrawal",
+  "@last_withdrawal": { "description": "Last withdrawal label" },
+
+  "date": "Date",
+  "@date": { "description": "Date label" },
+
+  "pending_payments": "Pending payments",
+  "@pending_payments": { "description": "Pending payments label" },
+
+  "available_in_48h": "Available in 48h",
+  "@available_in_48h": { "description": "Available in 48h text" },
+
+  "request_withdrawal": "Request withdrawal",
+  "@request_withdrawal": { "description": "Request withdrawal button" },
+
+  "withdrawal_request": "Withdrawal request",
+  "@withdrawal_request": { "description": "Withdrawal request title" },
+
+  "amount": "Amount",
+  "@amount": { "description": "Amount label" },
+
+  "enter_amount": "Please enter an amount",
+  "@enter_amount": { "description": "Enter amount text" },
+
+  "amount_positive": "Amount must be positive",
+  "@amount_positive": { "description": "Positive amount error" },
+
+  "amount_exceeds_balance": "Amount exceeds available balance ({balance} €)",
+  "@amount_exceeds_balance": { "description": "Balance exceeded error" },
+
+  "payment_method": "Payment method",
+  "@payment_method": { "description": "Payment method label" },
+
+  "phone_number": "Phone number",
+  "@phone_number": { "description": "Withdrawal phone number label" },
+
+  "enter_number": "Please enter your number",
+  "@enter_number": { "description": "Enter phone number text" },
+
+  "iban": "IBAN",
+  "@iban": { "description": "IBAN label" },
+
+  "required_field": "This field is required.",
+  "@required_field": {
+    "description": "Shown when a required field is empty."
+  },
+
+  "privacyPolicyIntroductionTitle": "Introduction",
+  "privacyPolicyIntroductionContent": "This privacy policy explains how we collect and use your data.",
+
+  "privacyPolicyDataCollectedTitle": "Data We Collect",
+  "privacyPolicyDataCollectedContent": "We collect basic information to provide our services.",
+  "privacyPolicyDataCollectedItem1": "Account information",
+  "privacyPolicyDataCollectedItem2": "Usage data",
+  "privacyPolicyDataCollectedItem3": "Technical data",
+
+  "privacyPolicyDataUsageTitle": "How We Use Your Data",
+  "privacyPolicyDataUsageContent": "Your data is used only to improve our services.",
+
+  "privacyPolicyDataSharingTitle": "Data Sharing",
+  "privacyPolicyDataSharingContent": "We do not share your data with third parties without your consent.",
+
+  "privacyPolicyUserRightsTitle": "Your Rights",
+  "privacyPolicyUserRightsContent": "You can access, modify, or delete your data at any time.",
+  "privacyPolicyUserRightsItem1": "Right of access",
+  "privacyPolicyUserRightsItem2": "Right to correction",
+  "privacyPolicyUserRightsItem3": "Right to deletion",
+
+  "privacyPolicyCookiesTitle": "Cookies",
+  "privacyPolicyCookiesContent": "We use cookies to improve your navigation experience.",
+
+  "privacyPolicySecurityTitle": "Data Security",
+  "privacyPolicySecurityContent": "We apply appropriate measures to keep your data safe.",
+
+  "privacyPolicyChangesTitle": "Changes to This Policy",
+  "privacyPolicyChangesContent": "We may update this policy from time to time.",
+
+  "privacyPolicyContactTitle": "Contact Us",
+  "privacyPolicyContactContent": "If you have questions, please contact us.",
+
+  "privacyPolicyLastUpdate": "Last update: {date}",
+  "@privacyPolicyLastUpdate": {
+    "description": "Displays the last update date for the privacy policy.",
+    "placeholders": {
+      "date": {}
+    }
+  },
+
+  "addEpisode": "Add Episode (Season {seasonNumber})",
+  "@addEpisode": {
+    "description": "Title for add episode modal",
+    "placeholders": {
+      "seasonNumber": {
+        "type": "Object",
+        "example": "1"
+      }
+    }
+  },
+  "detailsTab": "Details",
+  "videoTab": "Video",
+  "titleLabel": "Title",
+  "titleHint": "Episode title",
+  "descriptionLabel": "Description",
+  "durationLabel": "Duration (minutes)",
+  "uploadVideo": "Upload Video",
+  "uploading": "Uploading...",
+  "selectVideo": "Select a video",
+  "selectVideoFirst": "Please select a video first",
+  "selectedFile": "Selected file",
+  "supportedFormats": "Supported formats: MP4, AVI, MOV, etc.",
+  "requiredField": "This field is required",
+  "invalidNumber": "Invalid number",
+  "add": "Add",
+  "cancel": "Cancel"
+}

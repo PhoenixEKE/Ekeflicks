@@ -1,0 +1,268 @@
+from django.conf import settings
+from django.db import models
+from django.contrib.postgres.search import SearchVectorField
+from django.contrib.postgres.indexes import GinIndex
+from .base import TimeStampedModel
+
+
+class Genre(models.Model):
+    """Genres cinématographiques"""
+
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'genres'
+        indexes = [
+            models.Index(fields=['name']),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class Emission(models.Model):
+    """Types d'émissions TV"""
+
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    display_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'emissions'
+        ordering = ['display_order']
+
+    def __str__(self):
+        return self.name
+
+
+class ContentStatus(models.Model):
+    """Statuts des contenus"""
+
+    name = models.CharField(max_length=50, unique=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'content_status'
+
+    def __str__(self):
+        return self.name
+
+
+class Content(TimeStampedModel):
+    """Contenus (films et séries)"""
+
+    TYPE_CHOICES = [
+        ('movie', 'Film'),
+        ('series', 'Série'),
+    ]
+
+    PRODUCER_STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('pending', 'Pending review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    # Informations principales
+    title = models.CharField(max_length=255, db_index=True)
+    original_title = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+    synopsis = models.TextField(blank=True)
+
+    type = models.CharField(
+        max_length=20,
+        choices=TYPE_CHOICES,
+        db_index=True
+    )
+
+    # Recherche Full Text PostgreSQL
+    search_vector = SearchVectorField(
+        null=True,
+        editable=False
+    )
+
+    # URLs MinIO
+    poster_url = models.URLField(max_length=500, blank=True)
+    backdrop_url = models.URLField(max_length=500, blank=True)
+    banner_url = models.URLField(max_length=500, blank=True)
+    video_url = models.URLField(max_length=500, blank=True)
+    trailer_url = models.URLField(max_length=500, blank=True)
+
+    # Métadonnées
+    release_year = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True
+    )
+
+    release_date = models.DateField(
+        null=True,
+        blank=True
+    )
+
+    duration = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Durée en minutes"
+    )
+
+    age_rating = models.CharField(
+        max_length=10,
+        blank=True
+    )
+
+    # Qualité
+    is_hd = models.BooleanField(default=True)
+    is_4k = models.BooleanField(default=False)
+    is_hdr = models.BooleanField(default=False)
+
+    # Statistiques
+    rating_avg = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=0
+    )
+
+    rating_count = models.IntegerField(default=0)
+
+    view_count = models.BigIntegerField(default=0)
+
+    popularity_score = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0
+    )
+
+    # Scores IA
+    ia_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0
+    )
+
+    trending_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0
+    )
+
+    # Disponibilité
+    status = models.ForeignKey(
+        ContentStatus,
+        on_delete=models.SET_NULL,
+        null=True
+    )
+
+    available_from = models.DateField(
+        null=True,
+        blank=True
+    )
+
+    available_until = models.DateField(
+        null=True,
+        blank=True
+    )
+
+    # Relations
+    genres = models.ManyToManyField(
+        Genre,
+        through='ContentGenre',
+        related_name='contents'
+    )
+
+    emissions = models.ManyToManyField(
+        Emission,
+        through='ContentEmission',
+        related_name='contents'
+    )
+
+    producer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='produced_contents',
+        null=True,
+        blank=True
+    )
+    producer_submission_status = models.CharField(
+        max_length=20,
+        choices=PRODUCER_STATUS_CHOICES,
+        default='draft',
+        db_index=True
+    )
+    producer_notes = models.TextField(blank=True)
+    review_reason = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='reviewed_contents',
+        null=True,
+        blank=True
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'contents'
+
+        indexes = [
+            models.Index(fields=['type', 'status']),
+            models.Index(fields=['release_year']),
+            models.Index(fields=['popularity_score']),
+            models.Index(fields=['trending_score']),
+            models.Index(fields=['title']),
+            models.Index(fields=['producer', 'producer_submission_status']),
+            GinIndex(
+                fields=['search_vector'],
+                name='content_search_gin'
+            ),
+        ]
+
+    def __str__(self):
+        return self.title
+
+
+class ContentGenre(models.Model):
+    """Association contenu / genre"""
+
+    content = models.ForeignKey(
+        Content,
+        on_delete=models.CASCADE
+    )
+
+    genre = models.ForeignKey(
+        Genre,
+        on_delete=models.CASCADE
+    )
+
+    class Meta:
+        db_table = 'content_genres'
+        unique_together = ('content', 'genre')
+
+    def __str__(self):
+        return f"{self.content.title} - {self.genre.name}"
+
+
+class ContentEmission(models.Model):
+    """Association contenu / émission"""
+
+    content = models.ForeignKey(
+        Content,
+        on_delete=models.CASCADE
+    )
+
+    emission = models.ForeignKey(
+        Emission,
+        on_delete=models.CASCADE
+    )
+
+    class Meta:
+        db_table = 'content_emissions'
+        unique_together = ('content', 'emission')
+
+    def __str__(self):
+        return f"{self.content.title} - {self.emission.name}"

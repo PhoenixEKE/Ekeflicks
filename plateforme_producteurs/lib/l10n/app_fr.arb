@@ -1,0 +1,855 @@
+{
+  "@@locale": "fr",
+
+  "nouveautes": "Nouveautés",
+  "@nouveautes": { "description": "Titre pour la section Nouveautés" },
+
+  "populaires": "Populaires",
+  "@populaires": { "description": "Titre pour la section Populaires" },
+
+  "profilePageTitle": "Profil Producteur",
+  "@profilePageTitle": { "description": "Titre pour la page profil producteur" },
+
+  "nameOrCompany": "Nom ou société",
+  "@nameOrCompany": { "description": "Libellé pour le champ nom ou société dans le profil" },
+
+  "phoneNumber": "Numéro de téléphone",
+  "@phoneNumber": { "description": "Libellé pour le champ numéro de téléphone dans le profil" },
+
+  "email": "Email",
+  "@email": { "description": "Libellé pour le champ email dans le profil" },
+
+  "password": "Mot de passe",
+  "@password": { "description": "Libellé pour le champ mot de passe dans le profil" },
+
+  "updateButton": "Mettre à jour",
+  "@updateButton": { "description": "Texte du bouton de mise à jour" },
+
+  "french": "Français",
+  "@french": { "description": "Option de langue française" },
+
+  "english": "Anglais",
+  "@english": { "description": "Option de langue anglaise" },
+
+  "pageNotFound": "Page non trouvée",
+  "@pageNotFound": { "description": "Titre pour la page d'erreur 404" },
+
+  "pageNotFoundMessage": "Désolé, la page que vous avez demandée n'existe pas.",
+  "@pageNotFoundMessage": { "description": "Message pour la page d'erreur 404" },
+
+  "profileUpdated": "Profil mis à jour avec succès.",
+  "@profileUpdated": { "description": "Message affiché lorsque le profil utilisateur est mis à jour" },
+
+  "privacySettings": "Paramètres de confidentialité",
+  "@privacySettings": { "description": "Titre général pour la confidentialité" },
+
+  "helpSupport": "Aide et Support",
+  "@helpSupport": { "description": "Titre pour la section d'aide et support" },
+
+  "errorLoadingImage": "Erreur lors du chargement de l'image",
+  "@errorLoadingImage": { "description": "Message affiché lorsqu'une image ne peut pas être chargée" },
+
+  "selectFromGallery": "Sélectionner depuis la galerie",
+  "@selectFromGallery": { "description": "Option pour choisir une photo dans la galerie" },
+
+  "takePhoto": "Prendre une photo",
+  "@takePhoto": { "description": "Option pour prendre une photo avec l'appareil photo" },
+
+  "cancel": "Annuler",
+  "@cancel": { "description": "Bouton pour annuler une action" },
+
+  "changePhotoTooltip": "Changer la photo de profil",
+  "@changePhotoTooltip": { "description": "Tooltip affiché sur le bouton de changement de photo de profil" },
+
+  "errorNameRequired": "Le nom est obligatoire",
+  "@errorNameRequired": { "description": "Message d'erreur lorsque le nom n'est pas renseigné" },
+
+  "errorPhoneRequired": "Le numéro de téléphone est obligatoire",
+  "@errorPhoneRequired": { "description": "Message d'erreur lorsque le téléphone n'est pas renseigné" },
+
+  "errorPhoneInvalid": "Numéro de téléphone invalide",
+  "@errorPhoneInvalid": { "description": "Message d'erreur lorsque le numéro de téléphone n'est pas valide" },
+
+  "errorPasswordTooShort": "Le mot de passe est trop court",
+  "@errorPasswordTooShort": { "description": "Message d'erreur lorsque le mot de passe est trop court" },
+
+  "saving": "Sauvegarde...",
+  "@saving": { "description": "Message affiché lors de la sauvegarde" },
+
+  "errorSavingProfile": "Erreur lors de la sauvegarde du profil",
+  "@errorSavingProfile": { "description": "Message d'erreur lors de la sauvegarde du profil" },
+
+  "change": "Changer",
+  "@change": { "description": "Bouton pour lancer la modification du mot de passe" },
+
+  "changePassword": "Changer le mot de passe",
+  "@changePassword": { "description": "Titre du dialogue de changement de mot de passe" },
+
+  "newPassword": "Nouveau mot de passe",
+  "@newPassword": { "description": "Champ pour saisir le nouveau mot de passe" },
+
+  "confirmPassword": "Confirmer le mot de passe",
+  "@confirmPassword": { "description": "Champ pour confirmer le nouveau mot de passe" },
+
+  "save": "Enregistrer",
+  "@save": { "description": "Bouton pour sauvegarder le changement" },
+
+  "fillAllFields": "Veuillez remplir tous les champs",
+  "@fillAllFields": { "description": "Message d'erreur lorsque tous les champs ne sont pas remplis" },
+
+  "passwordsDoNotMatch": "Les mots de passe ne correspondent pas",
+  "@passwordsDoNotMatch": { "description": "Message d'erreur lorsque les mots de passe ne correspondent pas" },
+
+  "passwordUpdated": "Mot de passe mis à jour",
+  "@passwordUpdated": { "description": "Message de succès après mise à jour du mot de passe" },
+
+  "shareDataWithPartners": "Partager mes données avec les partenaires",
+  "@shareDataWithPartners": { "description": "Option pour activer ou désactiver le partage de données" },
+
+  "shareDataWithPartnersDescription": "Autoriser le partage de données anonymisées avec nos partenaires pour améliorer le service.",
+  "@shareDataWithPartnersDescription": { "description": "Description de l'option de partage de données" },
+
+  "showEmailPublic": "Afficher mon email publiquement",
+  "@showEmailPublic": { "description": "Option pour rendre l'email public" },
+
+  "showEmailPublicDescription": "Les autres utilisateurs pourront voir votre email sur votre profil.",
+  "@showEmailPublicDescription": { "description": "Description de l'option d'affichage public de l'email" },
+
+  "enableTwoFactorAuth": "Activer l'authentification à deux facteurs",
+  "@enableTwoFactorAuth": { "description": "Option pour activer la 2FA" },
+
+  "enableTwoFactorAuthDescription": "Ajoute une couche de sécurité supplémentaire lors de la connexion.",
+  "@enableTwoFactorAuthDescription": { "description": "Description de la 2FA" },
+
+  "saveSettings": "Enregistrer les paramètres",
+  "@saveSettings": { "description": "Bouton pour sauvegarder les paramètres" },
+
+  "settingsSaved": "Paramètres enregistrés",
+  "@settingsSaved": { "description": "Message affiché après sauvegarde des paramètres" },
+
+  "privacySettingsDescription": "Gérez vos préférences en matière de confidentialité et de collecte de données.",
+  "@privacySettingsDescription": { "description": "Description générale en haut de la page paramètres de confidentialité" },
+
+  "acceptAnalyticsTracking": "Accepter le suivi analytique",
+  "@acceptAnalyticsTracking": { "description": "Option pour accepter le suivi analytique" },
+
+  "acceptAnalyticsTrackingDescription": "Nous utilisons ces données pour améliorer votre expérience.",
+  "@acceptAnalyticsTrackingDescription": { "description": "Texte explicatif du suivi analytique" },
+
+  "viewPrivacyPolicy": "Voir la politique de confidentialité",
+  "@viewPrivacyPolicy": { "description": "Bouton pour ouvrir la politique de confidentialité" },
+
+  "privacyPolicy": "Politique de confidentialité",
+  "@privacyPolicy": { "description": "Titre de la page Politique de confidentialité" },
+
+  "privacyPolicyTitle": "Notre politique de confidentialité",
+  "@privacyPolicyTitle": { "description": "Titre principal de la politique de confidentialité" },
+
+  "emailLaunchError": "Impossible d'ouvrir l'application de messagerie.",
+  "@emailLaunchError": { "description": "Erreur affichée si aucune app mail n'est disponible" },
+
+  "helpSupportTitle": "Aide & Support",
+  "@helpSupportTitle": { "description": "Titre de la page Aide & Support" },
+
+  "helpCenterTitle": "Centre d'aide Ephrata",
+  "@helpCenterTitle": { "description": "Titre du centre d'aide" },
+
+  "videoTutorialsTitle": "Tutoriels vidéo",
+  "@videoTutorialsTitle": { "description": "Titre de la section tutoriels vidéo" },
+
+  "helpSupportVideo1Title": "Comment créer un profil",
+  "@helpSupportVideo1Title": { "description": "Titre tuto vidéo 1" },
+
+  "helpSupportVideo2Title": "Ajouter vos produits",
+  "@helpSupportVideo2Title": { "description": "Titre tuto vidéo 2" },
+
+  "helpSupportVideo3Title": "Gérer vos commandes",
+  "@helpSupportVideo3Title": { "description": "Titre tuto vidéo 3" },
+
+  "faqTitle": "Questions fréquentes",
+  "@faqTitle": { "description": "Titre de la FAQ" },
+
+  "helpSupportFaq1Question": "Comment modifier mes informations?",
+  "@helpSupportFaq1Question": { "description": "FAQ question 1" },
+
+  "helpSupportFaq1Answer": "Allez dans Paramètres > Mon compte",
+  "@helpSupportFaq1Answer": { "description": "FAQ réponse 1" },
+
+  "helpSupportFaq2Question": "Problème de connexion?",
+  "@helpSupportFaq2Question": { "description": "FAQ question 2" },
+
+  "helpSupportFaq2Answer": "Réinitialisez votre mot de passe",
+  "@helpSupportFaq2Answer": { "description": "FAQ réponse 2" },
+
+  "contactSupportTitle": "Contactez notre support",
+  "@contactSupportTitle": { "description": "Titre de contact support" },
+
+  "contactEmailLabel": "Email",
+  "@contactEmailLabel": { "description": "Label email support" },
+
+  "contactEmail": "support@ephrata.com",
+  "@contactEmail": { "description": "Email du support" },
+
+  "contactPhoneFrLabel": "Téléphone France",
+  "@contactPhoneFrLabel": { "description": "Label téléphone France" },
+
+  "contactPhoneFr": "+33 6 83 63 70 52",
+  "@contactPhoneFr": { "description": "Téléphone France" },
+
+  "contactPhoneCiLabel": "Téléphone Côte d'Ivoire",
+  "@contactPhoneCiLabel": { "description": "Label téléphone CI" },
+
+  "contactPhoneCi": "+225 05 86 75 89 89",
+  "@contactPhoneCi": { "description": "Téléphone CI" },
+
+  "contactWhatsAppLabel": "WhatsApp",
+  "@contactWhatsAppLabel": { "description": "Label WhatsApp" },
+
+  "contactWhatsApp": "+225 05 86 75 86 96",
+  "@contactWhatsApp": { "description": "Numéro WhatsApp" },
+
+  "loginPageTitle": "CONNEXION PRODUCTEUR",
+  "@loginPageTitle": { "description": "Titre page login" },
+
+  "emailLabel": "Email",
+  "@emailLabel": { "description": "Label email login" },
+
+  "passwordLabel": "Mot de passe",
+  "@passwordLabel": { "description": "Label password login" },
+
+  "loginButton": "SE CONNECTER",
+  "@loginButton": { "description": "Bouton login" },
+
+  "forgotPassword": "Mot de passe oublié ?",
+  "@forgotPassword": { "description": "Lien mot de passe oublié" },
+
+  "emailValidationError": "Email invalide",
+  "@emailValidationError": { "description": "Erreur email invalide" },
+
+  "passwordValidationError": "Minimum 6 caractères",
+  "@passwordValidationError": { "description": "Erreur mot de passe trop court" },
+
+  "changeLanguage": "Changer la langue",
+  "@changeLanguage": { "description": "Bouton changer langue" },
+
+  "dashboardTab": "Tableau de bord",
+  "@dashboardTab": { "description": "Tab dashboard" },
+
+  "moviesTab": "Films",
+  "@moviesTab": { "description": "Tab films" },
+
+  "seriesTab": "Séries",
+  "@seriesTab": { "description": "Tab séries" },
+
+  "uploadTab": "Dépôt",
+  "@uploadTab": { "description": "Tab upload" },
+
+  "financeTab": "Finances",
+  "@financeTab": { "description": "Tab finances" },
+
+  "supportTab": "Support",
+  "@supportTab": { "description": "Tab support" },
+
+  "profileTab": "Mon compte",
+  "@profileTab": { "description": "Tab profil" },
+
+  "logout": "Déconnexion",
+  "@logout": { "description": "Bouton déconnexion" },
+
+  "notificationsTitle": "Notifications",
+  "@notificationsTitle": { "description": "Titre notifications" },
+
+  "notificationNewComment": "Nouveau commentaire",
+  "@notificationNewComment": { "description": "Notification nouveau commentaire" },
+
+  "notificationOnContent": "Sur \"{content}\"",
+  "@notificationOnContent": { "description": "Notification sur un contenu" },
+
+  "notificationPayment": "Paiement reçu",
+  "@notificationPayment": { "description": "Notification paiement reçu" },
+
+  "yesterday": "Hier",
+  "@yesterday": { "description": "Texte hier" },
+
+  "close": "Fermer",
+  "@close": { "description": "Bouton fermer" },
+
+  "dashboardTitle": "Tableau de bord",
+  "@dashboardTitle": { "description": "Titre dashboard" },
+
+  "publishedVideos": "Vidéos publiées",
+  "@publishedVideos": { "description": "Label vidéos publiées" },
+
+  "totalViews": "Vues totales",
+  "@totalViews": { "description": "Label vues totales" },
+
+  "estimatedRevenue": "Revenus estimés",
+  "@estimatedRevenue": { "description": "Label revenus estimés" },
+
+  "pendingItems": "En attente",
+  "@pendingItems": { "description": "Label en attente" },
+
+  "subscribers": "Abonnés",
+  "@subscribers": { "description": "Label abonnés" },
+
+  "engagementRate": "Taux d'engagement",
+  "@engagementRate": { "description": "Label taux d'engagement" },
+
+  "recentActivity": "Activité récente",
+  "@recentActivity": { "description": "Label activité récente" },
+
+  "newVideoPublished": "Nouvelle vidéo publiée",
+  "@newVideoPublished": { "description": "Notification nouvelle vidéo" },
+
+  "videoTitle": "Vidéo : {title}",
+  "@videoTitle": { "description": "Titre de la vidéo avec variable" },
+
+  "paymentReceived": "Paiement reçu",
+  "@paymentReceived": { "description": "Notification paiement reçu" },
+
+  "timeAgo": "Il y a {count} {unit}",
+  "@timeAgo": { "description": "Texte il y a X temps" },
+
+  "hour": "heure",
+  "@hour": { "description": "Unité de temps heure" },
+
+  "hours": "heures",
+  "@hours": { "description": "Unité de temps heures" },
+
+  "uploadFormTitle": "Formulaire Upload Vidéo",
+  "@uploadFormTitle": { "description": "Titre formulaire upload vidéo" },
+
+  "contentTypeLabel": "Type de contenu",
+  "@contentTypeLabel": { "description": "Label type contenu" },
+
+  "titleLabel": "Titre",
+  "@titleLabel": { "description": "Label titre" },
+
+  "descriptionLabel": "Description",
+  "@descriptionLabel": { "description": "Label description" },
+
+  "genresLabel": "Genres",
+  "@genresLabel": { "description": "Label genres" },
+
+  "languageLabel": "Langue",
+  "@languageLabel": { "description": "Label langue" },
+
+  "languageSpecifyLabel": "Précisez la langue",
+  "@languageSpecifyLabel": { "description": "Label préciser langue" },
+
+  "countryLabel": "Pays",
+  "@countryLabel": { "description": "Label pays" },
+
+  "otherOption": "Autres",
+  "@otherOption": { "description": "Option autres pays/langues" },
+
+  "countrySpecifyLabel": "Précisez le pays",
+  "@countrySpecifyLabel": { "description": "Label préciser pays" },
+
+  "releaseYearLabel": "Année de sortie",
+  "@releaseYearLabel": { "description": "Label année sortie" },
+
+  "productionTeamTitle": "Équipe de production",
+  "@productionTeamTitle": { "description": "Titre équipe production" },
+
+  "directorLabel": "Nom du réalisateur",
+  "@directorLabel": { "description": "Label réalisateur" },
+
+  "screenwriterLabel": "Nom du scénariste",
+  "@screenwriterLabel": { "description": "Label scénariste" },
+
+  "producersLabel": "Producteurs",
+  "@producersLabel": { "description": "Label producteurs" },
+
+  "actorsLabel": "Acteurs",
+  "@actorsLabel": { "description": "Label acteurs" },
+
+  "seasonManagementTitle": "Gestion des saisons",
+  "@seasonManagementTitle": { "description": "Titre gestion des saisons" },
+
+  "seasonsLabel": "Saisons",
+  "@seasonsLabel": { "description": "Label saisons" },
+
+  "seasonLabel": "Saison",
+  "@seasonLabel": { "description": "Label saison" },
+
+  "episodesLabel": "Episodes",
+  "@episodesLabel": { "description": "Label épisodes" },
+
+  "episodeLabel": "Episode",
+  "@episodeLabel": { "description": "Label épisode" },
+
+  "trailerLabel": "Bande annonce",
+  "@trailerLabel": { "description": "Label bande annonce" },
+
+  "mediaFilesTitle": "Fichiers multimédias",
+  "@mediaFilesTitle": { "description": "Titre fichiers multimédias" },
+
+  "posterLabel": "Poster",
+  "@posterLabel": { "description": "Label poster" },
+
+  "bannerLabel": "Bannière",
+  "@bannerLabel": { "description": "Label bannière" },
+
+  "mainVideoLabel": "Vidéo principale",
+  "@mainVideoLabel": { "description": "Label vidéo principale" },
+
+  "addProducerTitle": "Ajouter un producteur",
+  "@addProducerTitle": { "description": "Titre ajouter producteur" },
+
+  "addActorTitle": "Ajouter un acteur",
+  "@addActorTitle": { "description": "Titre ajouter acteur" },
+
+  "nameLabel": "Nom",
+  "@nameLabel": { "description": "Label nom" },
+
+  "addImageButton": "Ajouter image",
+  "@addImageButton": { "description": "Bouton ajouter image" },
+
+  "cancelButton": "Annuler",
+  "@cancelButton": { "description": "Bouton annuler" },
+
+  "addButton": "Ajouter",
+  "@addButton": { "description": "Bouton ajouter" },
+
+  "deleteButton": "Supprimer",
+  "@deleteButton": { "description": "Bouton supprimer" },
+
+  "requiredFieldError": "Ce champ est requis",
+  "@requiredFieldError": { "description": "Erreur champ requis" },
+
+  "formValidationError": "Veuillez remplir correctement le formulaire",
+  "@formValidationError": { "description": "Erreur validation formulaire" },
+
+  "genreSelectionError": "Veuillez sélectionner au moins un genre",
+  "@genreSelectionError": { "description": "Erreur genre obligatoire" },
+
+  "languageSelectionError": "Veuillez sélectionner la langue",
+  "@languageSelectionError": { "description": "Erreur langue obligatoire" },
+
+  "languageSpecifyError": "Veuillez préciser la langue",
+  "@languageSpecifyError": { "description": "Erreur préciser langue" },
+
+  "countrySelectionError": "Veuillez sélectionner un pays",
+  "@countrySelectionError": { "description": "Erreur pays obligatoire" },
+
+  "countrySpecifyError": "Veuillez préciser le pays",
+  "@countrySpecifyError": { "description": "Erreur préciser pays" },
+
+  "yearSelectionError": "Veuillez sélectionner l'année de sortie",
+  "@yearSelectionError": { "description": "Erreur année obligatoire" },
+
+  "directorNameError": "Veuillez renseigner le nom du réalisateur",
+  "@directorNameError": { "description": "Erreur nom réalisateur" },
+
+  "screenwriterNameError": "Veuillez renseigner le nom du scénariste",
+  "@screenwriterNameError": { "description": "Erreur nom scénariste" },
+
+  "posterSelectionError": "Veuillez sélectionner une image poster",
+  "@posterSelectionError": { "description": "Erreur poster obligatoire" },
+
+  "bannerSelectionError": "Veuillez sélectionner une image banner",
+  "@bannerSelectionError": { "description": "Erreur bannière obligatoire" },
+
+  "videoSelectionError": "Veuillez sélectionner une vidéo",
+  "@videoSelectionError": { "description": "Erreur vidéo obligatoire" },
+
+  "seasonSelectionError": "Veuillez ajouter au moins une saison pour une série",
+  "@seasonSelectionError": { "description": "Erreur saison obligatoire" },
+
+  "seasonValidationError": "Veuillez compléter toutes les saisons et épisodes",
+  "@seasonValidationError": { "description": "Erreur validation saisons/épisodes" },
+
+  "formSubmissionSuccess": "Formulaire soumis avec succès !",
+  "@formSubmissionSuccess": { "description": "Message succès formulaire" },
+
+  "submitButton": "Soumettre le formulaire",
+  "@submitButton": { "description": "Bouton soumettre" },
+
+  "addSeasonButton": "Ajouter une saison",
+  "@addSeasonButton": { "description": "Bouton ajouter saison" },
+
+  "addTrailerButton": "Ajouter une bande-annonce",
+  "@addTrailerButton": { "description": "Bouton ajouter bande-annonce" },
+
+  "addPosterButton": "Ajouter Poster",
+  "@addPosterButton": { "description": "Bouton ajouter poster" },
+
+  "addBannerButton": "Ajouter Bannière",
+  "@addBannerButton": { "description": "Bouton ajouter bannière" },
+
+  "addVideoButton": "Ajouter Vidéo",
+  "@addVideoButton": { "description": "Bouton ajouter vidéo" },
+
+  "seasonDescriptionLabel": "Description de la saison",
+  "@seasonDescriptionLabel": { "description": "Label description saison" },
+
+  "episodeDescriptionLabel": "Description de l'épisode",
+  "@episodeDescriptionLabel": { "description": "Label description épisode" },
+
+  "seasonTrailerLabel": "Bande-annonce de la saison",
+  "@seasonTrailerLabel": { "description": "Label bande-annonce saison" },
+
+  "addSeasonPosterButton": "Ajouter poster (saison)",
+  "@addSeasonPosterButton": { "description": "Bouton ajouter poster saison" },
+
+  "addSeasonBannerButton": "Ajouter bannière (saison)",
+  "@addSeasonBannerButton": { "description": "Bouton ajouter bannière saison" },
+
+  "addEpisodeTooltip": "Ajouter un épisode",
+  "@addEpisodeTooltip": { "description": "Tooltip ajouter épisode" },
+
+  "removeSeasonTooltip": "Supprimer la saison",
+  "@removeSeasonTooltip": { "description": "Tooltip supprimer saison" },
+
+  "confirmationTitle": "Confirmation",
+  "@confirmationTitle": { "description": "Titre du dialogue de confirmation" },
+
+  "confirmationMessage": "Voulez-vous supprimer cet élément ?",
+  "@confirmationMessage": { "description": "Message confirmation suppression" },
+
+  "titleHint": "Entrez le titre",
+  "@titleHint": { "description": "Hint titre" },
+
+  "selectVideoFirst": "Veuillez sélectionner une vidéo d'abord",
+  "@selectVideoFirst": { "description": "Texte sélection vidéo d'abord" },
+
+  "addSeason": "Ajouter une saison",
+  "@addSeason": { "description": "Texte ajouter saison" },
+
+  "seasonTitleLabel": "Titre de la saison",
+  "@seasonTitleLabel": { "description": "Label titre saison" },
+
+  "seasonTitleHint": "Ex: Saison 3",
+  "@seasonTitleHint": { "description": "Hint titre saison" },
+
+  "addEpisode": "Ajouter un épisode (Saison {seasonNumber})",
+  "@addEpisode": { "description": "Texte ajouter épisode avec variable" },
+
+  "detailsTab": "Détails",
+  "@detailsTab": { "description": "Tab détails" },
+
+  "videoTab": "Vidéo",
+  "@videoTab": { "description": "Tab vidéo" },
+
+  "episodeTitleLabel": "Titre de l'épisode",
+  "@episodeTitleLabel": { "description": "Label titre épisode" },
+
+  "episodeTitleHint": "Titre de l'épisode",
+  "@episodeTitleHint": { "description": "Hint titre épisode" },
+
+  "durationLabel": "Durée (minutes)",
+  "@durationLabel": { "description": "Label durée" },
+
+  "selectedFile": "Fichier sélectionné",
+  "@selectedFile": { "description": "Texte fichier sélectionné" },
+
+  "uploadVideo": "Télécharger vidéo",
+  "@uploadVideo": { "description": "Bouton upload vidéo" },
+
+  "selectVideoPrompt": "Veuillez sélectionner une vidéo",
+  "@selectVideoPrompt": { "description": "Texte sélectionner vidéo" },
+
+  "requiredField": "Champ requis",
+  "@requiredField": { "description": "Texte champ requis" },
+
+  "invalidNumber": "Nombre invalide",
+  "@invalidNumber": { "description": "Erreur nombre invalide" },
+
+  "add": "Ajouter",
+  "@add": { "description": "Bouton ajouter" },
+
+  "secure_access": "Accès sécurisé",
+  "@secure_access": { "description": "Titre accès sécurisé" },
+
+  "enter_pin": "Veuillez entrer votre code PIN pour accéder à vos finances.",
+  "@enter_pin": { "description": "Texte entrer pin finances" },
+
+  "invalid_code": "Code invalide",
+  "@invalid_code": { "description": "Erreur code invalide" },
+
+  "validate": "Valider",
+  "@validate": { "description": "Bouton valider" },
+
+  "my_finances": "Mes finances",
+  "@my_finances": { "description": "Titre finances" },
+
+  "available_balance": "Solde disponible",
+  "@available_balance": { "description": "Label solde disponible" },
+
+  "last_withdrawal": "Dernier retrait",
+  "@last_withdrawal": { "description": "Label dernier retrait" },
+
+  "date": "Date",
+  "@date": { "description": "Label date" },
+
+  "pending_payments": "Paiements en attente",
+  "@pending_payments": { "description": "Label paiements en attente" },
+
+  "available_in_48h": "Disponible dans 48h",
+  "@available_in_48h": { "description": "Texte disponible 48h" },
+
+  "request_withdrawal": "Demander un retrait",
+  "@request_withdrawal": { "description": "Bouton demander retrait" },
+
+  "withdrawal_request": "Demande de retrait",
+  "@withdrawal_request": { "description": "Titre demande retrait" },
+
+  "amount": "Montant",
+  "@amount": { "description": "Label montant" },
+
+  "enter_amount": "Veuillez saisir un montant",
+  "@enter_amount": { "description": "Texte saisir montant" },
+
+  "amount_positive": "Le montant doit être positif",
+  "@amount_positive": { "description": "Erreur montant positif" },
+
+  "amount_exceeds_balance": "Le montant dépasse le solde disponible ({balance} €)",
+  "@amount_exceeds_balance": { "description": "Erreur montant dépasse solde" },
+
+  "payment_method": "Méthode de paiement",
+  "@payment_method": { "description": "Label méthode paiement" },
+
+  "phone_number": "Numéro de téléphone",
+  "@phone_number": { "description": "Label numéro tel retrait" },
+
+  "enter_number": "Veuillez saisir votre numéro",
+  "@enter_number": { "description": "Texte saisir numéro tel" },
+
+  "iban": "IBAN",
+  "@iban": { "description": "Label IBAN" },
+
+  "enter_iban": "Veuillez saisir l'IBAN",
+  "@enter_iban": { "description": "Texte saisir IBAN" },
+
+  "beneficiary_name": "Nom du bénéficiaire",
+  "@beneficiary_name": { "description": "Label nom bénéficiaire" },
+
+  "enter_name": "Veuillez saisir le nom",
+  "@enter_name": { "description": "Texte saisir nom" },
+
+  "confirm_withdrawal": "Confirmer le retrait",
+  "@confirm_withdrawal": { "description": "Bouton confirmer retrait" },
+
+  "success": "réussi",
+  "@success": { "description": "Texte succès" },
+
+  "payment_not_received": "Paiement non reçu",
+  "@payment_not_received": { "description": "Titre réclamation paiement non reçu" },
+
+  "claim_status_in_progress": "En cours",
+  "@claim_status_in_progress": { "description": "Statut réclamation en cours" },
+
+  "payment_issue_desc": "Le paiement n'a pas été reçu pour cette commande.",
+  "@payment_issue_desc": { "description": "Description réclamation paiement" },
+
+  "high_priority": "Haute priorité",
+  "@high_priority": { "description": "Priorité haute" },
+
+  "video_rejected": "Vidéo rejetée",
+  "@video_rejected": { "description": "Réclamation vidéo rejetée" },
+
+  "claim_status_resolved": "Résolu",
+  "@claim_status_resolved": { "description": "Statut réclamation résolu" },
+
+  "rejection_issue_desc": "La vidéo a été rejetée pour non-conformité.",
+  "@rejection_issue_desc": { "description": "Description vidéo rejetée" },
+
+  "medium_priority": "Priorité moyenne",
+  "@medium_priority": { "description": "Priorité moyenne" },
+
+  "rejection_response": "Réponse du support",
+  "@rejection_response": { "description": "Titre réponse support" },
+
+  "my_claims": "Mes réclamations",
+  "@my_claims": { "description": "Titre mes réclamations" },
+
+  "search_claims": "Rechercher des réclamations",
+  "@search_claims": { "description": "Champ recherche réclamations" },
+
+  "support_response": "Réponse du support",
+  "@support_response": { "description": "Label réponse support" },
+
+  "new_claim": "Nouvelle réclamation",
+  "@new_claim": { "description": "Bouton nouvelle réclamation" },
+
+  "claim_title": "Titre de la réclamation",
+  "@claim_title": { "description": "Label titre réclamation" },
+
+  "claim_description": "Description de la réclamation",
+  "@claim_description": { "description": "Label description réclamation" },
+
+  "low_priority": "Basse priorité",
+  "@low_priority": { "description": "Priorité basse" },
+
+  "priority": "Priorité",
+  "@priority": { "description": "Label priorité" },
+
+  "status": "Statut",
+  "@status": { "description": "Label statut" },
+
+  "description": "Description",
+  "@description": { "description": "Label description générique" },
+
+  "submit": "Soumettre",
+  "@submit": { "description": "Bouton soumettre" },
+
+  "claim_submitted": "Réclamation soumise avec succès",
+  "@claim_submitted": { "description": "Message succès réclamation" },
+
+  "searchFilmHint": "Rechercher un film...",
+  "@searchFilmHint": { "description": "Hint recherche film" },
+
+  "publishedStatus": "Publié",
+  "@publishedStatus": { "description": "Statut publié" },
+
+  "pendingStatus": "En attente",
+  "@pendingStatus": { "description": "Statut en attente" },
+
+  "rejectedStatus": "Rejeté",
+  "@rejectedStatus": { "description": "Statut rejeté" },
+
+  "synopsisTitle": "📜 Synopsis",
+  "@synopsisTitle": { "description": "Titre Synopsis" },
+
+  "informationTitle": "🎬 Informations",
+  "@informationTitle": { "description": "Titre informations" },
+
+  "teamTitle": "👨‍🎤 Équipe",
+  "@teamTitle": { "description": "Titre équipe" },
+
+  "statsTitle": "📊 Statistiques",
+  "@statsTitle": { "description": "Titre statistiques" },
+
+  "commentsTitle": "💬 Commentaires récents",
+  "@commentsTitle": { "description": "Titre commentaires" },
+
+  "metadataTitle": "💾 Métadonnées",
+  "@metadataTitle": { "description": "Titre métadonnées" },
+
+  "editButton": "Modifier",
+  "@editButton": { "description": "Bouton modifier" },
+
+  "closeButton": "Fermer",
+  "@closeButton": { "description": "Bouton fermer" },
+
+  "mainActorsLabel": "Acteurs principaux",
+  "@mainActorsLabel": { "description": "Label acteurs principaux" },
+
+  "publicationHistoryLabel": "Historique de publication",
+  "@publicationHistoryLabel": { "description": "Label historique publication" },
+
+  "availableSubtitlesLabel": "Sous-titres disponibles",
+  "@availableSubtitlesLabel": { "description": "Label sous-titres" },
+
+  "viewsLabel": "Vues",
+  "@viewsLabel": { "description": "Label vues" },
+
+  "likesLabel": "Likes",
+  "@likesLabel": { "description": "Label likes" },
+
+  "commentsLabel": "Commentaires",
+  "@commentsLabel": { "description": "Label commentaires" },
+
+  "ratingLabel": "Note",
+  "@ratingLabel": { "description": "Label note" },
+
+  "genresLabel": "Genre(s)",
+  "@genresLabel": { "description": "Label genres film" },
+
+  "languageLabelFilm": "Langue",
+  "@languageLabelFilm": { "description": "Label langue film" },
+
+  "yearLabel": "Année",
+  "@yearLabel": { "description": "Label année film" },
+
+  "countryLabelFilm": "Pays",
+  "@countryLabelFilm": { "description": "Label pays film" },
+
+  "seasonLabelFilm": "Saison",
+  "@seasonLabelFilm": { "description": "Label saison film" },
+
+  "episodeLabelFilm": "Épisode",
+  "@episodeLabelFilm": { "description": "Label épisode film" },
+
+  "episodesLabelFilm": "épisode(s)",
+  "@episodesLabelFilm": { "description": "Label épisodes film" },
+
+  "descriptionToComplete": "Description à compléter",
+  "@descriptionToComplete": { "description": "Texte description incomplète" },
+
+  "filtersToImplement": "Filtres à implémenter",
+  "@filtersToImplement": { "description": "Texte filtres à implémenter" },
+
+  "required_field": "Ce champ est obligatoire.",
+  "@required_field": {
+    "description": "Affiché lorsqu'un champ obligatoire est vide."
+  },
+
+  "privacyPolicyIntroductionTitle": "Introduction",
+  "privacyPolicyIntroductionContent": "Cette politique de confidentialité explique comment nous collectons et utilisons vos données.",
+
+  "privacyPolicyDataCollectedTitle": "Données Collectées",
+  "privacyPolicyDataCollectedContent": "Nous collectons des informations de base pour fournir nos services.",
+  "privacyPolicyDataCollectedItem1": "Informations du compte",
+  "privacyPolicyDataCollectedItem2": "Données d'utilisation",
+  "privacyPolicyDataCollectedItem3": "Données techniques",
+
+  "privacyPolicyDataUsageTitle": "Utilisation des Données",
+  "privacyPolicyDataUsageContent": "Vos données sont utilisées uniquement pour améliorer nos services.",
+
+  "privacyPolicyDataSharingTitle": "Partage des Données",
+  "privacyPolicyDataSharingContent": "Nous ne partageons pas vos données avec des tiers sans votre accord.",
+
+  "privacyPolicyUserRightsTitle": "Vos Droits",
+  "privacyPolicyUserRightsContent": "Vous pouvez accéder, modifier ou supprimer vos données à tout moment.",
+  "privacyPolicyUserRightsItem1": "Droit d'accès",
+  "privacyPolicyUserRightsItem2": "Droit de rectification",
+  "privacyPolicyUserRightsItem3": "Droit de suppression",
+
+  "privacyPolicyCookiesTitle": "Cookies",
+  "privacyPolicyCookiesContent": "Nous utilisons des cookies pour améliorer votre expérience de navigation.",
+
+  "privacyPolicySecurityTitle": "Sécurité des Données",
+  "privacyPolicySecurityContent": "Nous appliquons des mesures appropriées pour protéger vos données.",
+
+  "privacyPolicyChangesTitle": "Modifications de la Politique",
+  "privacyPolicyChangesContent": "Nous pouvons mettre à jour cette politique de temps à autre.",
+
+  "privacyPolicyContactTitle": "Contactez-nous",
+  "privacyPolicyContactContent": "Pour toute question, vous pouvez nous contacter.",
+
+  "privacyPolicyLastUpdate": "Dernière mise à jour : {date}",
+  "@privacyPolicyLastUpdate": {
+    "description": "Affiche la date de la dernière mise à jour de la politique de confidentialité.",
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "addEpisode": "Ajouter un épisode (Saison {seasonNumber})",
+  "@addEpisode": {
+    "description": "Titre pour le modal d'ajout d'épisode",
+    "placeholders": {
+      "seasonNumber": {
+        "type": "Object",
+        "example": "1"
+      }
+    }
+  },
+  "detailsTab": "Détails",
+  "videoTab": "Vidéo",
+  "titleLabel": "Titre",
+  "titleHint": "Titre de l'épisode",
+  "descriptionLabel": "Description",
+  "durationLabel": "Durée (minutes)",
+  "uploadVideo": "Télécharger la vidéo",
+  "uploading": "Téléchargement...",
+  "selectVideo": "Sélectionnez une vidéo",
+  "selectVideoFirst": "Veuillez sélectionner une vidéo d'abord",
+  "selectedFile": "Fichier sélectionné",
+  "supportedFormats": "Formats supportés: MP4, AVI, MOV, etc.",
+  "requiredField": "Ce champ est obligatoire",
+  "invalidNumber": "Nombre invalide",
+  "add": "Ajouter",
+  "cancel": "Annuler"
+}
