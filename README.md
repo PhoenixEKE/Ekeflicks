@@ -6,6 +6,7 @@ multi-supports.
 
 - [Audit general et feuille de route vers une plateforme de niveau industriel](docs/AUDIT_GENERAL.md)
 - [Guide des environnements et commandes de travail](docs/ENVIRONNEMENTS.md)
+- [SLO, evenements analytics et criteres d'acceptation du MVP](docs/MVP_SLO_ANALYTICS_ACCEPTATION.md)
 - [Documentation technique du backend](ekeflicks_backend/docs/README.md)
 
 ## Composants

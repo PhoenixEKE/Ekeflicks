@@ -1,0 +1,8 @@
+pubName: app_ekeflicks
+pubVersion: 1.0.0
+pubDescription: Client Dart genere pour tous les domaines de l'API EkeFlicks v1
+serializationLibrary: built_value
+dateLibrary: core
+nullableFields: true
+useEnumExtension: true
+

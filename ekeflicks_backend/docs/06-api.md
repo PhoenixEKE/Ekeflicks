@@ -5,6 +5,29 @@
 - Swagger : `/swagger/`
 - Redoc : `/redoc/`
 - Schema JSON : `/swagger.json`
+- Alias stable pour les outils : `/openapi.json`
+
+## Contrats transverses
+
+Toutes les routes metier sont versionnees dans leur URL (`/api/v1/`). Un client peut
+egalement envoyer `X-API-Version: 1`. Chaque reponse expose `X-API-Version`,
+`API-Supported-Versions` et un `X-Request-ID` reutilisable dans les journaux et les
+demandes au support. Une autre version explicite est refusee avec le code
+`unsupported_api_version`; une future v2 sera publiee sous `/api/v2/` sans modifier
+le comportement de v1.
+
+Les collections paginees acceptent `page` et `page_size` (maximum 100) et renvoient :
+
+```json
+{
+  "count": 42,
+  "next": "https://api.ekeflicks.com/api/v1/contents/?page=2",
+  "previous": null,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 3,
+  "results": []
+}
 
 ## Routes actives
 

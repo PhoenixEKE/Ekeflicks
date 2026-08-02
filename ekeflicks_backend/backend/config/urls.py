@@ -3,20 +3,13 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.urls import path, include
-from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
+from config.schema import API_INFO
 
 
 schema_view = get_schema_view(
-    openapi.Info(
-        title="EkeFlicks API",
-        default_version='v1',
-        description="API backend for EkeFlicks.",
-        terms_of_service="https://www.ekeflicks.com/terms/",
-        contact=openapi.Contact(email="support@ekeflicks.com"),
-        license=openapi.License(name="Proprietary"),
-    ),
+    API_INFO,
     public=True,
     permission_classes=[permissions.AllowAny],
 )
@@ -33,6 +26,7 @@ urlpatterns = [
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path('swagger.json', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+    path('openapi.json', schema_view.without_ui(cache_timeout=0), name='openapi-json'),
     path('api/v1/auth/', include('apps.auth.urls')),
     path('api/v1/', include('apps.catalog.urls')),
     path('api/v1/', include('apps.profiles.urls')),

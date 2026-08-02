@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (58 tests)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: ekeflicks_test
+          POSTGRES_USER: ekeflicks
+          POSTGRES_PASSWORD: ekeflicks
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ekeflicks -d ekeflicks_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings_test
+      POSTGRES_DB: ekeflicks_test
+      POSTGRES_USER: ekeflicks
+      POSTGRES_PASSWORD: ekeflicks
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+    defaults:
+      run:
+        working-directory: ekeflicks_backend/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ekeflicks_backend/backend/requirements.lock.txt
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.lock.txt
+      - name: Check Django configuration
+        run: python manage.py check
+      - name: Run the backend test suite
+        run: python manage.py test --settings=config.settings_test --verbosity=2
+
+  flutter:
+    name: Flutter tests (${{ matrix.application }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        application:
+          - plateforme_client
+          - plateforme_producteurs
+          - plateforme_administrateur
+    defaults:
+      run:
+        working-directory: ${{ matrix.application }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.8'
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Run Flutter tests
+        run: flutter test

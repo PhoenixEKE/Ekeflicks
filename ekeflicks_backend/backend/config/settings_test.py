@@ -1,6 +1,37 @@
-from .settings import *  # noqa: F401,F403
+"""Deterministic settings used by local and CI test runs.
+
+Only PostgreSQL is kept as an infrastructure dependency because the schema uses
+PostgreSQL-specific search fields and indexes.  Cache, sessions, email, Celery
+and media storage are deliberately process-local.
+"""
+
+import os
+
+os.environ.setdefault('DJANGO_SECRET_KEY', 'ekeflicks-test-key-not-for-production')
+
+from .settings import *  # noqa: E402,F401,F403
 
 DEBUG = True
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('POSTGRES_DB', 'ekeflicks_test'),
+        'USER': os.environ.get('POSTGRES_USER', 'ekeflicks'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'ekeflicks'),
+        'HOST': os.environ.get('POSTGRES_HOST', '127.0.0.1'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        'CONN_MAX_AGE': 0,
+    },
+}
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'ekeflicks-tests',
+    },
+}
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.MD5PasswordHasher',
@@ -52,6 +83,8 @@ STORAGES = {
 
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_BROKER_URL = 'memory://'
+CELERY_RESULT_BACKEND = 'cache+memory://'
 
 LOGGING = {
     'version': 1,
