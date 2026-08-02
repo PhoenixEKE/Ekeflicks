@@ -10,6 +10,7 @@ import 'package:app_ekeflicks/providers/user_provider.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
+import 'package:app_ekeflicks/services/subscription_progress_service.dart';
 import 'package:dio/dio.dart';
 
 class SignupPage extends StatefulWidget {
@@ -59,12 +60,15 @@ class _SignupPageState extends State<SignupPage> {
       final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
 
       // Création de l'utilisateur
-      await userProvider.register(
+      final registered = await userProvider.register(
         email: email,
         password: password,
         firstname: firstname,
         lastname: lastname,
       );
+      if (!registered) {
+        throw Exception(AppLocalizations.of(context)!.genericError);
+      }
 
       // Connexion automatique après création
       //final loggedIn = await userProvider.login(email: email, password: password);

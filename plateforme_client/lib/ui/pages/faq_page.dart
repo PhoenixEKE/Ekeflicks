@@ -44,11 +44,11 @@ class _FaqPageState extends State<FaqPage> {
   Future<void> _loadFaqItems() async {
     // Simuler un chargement
     await Future.delayed(const Duration(milliseconds: 300));
-    
+
     if (!mounted) return;
-    
+
     final loc = AppLocalizations.of(context)!;
-    
+
     setState(() {
       faqItems = [
         // 🔄 CATÉGORIE : Compte et Profil
@@ -136,7 +136,7 @@ class _FaqPageState extends State<FaqPage> {
       for (var item in faqItems) {
         _expandedState[item.question] = false;
       }
-      
+
       _isLoading = false;
     });
   }
@@ -168,8 +168,8 @@ class _FaqPageState extends State<FaqPage> {
 
     return Scaffold(
       appBar: SimpleAppBar(
-        logoPath: theme.brightness == Brightness.dark 
-            ? 'assets/images/logo_dark.png' 
+        logoPath: theme.brightness == Brightness.dark
+            ? 'assets/images/logo_dark.png'
             : 'assets/images/logo_light.png',
       ),
       body: Container(
@@ -223,7 +223,7 @@ class _FaqPageState extends State<FaqPage> {
               itemBuilder: (context, index) {
                 final faq = filteredFaqItems[index];
                 final isExpanded = _expandedState[faq.question] ?? false;
-                
+
                 return Container(
                   margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                   child: Card(
@@ -333,20 +333,16 @@ class _FaqPageState extends State<FaqPage> {
                       itemBuilder: (context, index) {
                         final faq = filteredFaqItems[index];
                         final isExpanded = _expandedState[faq.question] ?? false;
-                        
-                        return Container(
+
+                        return Card(
                           margin: const EdgeInsets.only(bottom: 16),
-                          decoration: BoxDecoration(
-                            color: theme.cardColor,
+                          color: theme.cardColor,
+                          elevation: 2,
+                          shadowColor: theme.shadowColor.withOpacity(0.1),
+                          shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: theme.shadowColor.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
                           ),
+                          clipBehavior: Clip.antiAlias,
                           child: ExpansionTile(
                             leading: Icon(faq.icon, color: AppTheme.primaryOrange),
                             title: Text(
@@ -428,7 +424,7 @@ class _FaqPageState extends State<FaqPage> {
             itemBuilder: (context, index) {
               final faq = filteredFaqItems[index];
               final isExpanded = _expandedState[faq.question] ?? false;
-              
+
               return Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Card(
@@ -483,7 +479,7 @@ class _FaqPageState extends State<FaqPage> {
         child: Row(
           children: categories.map((category) {
             final isSelected = category == _selectedCategory;
-            
+
             return Container(
               margin: const EdgeInsets.symmetric(horizontal: 4),
               child: FilterChip(
@@ -522,7 +518,7 @@ class _FaqPageState extends State<FaqPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: categories.map((category) {
             final isSelected = category == _selectedCategory;
-            
+
             return Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 8),

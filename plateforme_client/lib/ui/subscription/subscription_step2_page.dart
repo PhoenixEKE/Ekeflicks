@@ -6,11 +6,13 @@ import 'subscription_step1_page.dart';
 class SubscriptionStep2Page extends StatefulWidget {
   final String offerTitle;
   final String offerPrice;
+  final String? accountEmail;
 
   const SubscriptionStep2Page({
     super.key,
     required this.offerTitle,
     required this.offerPrice,
+    this.accountEmail,
   });
 
   @override
@@ -119,7 +121,7 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: isDarkMode 
+                    color: isDarkMode
                         ? Colors.black.withOpacity(0.8)
                         : Colors.grey.withOpacity(0.3),
                     blurRadius: 15,
@@ -134,14 +136,14 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 40), // Espacement accru en haut
-                    
+
                     // AJOUT: Logo centré
                     Image.asset(
                       logoPath,
                       height: 60, // Taille réduite pour s'intégrer mieux
                       fit: BoxFit.contain,
                     ),
-                    
+
                     const SizedBox(height: 20),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -154,7 +156,9 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
                               Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const SubscriptionStep1Page(),
+                                  builder: (context) => SubscriptionStep1Page(
+                                    accountEmail: widget.accountEmail,
+                                  ),
                                 ),
                               );
                             },
@@ -281,7 +285,7 @@ class _PaymentCardState extends State<_PaymentCard> {
                   ]
                 : [
                     BoxShadow(
-                      color: isDarkMode 
+                      color: isDarkMode
                         ? Colors.black.withOpacity(0.6)
                         : Colors.grey.withOpacity(0.3),
                       blurRadius: 6,

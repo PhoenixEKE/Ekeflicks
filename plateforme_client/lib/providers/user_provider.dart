@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:app_ekeflicks/src/openapi.dart';
 import 'package:app_ekeflicks/src/models/user.dart';
-import 'package:app_ekeflicks/src/models/user_create.dart';
 import 'package:app_ekeflicks/src/models/token_refresh.dart';
 import 'package:dio/dio.dart';
 
@@ -26,35 +25,32 @@ class UserProvider with ChangeNotifier {
 
   /// Inscription d'un nouvel utilisateur + login automatique
   Future<bool> register({
-      required String email,
-      required String password,
-      required String firstname,
-      required String lastname,
-    }) async {
-      print('Register called with: email=$email, password=$password, firstname=$firstname, lastname=$lastname');
+    required String email,
+    required String password,
+    required String firstname,
+    required String lastname,
+  }) async {
+    try {
+      // Registration is an authentication operation. The generated users
+      // endpoint belongs to an older API and no longer exists in v1.
+      final response = await apiClient.dio.post<Map<String, dynamic>>(
+        '/auth/register/',
+        data: {
+          'email': email,
+          'password': password,
+          'firstname': firstname,
+          'lastname': lastname,
+        },
+        options: Options(headers: {'Content-Type': 'application/json'}),
+      );
 
-      final userCreate = UserCreate((b) => b
-        ..email = email
-        ..password = password
-        ..firstname = firstname
-        ..lastname = lastname);
-
-      print('UserCreate object: $userCreate');
-
-      try {
-        // Appel API pour créer l'utilisateur
-        final response = await apiClient.getUsersApi().usersCreate(data: userCreate);
-
-        print('User created successfully: $response');
-
-        // Inscription réussie, retourne true pour naviguer vers la page d'abonnement
-        return true;
-      } catch (e, st) {
-        print('Error during registration: $e');
-        print('Stacktrace: $st');
-        return false;
-      }
+      return response.statusCode == 201;
+    } catch (e, st) {
+      print('Error during registration: $e');
+      print('Stacktrace: $st');
+      return false;
     }
+  }
 
   /// Connexion utilisateur - Version modifiée pour retourner des informations détaillées
   Future<Map<String, dynamic>> login({required String email, required String password}) async {
@@ -77,7 +73,7 @@ class UserProvider with ChangeNotifier {
         if (_accessToken != null) {
           _setBearerToken(_accessToken!);
           final profileLoaded = await _loadUserProfile();
-          
+
           return {
             'success': profileLoaded,
             'statusCode': 200,
@@ -93,16 +89,16 @@ class UserProvider with ChangeNotifier {
       };
     } on DioException catch (e) {
       print('Login error: $e');
-      
+
       // Gestion spécifique des erreurs Dio
       final statusCode = e.response?.statusCode;
       final errorMessage = _getErrorMessageFromStatusCode(statusCode);
-      
+
       _currentUser = null;
       _accessToken = null;
       _refreshToken = null;
       notifyListeners();
-      
+
       return {
         'success': false,
         'statusCode': statusCode ?? 500,
@@ -111,12 +107,12 @@ class UserProvider with ChangeNotifier {
       };
     } catch (e) {
       print('Unexpected login error: $e');
-      
+
       _currentUser = null;
       _accessToken = null;
       _refreshToken = null;
       notifyListeners();
-      
+
       return {
         'success': false,
         'statusCode': 500,

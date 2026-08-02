@@ -16,6 +16,9 @@ import 'package:app_ekeflicks/utils/keyboard_navigation_utils.dart';
 import 'package:app_ekeflicks/widgets/dialog/custom_error_dialog.dart';
 import 'package:app_ekeflicks/widgets/dialog/custom_language_dialog.dart';
 import 'package:app_ekeflicks/ui/users/post_login_page.dart';
+import 'package:app_ekeflicks/services/subscription_progress_service.dart';
+import 'package:app_ekeflicks/ui/subscription/subscription_step1_page.dart';
+import 'package:app_ekeflicks/ui/subscription/subscription_step2_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -170,12 +173,34 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
 
   Future<void> _handleSuccessfulLogin(ProfileProvider profileProvider) async {
     try {
+      final email = context.read<UserProvider>().currentUser?.email;
+      final subscriptionProgress = email == null
+          ? null
+          : await SubscriptionProgressService().load(email);
+
+      if (subscriptionProgress != null && mounted) {
+        final destination = subscriptionProgress.step ==
+                SubscriptionStep.payment
+            ? SubscriptionStep2Page(
+                offerTitle: subscriptionProgress.offerTitle!,
+                offerPrice: subscriptionProgress.offerPrice!,
+                accountEmail: email,
+              )
+            : SubscriptionStep1Page(accountEmail: email);
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => destination),
+          (route) => false,
+        );
+        return;
+      }
+
       await profileProvider.loadProfiles();
-      
+
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => 
-          profileProvider.availableProfiles.length > 1 
+        MaterialPageRoute(builder: (_) =>
+          profileProvider.availableProfiles.length > 1
             ? ProfileSelectionPage() // Sans const
             : PostLoginPage() // Sans const
         ),

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:app_ekeflicks/providers/device_info_provider.dart';
+import 'package:app_ekeflicks/providers/content_provider.dart';
 import 'package:app_ekeflicks/widgets/keyboards/tv_virtual_keyboard.dart';
 import 'package:app_ekeflicks/utils/keyboard_text_manager.dart';
 import 'package:app_ekeflicks/utils/focus_utils.dart';
 
 class TVSearchPage extends StatefulWidget {
   final String? initialQuery;
-  
+
   const TVSearchPage({super.key, this.initialQuery});
 
   @override
@@ -19,7 +20,7 @@ class _TVSearchPageState extends State<TVSearchPage> {
   final FocusNode _searchFocusNode = FocusNode();
   final FocusNode _keyboardFocusNode = FocusNode();
   late final KeyboardTextManager _textManager;
-  
+
   List<String> _searchSuggestions = [];
   List<String> _searchResults = [];
   bool _showSuggestions = true;
@@ -28,12 +29,12 @@ class _TVSearchPageState extends State<TVSearchPage> {
   void initState() {
     super.initState();
     _textManager = KeyboardTextManager(_searchController);
-    
+
     if (widget.initialQuery != null) {
       _searchController.text = widget.initialQuery!;
       _textManager.controller.text = widget.initialQuery!;
     }
-    
+
     _searchFocusNode.requestFocus();
     _searchController.addListener(_onSearchTextChanged);
     _loadPopularSearches();
@@ -100,19 +101,24 @@ class _TVSearchPageState extends State<TVSearchPage> {
     _searchSuggestions = _getPopularSearches();
   }
 
-  void _performSearch() {
+  Future<void> _performSearch() async {
     final query = _searchController.text.trim();
     if (query.isNotEmpty) {
       setState(() {
         _showSuggestions = false;
-        _searchResults = _generateSearchResults(query);
+        _searchResults = [];
       });
+      try {
+        final results = await context.read<ContentProvider>().searchRemote(query);
+        if (mounted) setState(() => _searchResults = results.map((item) => item.title).toList());
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('La recherche est momentanément indisponible.')),
+          );
+        }
+      }
     }
-  }
-
-  List<String> _generateSearchResults(String query) {
-    // Simulation de résultats de recherche
-    return List.generate(20, (index) => '$query Résultat ${index + 1}');
   }
 
   void _onTextInput(String text) {
@@ -172,7 +178,7 @@ class _TVSearchPageState extends State<TVSearchPage> {
           children: [
             // Background avec effet de flou
             _buildBackground(),
-            
+
             // Contenu principal
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 60.0, vertical: 40.0),
@@ -181,9 +187,9 @@ class _TVSearchPageState extends State<TVSearchPage> {
                 children: [
                   // Header avec champ de recherche
                   _buildSearchHeader(theme),
-                  
+
                   const SizedBox(height: 30),
-                  
+
                   // Contenu selon l'état
                   Expanded(
                     child: _showSuggestions && _searchController.text.isEmpty
@@ -192,15 +198,15 @@ class _TVSearchPageState extends State<TVSearchPage> {
                             ? _buildSearchSuggestions(theme)
                             : _buildSearchResults(theme, size),
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Clavier virtuel
                   if (isTV) _buildVirtualKeyboard(),
                 ],
               ),
             ),
-            
+
             // Bouton de fermeture
             _buildCloseButton(theme),
           ],
@@ -209,7 +215,6 @@ class _TVSearchPageState extends State<TVSearchPage> {
     );
   }
 
-  // ... rest of the helper methods remain the same
   Widget _buildBackground() {
     return Container(
       decoration: BoxDecoration(
@@ -238,9 +243,9 @@ class _TVSearchPageState extends State<TVSearchPage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        
+
         const SizedBox(height: 20),
-        
+
         Container(
           height: 70,
           decoration: BoxDecoration(
@@ -296,9 +301,9 @@ class _TVSearchPageState extends State<TVSearchPage> {
             fontSize: 32,
           ),
         ),
-        
+
         const SizedBox(height: 20),
-        
+
         Wrap(
           spacing: 16,
           runSpacing: 16,
@@ -335,9 +340,9 @@ class _TVSearchPageState extends State<TVSearchPage> {
             fontSize: 32,
           ),
         ),
-        
+
         const SizedBox(height: 20),
-        
+
         Expanded(
           child: ListView.builder(
             itemCount: _searchSuggestions.length,
@@ -375,9 +380,9 @@ class _TVSearchPageState extends State<TVSearchPage> {
             fontSize: 32,
           ),
         ),
-        
+
         const SizedBox(height: 20),
-        
+
         Expanded(
           child: GridView.builder(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

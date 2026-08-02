@@ -115,6 +115,12 @@ class CatalogApiTests(APITestCase):
         self.assertIn('recommended', row_keys)
         self.assertIn('top_10', row_keys)
 
+    def test_legacy_singular_content_home_url_remains_available(self):
+        response = self.client.get(reverse('content-home-legacy'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('rows', response.data)
+
     def test_non_staff_cannot_create_content(self):
         user = User.objects.create_user(email='viewer@example.com', password='StrongPass123')
         self.client.force_authenticate(user=user)

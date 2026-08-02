@@ -3,9 +3,14 @@ import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'subscription_offers_widget.dart';
 import 'subscription_step2_page.dart';
 import 'package:app_ekeflicks/widgets/footers/reusable_footer.dart';
+import 'package:app_ekeflicks/providers/user_provider.dart';
+import 'package:app_ekeflicks/services/subscription_progress_service.dart';
+import 'package:provider/provider.dart';
 
 class SubscriptionStep1Page extends StatefulWidget {
-  const SubscriptionStep1Page({super.key});
+  const SubscriptionStep1Page({super.key, this.accountEmail});
+
+  final String? accountEmail;
 
   @override
   State<SubscriptionStep1Page> createState() => _SubscriptionStep1PageState();
@@ -64,7 +69,7 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: isDarkMode 
+                    color: isDarkMode
                         ? Colors.black.withOpacity(0.8)
                         : Colors.grey.withOpacity(0.3),
                     blurRadius: 15,
@@ -79,14 +84,14 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 40), // Espacement accru en haut
-                    
+
                     // AJOUT: Logo centré
                     Image.asset(
                       logoPath,
                       height: 60, // Taille réduite pour s'intégrer mieux
                       fit: BoxFit.contain,
                     ),
-                    
+
                     const SizedBox(height: 30),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -129,13 +134,28 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
                           ),
                           onPressed: _selectedOffer == null
                               ? null
-                              : () {
+                              : () async {
+                                  final email = widget.accountEmail ??
+                                      context
+                                          .read<UserProvider>()
+                                          .currentUser
+                                          ?.email;
+                                  if (email != null) {
+                                    await SubscriptionProgressService()
+                                        .continueToPayment(
+                                      email: email,
+                                      offerTitle: _selectedOffer!.title,
+                                      offerPrice: _selectedOffer!.price ?? '',
+                                    );
+                                  }
+                                  if (!context.mounted) return;
                                   Navigator.pushReplacement(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => SubscriptionStep2Page(
                                         offerTitle: _selectedOffer!.title,
                                         offerPrice: _selectedOffer!.price ?? '',
+                                        accountEmail: email,
                                       ),
                                     ),
                                   );

@@ -15,7 +15,7 @@ import 'package:app_ekeflicks/src/api/profiles_api.dart';
 import 'package:app_ekeflicks/src/api/users_api.dart';
 
 class Openapi {
-  static const String basePath = r'http://180.149.198.245/api/v1/accounts';
+  static const String basePath = r'http://180.149.198.245/api/v1';
 
   final Dio dio;
   final Serializers serializers;

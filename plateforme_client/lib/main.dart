@@ -17,6 +17,7 @@ import 'providers/avatar_provider.dart';
 import 'routes.dart';
 import 'ui/users/reset_password_page.dart';
 import 'package:app_ekeflicks/src/openapi.dart';
+import 'services/content_api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +41,9 @@ void main() async {
         ChangeNotifierProvider.value(value: themeProvider),
         ChangeNotifierProvider.value(value: localeProvider),
         ChangeNotifierProvider(create: (_) => DeviceInfoProvider()),
-        ChangeNotifierProvider(create: (_) => ContentProvider()),
+        ChangeNotifierProvider(
+          create: (_) => ContentProvider(ContentApiService(openapi.dio)),
+        ),
         ChangeNotifierProvider(create: (_) => UserProvider(openapi)),
         ChangeNotifierProvider(create: (_) => ProfileProvider(openapi)),
         ChangeNotifierProvider(create: (context) => AvatarProvider()),

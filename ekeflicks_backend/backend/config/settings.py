@@ -331,14 +331,18 @@ NEO4J_DATABASE = os.environ.get('NEO4J_DATABASE', 'neo4j')
 
 CORS_ALLOW_ALL_ORIGINS = False
 
-CORS_ALLOWED_ORIGINS = [
-    'https://ekeflicks.com',
-    'https://api.ekeflicks.com',
-    'https://www.ekeflicks.com',
-    'http://localhost:3000',
-    'http://localhost:8080',
-    'http://192.162.68.247:8080',
-]
+CORS_ALLOWED_ORIGINS = env_list(
+    'CORS_ALLOWED_ORIGINS',
+    ','.join([
+        'https://ekeflicks.com',
+        'https://api.ekeflicks.com',
+        'https://www.ekeflicks.com',
+        'http://localhost:3000',
+        'http://localhost:8080',
+        'http://192.162.68.247:3000',
+        'http://192.162.68.247:8080',
+    ]),
+)
 
 CORS_ALLOW_CREDENTIALS = True
 

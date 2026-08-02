@@ -10,6 +10,7 @@ import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/models/content_model.dart';
 import 'package:app_ekeflicks/providers/content_provider.dart';
 import 'package:app_ekeflicks/providers/locale_provider.dart';
+import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/widgets/banner/hero_banner.dart';
 import 'package:app_ekeflicks/widgets/footers/main_footer.dart';
 import 'package:app_ekeflicks/widgets/app_bars/home_app_bar.dart';
@@ -44,7 +45,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadContent() async {
     final loc = AppLocalizations.of(context)!;
-    await Provider.of<ContentProvider>(context, listen: false).loadInitialContent(loc);
+    final provider = Provider.of<ContentProvider>(context, listen: false);
+    provider.profileId = Provider.of<ProfileProvider>(context, listen: false).currentProfile?.id;
+    await provider.loadInitialContent(loc);
   }
 
   Future<void> _fetchBestPrice() async {
@@ -242,6 +245,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 'videoUrl': content.videoUrl,
                                 'title': content.title,
                                 'imageUrl': content.posterUrl,
+                                'contentId': content.id,
+                                'resumePosition': content.progress == null
+                                    ? null
+                                    : Duration(milliseconds: (content.duration.inMilliseconds * content.progress!).round()),
+                                'nextEpisode': content.nextEpisode,
                               },
                             );
                           },
