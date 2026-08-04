@@ -25,37 +25,35 @@ class UserProvider with ChangeNotifier {
 
   /// Inscription d'un nouvel utilisateur + login automatique
   Future<bool> register({
-      required String email,
-      required String password,
-      required String firstname,
-      required String lastname,
-    }) async {
-      print('Register called with: email=$email, password=$password, firstname=$firstname, lastname=$lastname');
+    required String email,
+    required String password,
+    required String firstname,
+    required String lastname,
+  }) async {
+    try {
+      // Registration is an authentication endpoint in the v1 backend. The
+      // generated legacy `/users/` operation no longer matches this API.
+      final response = await apiClient.dio.post<Map<String, dynamic>>(
+        '/auth/register/',
+        data: {
+          'email': email,
+          'password': password,
+          'firstname': firstname,
+          'lastname': lastname,
+        },
+        options: Options(headers: {'Content-Type': 'application/json'}),
+      );
 
-      try {
-        // Registration is an authentication endpoint in the v1 backend. The
-        // generated legacy `/users/` operation no longer matches this API.
-        final response = await apiClient.dio.post(
-          '/auth/register/',
-          data: {
-            'email': email,
-            'password': password,
-            'firstname': firstname,
-            'lastname': lastname,
-          },
-          options: Options(headers: {'Content-Type': 'application/json'}),
-        );
-
-        print('User created successfully: $response');
-
-        // Inscription réussie, retourne true pour naviguer vers la page d'abonnement
-        return response.statusCode == 201;
-      } catch (e, st) {
-        print('Error during registration: $e');
-        print('Stacktrace: $st');
-        return false;
-      }
+      return response.statusCode == 201;
+    } on DioException catch (error) {
+      // Never log request bodies here: they contain the user's password.
+      debugPrint(
+        'Registration failed (${error.response?.statusCode ?? error.type.name}) '
+        'at ${error.requestOptions.uri}',
+      );
+      return false;
     }
+  }
 
   /// Connexion utilisateur - Version modifiée pour retourner des informations détaillées
   Future<Map<String, dynamic>> login({required String email, required String password}) async {
@@ -93,7 +91,7 @@ class UserProvider with ChangeNotifier {
         'message': _getErrorMessageFromStatusCode(response.statusCode)
       };
     } on DioException catch (e) {
-      print('Login error: $e');
+      debugPrint('Login error: $e');
 
       // Gestion spécifique des erreurs Dio
       final statusCode = e.response?.statusCode;
@@ -111,7 +109,7 @@ class UserProvider with ChangeNotifier {
         'dioError': e.message
       };
     } catch (e) {
-      print('Unexpected login error: $e');
+      debugPrint('Unexpected login error: $e');
 
       _currentUser = null;
       _accessToken = null;
@@ -166,7 +164,7 @@ class UserProvider with ChangeNotifier {
 
       return false;
     } catch (e) {
-      print('Failed to load user profile: $e');
+      debugPrint('Failed to load user profile: $e');
       _currentUser = null;
       notifyListeners();
       return false;
@@ -196,7 +194,7 @@ class UserProvider with ChangeNotifier {
 
       return false;
     } catch (e) {
-      print('Token refresh failed: $e');
+      debugPrint('Token refresh failed: $e');
       return false;
     }
   }
@@ -212,7 +210,7 @@ class UserProvider with ChangeNotifier {
         );
       }
     } catch (e) {
-      print('Logout API failed: $e');
+      debugPrint('Logout API failed: $e');
       // On continue la déconnexion locale même si l'API échoue
     } finally {
       _currentUser = null;
@@ -237,7 +235,7 @@ class UserProvider with ChangeNotifier {
         );
       }
     } catch (e) {
-      print('Logout all API failed: $e');
+      debugPrint('Logout all API failed: $e');
     } finally {
       _currentUser = null;
       _accessToken = null;

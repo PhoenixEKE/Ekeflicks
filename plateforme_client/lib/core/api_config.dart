@@ -5,7 +5,7 @@
 abstract final class ApiConfig {
   static const String origin = String.fromEnvironment(
     'API_ORIGIN',
-    defaultValue: 'http://180.149.198.245',
+    defaultValue: 'http://180.149.198.245:8000',
   );
 
   static const String apiPrefix = '/api/v1';

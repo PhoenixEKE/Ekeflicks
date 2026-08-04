@@ -5,6 +5,7 @@ import 'package:app_links/app_links.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/app_theme.dart';
+import 'core/api_config.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/device_info_provider.dart';
 import 'providers/locale_provider.dart';
@@ -33,8 +34,11 @@ void main() async {
   final themeProvider = ThemeProvider();
   await themeProvider.loadThemePrefs();
 
+  // Openapi reads ApiConfig, including the API_ORIGIN build-time override.
+  // Keeping the deployment URL out of this file prevents web builds from
+  // silently sending authentication requests to a stale Apache host.
   final openapi = Openapi(
-    basePathOverride: 'http://180.149.198.245/api/v1/',
+    basePathOverride: '${ApiConfig.origin}/api/v1/',
   );
 
   runApp(
