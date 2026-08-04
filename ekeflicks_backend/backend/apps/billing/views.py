@@ -44,6 +44,21 @@ class SubscriptionPlanViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_active=True)
         return queryset
 
+    @action(detail=False, methods=['get'], url_path='best-price')
+    def best_price(self, request):
+        """Return the cheapest active plan for the public home page."""
+        plan = self.get_queryset().order_by('price', 'display_order').first()
+        if plan is None:
+            return Response(
+                {'detail': "Aucun plan d'abonnement actif."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response({
+            'best_price': str(plan.price),
+            'currency': plan.currency,
+        })
+
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
     serializer_class = SubscriptionSerializer

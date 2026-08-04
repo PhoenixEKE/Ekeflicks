@@ -47,6 +47,21 @@ class BillingApiTests(APITestCase):
         self.assertEqual(response.data['status'], 'pending')
         self.assertEqual(response.data['plan']['id'], str(self.plan.id))
 
+    def test_best_price_returns_cheapest_active_plan(self):
+        SubscriptionPlan.objects.create(
+            name='Basic',
+            slug='basic',
+            price='5.00',
+            currency='EUR',
+            duration_days=30,
+        )
+
+        response = self.client.get(reverse('subscription-plan-best-price'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['best_price'], '5.00')
+        self.assertEqual(response.data['currency'], 'EUR')
+
     def test_payment_uses_subscription_plan_amount(self):
         self.client.force_authenticate(user=self.user)
         subscription_response = self.client.post(

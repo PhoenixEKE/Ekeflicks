@@ -15,6 +15,7 @@ from core.models import (
 
 class AuthApiTests(APITestCase):
     def test_register_creates_user_profile_and_tokens(self):
+        self.assertEqual(reverse('register'), '/api/v1/auth/register/')
         response = self.client.post(
             reverse('register'),
             {

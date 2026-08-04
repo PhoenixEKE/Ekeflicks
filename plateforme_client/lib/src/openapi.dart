@@ -13,9 +13,10 @@ import 'package:app_ekeflicks/src/api/auth_api.dart';
 import 'package:app_ekeflicks/src/api/avatars_api.dart';
 import 'package:app_ekeflicks/src/api/profiles_api.dart';
 import 'package:app_ekeflicks/src/api/users_api.dart';
+import 'package:app_ekeflicks/core/api_config.dart';
 
 class Openapi {
-  static const String basePath = r'http://180.149.198.245/api/v1';
+    static String get basePath => ApiConfig.baseUrl;
 
   final Dio dio;
   final Serializers serializers;

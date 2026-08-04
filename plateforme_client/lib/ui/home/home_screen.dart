@@ -17,6 +17,7 @@ import 'package:app_ekeflicks/widgets/app_bars/home_app_bar.dart';
 import 'package:app_ekeflicks/widgets/dialog/info_dialog.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
+import 'package:app_ekeflicks/core/api_config.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -53,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _fetchBestPrice() async {
     try {
       final response = await http.get(
-        Uri.parse("http://180.149.198.245/api/v1/subscriptions/subscriptions/best_price_auto/"),
+        ApiConfig.endpoint('subscription-plans/best-price'),
       );
 
       if (response.statusCode == 200) {

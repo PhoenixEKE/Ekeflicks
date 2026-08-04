@@ -17,5 +17,12 @@ router.register('producer-payout-requests', ProducerPayoutRequestViewSet, basena
 
 urlpatterns = [
     path('billing/webhooks/<str:provider>/', PaymentWebhookView.as_view(), name='billing-webhook'),
+    # Compatibility route used by older web clients. Keep it while deployed
+    # clients migrate to /subscription-plans/best-price/.
+    path(
+        'subscriptions/subscriptions/best_price_auto/',
+        SubscriptionPlanViewSet.as_view({'get': 'best_price'}),
+        name='legacy-best-price',
+    ),
     path('', include(router.urls)),
 ]

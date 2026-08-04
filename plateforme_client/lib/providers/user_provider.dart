@@ -25,32 +25,37 @@ class UserProvider with ChangeNotifier {
 
   /// Inscription d'un nouvel utilisateur + login automatique
   Future<bool> register({
-    required String email,
-    required String password,
-    required String firstname,
-    required String lastname,
-  }) async {
-    try {
-      // Registration is an authentication operation. The generated users
-      // endpoint belongs to an older API and no longer exists in v1.
-      final response = await apiClient.dio.post<Map<String, dynamic>>(
-        '/auth/register/',
-        data: {
-          'email': email,
-          'password': password,
-          'firstname': firstname,
-          'lastname': lastname,
-        },
-        options: Options(headers: {'Content-Type': 'application/json'}),
-      );
+      required String email,
+      required String password,
+      required String firstname,
+      required String lastname,
+    }) async {
+      print('Register called with: email=$email, password=$password, firstname=$firstname, lastname=$lastname');
 
-      return response.statusCode == 201;
-    } catch (e, st) {
-      print('Error during registration: $e');
-      print('Stacktrace: $st');
-      return false;
+      try {
+        // Registration is an authentication endpoint in the v1 backend. The
+        // generated legacy `/users/` operation no longer matches this API.
+        final response = await apiClient.dio.post(
+          '/auth/register/',
+          data: {
+            'email': email,
+            'password': password,
+            'firstname': firstname,
+            'lastname': lastname,
+          },
+          options: Options(headers: {'Content-Type': 'application/json'}),
+        );
+
+        print('User created successfully: $response');
+
+        // Inscription réussie, retourne true pour naviguer vers la page d'abonnement
+        return response.statusCode == 201;
+      } catch (e, st) {
+        print('Error during registration: $e');
+        print('Stacktrace: $st');
+        return false;
+      }
     }
-  }
 
   /// Connexion utilisateur - Version modifiée pour retourner des informations détaillées
   Future<Map<String, dynamic>> login({required String email, required String password}) async {

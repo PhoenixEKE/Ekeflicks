@@ -33,7 +33,9 @@ void main() async {
   final themeProvider = ThemeProvider();
   await themeProvider.loadThemePrefs();
 
-  final openapi = Openapi();
+  final openapi = Openapi(
+    basePathOverride: 'http://180.149.198.245/api/v1/',
+  );
 
   runApp(
     MultiProvider(

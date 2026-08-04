@@ -19,13 +19,11 @@ router.register('seasons', SeasonViewSet, basename='season')
 router.register('episodes', EpisodeViewSet, basename='episode')
 
 urlpatterns = [
-    # Keep the legacy singular endpoint used by older clients.  The router's
-    # canonical endpoint is `/contents/home/`, but released web builds still
-    # request `/content/home/` and would otherwise receive a 404.
+    # Compatibility route for the original web application's home feed URL.
     path(
-        'content/home/',
+        'catalog/home/',
         ContentViewSet.as_view({'get': 'home'}),
-        name='content-home-legacy',
+        name='catalog-home',
     ),
     path('', include(router.urls)),
 ]

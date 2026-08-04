@@ -108,18 +108,18 @@ class CatalogApiTests(APITestCase):
         self.client.force_authenticate(user=user)
 
         response = self.client.get(reverse('content-home'), {'profile': str(profile.id)})
+        legacy_response = self.client.get(
+            reverse('catalog-home'),
+            {'profile': str(profile.id)},
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(legacy_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(legacy_response.data, response.data)
         row_keys = [row['key'] for row in response.data['rows']]
         self.assertIn('continue_watching', row_keys)
         self.assertIn('recommended', row_keys)
         self.assertIn('top_10', row_keys)
-
-    def test_legacy_singular_content_home_url_remains_available(self):
-        response = self.client.get(reverse('content-home-legacy'))
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('rows', response.data)
 
     def test_non_staff_cannot_create_content(self):
         user = User.objects.create_user(email='viewer@example.com', password='StrongPass123')
