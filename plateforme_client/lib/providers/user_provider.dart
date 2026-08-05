@@ -67,9 +67,9 @@ class UserProvider with ChangeNotifier {
       // Never log request bodies here: they contain the user's password.
       debugPrint(
         'Registration failed (${error.response?.statusCode ?? error.type.name}) '
-        'at ${error.requestOptions.uri}',
+        'at ${error.requestOptions.uri}: ${error.response?.data}',
       );
-      return false;
+      rethrow;
     }
   }
 

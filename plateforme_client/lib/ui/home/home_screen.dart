@@ -54,22 +54,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchBestPrice() async {
     try {
-      // The deployed API still exposes the legacy best-price route on some
-      // environments; call it first to avoid a noisy 404 during home startup.
-      var response = await http.get(
-        ApiConfig.endpoint('subscriptions/subscriptions/best_price_auto'),
-      );
-      if (response.statusCode == 404) {
-        response = await http.get(
-          ApiConfig.endpoint('subscription-plans/best-price'),
-        );
-      }
+      final bestPriceData = await _loadBestPriceData();
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final price = data['best_price'].toString();
-        final currency = data['currency'] ?? "€";
-        final region = data['region'];
+      if (bestPriceData != null) {
+        final price = bestPriceData['best_price'].toString();
+        final currency = bestPriceData['currency'] ?? "€";
+        final region = bestPriceData['region'];
 
         final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
         if (region == 'Africa' || region == 'Europe') {
@@ -88,20 +78,60 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         });
       } else {
-        final loc = AppLocalizations.of(context)!;
-        setState(() {
-          _popupTitle = loc.popupTitreAccueil;
-          _popupText = loc.popupTexteAccueil("5 €");
-        });
+        _setDefaultPopupText();
       }
     } catch (e) {
       debugPrint("Erreur récupération prix: $e");
-      final loc = AppLocalizations.of(context)!;
-      setState(() {
-        _popupTitle = loc.popupTitreAccueil;
-        _popupText = loc.popupTexteAccueil("5 €");
-      });
+      _setDefaultPopupText();
     }
+  }
+
+  Future<Map<String, dynamic>?> _loadBestPriceData() async {
+    // Avoid calling action-style best-price endpoints here: some deployed API
+    // versions return 404 for them, which creates noisy browser-console XHR
+    // errors. The public plans list is the stable endpoint, so derive the best
+    // price from the active plans returned by that response.
+    final plansResponse = await http.get(ApiConfig.endpoint('subscription-plans'));
+    if (plansResponse.statusCode != 200) {
+      debugPrint(
+        'Subscription plans endpoint failed with status ${plansResponse.statusCode}',
+      );
+      return null;
+    }
+
+    final decoded = json.decode(plansResponse.body);
+    final plans = decoded is Map<String, dynamic> && decoded['results'] is List
+        ? decoded['results'] as List<dynamic>
+        : decoded is List
+            ? decoded
+            : const [];
+    final activePlans = plans.whereType<Map<String, dynamic>>().where(
+          (plan) => plan['is_active'] != false && plan['price'] != null,
+        );
+    Map<String, dynamic>? cheapestPlan;
+    double? cheapestPrice;
+    for (final plan in activePlans) {
+      final price = double.tryParse(plan['price'].toString());
+      if (price == null) continue;
+      if (cheapestPrice == null || price < cheapestPrice) {
+        cheapestPrice = price;
+        cheapestPlan = plan;
+      }
+    }
+
+    if (cheapestPlan == null) return null;
+    return {
+      'best_price': cheapestPlan['price'],
+      'currency': cheapestPlan['currency'] ?? '€',
+    };
+  }
+
+  void _setDefaultPopupText() {
+    final loc = AppLocalizations.of(context)!;
+    setState(() {
+      _popupTitle = loc.popupTitreAccueil;
+      _popupText = loc.popupTexteAccueil("5 €");
+    });
   }
 
   Future<void> _checkPopupAlreadyShown() async {

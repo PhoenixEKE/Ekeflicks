@@ -6,17 +6,24 @@
 
 abstract final class ApiConfig {
   static const String configuredOrigin = String.fromEnvironment('API_ORIGIN');
+  static const Set<String> blockedProductionOrigins = {
+    'http://180.149.198.245',
+    'http://180.149.198.245:80',
+    'http://180.149.198.245:8000',
+  };
   static const String productionOrigin = 'https://api.ekeflicks.com';
   static const String cdnOrigin = 'https://cdn.ekeflicks.com';
   static const String apiPrefix = '/api/v1';
 
   /// Retourne l'origine de l'API (production par défaut)
   static String get origin {
-    if (configuredOrigin.trim().isNotEmpty) {
-      return _withoutTrailingSlash(configuredOrigin.trim());
+    final normalizedConfiguredOrigin = _withoutTrailingSlash(configuredOrigin.trim());
+    if (normalizedConfiguredOrigin.isNotEmpty &&
+        !blockedProductionOrigins.contains(normalizedConfiguredOrigin)) {
+      return normalizedConfiguredOrigin;
     }
-    // Default to the production API instead of the web-dev origin
-    // (for example http://192.162.68.247:3000).
+    // Default to the HTTPS production API and ignore stale public-IP overrides
+    // that cause browser CORS failures in deployed web builds.
     return productionOrigin;
   }
 
@@ -24,7 +31,7 @@ abstract final class ApiConfig {
   static String get baseUrl => '${_withoutTrailingSlash(origin)}$apiPrefix';
 
   /// Génère une URL pour le CDN
-  /// 
+  ///
   /// Exemple:
   /// ```dart
   /// final url = ApiConfig.cdnEndpoint('avatars', 'user123.png');

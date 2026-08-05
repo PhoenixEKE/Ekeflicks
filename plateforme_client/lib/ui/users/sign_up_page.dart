@@ -70,12 +70,6 @@ class _SignupPageState extends State<SignupPage> {
         throw Exception(AppLocalizations.of(context)!.genericError);
       }
 
-      // Connexion automatique après création
-      //final loggedIn = await userProvider.login(email: email, password: password);
-      //if (!loggedIn) {
-      //  throw Exception(AppLocalizations.of(context)!.genericError);
-      //}
-
       // Charger les profils et sélectionner le profil principal
       await profileProvider.loadProfiles();
       if (profileProvider.hasProfiles) {
@@ -93,7 +87,7 @@ class _SignupPageState extends State<SignupPage> {
     } on DioException catch (dioError) {
       _handleDioError(dioError);
     } catch (e) {
-      print('Erreur finale: $e');
+      debugPrint('Erreur finale: $e');
       if (mounted) _showErrorDialog(e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -112,6 +106,8 @@ class _SignupPageState extends State<SignupPage> {
           message = AppLocalizations.of(context)!.emailAlreadyExists;
         } else if (data['detail'] != null) {
           message = data['detail'];
+        } else {
+          message = _firstApiErrorMessage(data) ?? message;
         }
       } else if (status == 500) {
         message = AppLocalizations.of(context)!.serverError;
@@ -121,6 +117,18 @@ class _SignupPageState extends State<SignupPage> {
     }
 
     if (mounted) _showErrorDialog(message);
+  }
+
+  String? _firstApiErrorMessage(Map<String, dynamic> data) {
+    for (final value in data.values) {
+      if (value is List && value.isNotEmpty) {
+        return value.first.toString();
+      }
+      if (value is String && value.isNotEmpty) {
+        return value;
+      }
+    }
+    return null;
   }
 
   void _showErrorDialog(String message) {
