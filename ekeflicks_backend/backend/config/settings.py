@@ -144,14 +144,6 @@ CACHES = {
         'LOCATION': f'redis://{REDIS_HOST}:{REDIS_PORT}/1',
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            #'PARSER_CLASS': 'redis.connection.HiredisParser',
-            #'CONNECTION_POOL_CLASS': 'redis.BlockingConnectionPool',
-            #'CONNECTION_POOL_CLASS_KWARGS': {
-                #'max_connections': 50,
-                #'timeout': 20,
-            #},
-            #'MAX_CONNECTIONS': 1000,
-            #'PICKLE_VERSION': -1,
         },
         'KEY_PREFIX': 'ekeflicks',
         'TIMEOUT': 300,
@@ -261,19 +253,23 @@ SIMPLE_JWT = {
 }
 
 # =========================================================
-# STREAMING
+# STREAMING & MEDIA CDN
 # =========================================================
 
 STREAMING_REQUIRE_ACTIVE_SUBSCRIPTION = env_bool('STREAMING_REQUIRE_ACTIVE_SUBSCRIPTION', True)
 STREAMING_MANIFEST_TTL_SECONDS = int(os.environ.get('STREAMING_MANIFEST_TTL_SECONDS', '3600'))
 HLS_SEGMENT_DURATION_SECONDS = int(os.environ.get('HLS_SEGMENT_DURATION_SECONDS', '6'))
 OFFLINE_LICENSE_DAYS = int(os.environ.get('OFFLINE_LICENSE_DAYS', '30'))
-STREAMING_CDN_BASE_URL = os.environ.get('STREAMING_CDN_BASE_URL', '')
+
+# URLs CDN pour les médias
+STREAMING_CDN_BASE_URL = os.environ.get('STREAMING_CDN_BASE_URL', 'https://api.ekeflicks.com/media/videos/')
 STREAMING_STORE_PROCESSING_ARTIFACTS = env_bool('STREAMING_STORE_PROCESSING_ARTIFACTS', True)
 STREAMING_SIGNED_URLS_ENABLED = env_bool('STREAMING_SIGNED_URLS_ENABLED', True)
 STREAMING_SIGNED_URL_TTL_SECONDS = int(os.environ.get('STREAMING_SIGNED_URL_TTL_SECONDS', STREAMING_MANIFEST_TTL_SECONDS))
 STREAMING_SIGNING_SECRET = os.environ.get('STREAMING_SIGNING_SECRET') or SECRET_KEY
-MEDIA_CDN_BASE_URL = os.environ.get('MEDIA_CDN_BASE_URL', STREAMING_CDN_BASE_URL)
+
+# Base URL pour les images (posters, backdrops, avatars)
+MEDIA_CDN_BASE_URL = os.environ.get('MEDIA_CDN_BASE_URL', 'https://api.ekeflicks.com/media/')
 
 DRM_LICENSE_TTL_SECONDS = int(os.environ.get('DRM_LICENSE_TTL_SECONDS', '3600'))
 DRM_MASTER_KEY = os.environ.get('DRM_MASTER_KEY') or SECRET_KEY
@@ -337,6 +333,8 @@ CORS_ALLOWED_ORIGINS = env_list(
         'https://ekeflicks.com',
         'https://api.ekeflicks.com',
         'https://www.ekeflicks.com',
+        'http://ekeflicks.com',
+        'http://api.ekeflicks.com',
         'http://180.149.198.245',
         'http://180.149.198.245:80',
         'http://180.149.198.245:8000',
@@ -350,8 +348,9 @@ CORS_ALLOWED_ORIGINS = env_list(
 CORS_ALLOWED_ORIGIN_REGEXES = env_list(
     'CORS_ALLOWED_ORIGIN_REGEXES',
     ','.join([
-        r'^http://localhost:\d+$',
-        r'^http://127\.0\.0\.1:\d+$',
+        r'^https?://localhost:\d+$',
+        r'^https?://127\.0\.0\.1:\d+$',
+        r'^https?://(\w+\.)*ekeflicks\.com$',
     ]),
 )
 
@@ -376,6 +375,14 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://ekeflicks.com',
+    'https://api.ekeflicks.com',
+    'https://www.ekeflicks.com',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
 ]
 
 # =========================================================
@@ -503,14 +510,16 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 
 # =========================================================
-# SECURITY - Production
+# SECURITY - Production with Cloudflare
 # =========================================================
 
 if not DEBUG:
-    # SSL / HTTPS
+    # SSL / HTTPS - Cloudflare Flexible mode
     SECURE_SSL_REDIRECT = False
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     USE_X_FORWARDED_HOST = True
+    USE_X_FORWARDED_PORT = True
+    SECURE_REDIRECT_EXEMPT = []
 
     # Cookies
     SESSION_COOKIE_SECURE = True
@@ -523,10 +532,13 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
 
-    # HSTS (1 an)
+    # HSTS (1 an) - Cloudflare gère déjà HSTS
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+
+    # Logs
+    SECURE_SSL_HOST = 'api.ekeflicks.com'
 
 # =========================================================
 # API
