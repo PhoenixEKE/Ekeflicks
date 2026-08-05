@@ -24,6 +24,8 @@ class UserProvider with ChangeNotifier {
     apiClient.dio.options.headers['Authorization'] = 'Bearer $token';
   }
 
+  String _normalizeEmail(String email) => email.trim().toLowerCase();
+
   /// Inscription d'un nouvel utilisateur + login automatique
   Future<bool> register({
     required String email,
@@ -37,7 +39,7 @@ class UserProvider with ChangeNotifier {
       final response = await apiClient.dio.post<Map<String, dynamic>>(
         '/auth/register/',
         data: {
-          'email': email,
+          'email': _normalizeEmail(email),
           'password': password,
           'firstname': firstname,
           'lastname': lastname,
@@ -82,7 +84,7 @@ class UserProvider with ChangeNotifier {
 
       final response = await dio.post(
         '/auth/login/',
-        data: {'email': email, 'password': password},
+        data: {'email': _normalizeEmail(email), 'password': password},
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -242,7 +244,7 @@ class UserProvider with ChangeNotifier {
     }
   }
 
-  Future<void> logoutAll({int? userId, bool confirmAll = false}) async {
+  Future<void> logoutAll({String? userId, bool confirmAll = false}) async {
     try {
       if (_accessToken != null) {
         final body = <String, dynamic>{};

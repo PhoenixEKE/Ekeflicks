@@ -24,7 +24,7 @@ part 'user.g.dart';
 @BuiltValue()
 abstract class User implements Built<User, UserBuilder> {
   @BuiltValueField(wireName: r'id')
-  int? get id;
+  String? get id;
 
   @BuiltValueField(wireName: r'email')
   String get email;
@@ -80,7 +80,7 @@ class _$UserSerializer implements PrimitiveSerializer<User> {
       yield r'id';
       yield serializers.serialize(
         object.id,
-        specifiedType: const FullType(int),
+        specifiedType: const FullType(String),
       );
     }
     yield r'email';
@@ -163,8 +163,8 @@ class _$UserSerializer implements PrimitiveSerializer<User> {
         case r'id':
           final valueDes = serializers.deserialize(
             value,
-            specifiedType: const FullType(int),
-          ) as int;
+            specifiedType: const FullType(String),
+          ) as String;
           result.id = valueDes;
           break;
         case r'email':

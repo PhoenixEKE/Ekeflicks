@@ -1570,13 +1570,34 @@ class _$ProfileTypeEnumSerializer
     FullType specifiedType = FullType.unspecified,
   }) => _toWire[object.name] ?? object.name;
 
+  String _enumNameFromProfileType(Object serialized) {
+    if (serialized is String) return serialized;
+
+    if (serialized is Map) {
+      final name = serialized['name'];
+      if (name is String) return name;
+    }
+
+    if (serialized is Iterable<Object?>) {
+      final serializedList = serialized.toList();
+      for (var i = 0; i < serializedList.length - 1; i += 2) {
+        if (serializedList[i] == 'name' && serializedList[i + 1] is String) {
+          return serializedList[i + 1] as String;
+        }
+      }
+    }
+
+    return '';
+  }
+
   @override
   ProfileTypeEnum deserialize(
     Serializers serializers,
     Object serialized, {
     FullType specifiedType = FullType.unspecified,
   }) => ProfileTypeEnum.valueOf(
-    _fromWire[serialized] ?? (serialized is String ? serialized : ''),
+    _fromWire[_enumNameFromProfileType(serialized)] ??
+        _enumNameFromProfileType(serialized),
   );
 }
 

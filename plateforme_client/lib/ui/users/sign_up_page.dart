@@ -50,7 +50,7 @@ class _SignupPageState extends State<SignupPage> {
     setState(() => _isLoading = true);
 
     // Stocker les valeurs avant la création
-    final email = _emailController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
     final password = _passwordController.text.trim();
     final firstname = _prenomController.text.trim();
     final lastname = _nomController.text.trim();
@@ -220,15 +220,20 @@ class _SignupPageState extends State<SignupPage> {
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                      enableSuggestions: false,
                       decoration: AppDecorations.inputDecoration(
                         context,
                         label: loc.email,
                         icon: Icons.email_outlined,
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return loc.emailObligatoire;
-                        final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-                        if (!emailRegex.hasMatch(value)) return loc.emailInvalide;
+                        final email = value?.trim() ?? '';
+                        if (email.isEmpty) return loc.emailObligatoire;
+                        final emailRegex = RegExp(
+                          r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$",
+                        );
+                        if (!emailRegex.hasMatch(email)) return loc.emailInvalide;
                         return null;
                       },
                     ),

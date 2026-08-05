@@ -32,49 +32,116 @@ class BaseFooter {
     await openUrl(context, whatsappUrl, mode: LaunchMode.externalApplication);
   }
 
-  /// Widget pour les icônes de paiement
+  /// Widget pour les icônes de paiement (supporte PNG, JPG, SVG)
   Widget paymentIcon(String assetPath) {
-    final isSvg = assetPath.toLowerCase().endsWith('.svg');
-    return SizedBox(
+    return Container(
       width: 60,
       height: 60,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Center(
-        child: isSvg
-            ? SvgPicture.asset(
-                assetPath,
-                width: 50,
-                height: 50,
-                fit: BoxFit.contain,
-              )
-            : Image.asset(
-                assetPath,
-                width: 50,
-                height: 50,
-                fit: BoxFit.contain,
-              ),
+        child: _assetIcon(assetPath, size: 42),
       ),
     );
   }
 
   /// Widget pour les icônes sociales
   Widget socialIcon(BuildContext context, String assetPath, String url) {
-    const iconSize = 24.0;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: InkWell(
-        onTap: () => openUrl(context, url),
-        child: SizedBox(
-          width: 30,
-          height: 30,
-          child: Center(
-            child: SvgPicture.asset(
-              assetPath,
-              width: iconSize,
-              height: iconSize,
-              fit: BoxFit.contain,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => openUrl(context, url),
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 2,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Center(
+              child: _assetIcon(assetPath, size: 20),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Widget interne pour charger une image (SVG ou PNG/JPG)
+  Widget _assetIcon(String assetPath, {required double size}) {
+    final isSvg = assetPath.toLowerCase().endsWith('.svg');
+    final isPng = assetPath.toLowerCase().endsWith('.png');
+    final isJpg = assetPath.toLowerCase().endsWith('.jpg') || assetPath.toLowerCase().endsWith('.jpeg');
+
+    if (isSvg) {
+      return SvgPicture.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
+      );
+    }
+
+    if (isPng || isJpg) {
+      return Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Icon(
+              Icons.image_not_supported,
+              color: Colors.grey[400],
+              size: size * 0.6,
+            ),
+          );
+        },
+      );
+    }
+
+    // Fallback pour les formats non supportés
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Icon(
+        Icons.image,
+        color: Colors.grey[400],
+        size: size * 0.6,
       ),
     );
   }

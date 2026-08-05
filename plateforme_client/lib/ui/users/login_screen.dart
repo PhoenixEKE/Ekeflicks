@@ -148,7 +148,7 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
 
       // Tentative de connexion avec la nouvelle version
       final loginResult = await userProvider.login(
-        email: _emailController.text.trim(),
+        email: _emailController.text.trim().toLowerCase(),
         password: _passwordController.text.trim(),
       );
 
@@ -305,17 +305,22 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                enableSuggestions: false,
                 decoration: AppDecorations.inputDecoration(
                   context,
                   label: loc.email,
                   icon: Icons.email_outlined,
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
+                  final email = value?.trim() ?? '';
+                  if (email.isEmpty) {
                     return loc.emailObligatoire;
                   }
-                  final regex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-                  if (!regex.hasMatch(value)) {
+                  final regex = RegExp(
+                    r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$",
+                  );
+                  if (!regex.hasMatch(email)) {
                     return loc.emailInvalide;
                   }
                   return null;

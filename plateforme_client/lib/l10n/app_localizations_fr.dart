@@ -53,7 +53,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get footerCopyright =>
-      '© 2024 - © 2025 EKEflicks - EPHRATA, Tous droits réservés. Développé par EPHRATA.';
+      '© 2024 - © 2026 EKEflicks , Tous droits réservés. Développé par EKEFLICKS.';
 
   @override
   String get footerContact => 'Contact';
