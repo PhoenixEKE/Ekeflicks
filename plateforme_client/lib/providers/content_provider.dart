@@ -6,7 +6,7 @@ import 'package:app_ekeflicks/services/content_api_service.dart';
 class ContentProvider with ChangeNotifier {
   ContentProvider(this._api, {this.profileId});
   final ContentApiService _api;
-  int? profileId;
+  String? profileId;
 
   List<Content> _featuredContent = [], _continueWatching = [],
       _recommendedContent = [], _newReleases = [], _popularContent = [];

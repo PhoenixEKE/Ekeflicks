@@ -41,7 +41,7 @@ class ProfileProvider extends ChangeNotifier {
 
       // Restaurer dernier profil sélectionné ou définir le profil "main"
       if (_availableProfiles.isNotEmpty) {
-        final lastProfileId = _prefs?.getInt('last_profile_id');
+        final lastProfileId = _prefs?.getString('last_profile_id');
         _currentProfile = lastProfileId != null
             ? getProfileById(lastProfileId)
             : _availableProfiles.firstWhere(
@@ -52,7 +52,7 @@ class ProfileProvider extends ChangeNotifier {
         _currentProfile = null;
       }
     } catch (e) {
-      print('Error loading profiles: $e');
+      debugPrint('Error loading profiles: $e');
       _availableProfiles = [];
       _currentProfile = null;
     } finally {
@@ -65,7 +65,7 @@ class ProfileProvider extends ChangeNotifier {
     _currentProfile = profile;
     notifyListeners();
     await _initPrefs();
-    if (profile.id != null) await _prefs?.setInt('last_profile_id', profile.id!);
+    if (profile.id != null) await _prefs?.setString('last_profile_id', profile.id!);
   }
 
   Future<Profile> createProfile({
@@ -102,7 +102,7 @@ class ProfileProvider extends ChangeNotifier {
       notifyListeners();
       return newProfile;
     } catch (e) {
-      print('Error creating profile: $e');
+      debugPrint('Error creating profile: $e');
       rethrow;
     } finally {
       _isLoading = false;
@@ -110,7 +110,7 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
-  Future<Profile?> updateProfile(int profileId, ProfileCreate profileData) async {
+  Future<Profile?> updateProfile(String profileId, ProfileCreate profileData) async {
     try {
       final existingProfile = getProfileById(profileId);
       if (existingProfile == null) throw Exception('Profil non trouvé');
@@ -137,12 +137,12 @@ class ProfileProvider extends ChangeNotifier {
           await apiClient.getProfilesApi().profilesUpdate(id: profileId, data: updatedProfile);
       return _handleProfileUpdate(response.data, profileId);
     } catch (e) {
-      print('Error updating profile: $e');
+      debugPrint('Error updating profile: $e');
       rethrow;
     }
   }
 
-  Future<void> deleteProfile(int profileId) async {
+  Future<void> deleteProfile(String profileId) async {
     try {
       await apiClient.getProfilesApi().profilesDelete(id: profileId);
       _availableProfiles.removeWhere((profile) => profile.id == profileId);
@@ -151,12 +151,12 @@ class ProfileProvider extends ChangeNotifier {
       }
       notifyListeners();
     } catch (e) {
-      print('Error deleting profile: $e');
+      debugPrint('Error deleting profile: $e');
       rethrow;
     }
   }
 
-  Profile? _handleProfileUpdate(Profile? updatedProfile, int profileId) {
+  Profile? _handleProfileUpdate(Profile? updatedProfile, String profileId) {
     if (updatedProfile != null) {
       final index = _availableProfiles.indexWhere((p) => p.id == profileId);
       if (index != -1) {
@@ -168,7 +168,7 @@ class ProfileProvider extends ChangeNotifier {
     return updatedProfile;
   }
 
-  Profile? getProfileById(int id) {
+  Profile? getProfileById(String id) {
     try {
       return _availableProfiles.firstWhere((profile) => profile.id == id);
     } catch (_) {
@@ -184,11 +184,13 @@ class ProfileProvider extends ChangeNotifier {
 
   bool get hasProfiles => _availableProfiles.isNotEmpty;
   bool get hasMainProfile => _availableProfiles.any((profile) => profile.type?.name == 'main');
+  
   Profile? get mainProfile =>
       _availableProfiles.isNotEmpty
           ? _availableProfiles.firstWhere(
               (profile) => profile.type?.name == 'main',
               orElse: () => _availableProfiles.first)
           : null;
+          
   bool isChildProfile(Profile profile) => profile.type?.name == 'child';
 }

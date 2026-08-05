@@ -40,9 +40,8 @@ class _$PasswordResetRequest extends PasswordResetRequest {
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper(
-      r'PasswordResetRequest',
-    )..add('email', email)).toString();
+    return (newBuiltValueToStringHelper(r'PasswordResetRequest')
+      ..add('email', email)).toString();
   }
 }
 

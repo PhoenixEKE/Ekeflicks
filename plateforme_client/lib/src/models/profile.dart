@@ -12,23 +12,23 @@ part 'profile.g.dart';
 /// Profile
 ///
 /// Properties:
-/// * [id] 
-/// * [user] 
-/// * [name] 
-/// * [type] 
-/// * [avatar] 
-/// * [avatarUrl] 
-/// * [country] 
-/// * [age] 
-/// * [phone] 
-/// * [isActive] 
+/// * [id]
+/// * [user]
+/// * [name]
+/// * [type]
+/// * [avatar]
+/// * [avatarUrl]
+/// * [country]
+/// * [age]
+/// * [phone]
+/// * [isActive]
 @BuiltValue()
 abstract class Profile implements Built<Profile, ProfileBuilder> {
   @BuiltValueField(wireName: r'id')
-  int? get id;
+  String? get id;
 
   @BuiltValueField(wireName: r'user')
-  int? get user;
+  String? get user;
 
   @BuiltValueField(wireName: r'name')
   String get name;
@@ -85,14 +85,14 @@ class _$ProfileSerializer implements PrimitiveSerializer<Profile> {
       yield r'id';
       yield serializers.serialize(
         object.id,
-        specifiedType: const FullType(int),
+        specifiedType: const FullType(String),
       );
     }
     if (object.user != null) {
       yield r'user';
       yield serializers.serialize(
         object.user,
-        specifiedType: const FullType(int),
+        specifiedType: const FullType(String),
       );
     }
     yield r'name';
@@ -175,15 +175,15 @@ class _$ProfileSerializer implements PrimitiveSerializer<Profile> {
         case r'id':
           final valueDes = serializers.deserialize(
             value,
-            specifiedType: const FullType(int),
-          ) as int;
+            specifiedType: const FullType(String),
+          ) as String;
           result.id = valueDes;
           break;
         case r'user':
           final valueDes = serializers.deserialize(
             value,
-            specifiedType: const FullType(int),
-          ) as int;
+            specifiedType: const FullType(String),
+          ) as String;
           result.user = valueDes;
           break;
         case r'name':
@@ -798,4 +798,3 @@ class ProfileCountryEnum extends EnumClass {
   static BuiltSet<ProfileCountryEnum> get values => _$profileCountryEnumValues;
   static ProfileCountryEnum valueOf(String name) => _$profileCountryEnumValueOf(name);
 }
-

@@ -1,16 +1,18 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:app_ekeflicks/core/api_config.dart';
 
 class TranslateService {
-  static const String baseUrl = "http://180.149.198.245:80/api/v1/translations/translate/";
+  static Uri _endpoint(String key, {String? lang}) =>
+      ApiConfig.endpoint('translations/translate').replace(queryParameters: {
+        'key': key,
+        if (lang != null) 'lang': lang,
+      });
 
   /// Récupère le texte traduit selon la clé et la langue (optionnelle)
   static Future<String?> fetchTranslatedText(String key, {String? lang}) async {
     try {
-      final uri = Uri.parse(baseUrl).replace(queryParameters: {
-        "key": key,
-        if (lang != null) "lang": lang,
-      });
+      final uri = _endpoint(key, lang: lang);
 
       final response = await http.get(uri);
 
@@ -18,11 +20,11 @@ class TranslateService {
         final data = jsonDecode(response.body);
         return data["text"];
       } else {
-        print("Erreur traduction: ${response.body}");
+        debugPrint("Erreur traduction: ${response.body}");
         return null;
       }
     } catch (e) {
-      print("Erreur réseau traduction: $e");
+      debugPrint("Erreur réseau traduction: $e");
       return null;
     }
   }

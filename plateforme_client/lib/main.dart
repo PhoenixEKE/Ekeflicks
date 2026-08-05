@@ -89,7 +89,7 @@ class _MyAppState extends State<MyApp> {
         try {
           await profileProvider.loadProfilesGlobal();
 
-          final lastProfileId = _prefs.getInt('last_profile_id');
+          final lastProfileId = _prefs.getString('last_profile_id');
           if (lastProfileId != null) {
             final savedProfile = profileProvider.getProfileById(lastProfileId);
             if (savedProfile != null) {

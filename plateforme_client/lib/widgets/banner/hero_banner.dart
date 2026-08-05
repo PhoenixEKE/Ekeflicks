@@ -3,6 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:app_ekeflicks/models/content_model.dart';
 import 'hero_banner_bloc.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
+import 'package:app_ekeflicks/core/api_config.dart';
+
+const String _homeFallbackImage = 'assets/images/streaming.webp';
 
 class HeroBanner extends StatelessWidget {
   final List<Content> contents;
@@ -27,7 +30,64 @@ class HeroBanner extends StatelessWidget {
     if (contents.isEmpty) {
       return SizedBox(
         height: isMobile ? 200 : 500,
-        child: Center(child: Text('Aucun contenu disponible')),
+        width: double.infinity,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              _homeFallbackImage,
+              fit: BoxFit.cover,
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.8),
+                    Colors.black.withOpacity(0.1),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              left: isMobile ? 16 : 48,
+              right: isMobile ? 16 : 48,
+              bottom: isMobile ? 24 : 48,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Bienvenue sur EkeFlicks',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 6,
+                              color: Colors.black.withOpacity(0.5),
+                            ),
+                          ],
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Découvrez notre catalogue de films et séries',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 4,
+                              color: Colors.black.withOpacity(0.5),
+                            ),
+                          ],
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
     }
 

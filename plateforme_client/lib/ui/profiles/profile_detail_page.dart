@@ -13,6 +13,7 @@ import 'package:app_ekeflicks/providers/user_provider.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/providers/avatar_provider.dart';
 import 'package:app_ekeflicks/src/models/profile.dart';
+import 'package:app_ekeflicks/core/api_config.dart';
 
 class ProfileDetailPage extends StatefulWidget {
   final Profile profile;
@@ -83,12 +84,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
   }
 
   void _debugProfileData() {
-    print('🔍 DONNÉES DU PROFIL:');
-    print('🔍 ID: ${_editingProfile.id}');
-    print('🔍 Nom: ${_editingProfile.name}');
-    print('🔍 Avatar: ${_editingProfile.avatar}');
-    print('🔍 AvatarUrl: ${_editingProfile.avatarUrl}');
-    print('🔍 Type: ${_editingProfile.type}');
+    debugPrint('🔍 DONNÉES DU PROFIL:');
+    debugPrint('🔍 ID: ${_editingProfile.id}');
+    debugPrint('🔍 Nom: ${_editingProfile.name}');
+    debugPrint('🔍 Avatar: ${_editingProfile.avatar}');
+    debugPrint('🔍 AvatarUrl: ${_editingProfile.avatarUrl}');
+    debugPrint('🔍 Type: ${_editingProfile.type}');
   }
 
   void _onFieldFocus(TextEditingController controller) {
@@ -238,12 +239,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
   }
 
   Future<void> _changeAvatar() async {
-    print('🔴 Début de _changeAvatar');
-    print('🔴 Avatar actuel: ${_editingProfile.avatarUrl ?? _editingProfile.avatar}');
+    debugPrint('🔴 Début de _changeAvatar');
+    debugPrint('🔴 Avatar actuel: ${_editingProfile.avatarUrl ?? _editingProfile.avatar}');
 
     final userProvider = context.read<UserProvider>();
     final avatarProvider = context.read<AvatarProvider>();
-    
+
     if (avatarProvider.avatars.isEmpty && !avatarProvider.isLoading) {
       await avatarProvider.loadAvatars(userProvider.apiClient);
     }
@@ -271,9 +272,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
       ),
     );
 
-    print('🔴 Retour du dialogue, avatar sélectionné: $selectedAvatar');
-    print('🔴 Ancien avatar: $previousAvatar');
-    print('🔴 Nouveau avatar différent: ${selectedAvatar != previousAvatar}');
+    debugPrint('🔴 Retour du dialogue, avatar sélectionné: $selectedAvatar');
+    debugPrint('🔴 Ancien avatar: $previousAvatar');
+    debugPrint('🔴 Nouveau avatar différent: ${selectedAvatar != previousAvatar}');
 
     // Vérifier si un avatar a été sélectionné et s'il est différent
     if (selectedAvatar != null && selectedAvatar != previousAvatar && mounted) {
@@ -292,7 +293,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
 
   Future<void> _updateAvatar(String avatarUrl) async {
     if (!mounted) return;
-    
+
     setState(() => _isLoading = true);
 
     final userProvider = context.read<UserProvider>();
@@ -319,9 +320,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
       try {
         final uri = Uri.parse(avatarUrl);
         avatarFileName = uri.pathSegments.last;
-        print('📁 Nom de fichier extrait: $avatarFileName');
+        debugPrint('📁 Nom de fichier extrait: $avatarFileName');
       } catch (e) {
-        print('❌ Erreur extraction nom de fichier: $e');
+        debugPrint('❌ Erreur extraction nom de fichier: $e');
         avatarFileName = 'main.png'; // Valeur par défaut
       }
 
@@ -339,8 +340,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           ..isActive = _editingProfile.isActive,
       );
 
-      print('📤 Envoi au serveur - avatar: $avatarFileName');
-      print('📤 Envoi au serveur - avatarUrl: $avatarUrl');
+      debugPrint('📤 Envoi au serveur - avatar: $avatarFileName');
+      debugPrint('📤 Envoi au serveur - avatarUrl: $avatarUrl');
 
       // Mise à jour via l'API
       await apiClient.getProfilesApi().profilesPartialUpdate(
@@ -378,14 +379,14 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
 
     } on DioException catch (dioError) {
       if (!mounted) return;
-      
+
       // Gestion spécifique des erreurs Dio
       String errorMessage = 'Erreur lors de la mise à jour';
       if (dioError.response?.data != null && dioError.response!.data is Map<String, dynamic>) {
         final errorData = dioError.response!.data as Map<String, dynamic>;
         errorMessage = errorData['detail'] ?? errorData['message'] ?? errorMessage;
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ $errorMessage'),
@@ -393,7 +394,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           duration: const Duration(seconds: 4),
         ),
       );
-      
+
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -735,16 +736,16 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
     
     if (_editingProfile.avatarUrl != null && _editingProfile.avatarUrl!.isNotEmpty) {
       imageUrl = _editingProfile.avatarUrl;
-      print('🖼️ Utilisation avatarUrl: $imageUrl');
+      debugPrint('🖼️ Utilisation avatarUrl: $imageUrl');
     } else if (_editingProfile.avatar != null && _editingProfile.avatar!.isNotEmpty) {
       // Si avatar est une URL complète, l'utiliser directement
       if (_editingProfile.avatar!.startsWith('http')) {
         imageUrl = _editingProfile.avatar;
-        print('🖼️ Utilisation avatar (URL complète): $imageUrl');
+        debugPrint('🖼️ Utilisation avatar (URL complète): $imageUrl');
       } else {
-        // Si avatar est un nom de fichier, construire l'URL complète
-        imageUrl = 'http://180.149.198.245/media/avatars/${_editingProfile.avatar}';
-        print('🖼️ Construction URL depuis nom de fichier: $imageUrl');
+        // Si avatar est un nom de fichier, construire l'URL complète via ApiConfig
+        imageUrl = ApiConfig.cdnEndpoint('avatars', _editingProfile.avatar!).toString();
+        debugPrint('🖼️ Construction URL depuis nom de fichier: $imageUrl');
       }
     }
 
@@ -764,13 +765,13 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           );
         },
         errorBuilder: (context, error, stackTrace) {
-          print('❌ Erreur chargement image: $error');
-          print('❌ URL: $imageUrl');
+          debugPrint('❌ Erreur chargement image: $error');
+          debugPrint('❌ URL: $imageUrl');
           return _buildDefaultAvatar(profileColor);
         },
       );
     }
-    
+
     return _buildDefaultAvatar(profileColor);
   }
 

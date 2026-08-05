@@ -40,9 +40,8 @@ class _$AuthLogoutCreateRequest extends AuthLogoutCreateRequest {
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper(
-      r'AuthLogoutCreateRequest',
-    )..add('refresh', refresh)).toString();
+    return (newBuiltValueToStringHelper(r'AuthLogoutCreateRequest')
+      ..add('refresh', refresh)).toString();
   }
 }
 

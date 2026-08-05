@@ -27,6 +27,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const String _homeFallbackImage = 'assets/images/streaming.webp';
   bool _popupShown = false;
   bool? _isMobile;
   String _priceWithCurrency = "5 €"; // valeur par défaut
@@ -53,9 +54,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchBestPrice() async {
     try {
-      final response = await http.get(
-        ApiConfig.endpoint('subscription-plans/best-price'),
+      // The deployed API still exposes the legacy best-price route on some
+      // environments; call it first to avoid a noisy 404 during home startup.
+      var response = await http.get(
+        ApiConfig.endpoint('subscriptions/subscriptions/best_price_auto'),
       );
+      if (response.statusCode == 404) {
+        response = await http.get(
+          ApiConfig.endpoint('subscription-plans/best-price'),
+        );
+      }
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -315,9 +323,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCarouselSlider(List<Content> items, BuildContext context) {
     if (items.isEmpty) {
-      return const SizedBox(
+      return SizedBox(
         height: 240,
-        child: Center(child: CircularProgressIndicator()),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final itemsPerView = _calculateItemsPerView(width);
+            final cardWidth = width / itemsPerView;
+
+            return ListView.builder(
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: itemsPerView,
+              itemBuilder: (context, index) => SizedBox(
+                width: cardWidth,
+                child: _buildFallbackCarouselItem(context),
+              ),
+            );
+          },
+        ),
       );
     }
 
@@ -349,6 +373,21 @@ class _HomeScreenState extends State<HomeScreen> {
     return 4;
   }
 
+  Widget _buildFallbackCarouselItem(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+        child: Image.asset(
+          _homeFallbackImage,
+          height: 180,
+          width: double.infinity,
+          fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+
   Widget _buildCarouselItem(Content item, BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
@@ -365,6 +404,15 @@ class _HomeScreenState extends State<HomeScreen> {
               placeholder: (context, url) => Container(
                 height: 180,
                 decoration: AppDecorations.imagePlaceholderDecoration(context),
+              ),
+              errorWidget: (context, url, error) => Container(
+                height: 180,
+                decoration: AppDecorations.imagePlaceholderDecoration(context),
+                child: Icon(
+                  Icons.broken_image,
+                  color: Colors.grey[400],
+                  size: 40,
+                ),
               ),
             ),
           ),

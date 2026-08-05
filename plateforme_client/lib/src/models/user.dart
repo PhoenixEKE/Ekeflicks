@@ -308,4 +308,3 @@ class UserSubscriptionEnum extends EnumClass {
   static BuiltSet<UserSubscriptionEnum> get values => _$userSubscriptionEnumValues;
   static UserSubscriptionEnum valueOf(String name) => _$userSubscriptionEnumValueOf(name);
 }
-

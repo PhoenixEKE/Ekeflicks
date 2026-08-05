@@ -22,10 +22,10 @@ class ProfilesApi {
   const ProfilesApi(this._dio, this._serializers);
 
   /// profilesCreate
-  /// 
+  ///
   ///
   /// Parameters:
-  /// * [data] 
+  /// * [data]
   /// * [cancelToken] - A [CancelToken] that can be used to cancel the operation
   /// * [headers] - Can be used to add additional headers to the request
   /// * [extras] - Can be used to add flags to the request
@@ -35,7 +35,7 @@ class ProfilesApi {
   ///
   /// Returns a [Future] containing a [Response] with a [ProfileCreate] as data
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<ProfileCreate>> profilesCreate({ 
+  Future<Response<ProfileCreate>> profilesCreate({
     required ProfileCreate data,
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
@@ -123,10 +123,10 @@ class ProfilesApi {
   }
 
   /// profilesDelete
-  /// 
+  ///
   ///
   /// Parameters:
-  /// * [id] - A unique integer value identifying this Profil.
+  /// * [id] - A unique string value identifying this Profil.
   /// * [cancelToken] - A [CancelToken] that can be used to cancel the operation
   /// * [headers] - Can be used to add additional headers to the request
   /// * [extras] - Can be used to add flags to the request
@@ -136,8 +136,8 @@ class ProfilesApi {
   ///
   /// Returns a [Future]
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<void>> profilesDelete({ 
-    required int id,
+  Future<Response<void>> profilesDelete({
+    required String id,
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
     Map<String, dynamic>? extra,
@@ -145,7 +145,7 @@ class ProfilesApi {
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
   }) async {
-    final _path = r'/profiles/{id}/'.replaceAll('{' r'id' '}', encodeQueryParameter(_serializers, id, const FullType(int)).toString());
+    final _path = r'/profiles/{id}/'.replaceAll('{' r'id' '}', encodeQueryParameter(_serializers, id, const FullType(String)).toString());
     final _options = Options(
       method: r'DELETE',
       headers: <String, dynamic>{
@@ -176,7 +176,7 @@ class ProfilesApi {
   }
 
   /// profilesList
-  /// 
+  ///
   ///
   /// Parameters:
   /// * [search] - A search term.
@@ -191,7 +191,7 @@ class ProfilesApi {
   ///
   /// Returns a [Future] containing a [Response] with a [ProfilesList200Response] as data
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<ProfilesList200Response>> profilesList({ 
+  Future<Response<ProfilesList200Response>> profilesList({
     String? search,
     int? limit,
     int? offset,
@@ -268,11 +268,11 @@ class ProfilesApi {
   }
 
   /// profilesPartialUpdate
-  /// 
+  ///
   ///
   /// Parameters:
-  /// * [id] - A unique integer value identifying this Profil.
-  /// * [data] 
+  /// * [id] - A unique string value identifying this Profil.
+  /// * [data]
   /// * [cancelToken] - A [CancelToken] that can be used to cancel the operation
   /// * [headers] - Can be used to add additional headers to the request
   /// * [extras] - Can be used to add flags to the request
@@ -282,8 +282,8 @@ class ProfilesApi {
   ///
   /// Returns a [Future] containing a [Response] with a [Profile] as data
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<Profile>> profilesPartialUpdate({ 
-    required int id,
+  Future<Response<Profile>> profilesPartialUpdate({
+    required String id,
     required Profile data,
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
@@ -292,7 +292,7 @@ class ProfilesApi {
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
   }) async {
-    final _path = r'/profiles/{id}/'.replaceAll('{' r'id' '}', encodeQueryParameter(_serializers, id, const FullType(int)).toString());
+    final _path = r'/profiles/{id}/'.replaceAll('{' r'id' '}', encodeQueryParameter(_serializers, id, const FullType(String)).toString());
     final _options = Options(
       method: r'PATCH',
       headers: <String, dynamic>{
@@ -371,10 +371,10 @@ class ProfilesApi {
   }
 
   /// profilesRead
-  /// 
+  ///
   ///
   /// Parameters:
-  /// * [id] - A unique integer value identifying this Profil.
+  /// * [id] - A unique string value identifying this Profil.
   /// * [cancelToken] - A [CancelToken] that can be used to cancel the operation
   /// * [headers] - Can be used to add additional headers to the request
   /// * [extras] - Can be used to add flags to the request
@@ -384,8 +384,8 @@ class ProfilesApi {
   ///
   /// Returns a [Future] containing a [Response] with a [Profile] as data
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<Profile>> profilesRead({ 
-    required int id,
+  Future<Response<Profile>> profilesRead({
+    required String id,
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
     Map<String, dynamic>? extra,
@@ -393,7 +393,7 @@ class ProfilesApi {
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
   }) async {
-    final _path = r'/profiles/{id}/'.replaceAll('{' r'id' '}', encodeQueryParameter(_serializers, id, const FullType(int)).toString());
+    final _path = r'/profiles/{id}/'.replaceAll('{' r'id' '}', encodeQueryParameter(_serializers, id, const FullType(String)).toString());
     final _options = Options(
       method: r'GET',
       headers: <String, dynamic>{
@@ -452,11 +452,11 @@ class ProfilesApi {
   }
 
   /// profilesUpdate
-  /// 
+  ///
   ///
   /// Parameters:
-  /// * [id] - A unique integer value identifying this Profil.
-  /// * [data] 
+  /// * [id] - A unique string value identifying this Profil.
+  /// * [data]
   /// * [cancelToken] - A [CancelToken] that can be used to cancel the operation
   /// * [headers] - Can be used to add additional headers to the request
   /// * [extras] - Can be used to add flags to the request
@@ -466,8 +466,8 @@ class ProfilesApi {
   ///
   /// Returns a [Future] containing a [Response] with a [Profile] as data
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<Profile>> profilesUpdate({ 
-    required int id,
+  Future<Response<Profile>> profilesUpdate({
+    required String id,
     required Profile data,
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
@@ -476,7 +476,7 @@ class ProfilesApi {
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
   }) async {
-    final _path = r'/profiles/{id}/'.replaceAll('{' r'id' '}', encodeQueryParameter(_serializers, id, const FullType(int)).toString());
+    final _path = r'/profiles/{id}/'.replaceAll('{' r'id' '}', encodeQueryParameter(_serializers, id, const FullType(String)).toString());
     final _options = Options(
       method: r'PUT',
       headers: <String, dynamic>{

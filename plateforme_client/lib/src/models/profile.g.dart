@@ -2109,9 +2109,9 @@ class _$ProfileCountryEnumSerializer
 
 class _$Profile extends Profile {
   @override
-  final int? id;
+  final String? id;
   @override
-  final int? user;
+  final String? user;
   @override
   final String name;
   @override
@@ -2204,13 +2204,13 @@ class _$Profile extends Profile {
 class ProfileBuilder implements Builder<Profile, ProfileBuilder> {
   _$Profile? _$v;
 
-  int? _id;
-  int? get id => _$this._id;
-  set id(int? id) => _$this._id = id;
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
 
-  int? _user;
-  int? get user => _$this._user;
-  set user(int? user) => _$this._user = user;
+  String? _user;
+  String? get user => _$this._user;
+  set user(String? user) => _$this._user = user;
 
   String? _name;
   String? get name => _$this._name;
