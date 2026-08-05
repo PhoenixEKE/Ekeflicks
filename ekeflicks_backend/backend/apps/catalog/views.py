@@ -393,7 +393,6 @@ class ContentViewSet(viewsets.ModelViewSet):
 
         return Response({
             'profile_id': str(profile.id) if profile else None,
-            'generated_at': timezone.now(),
             'rows': rows,
         })
 

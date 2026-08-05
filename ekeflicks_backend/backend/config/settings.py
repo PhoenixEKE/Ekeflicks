@@ -34,7 +34,7 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = env_list(
     'ALLOWED_HOSTS',
-    'localhost,127.0.0.1,ekeflicks.com,www.ekeflicks.com,api.ekeflicks.com'
+    'localhost,127.0.0.1,ekeflicks.com,180.149.198.245,www.ekeflicks.com,api.ekeflicks.com'
 )
 
 # =========================================================
@@ -337,10 +337,21 @@ CORS_ALLOWED_ORIGINS = env_list(
         'https://ekeflicks.com',
         'https://api.ekeflicks.com',
         'https://www.ekeflicks.com',
+        'http://180.149.198.245',
+        'http://180.149.198.245:80',
+        'http://180.149.198.245:8000',
         'http://localhost:3000',
         'http://localhost:8080',
         'http://192.162.68.247:3000',
         'http://192.162.68.247:8080',
+    ]),
+)
+
+CORS_ALLOWED_ORIGIN_REGEXES = env_list(
+    'CORS_ALLOWED_ORIGIN_REGEXES',
+    ','.join([
+        r'^http://localhost:\d+$',
+        r'^http://127\.0\.0\.1:\d+$',
     ]),
 )
 

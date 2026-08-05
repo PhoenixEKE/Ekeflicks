@@ -1,14 +1,22 @@
-/// Central configuration for the EkeFlicks HTTP API.
-///
-/// The origin can be overridden at build time, for example:
-/// `flutter run --dart-define=API_ORIGIN=https://api.ekeflicks.com`.
-abstract final class ApiConfig {
-  static const String origin = String.fromEnvironment(
-    'API_ORIGIN',
-    defaultValue: 'http://180.149.198.245:8000',
-  );
+// Central configuration for the EkeFlicks HTTP API.
+//
+// Override the origin at build time when the API is not served from the same
+// origin as the web app, for example:
+// `flutter run --dart-define=API_ORIGIN=https://api.ekeflicks.com`.
+import 'platform_origin_stub.dart'
+    if (dart.library.html) 'platform_origin_web.dart';
 
+abstract final class ApiConfig {
+  static const String configuredOrigin = String.fromEnvironment('API_ORIGIN');
+  static const String localOrigin = 'http://localhost:8000';
   static const String apiPrefix = '/api/v1';
+
+  static String get origin {
+    if (configuredOrigin.trim().isNotEmpty) {
+      return _withoutTrailingSlash(configuredOrigin.trim());
+    }
+    return _withoutTrailingSlash(currentBrowserOrigin() ?? localOrigin);
+  }
 
   static String get baseUrl => '${_withoutTrailingSlash(origin)}$apiPrefix';
 

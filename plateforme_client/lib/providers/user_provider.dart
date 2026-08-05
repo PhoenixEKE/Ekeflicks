@@ -3,6 +3,7 @@ import 'package:app_ekeflicks/src/openapi.dart';
 import 'package:app_ekeflicks/src/models/user.dart';
 import 'package:app_ekeflicks/src/models/token_refresh.dart';
 import 'package:dio/dio.dart';
+import 'package:built_value/serializer.dart';
 
 class UserProvider with ChangeNotifier {
   final Openapi apiClient;
@@ -44,7 +45,24 @@ class UserProvider with ChangeNotifier {
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
-      return response.statusCode == 201;
+      if (response.statusCode == 201 && response.data != null) {
+        final data = response.data!;
+        final access = data['access'] as String?;
+        final refresh = data['refresh'] as String?;
+
+        if (access != null) {
+          _setBearerToken(access);
+        }
+        _refreshToken = refresh;
+        notifyListeners();
+
+        if (access != null) {
+          await _loadUserProfile();
+        }
+        return true;
+      }
+
+      return false;
     } on DioException catch (error) {
       // Never log request bodies here: they contain the user's password.
       debugPrint(
@@ -153,11 +171,14 @@ class UserProvider with ChangeNotifier {
     if (_accessToken == null) return false;
 
     try {
-      // Utiliser usersMe() pour récupérer le profil de l'utilisateur connecté
-      final response = await apiClient.getUsersApi().usersMe();
+      final response = await apiClient.dio.get<Map<String, dynamic>>('/auth/me/');
+      final data = response.data;
 
-      if (response.data != null) {
-        _currentUser = response.data!;
+      if (data != null) {
+        _currentUser = apiClient.serializers.deserialize(
+          data,
+          specifiedType: const FullType(User),
+        ) as User;
         notifyListeners();
         return true;
       }

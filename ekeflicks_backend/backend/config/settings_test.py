@@ -19,8 +19,8 @@ DATABASES = {
         'NAME': os.environ.get('POSTGRES_DB', 'ekeflicks_test'),
         'USER': os.environ.get('POSTGRES_USER', 'ekeflicks'),
         'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'ekeflicks'),
-        'HOST': os.environ.get('POSTGRES_HOST', '127.0.0.1'),
-        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        'HOST': os.environ.get('DB_HOST') or os.environ.get('POSTGRES_HOST', 'postgres'),
+        'PORT': os.environ.get('DB_PORT') or os.environ.get('POSTGRES_PORT', '5432'),
         'CONN_MAX_AGE': 0,
     },
 }

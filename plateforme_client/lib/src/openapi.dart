@@ -30,8 +30,12 @@ class Openapi {
         this.dio = dio ??
             Dio(BaseOptions(
               baseUrl: basePathOverride ?? basePath,
-              connectTimeout: const Duration(milliseconds: 5000),
-              receiveTimeout: const Duration(milliseconds: 3000),
+              // Media/catalogue responses can require a cold start in production.
+              // Five seconds was too short and surfaced as connectionTimeout on
+              // otherwise healthy deployments.
+              connectTimeout: const Duration(seconds: 30),
+              receiveTimeout: const Duration(seconds: 30),
+              sendTimeout: const Duration(seconds: 30),
             )) {
     if (interceptors == null) {
       this.dio.interceptors.addAll([

@@ -18,16 +18,15 @@ import 'package:app_ekeflicks/src/models/token_refresh.dart';
 class AuthApi {
 
   final Dio _dio;
-
   final Serializers _serializers;
 
   const AuthApi(this._dio, this._serializers);
 
   /// authLoginCreate
-  /// 
+  ///
   ///
   /// Parameters:
-  /// * [data] 
+  /// * [data]
   /// * [cancelToken] - A [CancelToken] that can be used to cancel the operation
   /// * [headers] - Can be used to add additional headers to the request
   /// * [extras] - Can be used to add flags to the request
@@ -37,7 +36,7 @@ class AuthApi {
   ///
   /// Returns a [Future] containing a [Response] with a [TokenObtainPair] as data
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<TokenObtainPair>> authLoginCreate({ 
+  Future<Response<TokenObtainPair>> authLoginCreate({
     required TokenObtainPair data,
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
@@ -125,10 +124,10 @@ class AuthApi {
   }
 
   /// authLogoutAllCreate
-  /// Déconnecte plusieurs utilisateurs : - Si &#x60;user_id&#x60; est fourni → déconnecte uniquement cet utilisateur. - Sinon, si &#x60;confirm_all: true&#x60; est fourni → déconnecte **tous les utilisateurs** (opération admin seulement).
+  /// Déconnecte plusieurs utilisateurs : - Si `user_id` est fourni → déconnecte uniquement cet utilisateur. - Sinon, si `confirm_all: true` est fourni → déconnecte **tous les utilisateurs** (opération admin seulement).
   ///
   /// Parameters:
-  /// * [data] 
+  /// * [data]
   /// * [cancelToken] - A [CancelToken] that can be used to cancel the operation
   /// * [headers] - Can be used to add additional headers to the request
   /// * [extras] - Can be used to add flags to the request
@@ -138,7 +137,7 @@ class AuthApi {
   ///
   /// Returns a [Future]
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<void>> authLogoutAllCreate({ 
+  Future<Response<void>> authLogoutAllCreate({
     required AuthLogoutAllCreateRequest data,
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
@@ -201,7 +200,7 @@ class AuthApi {
   /// Déconnecte l’utilisateur en invalidant son refresh token.
   ///
   /// Parameters:
-  /// * [data] 
+  /// * [data]
   /// * [cancelToken] - A [CancelToken] that can be used to cancel the operation
   /// * [headers] - Can be used to add additional headers to the request
   /// * [extras] - Can be used to add flags to the request
@@ -211,7 +210,7 @@ class AuthApi {
   ///
   /// Returns a [Future]
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<void>> authLogoutCreate({ 
+  Future<Response<void>> authLogoutCreate({
     required AuthLogoutCreateRequest data,
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
@@ -271,10 +270,10 @@ class AuthApi {
   }
 
   /// authPasswordResetConfirmCreate
-  /// 
+  ///
   ///
   /// Parameters:
-  /// * [data] 
+  /// * [data]
   /// * [cancelToken] - A [CancelToken] that can be used to cancel the operation
   /// * [headers] - Can be used to add additional headers to the request
   /// * [extras] - Can be used to add flags to the request
@@ -284,7 +283,7 @@ class AuthApi {
   ///
   /// Returns a [Future] containing a [Response] with a [PasswordResetConfirm] as data
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<PasswordResetConfirm>> authPasswordResetConfirmCreate({ 
+  Future<Response<PasswordResetConfirm>> authPasswordResetConfirmCreate({
     required PasswordResetConfirm data,
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
@@ -293,7 +292,7 @@ class AuthApi {
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
   }) async {
-    final _path = r'/auth/password-reset-confirm/';
+    final _path = r'/auth/password-reset/confirm/';
     final _options = Options(
       method: r'POST',
       headers: <String, dynamic>{
@@ -372,10 +371,10 @@ class AuthApi {
   }
 
   /// authPasswordResetCreate
-  /// 
+  ///
   ///
   /// Parameters:
-  /// * [data] 
+  /// * [data]
   /// * [cancelToken] - A [CancelToken] that can be used to cancel the operation
   /// * [headers] - Can be used to add additional headers to the request
   /// * [extras] - Can be used to add flags to the request
@@ -385,7 +384,7 @@ class AuthApi {
   ///
   /// Returns a [Future] containing a [Response] with a [PasswordResetRequest] as data
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<PasswordResetRequest>> authPasswordResetCreate({ 
+  Future<Response<PasswordResetRequest>> authPasswordResetCreate({
     required PasswordResetRequest data,
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
@@ -394,7 +393,7 @@ class AuthApi {
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
   }) async {
-    final _path = r'/auth/password-reset/';
+    final _path = r'/auth/password-reset/request/';
     final _options = Options(
       method: r'POST',
       headers: <String, dynamic>{
@@ -476,7 +475,7 @@ class AuthApi {
   /// Takes a refresh type JSON web token and returns an access type JSON web token if the refresh token is valid.
   ///
   /// Parameters:
-  /// * [data] 
+  /// * [data]
   /// * [cancelToken] - A [CancelToken] that can be used to cancel the operation
   /// * [headers] - Can be used to add additional headers to the request
   /// * [extras] - Can be used to add flags to the request
@@ -486,7 +485,7 @@ class AuthApi {
   ///
   /// Returns a [Future] containing a [Response] with a [TokenRefresh] as data
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<TokenRefresh>> authTokenRefreshCreate({ 
+  Future<Response<TokenRefresh>> authTokenRefreshCreate({
     required TokenRefresh data,
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
@@ -572,5 +571,4 @@ class AuthApi {
       extra: _response.extra,
     );
   }
-
 }
