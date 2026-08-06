@@ -50,7 +50,7 @@ class _SignupPageState extends State<SignupPage> {
     setState(() => _isLoading = true);
 
     // Stocker les valeurs avant la création
-    final email = _emailController.text.trim().toLowerCase();
+    final identifier = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final firstname = _prenomController.text.trim();
     final lastname = _nomController.text.trim();
@@ -61,7 +61,7 @@ class _SignupPageState extends State<SignupPage> {
 
       // Création de l'utilisateur
       final registered = await userProvider.register(
-        email: email,
+        identifier: identifier,
         password: password,
         firstname: firstname,
         lastname: lastname,
@@ -102,12 +102,18 @@ class _SignupPageState extends State<SignupPage> {
       final data = dioError.response?.data;
 
       if (status == 400 && data is Map<String, dynamic>) {
-        if (data['email'] != null) {
+        final errors = data['errors'];
+        if (errors is Map && errors['email'] != null) {
+          message = _firstApiErrorMessage(errors) ??
+              AppLocalizations.of(context)!.emailAlreadyExists;
+        } else if (data['email'] != null) {
           message = AppLocalizations.of(context)!.emailAlreadyExists;
-        } else if (data['detail'] != null) {
-          message = data['detail'];
+        } else if (data['phone'] != null) {
+          message = data['phone'];
         } else {
-          message = _firstApiErrorMessage(data) ?? message;
+          message = errors is Map
+              ? (_firstApiErrorMessage(errors) ?? message)
+              : (data['detail']?.toString() ?? message);
         }
       } else if (status == 500) {
         message = AppLocalizations.of(context)!.serverError;
@@ -119,15 +125,23 @@ class _SignupPageState extends State<SignupPage> {
     if (mounted) _showErrorDialog(message);
   }
 
-  String? _firstApiErrorMessage(Map<String, dynamic> data) {
+  String? _firstApiErrorMessage(Map data) {
     for (final value in data.values) {
-      if (value is List && value.isNotEmpty) {
-        return value.first.toString();
-      }
-      if (value is String && value.isNotEmpty) {
-        return value;
+      final message = _firstApiErrorValue(value);
+      if (message != null) return message;
+    }
+    return null;
+  }
+
+  String? _firstApiErrorValue(dynamic value) {
+    if (value is String && value.isNotEmpty) return value;
+    if (value is List) {
+      for (final item in value) {
+        final message = _firstApiErrorValue(item);
+        if (message != null) return message;
       }
     }
+    if (value is Map) return _firstApiErrorMessage(value);
     return null;
   }
 
@@ -224,16 +238,24 @@ class _SignupPageState extends State<SignupPage> {
                       enableSuggestions: false,
                       decoration: AppDecorations.inputDecoration(
                         context,
-                        label: loc.email,
-                        icon: Icons.email_outlined,
+                        label: '${loc.email} / ${loc.telephone}',
+                        icon: Icons.alternate_email,
                       ),
                       validator: (value) {
-                        final email = value?.trim() ?? '';
-                        if (email.isEmpty) return loc.emailObligatoire;
+                        final identifier = value?.trim() ?? '';
+                        if (identifier.isEmpty) return loc.emailObligatoire;
+                        final phone = identifier.replaceAll(
+                          RegExp(r'[^0-9+]'),
+                          '',
+                        );
+                        if (!identifier.contains('@') &&
+                            RegExp(r'^\+?[0-9]{8,15}$').hasMatch(phone)) {
+                          return null;
+                        }
                         final emailRegex = RegExp(
                           r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$",
                         );
-                        if (!emailRegex.hasMatch(email)) return loc.emailInvalide;
+                        if (!emailRegex.hasMatch(identifier)) return loc.emailInvalide;
                         return null;
                       },
                     ),

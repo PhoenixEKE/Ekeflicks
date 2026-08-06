@@ -3,6 +3,7 @@ import hmac
 import json
 
 from django.test import override_settings
+from django.core import mail
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -46,6 +47,9 @@ class BillingApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['status'], 'pending')
         self.assertEqual(response.data['plan']['id'], str(self.plan.id))
+        self.assertTrue(any('Abonnement cree' in message.subject for message in mail.outbox))
+        subscription_email = next(message for message in mail.outbox if 'Abonnement cree' in message.subject)
+        self.assertIn('logo_light.png', subscription_email.alternatives[0].content)
 
     def test_best_price_returns_cheapest_active_plan(self):
         SubscriptionPlan.objects.create(

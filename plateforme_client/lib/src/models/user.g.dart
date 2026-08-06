@@ -221,7 +221,7 @@ class _$User extends User {
   @override
   final String? id;
   @override
-  final String email;
+  final String? email;
   @override
   final String? firstname;
   @override
@@ -242,7 +242,7 @@ class _$User extends User {
 
   _$User._({
     this.id,
-    required this.email,
+    this.email,
     this.firstname,
     this.lastname,
     this.role,

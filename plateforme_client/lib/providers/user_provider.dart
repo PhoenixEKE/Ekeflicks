@@ -13,22 +13,61 @@ class UserProvider with ChangeNotifier {
   User? _currentUser;
   String? _accessToken;
   String? _refreshToken;
+  bool _hasActiveSubscription = false;
 
   User? get currentUser => _currentUser;
   String? get accessToken => _accessToken;
   String? get refreshTokenValue => _refreshToken;
   bool get isLoggedIn => _currentUser != null && _accessToken != null;
+  bool get hasActiveSubscription => _hasActiveSubscription;
 
   void _setBearerToken(String token) {
     _accessToken = token;
     apiClient.dio.options.headers['Authorization'] = 'Bearer $token';
   }
 
-  String _normalizeEmail(String email) => email.trim().toLowerCase();
+  String _normalizeLoginIdentifier(String identifier) {
+    final value = identifier.trim();
+    if (value.contains('@')) return value.toLowerCase();
+    final prefix = value.startsWith('+') ? '+' : '';
+    return '$prefix${value.replaceAll(RegExp(r'\D'), '')}';
+  }
+
+  String? _apiErrorMessage(dynamic data) {
+    if (data is! Map) return null;
+
+    final errors = data['errors'];
+    if (errors is Map) {
+      for (final value in errors.values) {
+        final message = _firstErrorValue(value);
+        if (message != null) return message;
+      }
+    }
+
+    final detail = data['detail'];
+    return detail is String && detail.isNotEmpty ? detail : null;
+  }
+
+  String? _firstErrorValue(dynamic value) {
+    if (value is String && value.isNotEmpty) return value;
+    if (value is List) {
+      for (final item in value) {
+        final message = _firstErrorValue(item);
+        if (message != null) return message;
+      }
+    }
+    if (value is Map) {
+      for (final item in value.values) {
+        final message = _firstErrorValue(item);
+        if (message != null) return message;
+      }
+    }
+    return null;
+  }
 
   /// Inscription d'un nouvel utilisateur + login automatique
   Future<bool> register({
-    required String email,
+    required String identifier,
     required String password,
     required String firstname,
     required String lastname,
@@ -36,10 +75,13 @@ class UserProvider with ChangeNotifier {
     try {
       // Registration is an authentication endpoint in the v1 backend. The
       // generated legacy `/users/` operation no longer matches this API.
+      final normalizedIdentifier = _normalizeLoginIdentifier(identifier);
+      final isEmail = normalizedIdentifier.contains('@');
       final response = await apiClient.dio.post<Map<String, dynamic>>(
         '/auth/register/',
         data: {
-          'email': _normalizeEmail(email),
+          if (isEmail) 'email': normalizedIdentifier,
+          if (!isEmail) 'phone': normalizedIdentifier,
           'password': password,
           'firstname': firstname,
           'lastname': lastname,
@@ -56,6 +98,7 @@ class UserProvider with ChangeNotifier {
           _setBearerToken(access);
         }
         _refreshToken = refresh;
+        _hasActiveSubscription = false;
         notifyListeners();
 
         if (access != null) {
@@ -67,10 +110,9 @@ class UserProvider with ChangeNotifier {
       return false;
     } on DioException catch (error) {
       // Never log request bodies here: they contain the user's password.
-      debugPrint(
-        'Registration failed (${error.response?.statusCode ?? error.type.name}) '
-        'at ${error.requestOptions.uri}: ${error.response?.data}',
-      );
+      if (error.response == null) {
+        debugPrint('Registration network failure (${error.type.name})');
+      }
       rethrow;
     }
   }
@@ -84,7 +126,12 @@ class UserProvider with ChangeNotifier {
 
       final response = await dio.post(
         '/auth/login/',
-        data: {'email': _normalizeEmail(email), 'password': password},
+        data: {
+          // The API keeps the historical `email` key but accepts either an
+          // email address or a telephone number as its value.
+          'email': _normalizeLoginIdentifier(email),
+          'password': password,
+        },
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -92,6 +139,7 @@ class UserProvider with ChangeNotifier {
         final data = response.data;
         _accessToken = data['access'] as String?;
         _refreshToken = data['refresh'] as String?;
+        _hasActiveSubscription = data['has_active_subscription'] == true;
 
         if (_accessToken != null) {
           _setBearerToken(_accessToken!);
@@ -111,15 +159,21 @@ class UserProvider with ChangeNotifier {
         'message': _getErrorMessageFromStatusCode(response.statusCode)
       };
     } on DioException catch (e) {
-      debugPrint('Login error: $e');
+      // Avoid printing Dio's verbose exception (and browser internals) for an
+      // expected authentication failure. Keep only safe diagnostic metadata.
+      if (e.response == null) {
+        debugPrint('Login network failure (${e.type.name})');
+      }
 
       // Gestion spécifique des erreurs Dio
       final statusCode = e.response?.statusCode;
-      final errorMessage = _getErrorMessageFromStatusCode(statusCode);
+      final errorMessage = _apiErrorMessage(e.response?.data) ??
+          _getErrorMessageFromStatusCode(statusCode);
 
       _currentUser = null;
       _accessToken = null;
       _refreshToken = null;
+      _hasActiveSubscription = false;
       notifyListeners();
 
       return {
@@ -134,6 +188,7 @@ class UserProvider with ChangeNotifier {
       _currentUser = null;
       _accessToken = null;
       _refreshToken = null;
+      _hasActiveSubscription = false;
       notifyListeners();
 
       return {
@@ -239,6 +294,7 @@ class UserProvider with ChangeNotifier {
       _currentUser = null;
       _accessToken = null;
       _refreshToken = null;
+      _hasActiveSubscription = false;
       apiClient.dio.options.headers['Authorization'] = '';
       notifyListeners();
     }
@@ -263,6 +319,7 @@ class UserProvider with ChangeNotifier {
       _currentUser = null;
       _accessToken = null;
       _refreshToken = null;
+      _hasActiveSubscription = false;
       apiClient.dio.options.headers['Authorization'] = '';
       notifyListeners();
     }
@@ -272,6 +329,7 @@ class UserProvider with ChangeNotifier {
     _currentUser = null;
     _accessToken = null;
     _refreshToken = null;
+    _hasActiveSubscription = false;
     apiClient.dio.options.headers['Authorization'] = '';
     notifyListeners();
   }
@@ -285,6 +343,7 @@ class UserProvider with ChangeNotifier {
       _currentUser = null;
       _accessToken = null;
       _refreshToken = null;
+      _hasActiveSubscription = false;
       notifyListeners();
       return false;
     }

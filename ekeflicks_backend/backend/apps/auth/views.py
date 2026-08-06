@@ -21,6 +21,7 @@ from apps.auth.serializers import (
     AccountClosureReviewSerializer,
     EmailChangeSupportRequestSerializer,
     EmailVerificationSerializer,
+    LoginSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     UserPersonalInfoSerializer,
@@ -32,7 +33,7 @@ from core.models.users import AccountClosureRequest, EmailChangeSupportRequest, 
 
 
 class LoginView(TokenObtainPairView):
-    pass
+    serializer_class = LoginSerializer
 
 
 class RegisterView(generics.CreateAPIView):
@@ -60,7 +61,11 @@ class RegisterView(generics.CreateAPIView):
                 'avatar_url': profile.avatar_url,
                 'type': profile.type.name if profile.type else None,
             }
-        send_email_verification(user, request)
+        
+        # A phone-only registration has no destination for an email
+        # verification message.
+        if serializer.validated_data.get('email'):
+            send_email_verification(user, request)
         return Response(response_data, status=status.HTTP_201_CREATED)
 
 

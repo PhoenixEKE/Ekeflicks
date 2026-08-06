@@ -1,5 +1,6 @@
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
+from django.utils.html import escape
 from django.utils import timezone
 
 from core.models import Notification, NotificationType, User
@@ -25,6 +26,25 @@ EVENT_DEFAULTS = {
     'producer_payout_rejected': ('Paiement producteur refuse', 'Votre demande de paiement producteur a ete refusee.'),
     'account_closure_requested': ('Demande de fermeture recue', 'Votre demande de fermeture de compte a ete enregistree.'),
 }
+
+
+def _email_html(title, message):
+    """Return a responsive, dark streaming-style transactional email."""
+    safe_title = escape(title)
+    safe_message = escape(message).replace('\n', '<br>')
+    logo_url = getattr(settings, 'EMAIL_LOGO_URL', '')
+    logo = (
+        f'<img src="{escape(logo_url)}" width="150" alt="EkeFlicks" style="display:block;border:0">'
+        if logo_url else '<span style="color:#e50914;font-size:28px;font-weight:800">EkeFlicks</span>'
+    )
+    return f'''<!doctype html><html><body style="margin:0;background:#141414;color:#fff;font-family:Arial,sans-serif">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#141414"><tr><td align="center" style="padding:32px 16px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#1f1f1f;border-radius:8px">
+<tr><td style="padding:30px 36px;border-bottom:1px solid #333">{logo}</td></tr>
+<tr><td style="padding:38px 36px"><h1 style="margin:0 0 20px;font-size:28px">{safe_title}</h1>
+<p style="margin:0;color:#d2d2d2;font-size:16px;line-height:1.65">{safe_message}</p></td></tr>
+<tr><td style="padding:22px 36px;color:#888;font-size:12px;border-top:1px solid #333">EkeFlicks · Votre divertissement, partout.</td></tr>
+</table></td></tr></table></body></html>'''
 
 
 def _notification_type(event_name, email_enabled=True):
@@ -60,13 +80,14 @@ def notify_user(user, event_name, title='', message='', data=None, email_enabled
     should_email = email_enabled and notification_type.is_email_enabled and bool(user.email)
     if should_email:
         try:
-            send_mail(
+            email = EmailMultiAlternatives(
                 notification.title,
                 notification.message,
                 getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@ekeflicks.com'),
                 [user.email],
-                fail_silently=True,
             )
+            email.attach_alternative(_email_html(notification.title, notification.message), 'text/html')
+            email.send(fail_silently=True)
             notification.is_sent = True
             notification.sent_at = timezone.now()
             notification.save(update_fields=['is_sent', 'sent_at'])

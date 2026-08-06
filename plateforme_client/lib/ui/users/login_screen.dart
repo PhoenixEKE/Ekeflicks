@@ -148,7 +148,7 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
 
       // Tentative de connexion avec la nouvelle version
       final loginResult = await userProvider.login(
-        email: _emailController.text.trim().toLowerCase(),
+        email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
@@ -173,10 +173,9 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
 
   Future<void> _handleSuccessfulLogin(ProfileProvider profileProvider) async {
     try {
-      final email = context.read<UserProvider>().currentUser?.email;
-      final subscriptionProgress = email == null
-          ? null
-          : await SubscriptionProgressService().load(email);
+      final userProvider = context.read<UserProvider>();
+      final email = userProvider.currentUser?.email ?? _emailController.text.trim();
+      final subscriptionProgress = await SubscriptionProgressService().load(email);
 
       if (subscriptionProgress != null && mounted) {
         final destination = subscriptionProgress.step ==
@@ -190,6 +189,15 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => destination),
+          (route) => false,
+        );
+        return;
+      }
+
+      if (!userProvider.hasActiveSubscription && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => SubscriptionStep1Page(accountEmail: email)),
           (route) => false,
         );
         return;
@@ -309,18 +317,23 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
                 enableSuggestions: false,
                 decoration: AppDecorations.inputDecoration(
                   context,
-                  label: loc.email,
-                  icon: Icons.email_outlined,
+                  label: '${loc.email} / ${loc.telephone}',
+                  icon: Icons.alternate_email,
                 ),
                 validator: (value) {
-                  final email = value?.trim() ?? '';
-                  if (email.isEmpty) {
+                  final identifier = value?.trim() ?? '';
+                  if (identifier.isEmpty) {
                     return loc.emailObligatoire;
+                  }
+                  final phone = identifier.replaceAll(RegExp(r'[^0-9+]'), '');
+                  if (!identifier.contains('@') &&
+                      RegExp(r'^\+?[0-9]{8,15}$').hasMatch(phone)) {
+                    return null;
                   }
                   final regex = RegExp(
                     r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$",
                   );
-                  if (!regex.hasMatch(email)) {
+                  if (!regex.hasMatch(identifier)) {
                     return loc.emailInvalide;
                   }
                   return null;

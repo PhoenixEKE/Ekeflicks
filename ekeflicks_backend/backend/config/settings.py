@@ -547,6 +547,10 @@ if not DEBUG:
 API_VERSION = os.environ.get('API_VERSION', 'v1')
 API_BASE_URL = os.environ.get('API_BASE_URL', 'https://api.ekeflicks.com')
 FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', 'https://ekeflicks.com')
+EMAIL_LOGO_URL = os.environ.get(
+    'EMAIL_LOGO_URL',
+    f"{FRONTEND_BASE_URL.rstrip('/')}/assets/assets/images/logo_light.png",
+)
 EMAIL_VERIFICATION_FRONTEND_PATH = os.environ.get('EMAIL_VERIFICATION_FRONTEND_PATH', '/verify-email')
 PASSWORD_RESET_FRONTEND_PATH = os.environ.get('PASSWORD_RESET_FRONTEND_PATH', '/reset-password')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@ekeflicks.com')

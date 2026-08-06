@@ -1,8 +1,61 @@
+import hashlib
+import uuid
+
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from core.models.users import AccountClosureRequest, EmailChangeSupportRequest, User
 from core.models.profiles import Profile, ProfileType
 
+
+PHONE_ACCOUNT_EMAIL_DOMAIN = '@users.ekeflicks.invalid'
+
+
+def normalize_phone(value):
+    """Return the compact international representation used for authentication."""
+    value = value.strip()
+    prefix = '+' if value.startswith('+') else ''
+    digits = ''.join(character for character in value if character.isdigit())
+    return f'{prefix}{digits}'
+
+
+def phone_account_email(phone):
+    """Build a non-routable internal identifier for accounts without email."""
+    digest = hashlib.sha256(phone.encode('utf-8')).hexdigest()
+    return f'phone-{digest}@accounts.ekeflicks.invalid'
+
+
+def public_email(user):
+    """Hide the internal identifier used for accounts created by phone."""
+    return '' if user.email and user.email.endswith(PHONE_ACCOUNT_EMAIL_DOMAIN) else user.email
+
+
+class LoginSerializer(TokenObtainPairSerializer):
+    # SimpleJWT names this field after User.USERNAME_FIELD (email). Keep the
+    # wire format backward compatible while also accepting a phone number.
+    email = serializers.CharField(required=True, trim_whitespace=True)
+
+    def validate(self, attrs):
+        identifier = attrs.get('email', '').strip()
+        if '@' in identifier:
+            attrs['email'] = identifier.lower()
+        else:
+            phone = normalize_phone(identifier)
+            matches = User.objects.filter(phone=phone, is_active=True).values_list(
+                'email', flat=True
+            )[:2]
+            emails = list(matches)
+            if len(emails) == 1:
+                attrs['email'] = emails[0]
+
+        return super().validate(attrs)
+
+
 class UserSerializer(serializers.ModelSerializer):
+    email = serializers.SerializerMethodField()
+
+    def get_email(self, obj):
+        return public_email(obj)
+
     class Meta:
         model = User
         fields = [
@@ -22,10 +75,18 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserPersonalInfoSerializer(serializers.ModelSerializer):
+    email = serializers.SerializerMethodField()
+
+    def get_email(self, obj):
+        return public_email(obj)
+
     class Meta:
         model = User
         fields = ['id', 'email', 'firstname', 'lastname', 'phone', 'country_code', 'is_verified', 'created_at']
         read_only_fields = ['id', 'email', 'is_verified', 'created_at']
+
+    def validate_phone(self, value):
+        return normalize_phone(value)
 
 
 class EmailVerificationSerializer(serializers.Serializer):
@@ -77,7 +138,7 @@ class EmailChangeSupportRequestSerializer(serializers.ModelSerializer):
         current_user = getattr(request, 'user', None)
 
         if current_user and current_user.is_authenticated:
-            if requested_email == current_user.email.lower():
+            if current_user.email and requested_email == current_user.email.lower():
                 raise serializers.ValidationError('Le nouvel email doit etre different de votre email actuel.')
 
         if User.objects.filter(email__iexact=requested_email).exists():
@@ -85,7 +146,9 @@ class EmailChangeSupportRequestSerializer(serializers.ModelSerializer):
 
         return requested_email
 
+
 class UserCreateSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(required=False, allow_blank=True)
     password = serializers.CharField(write_only=True, min_length=8)
     avatar_url = serializers.URLField(required=False, allow_blank=True, allow_null=True)
     profile_name = serializers.CharField(required=False, allow_blank=True)
@@ -95,20 +158,53 @@ class UserCreateSerializer(serializers.ModelSerializer):
         model = User
         fields = ['email', 'password', 'firstname', 'lastname', 'phone', 'country_code', 'avatar_url', 'profile_name', 'profile_type']
 
+    def validate_phone(self, value):
+        return normalize_phone(value)
+
+    def validate(self, attrs):
+        email = attrs.get('email', '').strip().lower()
+        phone = attrs.get('phone', '').strip()
+
+        if not email and not phone:
+            raise serializers.ValidationError({
+                'non_field_errors': ["Une adresse email ou un numero de telephone est obligatoire."]
+            })
+
+        # Validate email uniqueness if provided
+        if email and User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError({'email': 'Cette adresse email est deja utilisee.'})
+
+        # Validate phone uniqueness if provided
+        if phone and User.objects.filter(phone=phone).exists():
+            raise serializers.ValidationError({
+                'phone': 'Ce numero de telephone est deja utilise.'
+            })
+
+        attrs['email'] = email
+        attrs['phone'] = phone
+        return attrs
+
     def create(self, validated_data):
         avatar_url = validated_data.pop('avatar_url', None)
         profile_name = validated_data.pop('profile_name', None)
         profile_type_name = validated_data.pop('profile_type', 'main')
-        
+
+        email = validated_data.get('email')
+        if not email:
+            # The current user model uses email as its database identifier. Keep
+            # that implementation detail internal while allowing phone-only
+            # accounts to be created without inventing an address for the user.
+            email = f"phone-{uuid.uuid4().hex}{PHONE_ACCOUNT_EMAIL_DOMAIN}"
+
         user = User.objects.create_user(
-            email=validated_data['email'],
+            email=email,
             password=validated_data['password'],
             firstname=validated_data.get('firstname', ''),
             lastname=validated_data.get('lastname', ''),
             phone=validated_data.get('phone', ''),
             country_code=validated_data.get('country_code', '')
         )
-        
+
         profile = Profile.objects.filter(user=user).first()
         if profile:
             if profile_name:
@@ -122,8 +218,42 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 if new_type:
                     profile.type = new_type
             profile.save()
-        
+
         return user
+
+
+class EmailOrPhoneTokenObtainPairSerializer(TokenObtainPairSerializer):
+    username_field = 'identifier'
+    identifier = serializers.CharField(write_only=True, required=False)
+    email = serializers.CharField(write_only=True, required=False)
+
+    def validate(self, attrs):
+        identifier = (attrs.pop('identifier', None) or attrs.pop('email', None) or '').strip()
+        if not identifier:
+            raise serializers.ValidationError({'identifier': 'Email ou numero de telephone requis.'})
+
+        # Chercher par email
+        user = User.objects.filter(email__iexact=identifier).first()
+
+        # Si non trouvé, chercher par téléphone
+        if user is None:
+            try:
+                phone = normalize_phone(identifier)
+            except ValueError:
+                raise serializers.ValidationError({
+                    'identifier': 'Ajoutez obligatoirement l indicatif du pays, par exemple +2250102030405.'
+                })
+            user = User.objects.filter(phone=phone).first()
+
+        if user is None:
+            # Keep authentication failures deliberately indistinguishable.
+            raise serializers.ValidationError('Identifiant ou mot de passe incorrect.')
+
+        if not user.check_password(attrs.get('password')) or not user.is_active:
+            raise serializers.ValidationError('Identifiant ou mot de passe incorrect.')
+
+        refresh = self.get_token(user)
+        return {'refresh': str(refresh), 'access': str(refresh.access_token)}
 
 
 class AccountClosureRequestSerializer(serializers.ModelSerializer):

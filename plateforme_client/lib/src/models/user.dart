@@ -27,7 +27,7 @@ abstract class User implements Built<User, UserBuilder> {
   String? get id;
 
   @BuiltValueField(wireName: r'email')
-  String get email;
+  String? get email;
 
   @BuiltValueField(wireName: r'firstname')
   String? get firstname;

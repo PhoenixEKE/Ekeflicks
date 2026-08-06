@@ -1,4 +1,5 @@
 import uuid
+import re
 
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
@@ -6,11 +7,21 @@ from django.db import models
 from .base import TimeStampedModel
 
 
+def normalize_phone_number(value):
+    """Normalize an international phone number to a compact E.164 form."""
+    phone = re.sub(r'[\s().-]', '', (value or '').strip())
+    if not re.fullmatch(r'\+[1-9]\d{7,14}', phone):
+        raise ValueError("Phone must include its country calling code, for example +2250102030405")
+    return phone
+
+
 class UserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
-        if not email:
-            raise ValueError("Email required")
-        email = self.normalize_email(email)
+    def create_user(self, email=None, password=None, **extra_fields):
+        phone = str(extra_fields.get('phone') or '').strip()
+        if not email and not phone:
+            raise ValueError("Email or phone required")
+        email = self.normalize_email(email) if email else None
+        extra_fields['phone'] = normalize_phone_number(phone) if phone else ''
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -24,7 +35,7 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True, null=True, blank=True)
     firstname = models.CharField(max_length=100, blank=True)
     lastname = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=20, blank=True)
@@ -45,7 +56,8 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     REQUIRED_FIELDS = []
 
     def __str__(self):
-        return self.email
+        return self.email or self.phone
+
 
 class UserSession(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

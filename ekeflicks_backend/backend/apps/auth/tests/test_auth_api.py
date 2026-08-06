@@ -1,4 +1,5 @@
 from django.urls import reverse
+from django.core import mail
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -10,10 +11,28 @@ from core.models import (
     PasswordResetToken,
     Profile,
     User,
+    Subscription,
 )
 
 
 class AuthApiTests(APITestCase):
+    def test_login_accepts_phone_number(self):
+        User.objects.create_user(
+            email='phone.viewer@example.com',
+            password='StrongPass123',
+            phone='+22501020304',
+        )
+
+        response = self.client.post(
+            reverse('login'),
+            {'email': '+225 01 02 03 04', 'password': 'StrongPass123'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('access', response.data)
+        self.assertIn('refresh', response.data)
+
     def test_register_creates_user_profile_and_tokens(self):
         self.assertEqual(reverse('register'), '/api/v1/auth/register/')
         response = self.client.post(
@@ -38,6 +57,47 @@ class AuthApiTests(APITestCase):
         self.assertFalse(user.is_verified)
         self.assertTrue(Profile.objects.filter(user=user, name='Salon').exists())
         self.assertTrue(EmailVerificationToken.objects.filter(user=user, used_at__isnull=True).exists())
+        self.assertFalse(Subscription.objects.filter(user=user).exists())
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertIn('logo_light.png', mail.outbox[0].alternatives[0].content)
+
+    def test_register_and_login_with_phone_without_sending_email(self):
+        response = self.client.post(
+            reverse('register'),
+            {'phone': '+225 01 02 03 04 05', 'password': 'StrongPass123', 'firstname': 'Awa'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(response.data['user']['email'])
+        self.assertEqual(response.data['user']['phone'], '+2250102030405')
+        self.assertEqual(len(mail.outbox), 0)
+
+        login = self.client.post(
+            reverse('login'),
+            {'email': '+2250102030405', 'password': 'StrongPass123'},
+            format='json',
+        )
+        self.assertEqual(login.status_code, status.HTTP_200_OK)
+        self.assertFalse(login.data['has_active_subscription'])
+
+    def test_phone_registration_and_login_require_country_calling_code(self):
+        registration = self.client.post(
+            reverse('register'),
+            {'phone': '0102030405', 'password': 'StrongPass123'},
+            format='json',
+        )
+        self.assertEqual(registration.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('indicatif du pays', str(registration.data['phone'][0]))
+
+        User.objects.create_user(phone='+2250102030405', password='StrongPass123')
+        login = self.client.post(
+            reverse('login'),
+            {'email': '0102030405', 'password': 'StrongPass123'},
+            format='json',
+        )
+        self.assertEqual(login.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('indicatif du pays', str(login.data['email'][0]))
 
     def test_me_requires_authentication(self):
         response = self.client.get(reverse('me'))

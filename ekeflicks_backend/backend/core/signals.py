@@ -35,7 +35,7 @@ def create_default_profile(sender, instance, created, **kwargs):
                 'can_rate_content': False
             }
         )
-        default_name = instance.firstname or instance.email.split('@')[0]
+        default_name = instance.firstname or (instance.email.split('@')[0] if instance.email else instance.phone)
         default_avatar = 'https://cdn.ekeflicks.com/avatars/default-adult.png'
         Profile.objects.create(
             user=instance,
