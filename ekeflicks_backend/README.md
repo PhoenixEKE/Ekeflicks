@@ -25,10 +25,21 @@ cp .env.example .env
 docker compose build
 docker compose up -d postgres redis minio clickhouse
 docker compose run --rm django python manage.py migrate
+docker compose run --rm django python manage.py create_test_account
 docker compose run --rm django python manage.py check
 docker compose run --rm django python manage.py test --settings=config.settings_test
 docker compose up -d
 ```
+La commande `create_test_account` prépare un compte local vérifié avec l'offre
+Basic et un abonnement actif :
+
+- e-mail : `test@ekeflicks.com` ;
+- mot de passe : `Test1234!`.
+
+Elle est idempotente et accepte `--email` et `--password` pour personnaliser les
+identifiants. Par sécurité, elle refuse de s'exécuter avec `DEBUG=False`, sauf si
+l'option explicite `--allow-production` est fournie.
+
 
 ## Routes utiles
 
