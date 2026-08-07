@@ -7,6 +7,7 @@ from core.models.subscriptions import Subscription
 from core.models.users import User
 from core.models.profiles import Profile, ProfileType
 
+
 @receiver(post_save, sender=User)
 def create_default_profile(sender, instance, created, **kwargs):
     if created:
@@ -36,12 +37,13 @@ def create_default_profile(sender, instance, created, **kwargs):
             }
         )
         default_name = instance.firstname or (instance.email.split('@')[0] if instance.email else instance.phone)
-        default_avatar = 'https://cdn.ekeflicks.com/avatars/default-adult.png'
         Profile.objects.create(
             user=instance,
             type=profile_type,
             name=default_name,
-            avatar_url=default_avatar,
+            # The clients provide a bundled fallback avatar. Keeping this
+            # empty avoids persisting a CDN URL that may not exist.
+            avatar_url='',
             is_active=True
         )
         notify_user(instance, 'account_created')

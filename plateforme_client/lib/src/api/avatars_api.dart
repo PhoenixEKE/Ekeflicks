@@ -30,7 +30,7 @@ class AvatarsApi {
   ///
   /// Returns a [Future]
   /// Throws [DioException] if API call or serialization fails
-  Future<Response<void>> avatarsList({ 
+  Future<Response<Object>> avatarsList({ 
     CancelToken? cancelToken,
     Map<String, dynamic>? headers,
     Map<String, dynamic>? extra,

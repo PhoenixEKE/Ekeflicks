@@ -22,7 +22,7 @@ class ProfileSelectionPage extends StatefulWidget {
   State<ProfileSelectionPage> createState() => _ProfileSelectionPageState();
 }
 
-class _ProfileSelectionPageState extends State<ProfileSelectionPage> 
+class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     with SingleTickerProviderStateMixin {
   List<FocusNode> _profileFocusNodes = [];
   final FocusNode _addProfileFocusNode = FocusNode();
@@ -225,7 +225,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
             backgroundColor: Colors.green,
           ),
         );
-        
+
         // Recharger les profils et mettre à jour l'interface
         await _loadProfiles();
         _initializeFocusNodes();
@@ -390,12 +390,12 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
   List<Profile> _getSortedProfiles(List<Profile> profiles) {
     // Ordre de priorité: main -> child -> guest -> autres
     final order = {'main': 0, 'child': 1, 'guest': 2};
-    
+
     return List.of(profiles)..sort((a, b) {
       // Convert enum to string for comparison
       final typeA = a.type?.toString().split('.').last.toLowerCase() ?? '';
       final typeB = b.type?.toString().split('.').last.toLowerCase() ?? '';
-      
+
       final orderA = order[typeA] ?? 3;
       final orderB = order[typeB] ?? 3;
       return orderA.compareTo(orderB);
@@ -427,6 +427,14 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     required bool isHovered,
     required Profile profile,
   }) {
+    final resolvedAvatarUrl = avatarUrl ?? '';
+    final hasRemoteAvatar = resolvedAvatarUrl.isNotEmpty &&
+        !resolvedAvatarUrl.contains('/avatars/default-adult.png') &&
+        !resolvedAvatarUrl.contains('/avatars/default-child.png');
+    final defaultAvatar = profile.type?.name == 'child'
+        ? 'assets/avatars/child.png'
+        : 'assets/avatars/adult.png';
+
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -447,22 +455,18 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
       child: CircleAvatar(
         radius: isSmallScreen ? 30 : 40,
         backgroundColor: profileColor.withOpacity(0.1),
-        backgroundImage: avatarUrl != null
-            ? NetworkImage(avatarUrl)
-            : null,
-        onBackgroundImageError: (exception, stackTrace) {
-          debugPrint('Erreur de chargement de l\'avatar: $exception');
-        },
-        child: avatarUrl == null
-            ? Icon(
-                Icons.person,
-                size: isSmallScreen ? 30 : 40,
-                color: profileColor,
-              )
+        backgroundImage: hasRemoteAvatar
+            ? NetworkImage(resolvedAvatarUrl)
+            : AssetImage(defaultAvatar),
+        onBackgroundImageError: hasRemoteAvatar
+            ? (exception, stackTrace) {
+                debugPrint('Erreur de chargement de l\'avatar: $exception');
+              }
             : null,
       ),
     );
   }
+
   Widget _ProfileCard({
     required Profile profile,
     required FocusNode focusNode,
@@ -504,7 +508,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
           builder: (context, child) {
             final isFocused = focusNode.hasFocus;
             final scale = isFocused || isHovered ? 1.05 : 1.0;
-            
+
             return Transform(
               transform: Matrix4.identity()..scale(scale, scale),
               alignment: Alignment.center,
@@ -682,7 +686,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
           builder: (context, child) {
             final isFocused = focusNode.hasFocus;
             final scale = (isFocused || isHovered) && !isDisabled ? 1.05 : 1.0;
-            
+
             return Transform(
               transform: Matrix4.identity()..scale(scale, scale),
               alignment: Alignment.center,
@@ -697,7 +701,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                   height: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    gradient: isDisabled 
+                    gradient: isDisabled
                         ? null
                         : LinearGradient(
                             begin: Alignment.topLeft,
@@ -710,7 +714,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                   child: Material(
                     color: Colors.transparent,
                     child: Tooltip(
-                      message: isDisabled 
+                      message: isDisabled
                           ? loc?.maximumProfilsAtteint ?? 'Maximum de 4 profils atteint'
                           : loc?.ajouterProfil ?? 'Ajouter un profil',
                       child: InkWell(
@@ -724,7 +728,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                               Container(
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: isDisabled 
+                                  color: isDisabled
                                       ? Colors.grey.withOpacity(0.3)
                                       : const Color(0xFF6A11CB).withOpacity(0.1),
                                   border: Border.all(
@@ -751,7 +755,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                               Text(
                                 loc?.ajouterProfil ?? 'Ajouter un profil',
                                 style: theme.textTheme.titleMedium?.copyWith(
-                                  color: isDisabled 
+                                  color: isDisabled
                                       ? Colors.grey
                                       : theme.colorScheme.onSurface.withOpacity(0.8),
                                   fontSize: isSmallScreen ? 14 : 16,
@@ -860,7 +864,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 const SizedBox(height: 40),
-                                
+
                                 // Logo avec animation
                                 ScaleTransition(
                                   scale: _scaleAnimation,
@@ -872,7 +876,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                                     fit: BoxFit.contain,
                                   ),
                                 ),
-                                
+
                                 const SizedBox(height: 30),
                                 FadeTransition(
                                   opacity: _fadeAnimation,

@@ -5,6 +5,7 @@ from django.http import JsonResponse
 from django.urls import path, include
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
+from apps.common.views import AvatarListView
 from config.schema import API_INFO
 
 
@@ -28,6 +29,7 @@ urlpatterns = [
     path('swagger.json', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('openapi.json', schema_view.without_ui(cache_timeout=0), name='openapi-json'),
     path('api/v1/auth/', include('apps.auth.urls')),
+    path('api/v1/avatars/', AvatarListView.as_view(), name='avatar-list'),
     path('api/v1/', include('apps.catalog.urls')),
     path('api/v1/', include('apps.profiles.urls')),
     path('api/v1/', include('apps.playback.urls')),

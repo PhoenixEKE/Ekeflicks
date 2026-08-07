@@ -209,7 +209,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             if avatar_url:
                 profile.avatar_url = avatar_url
             elif profile_type_name == 'child':
-                profile.avatar_url = 'https://cdn.ekeflicks.com/avatars/default-child.png'
+                profile.avatar_url = ''
             if profile_type_name != 'main':
                 new_type = ProfileType.objects.filter(name=profile_type_name).first()
                 if new_type:

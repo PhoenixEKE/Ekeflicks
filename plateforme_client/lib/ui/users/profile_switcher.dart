@@ -102,10 +102,15 @@ class _ProfileSwitcherState extends State<ProfileSwitcher> {
         final profile = widget.profiles[index];
         final profileTypeKey = profile.type?.name ?? 'main';
         final profileType = widget.config.profileTypes[profileTypeKey] ?? profileTypeKey;
-        final imagePath = profile.avatarUrl ??
-            (profileTypeKey == 'child'
-                ? widget.config.defaultChildAvatar
-                : widget.config.defaultAdultAvatar);
+        final avatarUrl = profile.avatarUrl ?? '';
+        final hasCustomAvatar = avatarUrl.isNotEmpty &&
+            !avatarUrl.contains('/avatars/default-adult.png') &&
+            !avatarUrl.contains('/avatars/default-child.png');
+        final imagePath = hasCustomAvatar
+            ? avatarUrl
+            : (profileTypeKey == 'child'
+                  ? widget.config.defaultChildAvatar
+                  : widget.config.defaultAdultAvatar);
 
         return _ProfileCard(
           profile: profile,
@@ -223,7 +228,7 @@ class _ProfileCard extends StatelessWidget {
 
   ImageProvider _getImageProvider(String imagePath) {
     if (imagePath.isEmpty) {
-      return const AssetImage('assets/avatars/default-profile.png');
+      return const AssetImage('assets/avatars/adult.png');
     }
 
     if (imagePath.startsWith('http')) {

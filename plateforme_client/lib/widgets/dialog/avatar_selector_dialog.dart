@@ -29,12 +29,12 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
   @override
   void initState() {
     super.initState();
-    
+
     // Charger les avatars au démarrage
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final avatarProvider = Provider.of<AvatarProvider>(context, listen: false);
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      
+
       if (!avatarProvider.isLoading && avatarProvider.avatars.isEmpty) {
         avatarProvider.loadAvatars(userProvider.apiClient);
       }
@@ -69,7 +69,7 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
   void _onKey(RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
       final avatarProvider = Provider.of<AvatarProvider>(context, listen: false);
-      
+
       setState(() {
         switch (event.logicalKey) {
           case LogicalKeyboardKey.arrowUp:
@@ -106,11 +106,11 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
 
   void _selectAvatar(int index) {
     final avatarProvider = Provider.of<AvatarProvider>(context, listen: false);
-    
+
     if (index >= 0 && index < avatarProvider.avatars.length) {
       final avatarUrl = avatarProvider.avatars[index]['url']!;
       print('🟢 Avatar sélectionné: index=$index, url=$avatarUrl');
-      
+
       // Fermer le dialogue et retourner l'URL sélectionnée
       Navigator.of(context).pop(avatarUrl);
     } else {
@@ -147,7 +147,7 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
               ),
             ),
             const SizedBox(height: 20),
-            
+
             if (avatarProvider.isLoading)
               Expanded(
                 child: Center(
@@ -168,7 +168,7 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
               )
             else if (avatarProvider.error != null)
               Expanded(
-                child: Center(
+                child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -193,13 +193,19 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
-                          final userProvider = Provider.of<UserProvider>(context, listen: false);
+                          final userProvider = Provider.of<UserProvider>(
+                            context,
+                            listen: false,
+                          );
                           avatarProvider.loadAvatars(userProvider.apiClient);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryOrange,
                         ),
-                        child: Text('Réessayer', style: TextStyle(color: Colors.white)),
+                        child: const Text(
+                          'Réessayer',
+                          style: TextStyle(color: Colors.white),
+                        ),
                       ),
                     ],
                   ),
@@ -235,7 +241,7 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
                       )
                     : _buildAvatarGrid(false, avatarProvider.avatars),
               ),
-            
+
             const SizedBox(height: 16),
             if (!deviceInfo.isTV && !avatarProvider.isLoading && avatarProvider.error == null)
               TextButton(
@@ -313,7 +319,7 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
                           child: Center(
                             child: CircularProgressIndicator(
                               value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded / 
+                                  ? loadingProgress.cumulativeBytesLoaded /
                                     loadingProgress.expectedTotalBytes!
                                   : null,
                             ),

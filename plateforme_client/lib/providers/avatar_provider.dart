@@ -1,4 +1,4 @@
-// lib/providers/avatar_provider.dart - Version la plus simple
+// lib/providers/avatar_provider.dart
 import 'package:flutter/foundation.dart';
 import 'package:app_ekeflicks/src/openapi.dart';
 
@@ -18,27 +18,27 @@ class AvatarProvider with ChangeNotifier {
 
     try {
       final response = await openapi.getAvatarsApi().avatarsList();
-      
-      if (response.statusCode == 200) {
-        // Approche simple avec cast direct
-        final data = response.data as Map<String, dynamic>;
-        final avatarsList = data['avatars'] as List;
-        
-        _avatars = avatarsList.cast<Map<String, dynamic>>().map((avatar) {
-          return {
-            'name': avatar['name']?.toString() ?? '',
-            'url': avatar['url']?.toString() ?? '',
-          };
-        }).toList();
-        
-        print('✅ ${_avatars.length} avatars chargés');
-      } else {
-        throw Exception('HTTP ${response.statusCode}');
+      final data = response.data;
+      if (response.statusCode != 200 || data is! Map<String, dynamic>) {
+        throw Exception('Réponse invalide (${response.statusCode})');
       }
-      
-    } catch (e) {
-      _error = e.toString();
-      print('❌ Erreur: $e');
+
+      final avatarData = data['avatars'];
+      if (avatarData is! List) {
+        throw Exception('Liste des avatars absente de la réponse');
+      }
+
+      _avatars = avatarData
+          .whereType<Map<String, dynamic>>()
+          .map((avatar) => {
+                'name': avatar['name']?.toString() ?? '',
+                'url': avatar['url']?.toString() ?? '',
+              })
+          .where((avatar) => avatar['url']!.isNotEmpty)
+          .toList(growable: false);
+    } catch (error) {
+      _error = error.toString();
+      debugPrint('Erreur de chargement des avatars: $error');
     } finally {
       _isLoading = false;
       notifyListeners();
