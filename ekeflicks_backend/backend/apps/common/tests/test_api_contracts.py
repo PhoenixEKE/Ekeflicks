@@ -39,6 +39,7 @@ class ApiContractTests(SimpleTestCase):
         self.assertEqual(response.data['code'], 'validation_error')
         self.assertEqual(response.data['request_id'], 'request-123')
         self.assertEqual(response.data['errors']['email'], ['Adresse invalide.'])
+        self.assertEqual(response.data['email'], ['Adresse invalide.'])
 
     @override_settings(ROOT_URLCONF=__name__)
     def test_version_headers_and_unsupported_version(self):

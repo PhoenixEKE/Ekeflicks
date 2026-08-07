@@ -59,7 +59,7 @@ class AuthApiTests(APITestCase):
         self.assertTrue(EmailVerificationToken.objects.filter(user=user, used_at__isnull=True).exists())
         self.assertFalse(Subscription.objects.filter(user=user).exists())
         self.assertEqual(len(mail.outbox), 2)
-        self.assertIn('logo_light.png', mail.outbox[0].alternatives[0].content)
+        self.assertIn('logo_light.png', mail.outbox[0].alternatives[0][0])
 
     def test_register_and_login_with_phone_without_sending_email(self):
         response = self.client.post(
@@ -89,6 +89,7 @@ class AuthApiTests(APITestCase):
         )
         self.assertEqual(registration.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('indicatif du pays', str(registration.data['phone'][0]))
+        self.assertEqual(registration.data['phone'], registration.data['errors']['phone'])
 
         User.objects.create_user(phone='+2250102030405', password='StrongPass123')
         login = self.client.post(
@@ -98,6 +99,7 @@ class AuthApiTests(APITestCase):
         )
         self.assertEqual(login.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('indicatif du pays', str(login.data['email'][0]))
+        self.assertEqual(login.data['email'], login.data['errors']['email'])
 
     def test_me_requires_authentication(self):
         response = self.client.get(reverse('me'))

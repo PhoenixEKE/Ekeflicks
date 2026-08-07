@@ -1,4 +1,3 @@
-//
 // AUTO-GENERATED FILE, DO NOT MODIFY!
 //
 
@@ -12,15 +11,15 @@ part 'user.g.dart';
 /// User
 ///
 /// Properties:
-/// * [id] 
-/// * [email] 
-/// * [firstname] 
-/// * [lastname] 
-/// * [role] 
-/// * [status] 
-/// * [subscription] 
-/// * [isActive] 
-/// * [createdAt] 
+/// * [id]
+/// * [email]
+/// * [firstname]
+/// * [lastname]
+/// * [role]
+/// * [status]
+/// * [subscription]
+/// * [isActive]
+/// * [createdAt]
 @BuiltValue()
 abstract class User implements Built<User, UserBuilder> {
   @BuiltValueField(wireName: r'id')
@@ -83,11 +82,13 @@ class _$UserSerializer implements PrimitiveSerializer<User> {
         specifiedType: const FullType(String),
       );
     }
-    yield r'email';
-    yield serializers.serialize(
-      object.email,
-      specifiedType: const FullType(String),
-    );
+    if (object.email != null) {
+      yield r'email';
+      yield serializers.serialize(
+        object.email,
+        specifiedType: const FullType(String),
+      );
+    }
     if (object.firstname != null) {
       yield r'firstname';
       yield serializers.serialize(
@@ -159,6 +160,11 @@ class _$UserSerializer implements PrimitiveSerializer<User> {
     for (var i = 0; i < serializedList.length; i += 2) {
       final key = serializedList[i] as String;
       final value = serializedList[i + 1];
+      // The profile endpoint can explicitly return null for optional user
+      // fields (notably for phone-only accounts). Passing that null to a
+      // serializer with FullType(String) makes built_value treat the field as
+      // non-nullable, even though the model property itself is nullable.
+      if (value == null) continue;
       switch (key) {
         case r'id':
           final valueDes = serializers.deserialize(

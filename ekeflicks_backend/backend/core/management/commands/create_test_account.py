@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from core.models import Subscription, SubscriptionPlan, User
+from core.models import Profile, ProfileType, Subscription, SubscriptionPlan, User
 
 
 class Command(BaseCommand):
@@ -66,6 +66,29 @@ class Command(BaseCommand):
         user.is_verified = True
         user.save(update_fields=['password', 'is_active', 'is_verified', 'updated_at'])
 
+        main_profile_type, _ = ProfileType.objects.get_or_create(
+            name='main',
+            defaults={
+                'description': 'Profil principal - accès complet',
+                'can_create_lists': True,
+                'can_rate_content': True,
+            },
+        )
+        profile_name = user.firstname or email.split('@', maxsplit=1)[0]
+        profile, profile_created = Profile.objects.get_or_create(
+            user=user,
+            name=profile_name,
+            defaults={
+                'type': main_profile_type,
+                'avatar_url': 'https://cdn.ekeflicks.com/avatars/default-adult.png',
+                'is_active': True,
+            },
+        )
+        if not profile.is_active or profile.type_id != main_profile_type.id:
+            profile.is_active = True
+            profile.type = main_profile_type
+            profile.save(update_fields=['is_active', 'type', 'updated_at'])
+
         now = timezone.now()
         subscription = (
             Subscription.objects.filter(user=user, plan=plan, status='active', expires_at__gt=now)
@@ -85,6 +108,7 @@ class Command(BaseCommand):
         actions = [
             'plan créé' if plan_created else 'plan existant',
             'compte créé' if user_created else 'compte mis à jour',
+            'profil créé' if profile_created else 'profil existant',
             'abonnement créé' if subscription_created else 'abonnement actif conservé',
         ]
         self.stdout.write(self.style.SUCCESS(f"Compte de test prêt ({', '.join(actions)}) : {email}"))

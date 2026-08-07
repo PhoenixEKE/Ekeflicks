@@ -45,6 +45,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Save your favorite content to watch without connection.';
 
   @override
+  String get free30Days => 'Free 30 Days';
+
+  @override
+  String get free30DaysDescription => '30-day free trial';
+
+  @override
+  String get freeBadge => 'FREE 30 DAYS';
+
+  @override
   String get featureStreamingTitle => 'High quality streaming';
 
   @override
@@ -53,7 +62,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get footerCopyright =>
-      '© 2026 EKEflicks - EPHRATA, All rights reserved. Developed by EPHRATA.';
+      '©2026 - ©2026 EKEflicks, All rights reserved. Developed by EKEFLICKS.';
 
   @override
   String get footerContact => 'Contact';

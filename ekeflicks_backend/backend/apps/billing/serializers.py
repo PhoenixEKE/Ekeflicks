@@ -73,12 +73,16 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
         plan = validated_data['plan']
         expires_at = timezone.now() + timedelta(days=plan.duration_days)
+        # A free offer does not have a payment to confirm. Activating it here
+        # lets clients finish onboarding immediately while paid plans continue
+        # through the payment flow.
+        is_free = plan.price == 0
         return Subscription.objects.create(
             user=user,
             plan=plan,
-            status='pending',
+            status='active' if is_free else 'pending',
             expires_at=expires_at,
-            auto_renew=validated_data.get('auto_renew', True),
+            auto_renew=False if is_free else validated_data.get('auto_renew', True),
         )
 
 

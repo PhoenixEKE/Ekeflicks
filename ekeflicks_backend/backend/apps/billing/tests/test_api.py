@@ -49,7 +49,27 @@ class BillingApiTests(APITestCase):
         self.assertEqual(response.data['plan']['id'], str(self.plan.id))
         self.assertTrue(any('Abonnement cree' in message.subject for message in mail.outbox))
         subscription_email = next(message for message in mail.outbox if 'Abonnement cree' in message.subject)
-        self.assertIn('logo_light.png', subscription_email.alternatives[0].content)
+        self.assertIn('logo_light.png', subscription_email.alternatives[0][0])
+
+    def test_free_30_day_subscription_is_activated_without_payment(self):
+        free_plan = SubscriptionPlan.objects.create(
+            name='Free 30 Days',
+            slug='free-30-days',
+            price='0.00',
+            duration_days=30,
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            reverse('subscription-list'),
+            {'plan_id': str(free_plan.id)},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['status'], 'active')
+        self.assertFalse(response.data['auto_renew'])
+        self.assertFalse(Payment.objects.filter(subscription_id=response.data['id']).exists())
 
     def test_best_price_returns_cheapest_active_plan(self):
         SubscriptionPlan.objects.create(

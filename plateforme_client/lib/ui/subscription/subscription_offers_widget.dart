@@ -12,6 +12,8 @@ class SubscriptionOffer {
   final int simultaneousDevices;
   final int downloadsAllowed;
   final bool adsIncluded;
+  final String planSlug;
+  final bool skipsPayment;
 
   SubscriptionOffer({
     required this.title,
@@ -22,6 +24,8 @@ class SubscriptionOffer {
     required this.simultaneousDevices,
     required this.downloadsAllowed,
     required this.adsIncluded,
+    required this.planSlug,
+    this.skipsPayment = false,
   });
 }
 
@@ -40,6 +44,18 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
 
   final List<SubscriptionOffer> offers = [
     SubscriptionOffer(
+      title: "Free 30 Days",
+      price: "0.00",
+      quality: "Standard",
+      resolution: "720p",
+      devicesSupported: "TV, ordinateur, smartphone, tablette",
+      simultaneousDevices: 1,
+      downloadsAllowed: 0,
+      adsIncluded: true,
+      planSlug: 'free-30-days',
+      skipsPayment: true,
+    ),
+    SubscriptionOffer(
       title: "Basic",
       price: "5.99",
       quality: "Standard",
@@ -48,6 +64,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
       simultaneousDevices: 1,
       downloadsAllowed: 1,
       adsIncluded: true,
+      planSlug: 'basic',
     ),
     SubscriptionOffer(
       title: "Standard",
@@ -58,6 +75,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
       simultaneousDevices: 2,
       downloadsAllowed: 2,
       adsIncluded: false,
+      planSlug: 'standard',
     ),
     SubscriptionOffer(
       title: "Premium",
@@ -68,6 +86,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
       simultaneousDevices: 4,
       downloadsAllowed: 4,
       adsIncluded: false,
+      planSlug: 'premium',
     ),
     SubscriptionOffer(
       title: "Family",
@@ -78,6 +97,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
       simultaneousDevices: 6,
       downloadsAllowed: 6,
       adsIncluded: false,
+      planSlug: 'family',
     ),
     SubscriptionOffer(
       title: "Ad-Supported",
@@ -88,6 +108,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
       simultaneousDevices: 1,
       downloadsAllowed: 0,
       adsIncluded: true,
+      planSlug: 'ad-supported',
     ),
   ];
 
@@ -122,6 +143,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
             children: List.generate(offers.length, (index) {
               final offer = offers[index];
               final isSelected = _selectedIndex == index;
+              final isFree = offer.skipsPayment;
 
               return InkWell(
                 onTap: () => _selectOffer(index),
@@ -142,8 +164,8 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                         border: Border.all(
                           color: isSelected
                               ? Theme.of(context).colorScheme.primary
-                              : Colors.grey,
-                          width: 2,
+                              : (isFree ? Colors.green : Colors.grey),
+                          width: isFree ? 3 : 2,
                         ),
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -151,6 +173,25 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          // Badge "GRATUIT" pour l'offre free
+                          if (isFree) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                "GRATUIT 30 JOURS",
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                          ],
                           Radio<int>(
                             value: index,
                             groupValue: _selectedIndex,
@@ -163,12 +204,30 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                             style: AppTheme.offerTitleStyle(context),
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            offer.price != null
-                                ? loc.prixParMois("${offer.price!}€")
-                                : loc.prixNonDisponible,
-                            style: AppTheme.offerPriceStyle(context),
-                          ),
+                          if (isFree) ...[
+                            Text(
+                              "0€ / 30 jours",
+                              style: AppTheme.offerPriceStyle(context).copyWith(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Essai gratuit de 30 jours",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).hintColor,
+                              ),
+                            ),
+                          ] else ...[
+                            Text(
+                              offer.price != null
+                                  ? loc.prixParMois("${offer.price!}€")
+                                  : loc.prixNonDisponible,
+                              style: AppTheme.offerPriceStyle(context),
+                            ),
+                          ],
                           if (isDesktop || isSelected) _offerDetails(offer, context),
                         ],
                       ),
@@ -227,8 +286,13 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          infoRow(Icons.monetization_on, loc.abonnementMensuel,
-              offer.price != null ? "${offer.price}€" : loc.prixNonDisponible),
+          if (offer.skipsPayment) ...[
+            infoRow(Icons.timer, "Durée", "30 jours"),
+            infoRow(Icons.card_giftcard, "Type", "Essai gratuit"),
+          ] else ...[
+            infoRow(Icons.monetization_on, loc.abonnementMensuel,
+                offer.price != null ? "${offer.price}€" : loc.prixNonDisponible),
+          ],
           infoRow(Icons.high_quality, loc.qualite, offer.quality),
           infoRow(Icons.tv, loc.resolution, offer.resolution),
           infoRow(Icons.devices, loc.appareilsPrisEnCharge, offer.devicesSupported),

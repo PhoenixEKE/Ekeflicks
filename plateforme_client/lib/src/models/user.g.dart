@@ -384,7 +384,7 @@ class UserBuilder implements Builder<User, UserBuilder> {
         _$v ??
         _$User._(
           id: id,
-          email: BuiltValueNullFieldError.checkNotNull(email, r'User', 'email'),
+          email:email,
           firstname: firstname,
           lastname: lastname,
           role: role,

@@ -7,6 +7,24 @@ from django.utils import timezone
 from core.models import Subscription, SubscriptionPlan, User
 
 
+class DefaultTestAccountMigrationTests(TestCase):
+    def test_default_account_is_available_after_migrations(self):
+        user = User.objects.get(email='test@ekeflicks.com')
+
+        self.assertTrue(user.check_password('Test1234!'))
+        self.assertTrue(user.is_active)
+        self.assertTrue(user.is_verified)
+        self.assertTrue(user.profiles.filter(name='Compte', is_active=True).exists())
+        self.assertTrue(
+            Subscription.objects.filter(
+                user=user,
+                plan__slug='basic',
+                status='active',
+                expires_at__gt=timezone.now(),
+            ).exists()
+        )
+
+
 @override_settings(DEBUG=True)
 class CreateTestAccountCommandTests(TestCase):
     def test_command_creates_basic_account_and_active_subscription(self):
@@ -18,6 +36,7 @@ class CreateTestAccountCommandTests(TestCase):
 
         self.assertTrue(user.check_password('Test1234!'))
         self.assertTrue(user.is_verified)
+        self.assertTrue(user.profiles.filter(name='Compte', is_active=True).exists())
         self.assertEqual(plan.name, 'Basic')
         self.assertEqual(subscription.status, 'active')
         self.assertGreater(subscription.expires_at, timezone.now())
@@ -38,3 +57,13 @@ class CreateTestAccountCommandTests(TestCase):
         self.assertEqual(User.objects.filter(email=user.email).count(), 1)
         self.assertEqual(SubscriptionPlan.objects.filter(slug='basic').count(), 1)
         self.assertEqual(Subscription.objects.filter(user=user, status='active').count(), 1)
+
+    def test_command_repairs_a_missing_profile(self):
+        user = User.objects.get(email='test@ekeflicks.com')
+        user.profiles.all().delete()
+
+        call_command('create_test_account', stdout=StringIO())
+
+        profile = user.profiles.get(name='Compte')
+        self.assertEqual(profile.type.name, 'main')
+        self.assertTrue(profile.is_active)

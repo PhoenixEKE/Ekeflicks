@@ -4,7 +4,9 @@ import 'subscription_offers_widget.dart';
 import 'subscription_step2_page.dart';
 import 'package:app_ekeflicks/widgets/footers/reusable_footer.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
+import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/services/subscription_progress_service.dart';
+import 'package:app_ekeflicks/ui/profiles/profile_selection_page.dart';
 import 'package:provider/provider.dart';
 
 class SubscriptionStep1Page extends StatefulWidget {
@@ -18,11 +20,63 @@ class SubscriptionStep1Page extends StatefulWidget {
 
 class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
   SubscriptionOffer? _selectedOffer;
+  bool _isSubmitting = false;
 
   void _onOfferSelected(SubscriptionOffer offer) {
     setState(() {
       _selectedOffer = offer;
     });
+  }
+
+  Future<void> _continueSubscription() async {
+    final offer = _selectedOffer!;
+    final userProvider = context.read<UserProvider>();
+    final email = widget.accountEmail ?? userProvider.currentUser?.email;
+
+    if (offer.skipsPayment) {
+      setState(() => _isSubmitting = true);
+      try {
+        await userProvider.activateFreeSubscription(offer.planSlug);
+        if (email != null) {
+          await SubscriptionProgressService().complete(email);
+        }
+        if (!mounted) return;
+        await context.read<ProfileProvider>().loadProfiles();
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const ProfileSelectionPage()),
+          (route) => false,
+        );
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+        );
+      } finally {
+        if (mounted) setState(() => _isSubmitting = false);
+      }
+      return;
+    }
+
+    if (email != null) {
+      await SubscriptionProgressService().continueToPayment(
+        email: email,
+        offerTitle: offer.title,
+        offerPrice: offer.price ?? '',
+      );
+    }
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubscriptionStep2Page(
+          offerTitle: offer.title,
+          offerPrice: offer.price ?? '',
+          accountEmail: email,
+        ),
+      ),
+    );
   }
 
   @override
@@ -132,36 +186,11 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          onPressed: _selectedOffer == null
+                          onPressed: _selectedOffer == null || _isSubmitting
                               ? null
-                              : () async {
-                                  final email = widget.accountEmail ??
-                                      context
-                                          .read<UserProvider>()
-                                          .currentUser
-                                          ?.email;
-                                  if (email != null) {
-                                    await SubscriptionProgressService()
-                                        .continueToPayment(
-                                      email: email,
-                                      offerTitle: _selectedOffer!.title,
-                                      offerPrice: _selectedOffer!.price ?? '',
-                                    );
-                                  }
-                                  if (!context.mounted) return;
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => SubscriptionStep2Page(
-                                        offerTitle: _selectedOffer!.title,
-                                        offerPrice: _selectedOffer!.price ?? '',
-                                        accountEmail: email,
-                                      ),
-                                    ),
-                                  );
-                                },
+                              : _continueSubscription,
                           child: Text(
-                            loc.suivant,
+                            _isSubmitting ? 'Activation...' : loc.suivant,
                             style: const TextStyle(fontSize: 16),
                           ),
                         ),

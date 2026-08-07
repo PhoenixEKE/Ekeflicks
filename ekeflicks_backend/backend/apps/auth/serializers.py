@@ -1,53 +1,57 @@
-import hashlib
-import uuid
-
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from core.models.users import AccountClosureRequest, EmailChangeSupportRequest, User
+from rest_framework_simplejwt.tokens import RefreshToken
+from core.models.users import (
+    AccountClosureRequest,
+    EmailChangeSupportRequest,
+    User,
+    normalize_phone_number,
+)
 from core.models.profiles import Profile, ProfileType
-
-
-PHONE_ACCOUNT_EMAIL_DOMAIN = '@users.ekeflicks.invalid'
 
 
 def normalize_phone(value):
     """Return the compact international representation used for authentication."""
-    value = value.strip()
-    prefix = '+' if value.startswith('+') else ''
-    digits = ''.join(character for character in value if character.isdigit())
-    return f'{prefix}{digits}'
-
-
-def phone_account_email(phone):
-    """Build a non-routable internal identifier for accounts without email."""
-    digest = hashlib.sha256(phone.encode('utf-8')).hexdigest()
-    return f'phone-{digest}@accounts.ekeflicks.invalid'
+    try:
+        return normalize_phone_number(value)
+    except ValueError as exc:
+        raise serializers.ValidationError(
+            "Ajoutez obligatoirement l indicatif du pays, par exemple +2250102030405."
+        ) from exc
 
 
 def public_email(user):
-    """Hide the internal identifier used for accounts created by phone."""
-    return '' if user.email and user.email.endswith(PHONE_ACCOUNT_EMAIL_DOMAIN) else user.email
+    """Return the user's public email, including ``None`` for phone-only accounts."""
+    return user.email
 
 
-class LoginSerializer(TokenObtainPairSerializer):
-    # SimpleJWT names this field after User.USERNAME_FIELD (email). Keep the
-    # wire format backward compatible while also accepting a phone number.
+class LoginSerializer(serializers.Serializer):
+    """Authenticate the API's email-or-phone identifier without USERNAME_FIELD."""
+
     email = serializers.CharField(required=True, trim_whitespace=True)
+    password = serializers.CharField(required=True, write_only=True, trim_whitespace=False)
 
     def validate(self, attrs):
         identifier = attrs.get('email', '').strip()
         if '@' in identifier:
-            attrs['email'] = identifier.lower()
+            user = User.objects.filter(email__iexact=identifier).first()
         else:
-            phone = normalize_phone(identifier)
-            matches = User.objects.filter(phone=phone, is_active=True).values_list(
-                'email', flat=True
-            )[:2]
-            emails = list(matches)
-            if len(emails) == 1:
-                attrs['email'] = emails[0]
+            try:
+                phone = normalize_phone(identifier)
+            except serializers.ValidationError as exc:
+                raise serializers.ValidationError({'email': exc.detail}) from exc
+            user = User.objects.filter(phone=phone).first()
 
-        return super().validate(attrs)
+        if user is None or not user.is_active or not user.check_password(attrs.get('password')):
+            raise AuthenticationFailed('Identifiant ou mot de passe incorrect.')
+
+        refresh = RefreshToken.for_user(user)
+        return {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'has_active_subscription': user.subscriptions.filter(status='active').exists(),
+        }
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -189,15 +193,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
         profile_name = validated_data.pop('profile_name', None)
         profile_type_name = validated_data.pop('profile_type', 'main')
 
-        email = validated_data.get('email')
-        if not email:
-            # The current user model uses email as its database identifier. Keep
-            # that implementation detail internal while allowing phone-only
-            # accounts to be created without inventing an address for the user.
-            email = f"phone-{uuid.uuid4().hex}{PHONE_ACCOUNT_EMAIL_DOMAIN}"
-
         user = User.objects.create_user(
-            email=email,
+            email=validated_data.get('email') or None,
             password=validated_data['password'],
             firstname=validated_data.get('firstname', ''),
             lastname=validated_data.get('lastname', ''),
@@ -239,10 +236,10 @@ class EmailOrPhoneTokenObtainPairSerializer(TokenObtainPairSerializer):
         if user is None:
             try:
                 phone = normalize_phone(identifier)
-            except ValueError:
+            except serializers.ValidationError as exc:
                 raise serializers.ValidationError({
                     'identifier': 'Ajoutez obligatoirement l indicatif du pays, par exemple +2250102030405.'
-                })
+                }) from exc
             user = User.objects.filter(phone=phone).first()
 
         if user is None:

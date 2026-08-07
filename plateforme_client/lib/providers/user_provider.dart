@@ -21,6 +21,33 @@ class UserProvider with ChangeNotifier {
   bool get isLoggedIn => _currentUser != null && _accessToken != null;
   bool get hasActiveSubscription => _hasActiveSubscription;
 
+  /// Activates a zero-cost plan without creating a payment session.
+  Future<void> activateFreeSubscription(String planSlug) async {
+    final plansResponse = await apiClient.dio.get<Map<String, dynamic>>(
+      '/subscription-plans/',
+    );
+    final payload = plansResponse.data;
+    final rawPlans = payload?['results'] ?? payload;
+    if (rawPlans is! List) {
+      throw StateError('Liste des offres indisponible.');
+    }
+
+    final plan = rawPlans.cast<Map>().firstWhere(
+      (item) => item['slug'] == planSlug,
+      orElse: () => throw StateError('Offre gratuite indisponible.'),
+    );
+    final response = await apiClient.dio.post<Map<String, dynamic>>(
+      '/subscriptions/',
+      data: {'plan_id': plan['id'], 'auto_renew': false},
+    );
+    if (response.data?['status'] != 'active') {
+      throw StateError("L'offre gratuite n'a pas pu être activée.");
+    }
+
+    _hasActiveSubscription = true;
+    notifyListeners();
+  }
+
   void _setBearerToken(String token) {
     _accessToken = token;
     apiClient.dio.options.headers['Authorization'] = 'Bearer $token';

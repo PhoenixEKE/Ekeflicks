@@ -45,6 +45,15 @@ class AppLocalizationsFr extends AppLocalizations {
       'Enregistrez vos contenus préférés pour les regarder sans connexion.';
 
   @override
+  String get free30Days => 'Gratuit 30 jours';
+
+  @override
+  String get free30DaysDescription => 'Essai gratuit de 30 jours';
+
+  @override
+  String get freeBadge => 'GRATUIT 30 JOURS';
+
+  @override
   String get featureStreamingTitle => 'Streaming haute qualité';
 
   @override

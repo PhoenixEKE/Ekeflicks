@@ -50,6 +50,21 @@
     "description": "Description of offline feature"
   },
 
+  "free30Days": "Free 30 Days",
+  "@free30Days": {
+    "description": "Title of the free 30-day subscription offer"
+  },
+
+  "free30DaysDescription": "30-day free trial",
+  "@free30DaysDescription": {
+    "description": "Description of the free subscription offer"
+  },
+
+  "freeBadge": "FREE 30 DAYS",
+  "@freeBadge": {
+    "description": "Badge for the free subscription offer"
+  },
+
   "featureStreamingTitle": "Get comfortable",
   "@featureStreamingTitle": {
     "description": "Title for streaming feature"

@@ -164,6 +164,24 @@ abstract class AppLocalizations {
   /// **'Save your favorite content to watch without connection.'**
   String get featureOfflineDesc;
 
+  /// Title of the free 30-day subscription offer
+  ///
+  /// In en, this message translates to:
+  /// **'Free 30 Days'**
+  String get free30Days;
+
+  /// Description of the free subscription offer
+  ///
+  /// In en, this message translates to:
+  /// **'30-day free trial'**
+  String get free30DaysDescription;
+
+  /// Badge for the free subscription offer
+  ///
+  /// In en, this message translates to:
+  /// **'FREE 30 DAYS'**
+  String get freeBadge;
+
   /// Title for streaming feature
   ///
   /// In en, this message translates to:
@@ -179,7 +197,7 @@ abstract class AppLocalizations {
   /// Copyright message
   ///
   /// In en, this message translates to:
-  /// **'© 2026 EKEflicks - EPHRATA, All rights reserved. Developed by EPHRATA.'**
+  /// **'©2026 - ©2026 EKEflicks, All rights reserved. Developed by EKEFLICKS.'**
   String get footerCopyright;
 
   /// Title for contact section in footer

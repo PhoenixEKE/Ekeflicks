@@ -22,6 +22,21 @@
   "@nouveauFilm": {
     "description": "Titre générique pour les nouveaux films"
   },
+
+  "free30Days": "Gratuit 30 jours",
+  "@free30Days": {
+    "description": "Titre de l'offre d'abonnement gratuit 30 jours"
+  },
+
+  "free30DaysDescription": "Essai gratuit de 30 jours",
+  "@free30DaysDescription": {
+    "description": "Description de l'offre d'abonnement gratuit"
+  },
+
+  "freeBadge": "GRATUIT 30 JOURS",
+  "@freeBadge": {
+    "description": "Badge pour l'offre d'abonnement gratuit"
+  },
   
   "populaire": "Populaire",
   "@populaire": {

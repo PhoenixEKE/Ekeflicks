@@ -39,15 +39,25 @@ def api_exception_handler(exc, context):
 
     request = context.get('request')
     request_id = getattr(request, 'request_id', None)
+    serialized_errors = (
+        _serialize_errors(original)
+        if response.status_code == status.HTTP_400_BAD_REQUEST
+        else None
+    )
     response.data = {
         'type': f'https://api.ekeflicks.com/problems/{code or "api_error"}',
         'title': ERROR_TITLES.get(response.status_code, 'Erreur API'),
         'status': response.status_code,
         'code': code or 'api_error',
         'detail': detail,
-        'errors': _serialize_errors(original) if response.status_code == status.HTTP_400_BAD_REQUEST else None,
+        'errors': serialized_errors,
         'instance': request.path if request else None,
         'request_id': request_id,
     }
+    # Keep field errors available at the top level for older mobile clients
+    # while exposing the canonical RFC 7807-style ``errors`` member.
+    if isinstance(serialized_errors, dict):
+        for field, messages in serialized_errors.items():
+            response.data.setdefault(field, messages)
     response['Content-Type'] = 'application/problem+json'
     return response
