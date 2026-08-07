@@ -23,6 +23,7 @@ class UserProvider with ChangeNotifier {
 
   /// Activates a zero-cost plan without creating a payment session.
   Future<void> activateFreeSubscription(String planSlug) async {
+    // 1. Récupérer la liste des plans
     final plansResponse = await apiClient.dio.get<Map<String, dynamic>>(
       '/subscription-plans/',
     );
@@ -32,18 +33,24 @@ class UserProvider with ChangeNotifier {
       throw StateError('Liste des offres indisponible.');
     }
 
+    // 2. Trouver le plan par son slug
     final plan = rawPlans.cast<Map>().firstWhere(
       (item) => item['slug'] == planSlug,
       orElse: () => throw StateError('Offre gratuite indisponible.'),
     );
+
+    // 3. Créer l'abonnement avec auto_renew = false
     final response = await apiClient.dio.post<Map<String, dynamic>>(
       '/subscriptions/',
       data: {'plan_id': plan['id'], 'auto_renew': false},
     );
+
+    // 4. Vérifier que l'abonnement est actif
     if (response.data?['status'] != 'active') {
       throw StateError("L'offre gratuite n'a pas pu être activée.");
     }
 
+    // 5. Mettre à jour le statut
     _hasActiveSubscription = true;
     notifyListeners();
   }

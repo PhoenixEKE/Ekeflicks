@@ -33,16 +33,25 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
     final userProvider = context.read<UserProvider>();
     final email = widget.accountEmail ?? userProvider.currentUser?.email;
 
-    if (offer.skipsPayment) {
+    // Si l'offre est gratuite, l'activer directement
+    if (offer.isFree) {
       setState(() => _isSubmitting = true);
       try {
+        // Activer l'abonnement gratuit avec le slug du plan
         await userProvider.activateFreeSubscription(offer.planSlug);
+        
+        // Marquer l'étape comme complétée
         if (email != null) {
           await SubscriptionProgressService().complete(email);
         }
+        
         if (!mounted) return;
+        
+        // Recharger les profils
         await context.read<ProfileProvider>().loadProfiles();
         if (!mounted) return;
+        
+        // Rediriger vers la sélection des profils
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const ProfileSelectionPage()),
@@ -51,7 +60,12 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
       } catch (error) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+          SnackBar(
+            content: Text(
+              'Erreur lors de l\'activation: ${error.toString().replaceFirst('Bad state: ', '')}'
+            ),
+            backgroundColor: Colors.red,
+          ),
         );
       } finally {
         if (mounted) setState(() => _isSubmitting = false);
@@ -59,6 +73,7 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
       return;
     }
 
+    // Traitement pour les offres payantes
     if (email != null) {
       await SubscriptionProgressService().continueToPayment(
         email: email,
@@ -89,9 +104,8 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
         : 'assets/images/logo_light.png';
 
     return WillPopScope(
-      onWillPop: () async => false, // Empêche le retour en arrière
+      onWillPop: () async => false,
       child: Scaffold(
-        // SUPPRIMÉ: l'AppBar
         body: Container(
           decoration: BoxDecoration(
             gradient: isDarkMode
@@ -137,12 +151,11 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 40), // Espacement accru en haut
+                    const SizedBox(height: 40),
 
-                    // AJOUT: Logo centré
                     Image.asset(
                       logoPath,
-                      height: 60, // Taille réduite pour s'intégrer mieux
+                      height: 60,
                       fit: BoxFit.contain,
                     ),
 
@@ -168,7 +181,10 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
                     const SizedBox(height: 30),
                     SubscriptionOffersWidget(onOfferSelected: _onOfferSelected),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 30),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 30,
+                      ),
                       child: Text(
                         loc.texteExplicatifAbonnement,
                         textAlign: TextAlign.center,
@@ -176,24 +192,53 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 20,
+                      ),
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: _selectedOffer == null || _isSubmitting
+                                  ? null
+                                  : _continueSubscription,
+                              child: Text(
+                                _selectedOffer?.isFree == true
+                                    ? (_isSubmitting ? 'Activation...' : 'Activer l\'essai gratuit')
+                                    : (_isSubmitting ? 'Chargement...' : loc.suivant),
+                                style: const TextStyle(fontSize: 16),
+                              ),
                             ),
                           ),
-                          onPressed: _selectedOffer == null || _isSubmitting
-                              ? null
-                              : _continueSubscription,
-                          child: Text(
-                            _isSubmitting ? 'Activation...' : loc.suivant,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ),
+                          // Message informatif pour l'offre gratuite
+                          if (_selectedOffer?.isFree == true && !_isSubmitting) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.green, width: 1),
+                              ),
+                              child: Text(
+                                '🔓 Aucun paiement requis - Profitez de 30 jours gratuits !',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                     const SizedBox(height: 40),

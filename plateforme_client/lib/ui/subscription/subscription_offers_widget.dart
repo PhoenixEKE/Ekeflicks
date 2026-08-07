@@ -13,7 +13,6 @@ class SubscriptionOffer {
   final int downloadsAllowed;
   final bool adsIncluded;
   final String planSlug;
-  final bool skipsPayment;
 
   SubscriptionOffer({
     required this.title,
@@ -25,8 +24,20 @@ class SubscriptionOffer {
     required this.downloadsAllowed,
     required this.adsIncluded,
     required this.planSlug,
-    this.skipsPayment = false,
   });
+
+  bool get isFree {
+    final normalizedTitle = title.trim().toLowerCase();
+    final parsedPrice = double.tryParse((price ?? '').replaceAll(',', '.'));
+
+    return price == null ||
+        parsedPrice == 0 ||
+        normalizedTitle == 'free' ||
+        normalizedTitle == 'gratuit' ||
+        normalizedTitle == 'gratuite' ||
+        normalizedTitle == 'free 30 days' ||
+        normalizedTitle == 'gratuit 30 jours';
+  }
 }
 
 class SubscriptionOffersWidget extends StatefulWidget {
@@ -45,7 +56,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
   final List<SubscriptionOffer> offers = [
     SubscriptionOffer(
       title: "Free 30 Days",
-      price: "0.00",
+      price: null,
       quality: "Standard",
       resolution: "720p",
       devicesSupported: "TV, ordinateur, smartphone, tablette",
@@ -53,7 +64,6 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
       downloadsAllowed: 0,
       adsIncluded: true,
       planSlug: 'free-30-days',
-      skipsPayment: true,
     ),
     SubscriptionOffer(
       title: "Basic",
@@ -143,7 +153,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
             children: List.generate(offers.length, (index) {
               final offer = offers[index];
               final isSelected = _selectedIndex == index;
-              final isFree = offer.skipsPayment;
+              final isFree = offer.isFree;
 
               return InkWell(
                 onTap: () => _selectOffer(index),
@@ -286,7 +296,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (offer.skipsPayment) ...[
+          if (offer.isFree) ...[
             infoRow(Icons.timer, "Durée", "30 jours"),
             infoRow(Icons.card_giftcard, "Type", "Essai gratuit"),
           ] else ...[
