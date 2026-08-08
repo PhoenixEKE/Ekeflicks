@@ -401,15 +401,46 @@ MINIO_REGION = os.environ.get("MINIO_REGION", "us-east-1")
 
 B2_KEY_ID = os.environ.get("B2_KEY_ID")
 B2_APPLICATION_KEY = os.environ.get("B2_APPLICATION_KEY")
-B2_BUCKET = os.environ.get("B2_BUCKET") or "ekeflicks-videos"
 B2_ENDPOINT = os.environ.get("B2_ENDPOINT")
 B2_REGION = os.environ.get("B2_REGION", "us-west-005")
+
+# One final B2 bucket per media family. Keep these defaults explicit: using the
+# video bucket as an implicit fallback for another media type can publish an
+# object in the wrong bucket without producing an application error.
+B2_BUCKET_DEFAULTS = {
+    "videos": "ekeflicks-videos",
+    "trailers": "ekeflicks-trailers",
+    "subtitles": "ekeflicks-subtitles",
+    "posters": "ekeflicks-posters",
+    "backdrops": "ekeflicks-backdrops",
+    "avatars": "ekeflicks-avatars",
+}
+B2_BUCKET = os.environ.get("B2_BUCKET") or B2_BUCKET_DEFAULTS["videos"]
 B2_VIDEO_BUCKET = os.environ.get("B2_VIDEO_BUCKET") or B2_BUCKET
-B2_POSTER_BUCKET = os.environ.get("B2_POSTER_BUCKET") or "ekeflicks-posters"
-B2_BACKDROP_BUCKET = os.environ.get("B2_BACKDROP_BUCKET") or "ekeflicks-backdrops"
-B2_TRAILER_BUCKET = os.environ.get("B2_TRAILER_BUCKET") or "ekeflicks-trailers"
-B2_AVATAR_BUCKET = os.environ.get("B2_AVATAR_BUCKET") or "ekeflicks-avatars"
-B2_SUBTITLE_BUCKET = os.environ.get("B2_SUBTITLE_BUCKET") or "ekeflicks-subtitles"
+B2_TRAILER_BUCKET = (
+    os.environ.get("B2_TRAILER_BUCKET") or B2_BUCKET_DEFAULTS["trailers"]
+)
+B2_SUBTITLE_BUCKET = (
+    os.environ.get("B2_SUBTITLE_BUCKET") or B2_BUCKET_DEFAULTS["subtitles"]
+)
+B2_POSTER_BUCKET = (
+    os.environ.get("B2_POSTER_BUCKET") or B2_BUCKET_DEFAULTS["posters"]
+)
+B2_BACKDROP_BUCKET = (
+    os.environ.get("B2_BACKDROP_BUCKET") or B2_BUCKET_DEFAULTS["backdrops"]
+)
+B2_AVATAR_BUCKET = (
+    os.environ.get("B2_AVATAR_BUCKET") or B2_BUCKET_DEFAULTS["avatars"]
+)
+
+B2_FINAL_BUCKETS = {
+    "final_videos": B2_VIDEO_BUCKET,
+    "final_trailers": B2_TRAILER_BUCKET,
+    "final_subtitles": B2_SUBTITLE_BUCKET,
+    "final_posters": B2_POSTER_BUCKET,
+    "final_backdrops": B2_BACKDROP_BUCKET,
+    "final_avatars": B2_AVATAR_BUCKET,
+}
 
 AWS_ACCESS_KEY_ID = MINIO_ACCESS_KEY
 AWS_SECRET_ACCESS_KEY = MINIO_SECRET_KEY
@@ -470,14 +501,7 @@ STORAGES = {
 }
 
 if USE_B2_FINAL_STORAGE:
-    for storage_alias, bucket_name in {
-        "final_videos": B2_VIDEO_BUCKET,
-        "final_posters": B2_POSTER_BUCKET,
-        "final_backdrops": B2_BACKDROP_BUCKET,
-        "final_trailers": B2_TRAILER_BUCKET,
-        "final_avatars": B2_AVATAR_BUCKET,
-        "final_subtitles": B2_SUBTITLE_BUCKET,
-    }.items():
+    for storage_alias, bucket_name in B2_FINAL_BUCKETS.items():
         STORAGES[storage_alias] = {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": b2_storage_options(bucket_name),

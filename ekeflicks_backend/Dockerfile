@@ -17,6 +17,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy everything
 COPY backend/ .
 
+# Catch inconsistent Python modules and URL imports while building the exact
+# filesystem that Gunicorn will run. This check does not access the database.
+RUN DJANGO_SECRET_KEY=docker-build-check-only DEBUG=False python manage.py check
+
 # Create necessary directories
 RUN mkdir -p logs staticfiles media
 

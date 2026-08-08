@@ -104,6 +104,9 @@ ekeflicks-videos/
 ekeflicks-posters/{content_id}/poster_large.jpg
 ekeflicks-backdrops/{content_id}/backdrop_1920x1080.jpg
 ekeflicks-trailers/{content_id}/trailer_1080p.mp4
+ekeflicks-avatars/
+|-- catalog/{avatar_name}.{png|jpg|jpeg|gif|webp}
+`-- users/user_{id}.jpg
 ekeflicks-avatars/users/user_{id}.jpg
 ekeflicks-subtitles/{content_id}/fr.vtt
 ```
@@ -116,6 +119,18 @@ Endpoints media :
 - `POST /api/v1/video-assets/{id}/upload-subtitle/`
 
 Chaque endpoint utilise le meme modele : fichier entrant dans MinIO `uploads/producer_{id}/...`, copie finale dans le bucket B2 specialise, puis URL CDN enregistree dans le modele.
+
+Les aliases Django sont associes sans ambiguite aux six buckets :
+
+| Alias de stockage | Bucket B2 |
+| --- | --- |
+| `final_videos` | `ekeflicks-videos` |
+| `final_trailers` | `ekeflicks-trailers` |
+| `final_subtitles` | `ekeflicks-subtitles` |
+| `final_posters` | `ekeflicks-posters` |
+| `final_backdrops` | `ekeflicks-backdrops` |
+| `final_avatars` | `ekeflicks-avatars` |
+
 
 ## Recommandation production
 

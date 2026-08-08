@@ -48,6 +48,26 @@ docker compose run --rm django python manage.py check
 docker compose run --rm django python manage.py test --settings=config.settings_test
 docker compose up -d
 ```
+Le code Python execute provient exclusivement de l'image construite. Ne pas monter
+le dossier hote `backend/` sur `/app` en production : ce montage masquerait les
+fichiers copies par le `Dockerfile` et pourrait combiner un ancien
+`avatar_views.py` avec un nouveau `config/urls.py`.
+
+## Mise a jour de l'application
+
+Pour garantir que Django, Celery et Celery Beat executent tous la meme revision :
+
+```bash
+git pull --ff-only
+docker compose build --pull django
+docker compose run --rm django python manage.py check
+docker compose run --rm django python manage.py migrate
+docker compose up -d --force-recreate django celery celery-beat
+```
+
+Le `Dockerfile` execute aussi `python manage.py check` pendant la construction. Une
+image contenant une route qui importe une vue absente echoue donc avant le
+deploiement, au lieu de redemarrer Gunicorn en boucle.
 
 ## Neo4j recommandations
 

@@ -18,7 +18,6 @@ services:
       - "8000:8000"
 
     volumes:
-      - ./backend:/app
       - static_volume:/app/staticfiles
       - media_volume:/app/media
 
@@ -49,7 +48,6 @@ services:
       - .env
 
     volumes:
-      - ./backend:/app
       - media_volume:/app/media
 
     depends_on:
@@ -73,7 +71,7 @@ services:
       - .env
 
     volumes:
-      - ./backend:/app
+
       - media_volume:/app/media
 
     depends_on:

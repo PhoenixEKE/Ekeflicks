@@ -36,6 +36,7 @@ Les collections paginees acceptent `page` et `page_size` (maximum 100) et renvoi
 | `/` | Health check |
 | `/health/` | Health check |
 | `/admin/` | Administration Django |
+| `/api/v1/avatars/` | Liste publique des avatars disponibles |
 | `/api/v1/auth/` | Authentification |
 | `/api/v1/` | API metier EkeFlicks |
 
@@ -137,6 +138,21 @@ Filtres utiles sur `/api/v1/contents/` :
 - `is_hd`
 - `is_4k`
 - `ordering`
+
+## Avatars
+
+`GET /api/v1/avatars/` est public afin que les clients puissent proposer le choix
+d'un avatar avant l'inscription. La reponse contient `avatars`, une liste d'objets
+avec `name`, `path` et l'URL publique `url` issue du stockage d'avatars configure.
+
+La gestion du catalogue d'avatars est reservee aux comptes staff :
+
+- `POST /api/v1/avatars/` accepte un formulaire multipart contenant l'image `file`
+  et, facultativement, `name`, puis publie le fichier sous `catalog/` dans le bucket
+  B2 configure par `B2_AVATAR_BUCKET` ;
+- `DELETE /api/v1/avatars/{path}/` supprime du bucket l'objet designe par le champ
+  `path` renvoye par la liste ou par l'ajout.
+
 
 ## Utilisateur connecte
 
