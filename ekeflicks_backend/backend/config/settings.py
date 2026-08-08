@@ -386,80 +386,27 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # =========================================================
-# STORAGE - MinIO internal / Backblaze B2 final
+# STORAGE
+# MinIO = fichiers temporaires / uploads / traitement
+# Backblaze B2 = stockage définitif des médias
 # =========================================================
 
-USE_B2_STORAGE = env_bool("USE_B2_STORAGE", False)
-USE_B2_FINAL_STORAGE = env_bool("USE_B2_FINAL_STORAGE", USE_B2_STORAGE)
+# ---------------------------------------------------------
+# MinIO - TEMPORAIRE UNIQUEMENT
+# ---------------------------------------------------------
 
 MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY")
-MINIO_BUCKET = os.environ.get("MINIO_BUCKET") or "ekeflicks-temp"
-MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT")
+MINIO_BUCKET = os.environ.get("MINIO_BUCKET", "ekeflicks-temp")
+MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT", "http://minio:9000")
 MINIO_USE_SSL = env_bool("MINIO_USE_SSL", False)
 MINIO_REGION = os.environ.get("MINIO_REGION", "us-east-1")
-
-B2_KEY_ID = os.environ.get("B2_KEY_ID")
-B2_APPLICATION_KEY = os.environ.get("B2_APPLICATION_KEY")
-B2_ENDPOINT = os.environ.get("B2_ENDPOINT")
-B2_REGION = os.environ.get("B2_REGION", "us-west-005")
-
-# One final B2 bucket per media family. Keep these defaults explicit: using the
-# video bucket as an implicit fallback for another media type can publish an
-# object in the wrong bucket without producing an application error.
-B2_BUCKET_DEFAULTS = {
-    "videos": "ekeflicks-videos",
-    "trailers": "ekeflicks-trailers",
-    "subtitles": "ekeflicks-subtitles",
-    "posters": "ekeflicks-posters",
-    "backdrops": "ekeflicks-backdrops",
-    "avatars": "ekeflicks-avatars",
-}
-B2_BUCKET = os.environ.get("B2_BUCKET") or B2_BUCKET_DEFAULTS["videos"]
-B2_VIDEO_BUCKET = os.environ.get("B2_VIDEO_BUCKET") or B2_BUCKET
-B2_TRAILER_BUCKET = (
-    os.environ.get("B2_TRAILER_BUCKET") or B2_BUCKET_DEFAULTS["trailers"]
-)
-B2_SUBTITLE_BUCKET = (
-    os.environ.get("B2_SUBTITLE_BUCKET") or B2_BUCKET_DEFAULTS["subtitles"]
-)
-B2_POSTER_BUCKET = (
-    os.environ.get("B2_POSTER_BUCKET") or B2_BUCKET_DEFAULTS["posters"]
-)
-B2_BACKDROP_BUCKET = (
-    os.environ.get("B2_BACKDROP_BUCKET") or B2_BUCKET_DEFAULTS["backdrops"]
-)
-B2_AVATAR_BUCKET = (
-    os.environ.get("B2_AVATAR_BUCKET") or B2_BUCKET_DEFAULTS["avatars"]
-)
-
-B2_FINAL_BUCKETS = {
-    "final_videos": B2_VIDEO_BUCKET,
-    "final_trailers": B2_TRAILER_BUCKET,
-    "final_subtitles": B2_SUBTITLE_BUCKET,
-    "final_posters": B2_POSTER_BUCKET,
-    "final_backdrops": B2_BACKDROP_BUCKET,
-    "final_avatars": B2_AVATAR_BUCKET,
-}
-
-AWS_ACCESS_KEY_ID = MINIO_ACCESS_KEY
-AWS_SECRET_ACCESS_KEY = MINIO_SECRET_KEY
-AWS_STORAGE_BUCKET_NAME = MINIO_BUCKET
-AWS_S3_ENDPOINT_URL = MINIO_ENDPOINT.rstrip("/") if MINIO_ENDPOINT else None
-AWS_S3_REGION_NAME = MINIO_REGION
-AWS_S3_USE_SSL = MINIO_USE_SSL
-AWS_S3_VERIFY = False
-AWS_S3_ADDRESSING_STYLE = "path"
-AWS_S3_SIGNATURE_VERSION = "s3v4"
-AWS_DEFAULT_ACL = None
-AWS_QUERYSTRING_AUTH = False
-AWS_S3_FILE_OVERWRITE = True
 
 MINIO_STORAGE_OPTIONS = {
     "access_key": MINIO_ACCESS_KEY,
     "secret_key": MINIO_SECRET_KEY,
     "bucket_name": MINIO_BUCKET,
-    "endpoint_url": AWS_S3_ENDPOINT_URL,
+    "endpoint_url": MINIO_ENDPOINT.rstrip("/"),
     "region_name": MINIO_REGION,
     "use_ssl": MINIO_USE_SSL,
     "verify": False,
@@ -470,54 +417,147 @@ MINIO_STORAGE_OPTIONS = {
     "file_overwrite": True,
 }
 
-B2_STORAGE_OPTIONS = {
-    "access_key": B2_KEY_ID,
-    "secret_key": B2_APPLICATION_KEY,
-    "bucket_name": B2_BUCKET,
-    "endpoint_url": B2_ENDPOINT,
-    "region_name": B2_REGION,
-    "default_acl": None,
-    "querystring_auth": False,
-    "file_overwrite": True,
-    "verify": True,
+
+# ---------------------------------------------------------
+# Backblaze B2 - STOCKAGE DEFINITIF
+# ---------------------------------------------------------
+
+B2_KEY_ID = os.environ.get("B2_KEY_ID")
+B2_APPLICATION_KEY = os.environ.get("B2_APPLICATION_KEY")
+B2_ENDPOINT = os.environ.get("B2_ENDPOINT")
+B2_REGION = os.environ.get("B2_REGION", "us-west-005")
+
+B2_BUCKET_DEFAULTS = {
+    "videos": "ekeflicks-videos",
+    "trailers": "ekeflicks-trailers",
+    "subtitles": "ekeflicks-subtitles",
+    "posters": "ekeflicks-posters",
+    "backdrops": "ekeflicks-backdrops",
+    "avatars": "ekeflicks-avatars",
 }
 
+B2_VIDEO_BUCKET = os.environ.get(
+    "B2_VIDEO_BUCKET",
+    B2_BUCKET_DEFAULTS["videos"],
+)
 
-def b2_storage_options(bucket_name):
-    return {
-        **B2_STORAGE_OPTIONS,
+B2_TRAILER_BUCKET = os.environ.get(
+    "B2_TRAILER_BUCKET",
+    B2_BUCKET_DEFAULTS["trailers"],
+)
+
+B2_SUBTITLE_BUCKET = os.environ.get(
+    "B2_SUBTITLE_BUCKET",
+    B2_BUCKET_DEFAULTS["subtitles"],
+)
+
+B2_POSTER_BUCKET = os.environ.get(
+    "B2_POSTER_BUCKET",
+    B2_BUCKET_DEFAULTS["posters"],
+)
+
+B2_BACKDROP_BUCKET = os.environ.get(
+    "B2_BACKDROP_BUCKET",
+    B2_BUCKET_DEFAULTS["backdrops"],
+)
+
+B2_AVATAR_BUCKET = os.environ.get(
+    "B2_AVATAR_BUCKET",
+    B2_BUCKET_DEFAULTS["avatars"],
+)
+
+
+def b2_storage_options(bucket_name, custom_domain=None):
+    options = {
+        "access_key": B2_KEY_ID,
+        "secret_key": B2_APPLICATION_KEY,
         "bucket_name": bucket_name,
+        "endpoint_url": B2_ENDPOINT,
+        "region_name": B2_REGION,
+        "default_acl": None,
+        "querystring_auth": False,
+        "file_overwrite": True,
+        "verify": True,
     }
 
-# Storage backends. Default is internal MinIO. Final media can target B2.
+    if custom_domain:
+        options["custom_domain"] = custom_domain
+
+    return options
+
+
+# ---------------------------------------------------------
+# Django storages
+# ---------------------------------------------------------
+
 STORAGES = {
+
+    # TEMPORAIRE
     "default": {
-        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": MINIO_STORAGE_OPTIONS,
     },
+
+    # STATIC
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
+
+    # -----------------------------------------------------
+    # B2 DEFINITIF
+    # -----------------------------------------------------
+
+    "final_videos": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": b2_storage_options(
+            B2_VIDEO_BUCKET,
+            "api.ekeflicks.com/media/videos",
+        ),
+    },
+
+    "final_trailers": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": b2_storage_options(
+            B2_TRAILER_BUCKET,
+            "api.ekeflicks.com/media/trailers",
+        ),
+    },
+
+    "final_subtitles": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": b2_storage_options(
+            B2_SUBTITLE_BUCKET,
+            "api.ekeflicks.com/media/subtitles",
+        ),
+    },
+
+    "final_posters": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": b2_storage_options(
+            B2_POSTER_BUCKET,
+            "api.ekeflicks.com/media/posters",
+        ),
+    },
+
+    "final_backdrops": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": b2_storage_options(
+            B2_BACKDROP_BUCKET,
+            "api.ekeflicks.com/media/backdrops",
+        ),
+    },
+
+    "final_avatars": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": b2_storage_options(
+            B2_AVATAR_BUCKET,
+            "api.ekeflicks.com/media/avatars",
+        ),
+    },
 }
 
-if USE_B2_FINAL_STORAGE:
-    for storage_alias, bucket_name in B2_FINAL_BUCKETS.items():
-        STORAGES[storage_alias] = {
-            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
-            "OPTIONS": b2_storage_options(bucket_name),
-        }
-    STORAGES["final_media"] = STORAGES["final_videos"]
-else:
-    for storage_alias in [
-        "final_videos",
-        "final_posters",
-        "final_backdrops",
-        "final_trailers",
-        "final_avatars",
-        "final_subtitles",
-        "final_media",
-    ]:
-        STORAGES[storage_alias] = STORAGES["default"]
+# Compatibilité avec le code existant qui utilise final_media.
+STORAGES["final_media"] = STORAGES["final_videos"]
 
 # =========================================================
 # CELERY

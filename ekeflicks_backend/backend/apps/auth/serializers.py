@@ -79,17 +79,35 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserPersonalInfoSerializer(serializers.ModelSerializer):
-    email = serializers.SerializerMethodField()
-
-    def get_email(self, obj):
-        return public_email(obj)
+    email = serializers.EmailField(required=False, allow_null=True, allow_blank=True)
 
     class Meta:
         model = User
         fields = ['id', 'email', 'firstname', 'lastname', 'phone', 'country_code', 'is_verified', 'created_at']
-        read_only_fields = ['id', 'email', 'is_verified', 'created_at']
+        read_only_fields = ['id', 'is_verified', 'created_at']
+
+    def validate_email(self, value):
+        email = (value or '').strip().lower()
+        if self.instance and self.instance.email:
+            return self.instance.email
+        if self.instance and self.instance.phone:
+            self.instance.preferences['registration_identifier'] = 'phone'
+        if not email:
+            return None
+        duplicate = User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk)
+        if duplicate.exists():
+            raise serializers.ValidationError('Cette adresse email est deja utilisee.')
+        return email
 
     def validate_phone(self, value):
+        phone_was_registration_identifier = (
+            self.instance
+            and self.instance.preferences.get('registration_identifier') == 'phone'
+        )
+        if phone_was_registration_identifier and value != self.instance.phone:
+            raise serializers.ValidationError(
+                'Le numero utilise pour creer ce compte ne peut pas etre modifie.'
+            )
         return normalize_phone(value)
 
 

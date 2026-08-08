@@ -12,7 +12,10 @@ class AvatarApiTests(SimpleTestCase):
         }[directory]
         storage.url.side_effect = lambda path: f'https://cdn.example.test/{path}'
 
-        with patch('apps.common.views.storages', {'final_avatars': storage}):
+        with patch(
+            'apps.common.avatar_views.storages',
+            {'final_avatars': storage},
+        ):
             response = self.client.get('/api/v1/avatars/')
 
         self.assertEqual(response.status_code, 200)
@@ -22,10 +25,12 @@ class AvatarApiTests(SimpleTestCase):
                 'avatars': [
                     {
                         'name': 'adult',
+                        'path': 'adult.png',
                         'url': 'https://cdn.example.test/adult.png',
                     },
                     {
                         'name': 'child',
+                        'path': 'children/child.WEBP',
                         'url': 'https://cdn.example.test/children/child.WEBP',
                     },
                 ]
@@ -34,7 +39,7 @@ class AvatarApiTests(SimpleTestCase):
         storage.url.assert_any_call('adult.png')
         storage.url.assert_any_call('children/child.WEBP')
 
-    def test_avatar_endpoint_rejects_unsupported_methods(self):
+    def test_avatar_upload_requires_authentication(self):
         response = self.client.post('/api/v1/avatars/')
 
-        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.status_code, 401)

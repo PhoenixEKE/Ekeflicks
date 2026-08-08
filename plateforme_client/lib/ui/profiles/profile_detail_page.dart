@@ -14,6 +14,7 @@ import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/providers/avatar_provider.dart';
 import 'package:app_ekeflicks/src/models/profile.dart';
 import 'package:app_ekeflicks/core/api_config.dart';
+import 'package:app_ekeflicks/utils/phone_number.dart';
 
 class ProfileDetailPage extends StatefulWidget {
   final Profile profile;
@@ -158,23 +159,16 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
     }
 
     try {
-      final updatedProfile = Profile(
-        (b) => b
-          ..id = _editingProfile.id
-          ..name = _nameController.text.trim()
-          ..phone = _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : null
-          ..type = _editingProfile.type
-          ..avatar = _editingProfile.avatar
-          ..avatarUrl = _editingProfile.avatarUrl
-          ..country = _editingProfile.country
-          ..age = _editingProfile.age
-          ..isActive = _editingProfile.isActive,
-      );
-
-      final response = await apiClient.getProfilesApi().profilesPartialUpdate(
-        id: _editingProfile.id!,
-        data: updatedProfile,
-        headers: {'Authorization': 'Bearer $token'},
+      await apiClient.dio.patch<Object>(
+        '/profiles/${_editingProfile.id}/',
+        data: {
+          'name': _nameController.text.trim(),
+          'phone': normalizeInternationalPhone(_phoneController.text),
+          if (_editingProfile.country != null)
+            'country_code': _editingProfile.country!.name,
+          'age': _editingProfile.age,
+        },
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
 
       if (!mounted) return;
@@ -214,6 +208,13 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           ),
         );
       }
+      return false;
+    }
+    final phoneError = validateInternationalPhone(_phoneController.text);
+    if (phoneError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('⚠️ $phoneError'), backgroundColor: Colors.orange),
+      );
       return false;
     }
     return true;
@@ -315,39 +316,10 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
     }
 
     try {
-      // EXTRACTION du nom de fichier depuis l'URL complète
-      String? avatarFileName;
-      try {
-        final uri = Uri.parse(avatarUrl);
-        avatarFileName = uri.pathSegments.last;
-        debugPrint('📁 Nom de fichier extrait: $avatarFileName');
-      } catch (e) {
-        debugPrint('❌ Erreur extraction nom de fichier: $e');
-        avatarFileName = 'main.png'; // Valeur par défaut
-      }
-
-      // Créer le profil mis à jour avec le NOM DE FICHIER seulement
-      final updatedProfile = Profile(
-        (b) => b
-          ..id = _editingProfile.id
-          ..name = _editingProfile.name
-          ..phone = _editingProfile.phone
-          ..type = _editingProfile.type
-          ..avatar = avatarFileName // Stocker seulement le nom du fichier
-          ..avatarUrl = avatarUrl   // Garder l'URL complète pour l'affichage
-          ..country = _editingProfile.country
-          ..age = _editingProfile.age
-          ..isActive = _editingProfile.isActive,
-      );
-
-      debugPrint('📤 Envoi au serveur - avatar: $avatarFileName');
-      debugPrint('📤 Envoi au serveur - avatarUrl: $avatarUrl');
-
-      // Mise à jour via l'API
-      await apiClient.getProfilesApi().profilesPartialUpdate(
-        id: _editingProfile.id!,
-        data: updatedProfile,
-        headers: {'Authorization': 'Bearer $token'},
+      await apiClient.dio.patch<Object>(
+        '/profiles/${_editingProfile.id}/',
+        data: {'avatar_url': avatarUrl},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
 
       if (!mounted) return;
@@ -733,7 +705,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
   Widget _getAvatarImage(Color profileColor) {
     // Priorité à avatarUrl, puis avatar
     String? imageUrl;
-    
+
     if (_editingProfile.avatarUrl != null && _editingProfile.avatarUrl!.isNotEmpty) {
       imageUrl = _editingProfile.avatarUrl;
       debugPrint('🖼️ Utilisation avatarUrl: $imageUrl');
@@ -776,12 +748,19 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
   }
 
   Widget _buildDefaultAvatar(Color profileColor) {
-    return Container(
-      color: profileColor.withOpacity(0.1),
-      child: Icon(
-        Icons.person,
-        size: 50,
-        color: profileColor.withOpacity(0.6),
+    final assetPath = _editingProfile.type?.name == 'child'
+        ? 'assets/avatars/child.png'
+        : 'assets/avatars/adult.png';
+    return Image.asset(
+      assetPath,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => Container(
+        color: profileColor.withOpacity(0.1),
+        child: Icon(
+          Icons.person,
+          size: 50,
+          color: profileColor.withOpacity(0.6),
+        ),
       ),
     );
   }
@@ -810,7 +789,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           children: [
             _buildTextField('Nom', _nameController, _nameFocus, profileColor),
             const SizedBox(height: 16),
-            _buildTextField('Téléphone', _phoneController, _phoneFocus, profileColor,
+            _buildTextField('Téléphone avec indicatif (+225…)', _phoneController, _phoneFocus, profileColor,
                 keyboardType: TextInputType.phone),
             const SizedBox(height: 16),
             if (_isChildProfile)

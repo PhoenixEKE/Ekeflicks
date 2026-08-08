@@ -15,6 +15,7 @@ import 'package:app_ekeflicks/providers/locale_provider.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/providers/avatar_provider.dart';
+import 'package:app_ekeflicks/utils/phone_number.dart';
 
 // OpenAPI models
 import 'package:app_ekeflicks/src/models/profile_create.dart';
@@ -38,7 +39,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
   final FocusNode _createFocus = FocusNode();
   final FocusNode _cancelFocus = FocusNode();
   final FocusNode _languageFocus = FocusNode();
-  
+
   String _selectedType = 'child';
   int? _selectedAge;
   String? _selectedAvatar;
@@ -52,7 +53,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
   @override
   void initState() {
     super.initState();
-    
+
     // Récupérer le profil principal existant s'il existe
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadMainProfile();
@@ -66,13 +67,13 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
   void _loadMainProfile() {
     final profileProvider = context.read<ProfileProvider>();
     final profiles = profileProvider.availableProfiles;
-    
+
     // Chercher un profil principal existant de manière simplifiée
     try {
       final mainProfile = profiles.firstWhere(
         (profile) => profile.type?.toString().contains('main') ?? false,
       );
-      
+
       // Stocker les données nécessaires dans un Map
       _mainProfileData = {
         'country': mainProfile.country?.toString(),
@@ -82,7 +83,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
       // Aucun profil principal trouvé, c'est normal pour le premier profil
       _mainProfileData = null;
     }
-    
+
     setState(() {});
   }
 
@@ -116,6 +117,11 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
       _showError('Le nom du profil est obligatoire');
       return;
     }
+    final phoneError = validateInternationalPhone(_phoneController.text);
+    if (phoneError != null) {
+      _showError(phoneError);
+      return;
+    }
 
     final userProvider = context.read<UserProvider>();
     final profileProvider = context.read<ProfileProvider>();
@@ -133,33 +139,9 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
       return;
     }
 
-    // DEBUG: Afficher les informations de la requête
-    print('🔐 Token: ${token.substring(0, 20)}...');
-    print('👤 Nom du profil: $name');
-    print('🎯 Type de profil: $_selectedType');
-    print('🖼️ Avatar URL: $_selectedAvatar');
-    print('🎂 Âge: $_selectedAge');
-    print('📞 Téléphone: ${_phoneController.text}');
-
     setState(() => _isLoading = true);
 
     try {
-      // EXTRACTION du nom de fichier depuis l'URL
-      String? avatarFileName;
-      if (_selectedAvatar != null) {
-        try {
-          final uri = Uri.parse(_selectedAvatar!);
-          avatarFileName = uri.pathSegments.last;
-          print('📁 Nom de fichier extrait: $avatarFileName');
-        } catch (e) {
-          print('❌ Erreur extraction nom de fichier: $e');
-          avatarFileName = 'adult.png'; // Valeur par défaut
-        }
-      } else {
-        // Avatar par défaut selon le type
-        avatarFileName = _selectedType == 'child' ? 'child.png' : 'adult.png';
-      }
-
       // Convertir le pays string en enum si nécessaire
       ProfileCreateCountryEnum? countryEnum;
       final countryCode = _mainProfileData?['country'];
@@ -168,39 +150,30 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         print('🌍 Pays: $countryEnum');
       }
 
-      // Création du profil avec ProfileCreate - utiliser le NOM DE FICHIER seulement
-      final profileCreate = ProfileCreate(
-        (b) => b
-          ..name = name
-          ..type = _getProfileTypeEnum()
-          ..avatar = avatarFileName // Stocker seulement le nom du fichier
-          ..country = countryEnum
-          ..age = _selectedAge
-          ..phone = _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : null,
+      final profileTypeId = await _findProfileTypeId(
+        apiClient,
+        token,
+        _selectedType,
       );
 
-      print('📤 Envoi de la requête API...');
-      print('📤 Avatar (nom fichier): $avatarFileName');
-
-      // Appel à l'API pour créer le profil AVEC LE TOKEN
-      await apiClient.getProfilesApi().profilesCreate(
-        data: profileCreate,
-        headers: {'Authorization': 'Bearer $token'},
+      // Use the current API wire names. The generated ProfileCreate model uses
+      // legacy `avatar`, `country` and `type` fields that the server ignores.
+      await apiClient.dio.post<Object>(
+        '/profiles/',
+        data: <String, Object?>{
+          'name': name,
+          'type_id': profileTypeId,
+          'avatar_url': _selectedAvatar,
+          if (countryEnum != null) 'country_code': countryEnum.name,
+          'age': _selectedAge,
+          'phone': normalizeInternationalPhone(_phoneController.text),
+        },
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
 
-      print('✅ Profil créé avec succès');
-
-      // Recharger les profils pour mettre à jour le provider
-      await profileProvider.loadProfiles();
-
-      if (mounted) {
-        Navigator.pop(context);
-        _showSuccess('Profil "$name" créé avec succès !');
-      }
+      await _completeProfileCreation(profileProvider, name);
     } on DioException catch (dioError) {
-      print('❌ Erreur Dio: ${dioError.message}');
-      print('❌ Status code: ${dioError.response?.statusCode}');
-      print('❌ Response data: ${dioError.response?.data}');
+      debugPrint('Profile creation failed: ${dioError.message}');
       _handleApiError(dioError);
     } catch (e) {
       print('❌ Erreur générale: $e');
@@ -210,32 +183,45 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
     }
   }
 
-  ProfileCreateCountryEnum? _parseCountryEnum(String countryCode) {
-    final code = countryCode.replaceAll('ProfileCreateCountryEnum.', '');
-    switch (code) {
-      case 'FR': return ProfileCreateCountryEnum.FR;
-      case 'US': return ProfileCreateCountryEnum.US;
-      case 'GB': return ProfileCreateCountryEnum.GB;
-      case 'DE': return ProfileCreateCountryEnum.DE;
-      case 'ES': return ProfileCreateCountryEnum.ES;
-      case 'IT': return ProfileCreateCountryEnum.IT;
-      case 'CA': return ProfileCreateCountryEnum.CA;
-      case 'BE': return ProfileCreateCountryEnum.BE;
-      case 'CH': return ProfileCreateCountryEnum.CH;
-      default: return null;
+  Future<Object> _findProfileTypeId(
+    Openapi apiClient,
+    String token,
+    String typeName,
+  ) async {
+    final response = await apiClient.dio.get<Object>(
+      '/profile-types/',
+      queryParameters: {'search': typeName},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final body = response.data;
+    final rawTypes = body is Map<String, dynamic> ? body['results'] : body;
+    if (rawTypes is! List) {
+      throw StateError('Liste des types de profil invalide');
     }
+
+    for (final rawType in rawTypes.whereType<Map<String, dynamic>>()) {
+      if (rawType['name']?.toString() == typeName) return rawType['id'];
+    }
+    throw StateError('Type de profil "$typeName" introuvable');
   }
 
-  ProfileCreateTypeEnum _getProfileTypeEnum() {
-    switch (_selectedType) {
-      case 'main':
-        return ProfileCreateTypeEnum.main;
-      case 'child':
-        return ProfileCreateTypeEnum.child;
-      case 'guest':
-        return ProfileCreateTypeEnum.guest;
-      default:
-        return ProfileCreateTypeEnum.child;
+  Future<void> _completeProfileCreation(
+    ProfileProvider profileProvider,
+    String name,
+  ) async {
+    await profileProvider.loadProfiles();
+
+    if (!mounted) return;
+    Navigator.pop(context);
+    _showSuccess('Profil "$name" créé avec succès !');
+  }
+
+  ProfileCreateCountryEnum? _parseCountryEnum(String countryCode) {
+    final code = countryCode.replaceAll('ProfileCreateCountryEnum.', '');
+    try {
+      return ProfileCreateCountryEnum.valueOf(code);
+    } on ArgumentError {
+      return null;
     }
   }
 
@@ -261,18 +247,18 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
 
   void _handleApiError(DioException dioError) {
     String message = 'Erreur lors de la création du profil';
-    
+
     if (dioError.response?.data != null) {
       final data = dioError.response!.data;
       print('📋 Données d\'erreur: $data');
-      
+
       if (data is Map<String, dynamic>) {
         // Essayer différents formats de réponse d'erreur
-        message = data['detail'] ?? 
-                  data['message'] ?? 
-                  data['error'] ?? 
+        message = data['detail'] ??
+                  data['message'] ??
+                  data['error'] ??
                   message;
-        
+
         // Gestion spécifique des erreurs de validation
         if (data.containsKey('name')) {
           final nameErrors = data['name'];
@@ -280,7 +266,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
             message = nameErrors[0] ?? message;
           }
         }
-        
+
         // Vérifier les erreurs de champ
         if (data.containsKey('non_field_errors')) {
           final nonFieldErrors = data['non_field_errors'];
@@ -298,7 +284,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         }
       }
     }
-    
+
     // Gestion spécifique par code HTTP
     switch (dioError.response?.statusCode) {
       case 400:
@@ -317,14 +303,14 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         message = 'Erreur interne du serveur';
         break;
     }
-    
+
     _showError(message);
   }
 
   Future<void> _selectAvatar() async {
     final avatarProvider = context.read<AvatarProvider>();
     final userProvider = context.read<UserProvider>();
-    
+
     // Charger les avatars si nécessaire
     if (avatarProvider.avatars.isEmpty && !avatarProvider.isLoading) {
       await avatarProvider.loadAvatars(userProvider.apiClient);
@@ -520,7 +506,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                         }
                       },
                       onBackspace: () {
-                        if (_focusedController != null && 
+                        if (_focusedController != null &&
                             _focusedController!.text.isNotEmpty) {
                           _focusedController!.text = _focusedController!.text
                               .substring(0, _focusedController!.text.length - 1);
@@ -564,7 +550,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
   String _getCountryName(String countryCode) {
     // Nettoyer le code pays (enlever le préfixe de l'enum si présent)
     final cleanCode = countryCode.replaceAll('ProfileCreateCountryEnum.', '');
-    
+
     final countryMap = {
       'FR': 'France',
       'US': 'États-Unis',
@@ -719,7 +705,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Téléphone',
+          'Téléphone avec indicatif',
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
           ),
@@ -733,7 +719,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
-                    hintText: 'Optionnel',
+                    hintText: 'Optionnel, ex. +2250102030405',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -761,7 +747,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
       ),
       child: Text(
         _phoneController.text.isEmpty
-            ? 'Téléphone (optionnel)'
+            ? 'Téléphone (optionnel, ex. +2250102030405)'
             : _phoneController.text,
         style: TextStyle(
           color: theme.colorScheme.onSurface,
@@ -771,8 +757,8 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
     );
   }
 
-  Widget _buildTypeSelector(ThemeData theme, DeviceInfoProvider deviceInfo, 
-                           AppLocalizations? loc, bool hasMainProfile) {
+  Widget _buildTypeSelector(ThemeData theme, DeviceInfoProvider deviceInfo,
+      AppLocalizations? loc, bool hasMainProfile) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -870,8 +856,8 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                   Text(
                     _selectedAge != null ? '$_selectedAge ans' : 'Sélectionner l\'âge',
                     style: TextStyle(
-                      color: _selectedAge != null 
-                          ? theme.colorScheme.onSurface 
+                      color: _selectedAge != null
+                          ? theme.colorScheme.onSurface
                           : theme.colorScheme.onSurface.withOpacity(0.5),
                       fontSize: 16,
                     ),

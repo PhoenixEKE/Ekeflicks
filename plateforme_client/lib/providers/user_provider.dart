@@ -4,6 +4,7 @@ import 'package:app_ekeflicks/src/models/user.dart';
 import 'package:app_ekeflicks/src/models/token_refresh.dart';
 import 'package:dio/dio.dart';
 import 'package:built_value/serializer.dart';
+import 'package:app_ekeflicks/services/geolocation_service.dart';
 
 class UserProvider with ChangeNotifier {
   final Openapi apiClient;
@@ -111,11 +112,16 @@ class UserProvider with ChangeNotifier {
       // generated legacy `/users/` operation no longer matches this API.
       final normalizedIdentifier = _normalizeLoginIdentifier(identifier);
       final isEmail = normalizedIdentifier.contains('@');
+      final location = isEmail
+          ? await GeolocationService.detectCountryByIP()
+          : null;
       final response = await apiClient.dio.post<Map<String, dynamic>>(
         '/auth/register/',
         data: {
           if (isEmail) 'email': normalizedIdentifier,
           if (!isEmail) 'phone': normalizedIdentifier,
+          if (location?['countryCode'] != null)
+            'country_code': location!['countryCode'],
           'password': password,
           'firstname': firstname,
           'lastname': lastname,

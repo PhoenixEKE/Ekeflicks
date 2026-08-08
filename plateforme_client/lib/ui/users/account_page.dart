@@ -9,6 +9,7 @@ import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
 import 'package:app_ekeflicks/services/geolocation_service.dart';
 import 'package:app_ekeflicks/widgets/dialog/country_selection_dialog.dart';
+import 'package:app_ekeflicks/utils/phone_number.dart';
 
 class AccountPage extends StatefulWidget {
   final Profile currentProfile;
@@ -22,6 +23,7 @@ class AccountPage extends StatefulWidget {
 class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
 
   late TabController _tabController;
   int _currentTabIndex = 0;
@@ -34,6 +36,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   bool _isLoading = false;
   bool _isChildProfile = false;
   bool _isMainProfile = false;
+  bool _isPhoneOnlyAccount = false;
   String? _selectedCountry;
   bool _detectingLocation = false;
   String? _detectedCountry;
@@ -45,16 +48,19 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-    
+
     _nameController.text = widget.currentProfile.name ?? '';
     _phoneController.text = widget.currentProfile.phone ?? '';
+    final currentUser = context.read<UserProvider>().currentUser;
+    _isPhoneOnlyAccount = currentUser?.email == null || currentUser!.email!.isEmpty;
+    _emailController.text = currentUser?.email ?? '';
     _selectedAge = widget.currentProfile.age ?? 13;
     _isChildProfile = widget.currentProfile.type?.name == 'child';
     _isMainProfile = widget.currentProfile.type?.name == 'main';
-    
+
     // Initialiser le pays sélectionné
     _selectedCountry = widget.currentProfile.country?.name ?? 'FR';
-    
+
     // Initialisation des contrôleurs
     _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_handleTabChange);
@@ -83,13 +89,13 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
-    
+
     await Future.wait([
       _loadBillingHistory(),
       _loadFavorites(),
       _loadDownloads(),
     ]);
-    
+
     setState(() => _isLoading = false);
   }
 
@@ -97,26 +103,26 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   Future<void> _loadBillingHistory() async {
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
-    
+
     setState(() {
       _billingHistory = [
         {
-          'date': '15/10/2023', 
-          'amount': 9.99, 
+          'date': '15/10/2023',
+          'amount': 9.99,
           'status': 'Payé',
           'icon': Icons.check_circle,
           'color': Colors.green
         },
         {
-          'date': '15/09/2023', 
-          'amount': 9.99, 
+          'date': '15/09/2023',
+          'amount': 9.99,
           'status': 'Payé',
           'icon': Icons.check_circle,
           'color': Colors.green
         },
         {
-          'date': '15/08/2023', 
-          'amount': 9.99, 
+          'date': '15/08/2023',
+          'amount': 9.99,
           'status': 'Remboursé',
           'icon': Icons.undo,
           'color': Colors.orange
@@ -129,7 +135,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   Future<void> _loadFavorites() async {
     await Future.delayed(const Duration(milliseconds: 200));
     if (!mounted) return;
-    
+
     setState(() {
       _favoriteContents = [
         {
@@ -154,7 +160,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   Future<void> _loadDownloads() async {
     await Future.delayed(const Duration(milliseconds: 250));
     if (!mounted) return;
-    
+
     setState(() {
       _downloadedContents = [
         {
@@ -183,6 +189,11 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       _showErrorSnackbar('Veuillez saisir un nom');
       return;
     }
+    final phoneError = validateInternationalPhone(_phoneController.text);
+    if (phoneError != null) {
+      _showErrorSnackbar(phoneError);
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -190,21 +201,24 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
       final apiClient = profileProvider.apiClient;
 
-      final updatedProfile = Profile(
-        (b) => b
-          ..id = widget.currentProfile.id
-          ..name = _nameController.text
-          ..phone = _phoneController.text
-          ..age = _isChildProfile ? _selectedAge : null
-          ..type = widget.currentProfile.type
-          ..country = _getCountryEnum(_selectedCountry)
-          ..isActive = widget.currentProfile.isActive
-          ..user = widget.currentProfile.user,
-      );
+      if (_isPhoneOnlyAccount) {
+        await apiClient.dio.patch<Object>(
+          '/auth/personal-info/',
+          data: {
+            'email': _emailController.text.trim(),
+            'phone': widget.currentProfile.phone,
+          },
+        );
+      }
 
-      await apiClient.getProfilesApi().profilesUpdate(
-        id: widget.currentProfile.id!,
-        data: updatedProfile,
+      await apiClient.dio.patch<Object>(
+        '/profiles/${widget.currentProfile.id}/',
+        data: {
+          'name': _nameController.text.trim(),
+          'phone': normalizeInternationalPhone(_phoneController.text),
+          if (_isChildProfile) 'age': _selectedAge,
+          if (_selectedCountry != null) 'country_code': _selectedCountry,
+        },
       );
 
       await profileProvider.loadProfiles();
@@ -241,13 +255,13 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
 
     try {
       final locationData = await GeolocationService.detectCountryByIP();
-      
+
       if (locationData != null && mounted) {
         setState(() {
           _detectedCountry = '${locationData['country']} (${locationData['countryCode']})';
           _selectedCountry = locationData['countryCode'];
         });
-        
+
         _showSuccessSnackbar('Pays détecté: ${locationData['country']}');
       } else {
         _showErrorSnackbar('Impossible de détecter votre pays');
@@ -292,7 +306,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         content: Row(
           children: [
             Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             Expanded(child: Text(message)),
           ],
         ),
@@ -309,7 +323,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         content: Row(
           children: [
             Icon(Icons.error_outline, color: Colors.white),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             Expanded(child: Text(message)),
           ],
         ),
@@ -434,10 +448,10 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         labelColor: Colors.white,
         unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
         tabs: [
-          Tab(icon: Icon(Icons.person), text: loc?.profil ?? 'Profil'),
-          Tab(icon: Icon(Icons.history), text: loc?.facturation ?? 'Facturation'),
-          Tab(icon: Icon(Icons.favorite), text: loc?.favoris ?? 'Favoris'),
-          Tab(icon: Icon(Icons.download), text: loc?.telechargements ?? 'Téléch.'),
+          const Tab(icon: Icon(Icons.person), text: 'Profil'),
+          const Tab(icon: Icon(Icons.history), text: 'Facturation'),
+          const Tab(icon: Icon(Icons.favorite), text: 'Favoris'),
+          const Tab(icon: Icon(Icons.download), text: 'Téléch.'),
         ],
       ),
     );
@@ -498,7 +512,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                     ),
                     const SizedBox(height: 12),
                   ],
-                  
+
                   TextField(
                     controller: _nameController,
                     decoration: AppDecorations.inputDecoration(
@@ -508,18 +522,31 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   TextField(
                     controller: _phoneController,
+                    readOnly: _isPhoneOnlyAccount,
                     decoration: AppDecorations.inputDecoration(
                       context,
-                      label: 'Téléphone',
+                      label: 'Téléphone avec indicatif (+225…)',
                       icon: Icons.phone,
                     ),
                     keyboardType: TextInputType.phone,
                   ),
+                  if (_isPhoneOnlyAccount) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _emailController,
+                      decoration: AppDecorations.inputDecoration(
+                        context,
+                        label: 'Adresse e-mail modifiable',
+                        icon: Icons.email_outlined,
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                  ],
                   const SizedBox(height: 12),
-                  
+
                   // Sélecteur de pays amélioré
                   _buildCountrySelector(),
                 ],
@@ -687,7 +714,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
           ),
         ),
         const SizedBox(height: 12),
-        
+
         // Boutons d'action
         Row(
           children: [
@@ -728,12 +755,12 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
 
   Map<String, String> _getCountryByCode(String? countryCode) {
     if (countryCode == null) return {'name': 'Non spécifié', 'flag': '🏳️'};
-    
+
     final country = GeolocationService.popularCountries.firstWhere(
       (c) => c['code'] == countryCode,
       orElse: () => {'name': 'Inconnu', 'flag': '🏳️'},
     );
-    
+
     return country;
   }
 
@@ -1019,6 +1046,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _emailController.dispose();
     _tabController.dispose();
     _fadeAnimationController.dispose();
     super.dispose();

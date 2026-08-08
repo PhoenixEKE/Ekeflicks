@@ -15,13 +15,34 @@ def normalize_phone_number(value):
     return phone
 
 
+COUNTRY_CALLING_CODES = {
+    '225': 'CI', '221': 'SN', '237': 'CM', '261': 'MG', '212': 'MA',
+    '216': 'TN', '213': 'DZ', '33': 'FR', '32': 'BE', '41': 'CH',
+    '44': 'GB', '49': 'DE', '39': 'IT', '34': 'ES', '1': 'US',
+}
+
+
+def country_code_from_phone(value):
+    """Infer an ISO country code from an E.164 calling code when possible."""
+    digits = normalize_phone_number(value)[1:]
+    for prefix in sorted(COUNTRY_CALLING_CODES, key=len, reverse=True):
+        if digits.startswith(prefix):
+            return COUNTRY_CALLING_CODES[prefix]
+    return ''
+
+
 class UserManager(BaseUserManager):
     def create_user(self, email=None, password=None, **extra_fields):
         phone = str(extra_fields.get('phone') or '').strip()
         if not email and not phone:
             raise ValueError("Email or phone required")
         email = self.normalize_email(email) if email else None
+        preferences = dict(extra_fields.get('preferences') or {})
+        preferences.setdefault('registration_identifier', 'email' if email else 'phone')
+        extra_fields['preferences'] = preferences
         extra_fields['phone'] = normalize_phone_number(phone) if phone else ''
+        if phone and not extra_fields.get('country_code'):
+            extra_fields['country_code'] = country_code_from_phone(phone)
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)

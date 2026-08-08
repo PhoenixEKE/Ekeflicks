@@ -32,8 +32,9 @@ class _AgeSelectorDialogState extends State<AgeSelectorDialog> {
     super.initState();
     _selectedAge = widget.currentAge ?? 8;
     _focusedAge = _selectedAge;
-    
-    Future.delayed(const Duration(milliseconds: 100), () {
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (_focusNode.canRequestFocus) {
         _focusNode.requestFocus();
       }
@@ -49,10 +50,15 @@ class _AgeSelectorDialogState extends State<AgeSelectorDialog> {
   }
 
   void _scrollToAge(int age) {
+    if (!_scrollController.hasClients) return;
+
     final index = age - 3;
     final itemWidth = 80.0;
-    final position = index * itemWidth;
-    
+    final position = (index * itemWidth).clamp(
+      _scrollController.position.minScrollExtent,
+      _scrollController.position.maxScrollExtent,
+    );
+
     _scrollController.animateTo(
       position,
       duration: const Duration(milliseconds: 300),

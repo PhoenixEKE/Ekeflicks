@@ -44,6 +44,8 @@ def create_default_profile(sender, instance, created, **kwargs):
             # The clients provide a bundled fallback avatar. Keeping this
             # empty avoids persisting a CDN URL that may not exist.
             avatar_url='',
+            phone=instance.phone,
+            country_code=instance.country_code,
             is_active=True
         )
         notify_user(instance, 'account_created')

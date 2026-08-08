@@ -44,8 +44,7 @@ class AvatarUploadSerializer(serializers.Serializer):
         ).stem
         safe_name = slugify(requested_name) or f'avatar-{uuid4().hex}'
         extension = PurePosixPath(uploaded_file.name).suffix.lower()
-        return str(PurePosixPath('catalog', f'{safe_name}{extension}'))
-
+        return f"{safe_name}{extension}"
 
 def iter_avatar_paths(storage, directory=''):
     """Iterate over image objects in the B2 avatar bucket."""

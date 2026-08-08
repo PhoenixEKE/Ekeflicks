@@ -71,6 +71,11 @@ class AuthApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIsNone(response.data['user']['email'])
         self.assertEqual(response.data['user']['phone'], '+2250102030405')
+        user = User.objects.get(phone='+2250102030405')
+        self.assertEqual(user.country_code, 'CI')
+        profile = Profile.objects.get(user=user)
+        self.assertEqual(profile.phone, '+2250102030405')
+        self.assertEqual(profile.country_code, 'CI')
         self.assertEqual(len(mail.outbox), 0)
 
         login = self.client.post(
@@ -212,6 +217,35 @@ class AuthApiTests(APITestCase):
         self.assertEqual(user.email, 'profile-owner@example.com')
         self.assertEqual(user.firstname, 'Updated')
         self.assertEqual(user.phone, '+22501020304')
+
+    def test_phone_only_user_can_add_email_but_cannot_change_phone(self):
+        user = User.objects.create_user(
+            phone='+2250102030405',
+            password='StrongPass123',
+            firstname='Awa',
+        )
+        self.client.force_authenticate(user=user)
+
+        response = self.client.patch(
+            reverse('personal-info'),
+            {'email': 'awa@example.com', 'phone': '+221771234567'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        user.refresh_from_db()
+        self.assertIsNone(user.email)
+        self.assertEqual(user.phone, '+2250102030405')
+
+        response = self.client.patch(
+            reverse('personal-info'),
+            {'email': 'awa@example.com', 'phone': '+2250102030405'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertEqual(user.email, 'awa@example.com')
 
     def test_user_can_request_email_change_through_support(self):
         user = User.objects.create_user(
