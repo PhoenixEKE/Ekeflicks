@@ -12,6 +12,7 @@ import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
 import 'package:app_ekeflicks/services/subscription_progress_service.dart';
 import 'package:dio/dio.dart';
+import 'package:app_ekeflicks/utils/api_error_message.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -101,20 +102,8 @@ class _SignupPageState extends State<SignupPage> {
       final status = dioError.response?.statusCode;
       final data = dioError.response?.data;
 
-      if (status == 400 && data is Map<String, dynamic>) {
-        final errors = data['errors'];
-        if (errors is Map && errors['email'] != null) {
-          message = _firstApiErrorMessage(errors) ??
-              AppLocalizations.of(context)!.emailAlreadyExists;
-        } else if (data['email'] != null) {
-          message = AppLocalizations.of(context)!.emailAlreadyExists;
-        } else if (data['phone'] != null) {
-          message = data['phone'];
-        } else {
-          message = errors is Map
-              ? (_firstApiErrorMessage(errors) ?? message)
-              : (data['detail']?.toString() ?? message);
-        }
+      if (status == 400) {
+        message = firstApiErrorMessage(data) ?? message;
       } else if (status == 500) {
         message = AppLocalizations.of(context)!.serverError;
       } else {
@@ -123,26 +112,6 @@ class _SignupPageState extends State<SignupPage> {
     }
 
     if (mounted) _showErrorDialog(message);
-  }
-
-  String? _firstApiErrorMessage(Map data) {
-    for (final value in data.values) {
-      final message = _firstApiErrorValue(value);
-      if (message != null) return message;
-    }
-    return null;
-  }
-
-  String? _firstApiErrorValue(dynamic value) {
-    if (value is String && value.isNotEmpty) return value;
-    if (value is List) {
-      for (final item in value) {
-        final message = _firstApiErrorValue(item);
-        if (message != null) return message;
-      }
-    }
-    if (value is Map) return _firstApiErrorMessage(value);
-    return null;
   }
 
   void _showErrorDialog(String message) {
@@ -248,8 +217,11 @@ class _SignupPageState extends State<SignupPage> {
                           RegExp(r'[^0-9+]'),
                           '',
                         );
-                        if (!identifier.contains('@') &&
-                            RegExp(r'^\+?[0-9]{8,15}$').hasMatch(phone)) {
+                        if (!identifier.contains('@')) {
+                          if (!RegExp(r'^\+[1-9][0-9]{7,14}$').hasMatch(phone)) {
+                            return 'Ajoutez l\'indicatif du pays, par exemple '
+                                '+2250102030405';
+                          }
                           return null;
                         }
                         final emailRegex = RegExp(

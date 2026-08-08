@@ -10,6 +10,8 @@ import 'package:app_ekeflicks/core/app_decorations.dart';
 import 'package:app_ekeflicks/services/geolocation_service.dart';
 import 'package:app_ekeflicks/widgets/dialog/country_selection_dialog.dart';
 import 'package:app_ekeflicks/utils/phone_number.dart';
+import 'package:app_ekeflicks/models/content_model.dart';
+import 'package:app_ekeflicks/services/content_api_service.dart';
 
 class AccountPage extends StatefulWidget {
   final Profile currentProfile;
@@ -54,7 +56,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     final currentUser = context.read<UserProvider>().currentUser;
     _isPhoneOnlyAccount = currentUser?.email == null || currentUser!.email!.isEmpty;
     _emailController.text = currentUser?.email ?? '';
-    _selectedAge = widget.currentProfile.age ?? 13;
+    const supportedAges = [3, 7, 10, 13, 16, 18];
+    final profileAge = widget.currentProfile.age ?? 13;
+    _selectedAge = supportedAges.contains(profileAge) ? profileAge : 13;
     _isChildProfile = widget.currentProfile.type?.name == 'child';
     _isMainProfile = widget.currentProfile.type?.name == 'main';
 
@@ -99,88 +103,79 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     setState(() => _isLoading = false);
   }
 
-  /// Facturation - Simulation
+  List<Map<String, dynamic>> _records(dynamic payload) {
+    final data = payload is Map ? (payload['results'] ?? const []) : payload;
+    return (data as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  /// Charge les paiements réels du compte.
   Future<void> _loadBillingHistory() async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
-
-    setState(() {
-      _billingHistory = [
-        {
-          'date': '15/10/2023',
-          'amount': 9.99,
-          'status': 'Payé',
-          'icon': Icons.check_circle,
-          'color': Colors.green
-        },
-        {
-          'date': '15/09/2023',
-          'amount': 9.99,
-          'status': 'Payé',
-          'icon': Icons.check_circle,
-          'color': Colors.green
-        },
-        {
-          'date': '15/08/2023',
-          'amount': 9.99,
-          'status': 'Remboursé',
-          'icon': Icons.undo,
-          'color': Colors.orange
-        },
-      ];
-    });
+    try {
+      final dio = context.read<ProfileProvider>().apiClient.dio;
+      final response = await dio.get<Object>('/payments/');
+      if (mounted) setState(() => _billingHistory = _records(response.data));
+    } catch (error) {
+      debugPrint('Account billing API error: $error');
+      if (mounted) setState(() => _billingHistory = []);
+    }
   }
 
-  /// Favoris - Simulation
+  Map<String, dynamic> _contentCard(Content content) => {
+        'id': content.id,
+        'title': content.title,
+        'description': content.description,
+        'image': content.posterUrl.isNotEmpty ? content.posterUrl : content.imageUrl,
+        'rating': content.rating,
+      };
+
+  /// Charge les favoris du profil actif.
   Future<void> _loadFavorites() async {
-    await Future.delayed(const Duration(milliseconds: 200));
-    if (!mounted) return;
-
-    setState(() {
-      _favoriteContents = [
-        {
-          'id': '1',
-          'title': 'Interstellar',
-          'description': "Film de science-fiction",
-          'image': 'https://picsum.photos/100/150?random=1',
-          'rating': 4.8,
-        },
-        {
-          'id': '2',
-          'title': 'Inception',
-          'description': "Film de science-fiction",
-          'image': 'https://picsum.photos/100/150?random=2',
-          'rating': 4.7,
-        },
-      ];
-    });
+    try {
+      final dio = context.read<ProfileProvider>().apiClient.dio;
+      final contents = await ContentApiService(dio).favorites(
+        profileId: widget.currentProfile.id,
+      );
+      if (mounted) {
+        setState(() => _favoriteContents = contents.map(_contentCard).toList());
+      }
+    } catch (error) {
+      debugPrint('Account favorites API error: $error');
+      if (mounted) setState(() => _favoriteContents = []);
+    }
   }
 
-  /// Téléchargements - Simulation
+  /// Charge les licences de téléchargement hors connexion du profil actif.
   Future<void> _loadDownloads() async {
-    await Future.delayed(const Duration(milliseconds: 250));
-    if (!mounted) return;
-
-    setState(() {
-      _downloadedContents = [
-        {
-          'id': '3',
-          'title': 'The Dark Knight',
-          'description': "Film Batman",
-          'image': 'https://picsum.photos/100/150?random=3',
-          'size': '2.4 GB',
-          'progress': 100,
-        },
-        {
-          'id': '4',
-          'title': 'Pulp Fiction',
-          'description': "Film culte",
-          'image': 'https://picsum.photos/100/150?random=4',
-          'size': '1.8 GB',
-          'progress': 75,
-        },
-      ];
-    });
+    try {
+      final dio = context.read<ProfileProvider>().apiClient.dio;
+      final response = await dio.get<Object>(
+        '/offline-licenses/',
+        queryParameters: {'profile': widget.currentProfile.id},
+      );
+      final downloads = _records(response.data).map((record) {
+        final content = record['content'] is Map
+            ? Map<String, dynamic>.from(record['content'] as Map)
+            : const <String, dynamic>{};
+        final asset = record['asset'] is Map
+            ? Map<String, dynamic>.from(record['asset'] as Map)
+            : const <String, dynamic>{};
+        return <String, dynamic>{
+          'id': record['id'],
+          'title': content['title'] ?? 'Contenu téléchargé',
+          'image': content['poster_url'] ?? content['image_url'] ?? '',
+          'size': asset['file_size'] == null ? null : '${asset['file_size']} octets',
+          'status': record['status'],
+          'progress': record['status'] == 'active' ? 100 : 0,
+        };
+      }).toList(growable: false);
+      if (mounted) setState(() => _downloadedContents = downloads);
+    } catch (error) {
+      debugPrint('Account downloads API error: $error');
+      if (mounted) setState(() => _downloadedContents = []);
+    }
   }
 
   /// Mise à jour du profil
@@ -199,16 +194,21 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
 
     try {
       final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+      final userProvider = context.read<UserProvider>();
       final apiClient = profileProvider.apiClient;
 
       if (_isPhoneOnlyAccount) {
-        await apiClient.dio.patch<Object>(
-          '/auth/personal-info/',
-          data: {
-            'email': _emailController.text.trim(),
-            'phone': widget.currentProfile.phone,
-          },
+        if (_emailController.text.trim().isEmpty ||
+            !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                .hasMatch(_emailController.text.trim())) {
+          throw const FormatException('Veuillez saisir une adresse e-mail valide.');
+        }
+        await userProvider.updatePersonalInfo(
+          email: _emailController.text,
+          phone: userProvider.accountPhone,
+          countryCode: _selectedCountry,
         );
+        if (mounted) setState(() => _isPhoneOnlyAccount = false);
       }
 
       await apiClient.dio.patch<Object>(
@@ -354,24 +354,17 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       ),
       child: Row(
         children: [
-          if (widget.currentProfile.avatarUrl != null && widget.currentProfile.avatarUrl!.isNotEmpty)
-            CircleAvatar(
-              radius: 40,
-              backgroundImage: NetworkImage(widget.currentProfile.avatarUrl!),
-              onBackgroundImageError: (exception, stackTrace) {
-                setState(() {});
-              },
-            )
-          else
-            CircleAvatar(
-              radius: 40,
-              backgroundColor: AppTheme.primaryOrange,
-              child: Icon(
-                _isChildProfile ? Icons.child_care : Icons.person,
-                size: 40,
-                color: Colors.white,
-              ),
-            ),
+          ClipOval(
+            child: widget.currentProfile.avatarUrl?.isNotEmpty == true
+                ? Image.network(
+                    widget.currentProfile.avatarUrl!,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
+                  )
+                : _buildDefaultAvatar(),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -433,6 +426,21 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     }
   }
 
+  Widget _buildDefaultAvatar() => Image.asset(
+        _isChildProfile
+            ? 'assets/avatars/child.png'
+            : 'assets/avatars/default-profil.webp',
+        width: 80,
+        height: 80,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 80,
+          height: 80,
+          color: AppTheme.primaryOrange,
+          child: const Icon(Icons.person, size: 40, color: Colors.white),
+        ),
+      );
+
   Widget _buildTabBar(BuildContext context, AppLocalizations? loc) {
     return Container(
       decoration: BoxDecoration(
@@ -441,6 +449,8 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       ),
       child: TabBar(
         controller: _tabController,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
         indicator: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           color: AppTheme.primaryOrange,
@@ -523,18 +533,17 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                   ),
                   const SizedBox(height: 12),
 
-                  TextField(
-                    controller: _phoneController,
-                    readOnly: _isPhoneOnlyAccount,
-                    decoration: AppDecorations.inputDecoration(
-                      context,
-                      label: 'Téléphone avec indicatif (+225…)',
-                      icon: Icons.phone,
+                  if (!_isPhoneOnlyAccount)
+                    TextField(
+                      controller: _phoneController,
+                      decoration: AppDecorations.inputDecoration(
+                        context,
+                        label: 'Téléphone avec indicatif (+225…)',
+                        icon: Icons.phone,
+                      ),
+                      keyboardType: TextInputType.phone,
                     ),
-                    keyboardType: TextInputType.phone,
-                  ),
                   if (_isPhoneOnlyAccount) ...[
-                    const SizedBox(height: 12),
                     TextField(
                       controller: _emailController,
                       decoration: AppDecorations.inputDecoration(
@@ -767,19 +776,21 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   Widget _buildBillingTab(BuildContext context, AppLocalizations? loc) {
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: _buildSection(
-        title: loc?.facturation ?? 'Historique de facturation',
-        icon: Icons.receipt_long,
-        child: _billingHistory == null
-            ? _buildLoadingState()
-            : _billingHistory!.isEmpty
-                ? _buildEmptyState(
-                    icon: Icons.receipt,
-                    message: loc?.aucuneFacture ?? 'Aucune facture disponible',
-                  )
-                : Column(
-                    children: _billingHistory!.map((item) => _buildBillingItem(item)).toList(),
-                  ),
+      child: SingleChildScrollView(
+        child: _buildSection(
+          title: loc?.facturation ?? 'Historique de facturation',
+          icon: Icons.receipt_long,
+          child: _billingHistory == null
+              ? _buildLoadingState()
+              : _billingHistory!.isEmpty
+                  ? _buildEmptyState(
+                      icon: Icons.receipt,
+                      message: loc?.aucuneFacture ?? 'Aucune facture disponible',
+                    )
+                  : Column(
+                      children: _billingHistory!.map((item) => _buildBillingItem(item)).toList(),
+                    ),
+        ),
       ),
     );
   }
@@ -787,28 +798,30 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   Widget _buildFavoritesTab(BuildContext context, AppLocalizations? loc) {
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: _buildSection(
-        title: loc?.favoris ?? 'Contenus favoris',
-        icon: Icons.favorite_border,
-        child: _favoriteContents == null
-            ? _buildLoadingState()
-            : _favoriteContents!.isEmpty
-                ? _buildEmptyState(
-                    icon: Icons.favorite,
-                    message: loc?.aucunFavori ?? 'Aucun favori pour le moment',
-                  )
-                : GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.7,
+      child: SingleChildScrollView(
+        child: _buildSection(
+          title: loc?.favoris ?? 'Contenus favoris',
+          icon: Icons.favorite_border,
+          child: _favoriteContents == null
+              ? _buildLoadingState()
+              : _favoriteContents!.isEmpty
+                  ? _buildEmptyState(
+                      icon: Icons.favorite,
+                      message: loc?.aucunFavori ?? 'Aucun favori pour le moment',
+                    )
+                  : GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 0.7,
+                      ),
+                      itemCount: _favoriteContents!.length,
+                      itemBuilder: (context, index) => _buildContentCard(_favoriteContents![index]),
                     ),
-                    itemCount: _favoriteContents!.length,
-                    itemBuilder: (context, index) => _buildContentCard(_favoriteContents![index]),
-                  ),
+        ),
       ),
     );
   }
@@ -816,28 +829,30 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   Widget _buildDownloadsTab(BuildContext context, AppLocalizations? loc) {
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: _buildSection(
-        title: loc?.telechargements ?? 'Contenus téléchargés',
-        icon: Icons.download_for_offline,
-        child: _downloadedContents == null
-            ? _buildLoadingState()
-            : _downloadedContents!.isEmpty
-                ? _buildEmptyState(
-                    icon: Icons.download,
-                    message: loc?.aucunTelechargement ?? 'Aucun téléchargement',
-                  )
-                : GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.7,
+      child: SingleChildScrollView(
+        child: _buildSection(
+          title: loc?.telechargements ?? 'Contenus téléchargés',
+          icon: Icons.download_for_offline,
+          child: _downloadedContents == null
+              ? _buildLoadingState()
+              : _downloadedContents!.isEmpty
+                  ? _buildEmptyState(
+                      icon: Icons.download,
+                      message: loc?.aucunTelechargement ?? 'Aucun téléchargement',
+                    )
+                  : GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 0.7,
+                      ),
+                      itemCount: _downloadedContents!.length,
+                      itemBuilder: (context, index) => _buildDownloadCard(_downloadedContents![index]),
                     ),
-                    itemCount: _downloadedContents!.length,
-                    itemBuilder: (context, index) => _buildDownloadCard(_downloadedContents![index]),
-                  ),
+        ),
       ),
     );
   }
@@ -866,13 +881,27 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   }
 
   Widget _buildBillingItem(Map<String, dynamic> item) {
+    final status = item['status']?.toString() ?? 'pending';
+    final isPaid = status == 'succeeded' || status == 'paid';
+    final rawDate = item['paid_at'] ?? item['created_at'];
+    final parsedDate = rawDate == null ? null : DateTime.tryParse(rawDate.toString());
+    final date = parsedDate == null
+        ? 'Date indisponible'
+        : '${parsedDate.day.toString().padLeft(2, '0')}/'
+            '${parsedDate.month.toString().padLeft(2, '0')}/${parsedDate.year}';
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        leading: Icon(item['icon'] as IconData, color: item['color'] as Color),
-        title: Text(item['date'].toString()),
-        subtitle: Text("${item['amount']}€ - ${item['status']}"),
-        trailing: Icon(Icons.arrow_forward_ios, size: 16),
+        leading: Icon(
+          isPaid ? Icons.check_circle : Icons.schedule,
+          color: isPaid ? Colors.green : Colors.orange,
+        ),
+        title: Text(date),
+        subtitle: Text(
+          '${item['amount'] ?? '—'} ${item['currency'] ?? ''} · '
+          '${isPaid ? 'Payé' : status}',
+        ),
+        trailing: const Icon(Icons.receipt_long, size: 18),
       ),
     );
   }
@@ -1000,7 +1029,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   }
 
   Widget _buildLoadingState() {
-    return Container(
+    return SizedBox(
       height: 100,
       child: Center(
         child: Column(
@@ -1021,7 +1050,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   }
 
   Widget _buildEmptyState({required IconData icon, required String message}) {
-    return Container(
+    return SizedBox(
       height: 120,
       child: Center(
         child: Column(
@@ -1062,44 +1091,51 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         actions: [
           IconButton(
             icon: Icon(Icons.settings),
+            tooltip: loc?.parametres ?? 'Paramètres',
             onPressed: () {
-              // Navigation vers les paramètres avancés
+              _tabController.animateTo(0);
+              _showSuccessSnackbar('Paramètres du compte ouverts');
             },
           ),
         ],
       ),
       body: _isLoading && _billingHistory == null
           ? Center(child: CircularProgressIndicator(color: AppTheme.primaryOrange))
-          : Column(
-              children: [
-                // Header du profil
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: _buildProfileHeader(context, loc),
-                ),
-
-                // Barre d'onglets
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildTabBar(context, loc),
-                ),
-
-                // Contenu des onglets
-                Expanded(
-                  child: Padding(
+          : SafeArea(
+              child: Column(
+                children: [
+                  // Header du profil
+                  Padding(
                     padding: const EdgeInsets.all(16),
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildProfileTab(context, loc),
-                        _buildBillingTab(context, loc),
-                        _buildFavoritesTab(context, loc),
-                        _buildDownloadsTab(context, loc),
-                      ],
+                    child: _buildProfileHeader(context, loc),
+                  ),
+
+                  // Barre d'onglets
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: _buildTabBar(context, loc),
                     ),
                   ),
-                ),
-              ],
+
+                  // Contenu des onglets
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildProfileTab(context, loc),
+                          _buildBillingTab(context, loc),
+                          _buildFavoritesTab(context, loc),
+                          _buildDownloadsTab(context, loc),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
     );
   }

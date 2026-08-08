@@ -15,12 +15,14 @@ class UserProvider with ChangeNotifier {
   String? _accessToken;
   String? _refreshToken;
   bool _hasActiveSubscription = false;
+  String? _accountPhone;
 
   User? get currentUser => _currentUser;
   String? get accessToken => _accessToken;
   String? get refreshTokenValue => _refreshToken;
   bool get isLoggedIn => _currentUser != null && _accessToken != null;
   bool get hasActiveSubscription => _hasActiveSubscription;
+  String? get accountPhone => _accountPhone;
 
   /// Activates a zero-cost plan without creating a payment session.
   Future<void> activateFreeSubscription(String planSlug) async {
@@ -272,6 +274,7 @@ class UserProvider with ChangeNotifier {
       final data = response.data;
 
       if (data != null) {
+        _accountPhone = data['phone']?.toString();
         _currentUser = apiClient.serializers.deserialize(
           data,
           specifiedType: const FullType(User),
@@ -287,6 +290,28 @@ class UserProvider with ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Reloads the authenticated user after an account setting was changed.
+  Future<bool> refreshCurrentUser() => _loadUserProfile();
+
+  /// Updates personal information through the endpoint dedicated to account
+  /// data. In particular, a phone-created account must send its original
+  /// phone number when adding its first email address.
+  Future<void> updatePersonalInfo({
+    String? email,
+    String? phone,
+    String? countryCode,
+  }) async {
+    await apiClient.dio.patch<Map<String, dynamic>>(
+      '/auth/personal-info/',
+      data: {
+        if (email != null) 'email': email.trim().toLowerCase(),
+        if (phone != null) 'phone': phone,
+        if (countryCode != null) 'country_code': countryCode,
+      },
+    );
+    await _loadUserProfile();
   }
 
   /// Rafraîchir le token
