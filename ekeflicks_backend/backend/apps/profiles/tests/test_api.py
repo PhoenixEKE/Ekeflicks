@@ -6,7 +6,14 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from core.models import Profile, ProfileType, Subscription, SubscriptionPlan, User
+from core.models import (
+    ParentalPinResetToken,
+    Profile,
+    ProfileType,
+    Subscription,
+    SubscriptionPlan,
+    User,
+)
 
 
 class ProfileApiTests(APITestCase):
@@ -178,6 +185,40 @@ class ProfileApiTests(APITestCase):
                 for attachment in message.attachments
             )
         )
+
+    def test_parental_pin_reset_confirmation_sends_security_email(self):
+        """
+        Test que la confirmation de réinitialisation du PIN parental envoie
+        un email de sécurité à l'utilisateur.
+        """
+        self.client.force_authenticate(user=self.user)
+        mail.outbox.clear()
+
+        # 1. Demander la réinitialisation du PIN
+        requested = self.client.post(
+            reverse('profile-request-pin-reset', kwargs={'pk': self.profile.pk}),
+            format='json',
+        )
+        self.assertEqual(requested.status_code, status.HTTP_200_OK)
+        token = ParentalPinResetToken.objects.get(profile=self.profile)
+
+        # 2. Confirmer la réinitialisation (sans authentification)
+        self.client.force_authenticate(user=None)
+        confirmed = self.client.post(
+            reverse('profile-confirm-pin-reset', kwargs={'pk': self.profile.pk}),
+            {'token': str(token.token), 'new_pin': '8642'},
+            format='json',
+        )
+
+        self.assertEqual(confirmed.status_code, status.HTTP_200_OK)
+
+        # 3. Vérifier l'email de confirmation de sécurité
+        self.assertEqual(len(mail.outbox), 2)  # 1 email de demande + 1 email de confirmation
+        self.assertEqual(
+            mail.outbox[1].subject,
+            'Votre PIN parental EkeFlicks a ete modifie',
+        )
+        self.assertIn('modification de votre PIN parental est effective', mail.outbox[1].body)
 
     def test_child_profile_changes_require_parental_pin(self):
         """

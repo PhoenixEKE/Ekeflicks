@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:app_ekeflicks/providers/profile_provider.dart';
+import 'package:app_ekeflicks/utils/api_error_message.dart';
+import 'package:dio/dio.dart';
 
 class ResetParentalPinPage extends StatefulWidget {
   const ResetParentalPinPage({super.key, this.token, this.profileId});
@@ -44,6 +46,7 @@ class _ResetParentalPinPageState extends State<ResetParentalPinPage> {
           content: Text(
             'Les PIN doivent être identiques et contenir 4 à 6 chiffres.',
           ),
+          duration: Duration(seconds: 7),
         ),
       );
       return;
@@ -57,14 +60,29 @@ class _ResetParentalPinPageState extends State<ResetParentalPinPage> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PIN parental modifié.')),
+          const SnackBar(
+            content: Text(
+              'PIN parental modifié. '
+              'Un e-mail de confirmation vous a été envoyé.',
+            ),
+            duration: Duration(seconds: 7),
+          ),
         );
-        _close();
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false,
+        );
       }
-    } catch (_) {
+    } on DioException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lien invalide ou expiré.')),
+          SnackBar(
+            content: Text(
+              firstApiErrorMessage(error.response?.data) ??
+                  'Lien invalide ou expiré.',
+            ),
+            duration: const Duration(seconds: 8),
+          ),
         );
       }
     } finally {

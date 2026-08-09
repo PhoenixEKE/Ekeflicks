@@ -182,7 +182,7 @@ class ProfileViewSet(viewsets.ModelViewSet):
             token=request.data.get('token'),
             used_at__isnull=True,
             expires_at__gt=timezone.now(),
-        ).select_related('profile').first()
+        ).select_related('profile__user').first()
 
         new_pin = str(request.data.get('new_pin', ''))
 
@@ -204,5 +204,16 @@ class ProfileViewSet(viewsets.ModelViewSet):
         # Marquer le token comme utilisé
         token.used_at = timezone.now()
         token.save(update_fields=['used_at', 'updated_at'])
+
+        # Envoyer une notification pour informer l'utilisateur du changement de PIN
+        notify_user(
+            token.profile.user,
+            'parental_pin_changed',
+            title='Votre PIN parental EkeFlicks a ete modifie',
+            message=(
+                'La modification de votre PIN parental est effective. '
+                "Si vous n'etes pas a l'origine de cette action, contactez immediatement le support."
+            ),
+        )
 
         return response.Response({'detail': 'PIN parental modifié.'})

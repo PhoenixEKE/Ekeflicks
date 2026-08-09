@@ -5,6 +5,8 @@ import 'package:app_ekeflicks/widgets/app_bars/simple_app_bar.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
+import 'package:app_ekeflicks/utils/api_error_message.dart';
+import 'package:dio/dio.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key, this.token});
@@ -34,7 +36,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
     if (token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Lien de réinitialisation invalide.")),
+        const SnackBar(
+          content: Text("Lien de réinitialisation invalide."),
+          duration: Duration(seconds: 7),
+        ),
       );
       return;
     }
@@ -54,15 +59,44 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.motDePasseChange)),
+        SnackBar(
+          content: Text(
+            '${AppLocalizations.of(context)!.motDePasseChange} '
+            'Un e-mail de confirmation vous a été envoyé.',
+          ),
+          duration: const Duration(seconds: 7),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
       );
 
       // Rediriger vers la page de connexion
       Navigator.of(context).pushReplacementNamed('/login');
-    } catch (e) {
+    } on DioException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur lors de la réinitialisation: ${e.toString()}")),
+        SnackBar(
+          content: Text(
+            firstApiErrorMessage(error.response?.data) ??
+                'Impossible de modifier le mot de passe. Vérifiez que le lien est encore valide.',
+          ),
+          duration: const Duration(seconds: 8),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Impossible de modifier le mot de passe. Veuillez réessayer.'),
+          duration: const Duration(seconds: 8),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

@@ -173,8 +173,8 @@ class AuthApiTests(APITestCase):
             email='reset-me@example.com',
             password='OldStrongPass123',
         )
-        # Ignore the account-created message emitted while building the fixture.
-        mail.outbox.clear()        
+        # Ignorer l'email de création de compte émis lors de la construction du fixture
+        mail.outbox.clear()
 
         request_response = self.client.post(
             reverse('password-reset-request'),
@@ -184,7 +184,7 @@ class AuthApiTests(APITestCase):
 
         self.assertEqual(request_response.status_code, status.HTTP_200_OK)
         token = PasswordResetToken.objects.get(user=user)
-        
+
         # Vérifier que le lien utilise le format query string avec action
         self.assertIn(
             'http://192.162.68.247:3000/?action=reset-password&amp;token=',
@@ -195,6 +195,7 @@ class AuthApiTests(APITestCase):
             '/?action=reset-password&amp;token=',
             reset_email.alternatives[0][0],
         )
+
         confirm_response = self.client.post(
             reverse('password-reset-confirm'),
             {
@@ -209,6 +210,14 @@ class AuthApiTests(APITestCase):
         token.refresh_from_db()
         self.assertTrue(user.check_password('NewStrongPass123'))
         self.assertIsNotNone(token.used_at)
+
+        # Vérifier que l'email de confirmation de modification du mot de passe a été envoyé
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(
+            mail.outbox[1].subject,
+            'Votre mot de passe EkeFlicks a ete modifie',
+        )
+        self.assertIn('modification de votre mot de passe est effective', mail.outbox[1].body)
 
     def test_password_reset_request_rejects_unknown_email(self):
         """Test que la demande de réinitialisation de mot de passe

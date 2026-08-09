@@ -61,7 +61,7 @@ class RegisterView(generics.CreateAPIView):
                 'avatar_url': profile.avatar_url,
                 'type': profile.type.name if profile.type else None,
             }
-        
+
         # A phone-only registration has no destination for an email
         # verification message.
         if serializer.validated_data.get('email'):
@@ -135,6 +135,7 @@ class PasswordResetRequestView(generics.GenericAPIView):
         send_password_reset(user, request)
         return Response({'status': 'sent'}, status=status.HTTP_200_OK)
 
+
 class PasswordResetConfirmView(generics.GenericAPIView):
     serializer_class = PasswordResetConfirmSerializer
     permission_classes = [permissions.AllowAny]
@@ -149,6 +150,17 @@ class PasswordResetConfirmView(generics.GenericAPIView):
         )
         if not user:
             raise exceptions.ValidationError({'token': 'Lien de reinitialisation invalide ou expire.'})
+
+        # Envoyer une notification pour informer l'utilisateur du changement de mot de passe
+        notify_user(
+            user,
+            'password_changed',
+            title='Votre mot de passe EkeFlicks a ete modifie',
+            message=(
+                'La modification de votre mot de passe est effective. '
+                "Si vous n'etes pas a l'origine de cette action, contactez immediatement le support."
+            ),
+        )
         return Response({'status': 'password_changed'}, status=status.HTTP_200_OK)
 
 

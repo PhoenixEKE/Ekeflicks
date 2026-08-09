@@ -17,6 +17,7 @@ import 'package:app_ekeflicks/widgets/dialog/avatar_selector_dialog.dart';
 import 'package:app_ekeflicks/widgets/dialog/account_settings_dialog.dart';
 import 'package:app_ekeflicks/providers/avatar_provider.dart';
 import 'package:app_ekeflicks/services/profile_access_service.dart';
+import 'package:app_ekeflicks/utils/api_error_message.dart';
 
 class AccountPage extends StatefulWidget {
   final Profile currentProfile;
@@ -265,8 +266,13 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       await profileProvider.loadProfiles();
 
       _showSuccessSnackbar('Profil mis à jour avec succès');
-    } catch (e) {
-      _showErrorSnackbar('Erreur lors de la mise à jour: $e');
+    } on DioException catch (error) {
+      _showErrorSnackbar(
+        firstApiErrorMessage(error.response?.data) ??
+            'Impossible d’enregistrer le profil. Vérifiez les informations saisies.',
+      );
+    } catch (_) {
+      _showErrorSnackbar('Impossible d’enregistrer le profil. Veuillez réessayer.');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -309,8 +315,15 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       );
       await provider.loadProfiles();
       if (mounted) _showSuccessSnackbar('Profil supprimé.');
-    } catch (error) {
-      if (mounted) _showErrorSnackbar('Suppression impossible : $error');
+    } on DioException catch (error) {
+      if (mounted) {
+        _showErrorSnackbar(
+          firstApiErrorMessage(error.response?.data) ??
+              'Suppression impossible. Vérifiez le PIN parental puis réessayez.',
+        );
+      }
+    } catch (_) {
+      if (mounted) _showErrorSnackbar('Suppression impossible. Veuillez réessayer.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -380,6 +393,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        duration: const Duration(seconds: 7),
       ),
     );
   }
@@ -397,6 +411,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        duration: const Duration(seconds: 8),
       ),
     );
   }
