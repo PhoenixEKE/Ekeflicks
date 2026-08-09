@@ -24,8 +24,17 @@ void main() {
       deepLinkRoute(Uri.parse('http://example.test/password-reset-confirm?token=x')),
       '/reset-password',
     );
-    expect(deepLinkRoute(Uri.parse('http://example.test/reset-parental-pin')),
-        '/reset-parental-pin');
+    expect(
+      deepLinkRoute(Uri.parse('http://example.test/reset-parental-pin')),
+      '/reset-parental-pin',
+    );
+  });
+
+  test('recognizes email unsubscribe links', () {
+    expect(
+      deepLinkRoute(Uri.parse('http://example.test/unsubscribe?token=signed')),
+      '/unsubscribe',
+    );
   });
 
   test('ignores regular application URLs', () {

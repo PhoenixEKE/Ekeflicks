@@ -11,6 +11,7 @@ import 'package:app_ekeflicks/ui/pages/genre_page.dart';
 import 'package:app_ekeflicks/models/content_model.dart';
 import 'package:app_ekeflicks/ui/users/profile_switcher.dart';
 import 'package:app_ekeflicks/ui/users/account_page.dart';
+import 'package:app_ekeflicks/ui/pages/notifications_page.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
 import 'base_app_bar.dart';
 import 'package:dio/dio.dart';
@@ -400,9 +401,8 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
   }
 
   void _handleNotificationPress(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppLocalizations.of(context)!.notificationsNonImpl), backgroundColor: AppTheme.primaryOrange),
-    );
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage()));
+
   }
 
   Widget _buildMenuWithSubmenu(BuildContext context, String label, List<String> subItems, String type) {

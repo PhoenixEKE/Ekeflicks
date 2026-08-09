@@ -19,6 +19,7 @@ import 'providers/avatar_provider.dart';
 import 'routes.dart' as app_routes;
 import 'ui/users/reset_password_page.dart';
 import 'ui/profiles/reset_parental_pin_page.dart';
+import 'ui/pages/unsubscribe_page.dart';
 import 'package:app_ekeflicks/src/openapi.dart';
 import 'services/content_api_service.dart';
 
@@ -143,12 +144,16 @@ class _MyAppState extends State<MyApp> {
       navigator.push(MaterialPageRoute(
         builder: (_) => ResetPasswordPage(token: uri.queryParameters['token']),
       ));
-    } else {
+    } else if (route == '/reset-parental-pin') {
       navigator.push(MaterialPageRoute(
         builder: (_) => ResetParentalPinPage(
           token: uri.queryParameters['token'],
           profileId: uri.queryParameters['profile'],
         ),
+      ));
+    } else if (route == '/unsubscribe') {
+      navigator.push(MaterialPageRoute(
+        builder: (_) => UnsubscribePage(token: uri.queryParameters['token']),
       ));
     }
   }

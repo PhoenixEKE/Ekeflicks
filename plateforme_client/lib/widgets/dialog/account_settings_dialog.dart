@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 
 import 'package:app_ekeflicks/core/app_theme.dart';
@@ -10,6 +9,7 @@ import 'package:app_ekeflicks/providers/theme_provider.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
 import 'package:app_ekeflicks/src/models/profile.dart';
 import 'package:app_ekeflicks/utils/api_error_message.dart';
+import 'package:app_ekeflicks/ui/pages/notifications_page.dart';
 
 class AccountSettingsDialog extends StatefulWidget {
   const AccountSettingsDialog({super.key, required this.profile});
@@ -26,7 +26,6 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
   bool _adultProfilesLocked = false;
   bool _childHistoryEnabled = true;
   bool _safeSearchEnabled = true;
-  bool _notificationsEnabled = true;
   int _maximumAge = 13;
   String _territory = 'FR';
   bool _saving = false;
@@ -41,7 +40,6 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
   }
 
   Future<void> _loadPreferences() async {
-    final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> parental = const {};
     try {
       final response = await context
@@ -61,7 +59,6 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
       _hasPin = parental['has_parental_pin'] == true;
       _childHistoryEnabled = parental['child_history_enabled'] != false;
       _safeSearchEnabled = parental['safe_search_enabled'] != false;
-      _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
     });
   }
 
@@ -87,8 +84,6 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
     }
     setState(() => _saving = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('notifications_enabled', _notificationsEnabled);
       await context.read<ProfileProvider>().apiClient.dio.patch<Object>(
         '/profiles/${widget.profile.id}/',
         data: {
@@ -347,10 +342,15 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
                   trailing: const Icon(Icons.swap_horiz),
                   onTap: () => context.read<LocaleProvider>().toggleLocale(),
                 ),
-                SwitchListTile(
-                  value: _notificationsEnabled,
-                  onChanged: (v) => setState(() => _notificationsEnabled = v),
+                ListTile(
+                  leading: const Icon(Icons.notifications_outlined),
                   title: const Text('Notifications'),
+                  subtitle: const Text('Canaux, catégories et désabonnement'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NotificationPreferencesPage()),
+                  ),
                 ),
               ],
             ),

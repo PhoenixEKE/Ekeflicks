@@ -8,6 +8,7 @@ String? deepLinkRoute(Uri uri) {
     return '/reset-password';
   }
   if (action == 'reset-parental-pin') return '/reset-parental-pin';
+  if (action == 'unsubscribe') return '/unsubscribe';
 
   if (uri.pathSegments.isEmpty) return null;
   switch (uri.pathSegments.first) {
@@ -16,6 +17,8 @@ String? deepLinkRoute(Uri uri) {
       return '/reset-password';
     case 'reset-parental-pin':
       return '/reset-parental-pin';
+    case 'unsubscribe':
+      return '/unsubscribe';
   }
   return null;
 }
