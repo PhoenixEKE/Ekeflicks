@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:app_links/app_links.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/widgets/app_bars/simple_app_bar.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
-import 'package:app_ekeflicks/src/models/password_reset_confirm.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key});
@@ -21,69 +19,25 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   final _confirmController = TextEditingController();
   bool _isSubmitting = false;
 
-  String? uid;
   String? token;
-
-  late final AppLinks _appLinks;
-  Stream<Uri?>? _uriStream;
 
   @override
   void initState() {
     super.initState();
-    _appLinks = AppLinks();
-    _initDeepLinks();
-  }
-
-  /// Initialise les deep links
-  Future<void> _initDeepLinks() async {
-    try {
-      // CORRECTION: Utiliser getInitialLink au lieu de getInitialUri
-      final initialUri = await _appLinks.getInitialLink();
-      _parseLink(initialUri);
-
-      // Écoute continue des liens entrants
-      _uriStream = _appLinks.uriLinkStream;
-      _uriStream!.listen((uri) {
-        _parseLink(uri);
-      }, onError: (err) {
-        print('Erreur flux deep link: $err');
-      });
-    } catch (e) {
-      print('Erreur lors de l\'initialisation des deep links: $e');
-    }
+    _parseLink(Uri.base);
   }
 
   void _parseLink(Uri? uri) {
     if (uri == null) return;
-    
-    // Méthode 1: Vérifier les segments de chemin
-    final segments = uri.pathSegments;
-    if (segments.length >= 3 &&
-        segments.contains('password-reset-confirm')) {
-      // Trouver l'index du segment password-reset-confirm
-      final confirmIndex = segments.indexOf('password-reset-confirm');
-      if (confirmIndex + 2 < segments.length) {
-        setState(() {
-          uid = segments[confirmIndex + 1];
-          token = segments[confirmIndex + 2];
-        });
-      }
-    }
-    
-    // Méthode 2: Vérifier les paramètres de requête (alternative)
-    final queryParams = uri.queryParameters;
-    if (queryParams.containsKey('uid') && queryParams.containsKey('token')) {
-      setState(() {
-        uid = queryParams['uid'];
-        token = queryParams['token'];
-      });
-    }
+
+    // Récupérer le token depuis les paramètres de requête
+    token = uri.queryParameters['token'];
   }
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    if (uid == null || token == null) {
+    if (token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Lien de réinitialisation invalide.")),
       );
@@ -94,16 +48,13 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     try {
       final userProvider = context.read<UserProvider>();
 
-      // CORRECTION: Créer l'objet PasswordResetConfirm correctement
-      final resetData = PasswordResetConfirm(
-        (b) => b
-          ..uid = uid!
-          ..token = token!
-          ..newPassword = _passwordController.text.trim(),
-      );
-
-      await userProvider.apiClient.getAuthApi().authPasswordResetConfirmCreate(
-        data: resetData, // Passer l'objet, pas un Map
+      // Appel direct à l'API pour confirmer la réinitialisation
+      await userProvider.apiClient.dio.post<Object>(
+        '/auth/password-reset/confirm/',
+        data: {
+          'token': token,
+          'password': _passwordController.text.trim(),
+        },
       );
 
       if (!mounted) return;
@@ -111,6 +62,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         SnackBar(content: Text(AppLocalizations.of(context)!.motDePasseChange)),
       );
 
+      // Rediriger vers la page de connexion
       Navigator.of(context).pushReplacementNamed('/login');
     } catch (e) {
       if (!mounted) return;
@@ -126,7 +78,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   void dispose() {
     _passwordController.dispose();
     _confirmController.dispose();
-    _uriStream?.drain(); // Arrêter l'écoute du flux
     super.dispose();
   }
 
@@ -149,7 +100,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
             child: Container(
               padding: const EdgeInsets.all(32),
               decoration: AppDecorations.contentContainerDecoration(context),
-              child: uid == null || token == null
+              child: token == null
                   ? Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -181,7 +132,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            "UID: ${uid!.substring(0, 8)}... | Token: ${token!.substring(0, 8)}...",
+                            "Lien sécurisé prêt à être utilisé",
                             style: theme.textTheme.bodySmall,
                             textAlign: TextAlign.center,
                           ),
@@ -223,11 +174,22 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                             width: double.infinity,
                             child: ElevatedButton(
                               onPressed: _isSubmitting ? null : _submit,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryOrange,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
                               child: _isSubmitting
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
                                     )
                                   : Text(loc.valider),
                             ),

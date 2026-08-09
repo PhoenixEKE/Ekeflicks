@@ -15,7 +15,7 @@ import 'providers/profile_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/avatar_provider.dart';
 
-import 'routes.dart';
+import 'routes.dart' as app_routes;
 import 'ui/users/reset_password_page.dart';
 import 'ui/profiles/reset_parental_pin_page.dart';
 import 'package:app_ekeflicks/src/openapi.dart';
@@ -123,7 +123,10 @@ class _MyAppState extends State<MyApp> {
     if (!mounted || uri == null) return;
 
     // Gérer la réinitialisation du mot de passe
-    if (uri.pathSegments.isNotEmpty && uri.pathSegments[0] == "password-reset-confirm") {
+    // Supporte les deux formats : /reset-password et /password-reset-confirm
+    if (uri.pathSegments.isNotEmpty &&
+        (uri.pathSegments[0] == 'reset-password' ||
+            uri.pathSegments[0] == 'password-reset-confirm')) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const ResetPasswordPage()),
@@ -148,6 +151,17 @@ class _MyAppState extends State<MyApp> {
     // Si la locale n'est pas définie, on force le français
     final locale = localeProvider.locale ?? const Locale('fr');
 
+    // Déterminer la route initiale en fonction de l'URL
+    final initialUri = Uri.base;
+    final initialRoute = initialUri.queryParameters['action'] ==
+            'reset-parental-pin'
+        ? '/reset-parental-pin'
+        : initialUri.path == '/reset-password'
+            ? '/reset-password'
+            : initialUri.path == '/reset-parental-pin'
+                ? '/reset-parental-pin'
+                : '/';
+
     return MaterialApp(
       title: 'EkeFlicks',
       debugShowCheckedModeBanner: false,
@@ -162,8 +176,8 @@ class _MyAppState extends State<MyApp> {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.themeMode,
-      initialRoute: '/',
-      routes: getAppRoutes(),
+      initialRoute: initialRoute,
+      routes: app_routes.getAppRoutes(),
     );
   }
 }

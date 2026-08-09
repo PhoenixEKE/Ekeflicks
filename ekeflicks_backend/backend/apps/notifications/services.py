@@ -1,5 +1,4 @@
 from email.mime.image import MIMEImage
-
 from django.conf import settings
 from django.contrib.staticfiles import finders
 from django.core.mail import EmailMultiAlternatives
@@ -36,11 +35,10 @@ def _email_html(title, message):
     """Return a responsive, dark streaming-style transactional email."""
     safe_title = escape(title)
     safe_message = escape(message).replace('\n', '<br>')
-    logo_url = getattr(settings, 'EMAIL_LOGO_URL', '')
-    logo = (
-        f'<img src="{escape(logo_url)}" width="150" alt="EkeFlicks" style="display:block;border:0">'
-        if logo_url else '<img src="cid:logo_light.png" width="150" alt="EkeFlicks" style="display:block;border:0">'
-    )
+
+    # Utiliser le logo en pièce jointe (CID) - plus fiable et indépendant
+    logo = '<img src="cid:logo_light.png" width="150" alt="EkeFlicks" style="display:block;border:0">'
+
     return f'''<!doctype html><html><body style="margin:0;background:#141414;color:#fff;font-family:Arial,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#141414"><tr><td align="center" style="padding:32px 16px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#1f1f1f;border-radius:8px">
@@ -66,16 +64,26 @@ def _notification_type(event_name, email_enabled=True):
 
 def _attach_email_logo(email):
     """Embed the logo so mail clients do not depend on a public asset URL."""
-    if getattr(settings, 'EMAIL_LOGO_URL', ''):
-        return
+    # Chercher le logo dans le dossier static de l'application notifications
     logo_path = finders.find('notifications/images/logo_light.png')
+
     if not logo_path:
+        # Fallback: chercher dans le dossier assets
+        logo_path = finders.find('assets/images/logo_light.png')
+
+    if not logo_path:
+        # Ne pas générer d'erreur si le logo n'est pas trouvé
         return
-    with open(logo_path, 'rb') as logo_file:
-        logo = MIMEImage(logo_file.read(), _subtype='png')
-    logo.add_header('Content-ID', '<logo_light.png>')
-    logo.add_header('Content-Disposition', 'inline', filename='logo_light.png')
-    email.attach(logo)
+
+    try:
+        with open(logo_path, 'rb') as logo_file:
+            logo = MIMEImage(logo_file.read(), _subtype='png')
+        logo.add_header('Content-ID', '<logo_light.png>')
+        logo.add_header('Content-Disposition', 'inline', filename='logo_light.png')
+        email.attach(logo)
+    except Exception as e:
+        # En cas d'erreur, on continue sans logo
+        pass
 
 
 def notify_user(user, event_name, title='', message='', data=None, email_enabled=True):
@@ -105,6 +113,11 @@ def notify_user(user, event_name, title='', message='', data=None, email_enabled
                 [user.email],
             )
             email.attach_alternative(_email_html(notification.title, notification.message), 'text/html')
+            
+            # A related multipart is required for cid: images to render as
+            # inline HTML resources rather than ordinary attachments.
+            email.mixed_subtype = 'related'
+            
             _attach_email_logo(email)
             email.send(fail_silently=True)
             notification.is_sent = True

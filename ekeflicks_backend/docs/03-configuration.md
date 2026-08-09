@@ -77,6 +77,7 @@ consulter [`../../docs/ENVIRONNEMENTS.md`](../../docs/ENVIRONNEMENTS.md).
  ALLOWED_HOSTS=api.ekeflicks.com,ekeflicks.com,www.ekeflicks.com
  API_BASE_URL=https://api.ekeflicks.com
  FRONTEND_BASE_URL=https://ekeflicks.com
+ FRONTEND_BASE_URL=http://192.162.68.247:3000 POUR LE DEV
  USE_B2_FINAL_STORAGE=True
  STREAMING_CDN_BASE_URL=https://cdn.ekeflicks.com
  STREAMING_STORE_PROCESSING_ARTIFACTS=True

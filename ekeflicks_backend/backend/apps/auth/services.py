@@ -23,17 +23,27 @@ def _absolute_link(request, route_name, token):
     return f"{api_base}{path}" if api_base else path
 
 
-def _frontend_link(token, path_setting, default_path):
+def _frontend_link(token, path_setting, default_path, action=None):
     base_url = getattr(settings, 'FRONTEND_BASE_URL', '').rstrip('/')
     if not base_url:
         return ''
 
     path = getattr(settings, path_setting, default_path) or default_path
+    
+    # LWS does not rewrite arbitrary paths (such as /reset-password) to the
+    # Flutter index. Reset links therefore target the existing root document
+    # and let the application select the screen from the action parameter.
+    if action:
+        path = '/'
+    
     if not path.startswith('/'):
         path = f"/{path}"
 
     separator = '&' if '?' in path else '?'
-    return f"{base_url}{path}{separator}{urlencode({'token': str(token)})}"
+    parameters = {'token': str(token)}
+    if action:
+        parameters = {'action': action, **parameters}
+    return f"{base_url}{path}{separator}{urlencode(parameters)}"
 
 
 def _email_verification_link(request, token):
@@ -45,7 +55,11 @@ def _email_verification_link(request, token):
 
 def _password_reset_link(request, token):
     return (
-        _frontend_link(token, 'PASSWORD_RESET_FRONTEND_PATH', '/reset-password')
+        _frontend_link(
+            token,
+            'PASSWORD_RESET_FRONTEND_PATH',
+            '/?action=reset-password',
+        )
         or _absolute_link(request, 'password-reset-confirm', token)
     )
 

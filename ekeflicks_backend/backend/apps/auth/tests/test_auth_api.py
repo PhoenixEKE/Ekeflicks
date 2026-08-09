@@ -1,5 +1,6 @@
 from django.urls import reverse
 from django.core import mail
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -162,11 +163,18 @@ class AuthApiTests(APITestCase):
         self.assertTrue(user.is_verified)
         self.assertIsNotNone(token.used_at)
 
+    @override_settings(FRONTEND_BASE_URL='http://192.162.68.247:3000')
     def test_password_reset_flow_changes_password(self):
+        """
+        Test le flux complet de réinitialisation du mot de passe avec
+        le format de lien compatible avec les hébergements partagés.
+        """
         user = User.objects.create_user(
             email='reset-me@example.com',
             password='OldStrongPass123',
         )
+        # Ignore the account-created message emitted while building the fixture.
+        mail.outbox.clear()        
 
         request_response = self.client.post(
             reverse('password-reset-request'),
@@ -176,7 +184,17 @@ class AuthApiTests(APITestCase):
 
         self.assertEqual(request_response.status_code, status.HTTP_200_OK)
         token = PasswordResetToken.objects.get(user=user)
-
+        
+        # Vérifier que le lien utilise le format query string avec action
+        self.assertIn(
+            'http://192.162.68.247:3000/?action=reset-password&amp;token=',
+            mail.outbox[0].alternatives[0][0],
+        )
+        reset_email = mail.outbox[0]
+        self.assertIn(
+            '/?action=reset-password&amp;token=',
+            reset_email.alternatives[0][0],
+        )
         confirm_response = self.client.post(
             reverse('password-reset-confirm'),
             {

@@ -1,5 +1,6 @@
 from django.contrib.auth.hashers import check_password, make_password
 from django.core import mail
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -137,6 +138,10 @@ class ProfileApiTests(APITestCase):
         self.profile.refresh_from_db()
         self.assertTrue(check_password('1357', self.profile.pin_code))
 
+    @override_settings(
+        FRONTEND_BASE_URL='http://192.162.68.247:3000',
+        EMAIL_LOGO_URL='',
+    )
     def test_parental_pin_reset_uses_host_safe_link_and_embedded_logo(self):
         """
         Test que la réinitialisation du PIN parental utilise un lien compatible
@@ -155,10 +160,16 @@ class ProfileApiTests(APITestCase):
         message = mail.outbox[0]
 
         # Vérifier que le lien utilise le format query string (compatible hébergements partagés)
-        self.assertIn('/?action=reset-parental-pin&amp;token=', message.alternatives[0][0])
+        self.assertIn(
+            'http://192.162.68.247:3000/?action=reset-parental-pin&amp;token=',
+            message.alternatives[0][0],
+        )
 
         # Vérifier que le logo est intégré en CID
         self.assertIn('cid:logo_light.png', message.alternatives[0][0])
+
+        # Vérifier que le multipart est de type 'related' pour l'affichage inline
+        self.assertEqual(message.mixed_subtype, 'related')
 
         # Vérifier que le logo est attaché à l'email
         self.assertTrue(
