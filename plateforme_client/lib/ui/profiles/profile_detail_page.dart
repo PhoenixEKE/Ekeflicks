@@ -1,4 +1,4 @@
-// lib/screens/profile_detail_page.dart
+// lib/ui/profiles/profile_detail_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
@@ -15,6 +15,7 @@ import 'package:app_ekeflicks/providers/avatar_provider.dart';
 import 'package:app_ekeflicks/src/models/profile.dart';
 import 'package:app_ekeflicks/core/api_config.dart';
 import 'package:app_ekeflicks/utils/phone_number.dart';
+import 'package:app_ekeflicks/services/profile_access_service.dart';
 
 class ProfileDetailPage extends StatefulWidget {
   final Profile profile;
@@ -32,6 +33,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
   bool _isEditing = false;
   bool _isLoading = false;
   bool _showVirtualKeyboard = false;
+  bool _avatarHovered = false;
   TextEditingController? _focusedController;
 
   late AnimationController _animationController;
@@ -159,6 +161,16 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
     }
 
     try {
+      // Demander le PIN parental pour les profils enfants
+      String? parentalPin;
+      if (_editingProfile.type?.name == 'child') {
+        parentalPin = await ProfileAccessService.askForParentalPin(
+          context,
+          title: 'Autoriser la modification du profil enfant',
+        );
+        if (parentalPin == null || parentalPin.isEmpty) return;
+      }
+
       await apiClient.dio.patch<Object>(
         '/profiles/${_editingProfile.id}/',
         data: {
@@ -167,6 +179,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           if (_editingProfile.country != null)
             'country_code': _editingProfile.country!.name,
           'age': _editingProfile.age,
+          if (parentalPin != null) 'parental_pin': parentalPin,
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
@@ -316,9 +329,22 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
     }
 
     try {
+      // Demander le PIN parental pour les profils enfants
+      String? parentalPin;
+      if (_editingProfile.type?.name == 'child') {
+        parentalPin = await ProfileAccessService.askForParentalPin(
+          context,
+          title: 'Autoriser la modification de l\'avatar enfant',
+        );
+        if (parentalPin == null || parentalPin.isEmpty) return;
+      }
+
       await apiClient.dio.patch<Object>(
         '/profiles/${_editingProfile.id}/',
-        data: {'avatar_url': avatarUrl},
+        data: {
+          'avatar_url': avatarUrl,
+          if (parentalPin != null) 'parental_pin': parentalPin,
+        },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
 
@@ -421,23 +447,23 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
     }
 
     try {
-      final updatedProfile = Profile(
-        (b) => b
-          ..id = _editingProfile.id
-          ..name = _editingProfile.name
-          ..phone = _editingProfile.phone
-          ..type = _editingProfile.type
-          ..avatar = _editingProfile.avatar
-          ..avatarUrl = _editingProfile.avatarUrl
-          ..country = _editingProfile.country
-          ..age = age
-          ..isActive = _editingProfile.isActive,
-      );
+      // Demander le PIN parental pour les profils enfants
+      String? parentalPin;
+      if (_editingProfile.type?.name == 'child') {
+        parentalPin = await ProfileAccessService.askForParentalPin(
+          context,
+          title: 'Autoriser la modification de l\'âge',
+        );
+        if (parentalPin == null || parentalPin.isEmpty) return;
+      }
 
-      await apiClient.getProfilesApi().profilesPartialUpdate(
-        id: _editingProfile.id!,
-        data: updatedProfile,
-        headers: {'Authorization': 'Bearer $token'},
+      await apiClient.dio.patch<Object>(
+        '/profiles/${_editingProfile.id}/',
+        data: {
+          'age': age,
+          if (parentalPin != null) 'parental_pin': parentalPin,
+        },
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
 
       if (!mounted) return;
@@ -602,71 +628,81 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
                     )
                   : null,
             ),
-            child: GestureDetector(
-              onTap: _isEditing ? _changeAvatar : null,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: isTV ? 140 : 120,
-                    height: isTV ? 140 : 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: profileColor, width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: profileColor.withOpacity(0.4),
-                          blurRadius: 15,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: _getAvatarImage(profileColor),
-                    ),
-                  ),
-                  if (_isEditing)
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
+            child: MouseRegion(
+              cursor: _isEditing ? SystemMouseCursors.click : MouseCursor.defer,
+              onEnter: _isEditing ? (_) => setState(() => _avatarHovered = true) : null,
+              onExit: (_) => setState(() => _avatarHovered = false),
+              child: AnimatedScale(
+                scale: _avatarHovered ? 1.08 : 1,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutBack,
+                child: GestureDetector(
+                  onTap: _isEditing ? _changeAvatar : null,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: isTV ? 140 : 120,
+                        height: isTV ? 140 : 120,
                         decoration: BoxDecoration(
-                          color: profileColor,
                           shape: BoxShape.circle,
+                          border: Border.all(color: profileColor, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
+                              color: profileColor.withOpacity(0.4),
+                              blurRadius: 15,
+                              spreadRadius: 2,
                             ),
                           ],
                         ),
-                        child: Icon(
-                          Icons.edit,
-                          size: isTV ? 20 : 16,
-                          color: Colors.white,
+                        child: ClipOval(
+                          child: _getAvatarImage(profileColor),
                         ),
                       ),
-                    ),
-                  Positioned(
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: profileColor,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        _getProfileTypeLabel(),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                      if (_isEditing)
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: profileColor,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.edit,
+                              size: isTV ? 20 : 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      Positioned(
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: profileColor,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            _getProfileTypeLabel(),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),

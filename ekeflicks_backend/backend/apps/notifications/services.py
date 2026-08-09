@@ -1,4 +1,7 @@
+from email.mime.image import MIMEImage
+
 from django.conf import settings
+from django.contrib.staticfiles import finders
 from django.core.mail import EmailMultiAlternatives
 from django.utils.html import escape
 from django.utils import timezone
@@ -10,6 +13,7 @@ EVENT_DEFAULTS = {
     'account_created': ('Bienvenue sur EkeFlicks', 'Votre compte EkeFlicks a ete cree.'),
     'email_verification': ('Validez votre email', 'Cliquez sur le lien de validation envoye par EkeFlicks.'),
     'password_reset': ('Reinitialisation du mot de passe', 'Cliquez sur le lien pour changer votre mot de passe.'),
+    'parental_pin_reset': ('Reinitialisation du PIN parental', 'Utilisez le lien pour modifier votre PIN parental.'),
     'email_change_support_requested': ('Demande de changement email recue', 'Le support EkeFlicks traitera votre demande.'),
     'email_change_support_resolved': ('Demande de changement email resolue', 'Le support EkeFlicks a traite votre demande.'),
     'email_change_support_rejected': ('Demande de changement email refusee', 'Le support EkeFlicks a refuse votre demande.'),
@@ -35,7 +39,7 @@ def _email_html(title, message):
     logo_url = getattr(settings, 'EMAIL_LOGO_URL', '')
     logo = (
         f'<img src="{escape(logo_url)}" width="150" alt="EkeFlicks" style="display:block;border:0">'
-        if logo_url else '<span style="color:#e50914;font-size:28px;font-weight:800">EkeFlicks</span>'
+        if logo_url else '<img src="cid:logo_light.png" width="150" alt="EkeFlicks" style="display:block;border:0">'
     )
     return f'''<!doctype html><html><body style="margin:0;background:#141414;color:#fff;font-family:Arial,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#141414"><tr><td align="center" style="padding:32px 16px">
@@ -58,6 +62,20 @@ def _notification_type(event_name, email_enabled=True):
         },
     )
     return notification_type, title, message
+
+
+def _attach_email_logo(email):
+    """Embed the logo so mail clients do not depend on a public asset URL."""
+    if getattr(settings, 'EMAIL_LOGO_URL', ''):
+        return
+    logo_path = finders.find('notifications/images/logo_light.png')
+    if not logo_path:
+        return
+    with open(logo_path, 'rb') as logo_file:
+        logo = MIMEImage(logo_file.read(), _subtype='png')
+    logo.add_header('Content-ID', '<logo_light.png>')
+    logo.add_header('Content-Disposition', 'inline', filename='logo_light.png')
+    email.attach(logo)
 
 
 def notify_user(user, event_name, title='', message='', data=None, email_enabled=True):
@@ -87,6 +105,7 @@ def notify_user(user, event_name, title='', message='', data=None, email_enabled
                 [user.email],
             )
             email.attach_alternative(_email_html(notification.title, notification.message), 'text/html')
+            _attach_email_logo(email)
             email.send(fail_silently=True)
             notification.is_sent = True
             notification.sent_at = timezone.now()

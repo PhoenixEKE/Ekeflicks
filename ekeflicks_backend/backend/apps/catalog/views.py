@@ -40,7 +40,7 @@ from apps.common.permissions import (
     is_producer_user,
 )
 from apps.notifications.services import notify_staff, notify_user
-from core.models import Content, ContentSimilarity, ContentStatus, Emission, Episode, Genre, Season, VideoAsset
+from core.models import Content, ContentSimilarity, ContentStatus, Emission, Episode, Genre, Profile, Season, VideoAsset
 
 
 class GenreViewSet(viewsets.ModelViewSet):
@@ -140,6 +140,24 @@ class ContentViewSet(viewsets.ModelViewSet):
         producer = params.get('producer')
         if producer and self.request.user.is_authenticated and self.request.user.is_staff:
             queryset = queryset.filter(producer_id=producer)
+
+        # Filtrage par âge pour les profils enfants
+        profile_id = self.request.headers.get('x-profile-id')
+        if profile_id and self.request.user.is_authenticated:
+            child_profile = Profile.objects.filter(
+                pk=profile_id,
+                user=self.request.user,
+                type__name='child',
+                is_active=True,
+            ).first()
+            if child_profile:
+                ratings = []
+                for age in range(
+                    child_profile.allowed_min_age,
+                    child_profile.allowed_max_age + 1,
+                ):
+                    ratings.extend((str(age), f'{age}+'))
+                queryset = queryset.filter(Q(age_rating='') | Q(age_rating__in=ratings))
 
         year = params.get('year')
         if is_int(year):

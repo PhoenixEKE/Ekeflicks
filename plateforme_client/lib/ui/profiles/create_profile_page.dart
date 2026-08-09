@@ -35,6 +35,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
   final FocusNode _phoneFocus = FocusNode();
   final FocusNode _ageFocus = FocusNode();
   final FocusNode _avatarFocus = FocusNode();
+  bool _avatarHovered = false;
   final FocusNode _typeFocus = FocusNode();
   final FocusNode _createFocus = FocusNode();
   final FocusNode _cancelFocus = FocusNode();
@@ -45,6 +46,9 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
   String? _selectedAvatar;
   bool _showVirtualKeyboard = false;
   bool _isLoading = false;
+  bool _capacityLoading = true;
+  int _profileLimit = 1;
+  int _profilesUsed = 0;
   TextEditingController? _focusedController;
 
   // Stocker les informations du profil principal de manière simplifiée
@@ -57,11 +61,35 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
     // Récupérer le profil principal existant s'il existe
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadMainProfile();
+      _loadProfileCapacity();
       FocusScope.of(context).requestFocus(_nameFocus);
     });
 
     _nameFocus.addListener(() => _onFieldFocus(_nameController));
     _phoneFocus.addListener(() => _onFieldFocus(_phoneController));
+  }
+
+  bool get _capacityReached =>
+      !_capacityLoading && _profilesUsed >= _profileLimit;
+
+  Future<void> _loadProfileCapacity() async {
+    try {
+      final response = await context
+          .read<UserProvider>()
+          .apiClient
+          .dio
+          .get<Object>('/profiles/capacity/');
+      if (response.data is! Map || !mounted) return;
+      final data = Map<String, dynamic>.from(response.data! as Map);
+      setState(() {
+        _profileLimit = (data['profile_limit'] as num?)?.toInt() ?? 1;
+        _profilesUsed = (data['profiles_used'] as num?)?.toInt() ?? 0;
+      });
+    } catch (error) {
+      debugPrint('Profile capacity API error: $error');
+    } finally {
+      if (mounted) setState(() => _capacityLoading = false);
+    }
   }
 
   void _loadMainProfile() {
@@ -112,6 +140,12 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
   }
 
   Future<void> _createProfile() async {
+    if (_capacityReached) {
+      _showError(
+        'Votre offre autorise $_profileLimit profil(s), profil principal inclus.',
+      );
+      return;
+    }
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       _showError('Le nom du profil est obligatoire');
@@ -424,6 +458,40 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                       ),
                       const SizedBox(height: 16),
 
+                      // Indicateur de capacité
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: (_capacityReached ? Colors.orange : Colors.blue)
+                              .withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: (_capacityReached ? Colors.orange : Colors.blue)
+                                .withOpacity(0.35),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.devices,
+                              color: _capacityReached ? Colors.orange : Colors.blue,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _capacityLoading
+                                    ? 'Vérification de la limite de profils…'
+                                    : 'Appareils simultanés autorisés : $_profileLimit. '
+                                        'Profils utilisés : $_profilesUsed/$_profileLimit. '
+                                        'Le profil principal compte comme le premier profil.',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
                       // Information sur le profil principal
                       if (hasMainProfile) ...[
                         Container(
@@ -578,45 +646,55 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         const SizedBox(height: 12),
         Focus(
           focusNode: _avatarFocus,
-          child: GestureDetector(
-            onTap: _selectAvatar,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: _avatarFocus.hasFocus ? AppTheme.primaryOrange : theme.colorScheme.outline,
-                  width: _avatarFocus.hasFocus ? 3 : 2,
-                ),
-                boxShadow: _avatarFocus.hasFocus
-                    ? [
-                        BoxShadow(
-                          color: AppTheme.primaryOrange.withOpacity(0.3),
-                          blurRadius: 10,
-                          spreadRadius: 2,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: ClipOval(
-                child: _selectedAvatar != null
-                    ? Image.network(
-                        _selectedAvatar!,
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Center(
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation(AppTheme.primaryOrange),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            onEnter: (_) => setState(() => _avatarHovered = true),
+            onExit: (_) => setState(() => _avatarHovered = false),
+            child: AnimatedScale(
+              scale: _avatarHovered ? 1.08 : 1,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutBack,
+              child: GestureDetector(
+                onTap: _selectAvatar,
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: _avatarFocus.hasFocus ? AppTheme.primaryOrange : theme.colorScheme.outline,
+                      width: _avatarFocus.hasFocus ? 3 : 2,
+                    ),
+                    boxShadow: _avatarFocus.hasFocus
+                        ? [
+                            BoxShadow(
+                              color: AppTheme.primaryOrange.withOpacity(0.3),
+                              blurRadius: 10,
+                              spreadRadius: 2,
                             ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return _buildDefaultAvatar(theme);
-                        },
-                      )
-                    : _buildDefaultAvatar(theme),
+                          ]
+                        : null,
+                  ),
+                  child: ClipOval(
+                    child: _selectedAvatar != null
+                        ? Image.network(
+                            _selectedAvatar!,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation(AppTheme.primaryOrange),
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildDefaultAvatar(theme);
+                            },
+                          )
+                        : _buildDefaultAvatar(theme),
+                  ),
+                ),
               ),
             ),
           ),
@@ -927,14 +1005,18 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
             focusNode: _createFocus,
             child: deviceInfo.isTV
                 ? ElevatedButton(
-                    onPressed: _isLoading ? null : _createProfile,
+                    onPressed: _isLoading || _capacityLoading || _capacityReached
+                        ? null
+                        : _createProfile,
                     style: AppDecorations.tvButtonStyle(isFocused: _createFocus.hasFocus),
                     child: _isLoading
                         ? const CircularProgressIndicator()
                         : Text(loc?.creer ?? 'Créer le profil'),
                   )
                 : ElevatedButton(
-                    onPressed: _isLoading ? null : _createProfile,
+                    onPressed: _isLoading || _capacityLoading || _capacityReached
+                        ? null
+                        : _createProfile,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryOrange,
                       foregroundColor: Colors.white,

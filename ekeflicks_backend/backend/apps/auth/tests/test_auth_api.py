@@ -192,6 +192,22 @@ class AuthApiTests(APITestCase):
         self.assertTrue(user.check_password('NewStrongPass123'))
         self.assertIsNotNone(token.used_at)
 
+    def test_password_reset_request_rejects_unknown_email(self):
+        """Test que la demande de réinitialisation de mot de passe
+        retourne une erreur 404 pour un email inconnu."""
+        response = self.client.post(
+            reverse('password-reset-request'),
+            {'email': 'inconnu@example.com'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(
+            response.data['email'],
+            'Aucun compte ne correspond à cette adresse e-mail.',
+        )
+        self.assertFalse(PasswordResetToken.objects.exists())
+
     def test_personal_info_update_does_not_change_email(self):
         user = User.objects.create_user(
             email='profile-owner@example.com',

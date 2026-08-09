@@ -17,6 +17,7 @@ import 'providers/avatar_provider.dart';
 
 import 'routes.dart';
 import 'ui/users/reset_password_page.dart';
+import 'ui/profiles/reset_parental_pin_page.dart';
 import 'package:app_ekeflicks/src/openapi.dart';
 import 'services/content_api_service.dart';
 
@@ -112,15 +113,31 @@ class _MyAppState extends State<MyApp> {
 
   void _initDeepLinks() {
     _appLinks = AppLinks();
-    _appLinks.uriLinkStream.listen((uri) {
-      if (!mounted || uri == null) return;
-      if (uri.pathSegments.isNotEmpty && uri.pathSegments[0] == "password-reset-confirm") {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ResetPasswordPage()),
-        );
-      }
-    });
+    // Gérer le lien initial si l'app est ouverte via un deep link
+    _appLinks.getInitialLink().then(_handleDeepLink);
+    // Écouter les liens ultérieurs
+    _appLinks.uriLinkStream.listen(_handleDeepLink);
+  }
+
+  void _handleDeepLink(Uri? uri) {
+    if (!mounted || uri == null) return;
+
+    // Gérer la réinitialisation du mot de passe
+    if (uri.pathSegments.isNotEmpty && uri.pathSegments[0] == "password-reset-confirm") {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ResetPasswordPage()),
+      );
+    }
+    // Gérer la réinitialisation du PIN parental
+    // Supporte à la fois le format chemin (/reset-parental-pin) et le format query string (?action=reset-parental-pin)
+    else if ((uri.pathSegments.isNotEmpty && uri.pathSegments[0] == 'reset-parental-pin') ||
+             uri.queryParameters['action'] == 'reset-parental-pin') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ResetParentalPinPage()),
+      );
+    }
   }
 
   @override

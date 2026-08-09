@@ -8,7 +8,7 @@ from .users import (
     User,
     UserSession,
 )
-from .profiles import ProfileType, Profile
+from .profiles import ParentalPinResetToken, ProfileType, Profile
 from .content import Genre, Emission, ContentStatus, Content, ContentGenre, ContentEmission
 from .seasons import Season, Episode
 from .interactions import WatchHistory, Favorite, Rating
@@ -24,7 +24,7 @@ __all__ = [
     'TimeStampedModel',
     'User', 'UserSession', 'AccountClosureRequest',
     'EmailVerificationToken', 'PasswordResetToken', 'EmailChangeSupportRequest',
-    'ProfileType', 'Profile',
+    'ProfileType', 'Profile', 'ParentalPinResetToken',
     'Genre', 'Emission', 'ContentStatus', 'Content', 'ContentGenre', 'ContentEmission',
     'Season', 'Episode',
     'WatchHistory', 'Favorite', 'Rating',

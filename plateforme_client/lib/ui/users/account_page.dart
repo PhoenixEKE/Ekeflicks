@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
@@ -12,6 +13,10 @@ import 'package:app_ekeflicks/widgets/dialog/country_selection_dialog.dart';
 import 'package:app_ekeflicks/utils/phone_number.dart';
 import 'package:app_ekeflicks/models/content_model.dart';
 import 'package:app_ekeflicks/services/content_api_service.dart';
+import 'package:app_ekeflicks/widgets/dialog/avatar_selector_dialog.dart';
+import 'package:app_ekeflicks/widgets/dialog/account_settings_dialog.dart';
+import 'package:app_ekeflicks/providers/avatar_provider.dart';
+import 'package:app_ekeflicks/services/profile_access_service.dart';
 
 class AccountPage extends StatefulWidget {
   final Profile currentProfile;
@@ -23,6 +28,7 @@ class AccountPage extends StatefulWidget {
 }
 
 class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin {
+  late Profile _currentProfile;
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
@@ -35,12 +41,14 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   List<Map<String, dynamic>>? _downloadedContents;
 
   int _selectedAge = 13;
+  RangeValues _allowedAgeRange = const RangeValues(0, 13);
   bool _isLoading = false;
   bool _isChildProfile = false;
   bool _isMainProfile = false;
   bool _isPhoneOnlyAccount = false;
   String? _selectedCountry;
   bool _detectingLocation = false;
+  bool _avatarHovered = false;
   String? _detectedCountry;
 
   // Animations
@@ -50,20 +58,21 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   @override
   void initState() {
     super.initState();
+    _currentProfile = widget.currentProfile;
 
-    _nameController.text = widget.currentProfile.name ?? '';
-    _phoneController.text = widget.currentProfile.phone ?? '';
+    _nameController.text = _currentProfile.name ?? '';
+    _phoneController.text = _currentProfile.phone ?? '';
     final currentUser = context.read<UserProvider>().currentUser;
     _isPhoneOnlyAccount = currentUser?.email == null || currentUser!.email!.isEmpty;
     _emailController.text = currentUser?.email ?? '';
     const supportedAges = [3, 7, 10, 13, 16, 18];
-    final profileAge = widget.currentProfile.age ?? 13;
+    final profileAge = _currentProfile.age ?? 13;
     _selectedAge = supportedAges.contains(profileAge) ? profileAge : 13;
-    _isChildProfile = widget.currentProfile.type?.name == 'child';
-    _isMainProfile = widget.currentProfile.type?.name == 'main';
+    _isChildProfile = _currentProfile.type?.name == 'child';
+    _isMainProfile = _currentProfile.type?.name == 'main';
 
     // Initialiser le pays sélectionné
-    _selectedCountry = widget.currentProfile.country?.name ?? 'FR';
+    _selectedCountry = _currentProfile.country?.name ?? 'FR';
 
     // Initialisation des contrôleurs
     _tabController = TabController(length: 4, vsync: this);
@@ -95,12 +104,31 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     setState(() => _isLoading = true);
 
     await Future.wait([
+      _loadProfileRestrictions(),
       _loadBillingHistory(),
       _loadFavorites(),
       _loadDownloads(),
     ]);
 
     setState(() => _isLoading = false);
+  }
+
+  Future<void> _loadProfileRestrictions() async {
+    if (!_isChildProfile || _currentProfile.id == null) return;
+    try {
+      final response = await context
+          .read<ProfileProvider>()
+          .apiClient
+          .dio
+          .get<Object>('/profiles/${_currentProfile.id}/');
+      if (response.data is! Map || !mounted) return;
+      final data = Map<String, dynamic>.from(response.data! as Map);
+      final minimum = (data['allowed_min_age'] as num?)?.toDouble() ?? 0;
+      final maximum = (data['allowed_max_age'] as num?)?.toDouble() ?? 13;
+      setState(() => _allowedAgeRange = RangeValues(minimum, maximum));
+    } catch (error) {
+      debugPrint('Account profile restrictions API error: $error');
+    }
   }
 
   List<Map<String, dynamic>> _records(dynamic payload) {
@@ -136,7 +164,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     try {
       final dio = context.read<ProfileProvider>().apiClient.dio;
       final contents = await ContentApiService(dio).favorites(
-        profileId: widget.currentProfile.id,
+        profileId: _currentProfile.id,
       );
       if (mounted) {
         setState(() => _favoriteContents = contents.map(_contentCard).toList());
@@ -153,7 +181,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       final dio = context.read<ProfileProvider>().apiClient.dio;
       final response = await dio.get<Object>(
         '/offline-licenses/',
-        queryParameters: {'profile': widget.currentProfile.id},
+        queryParameters: {'profile': _currentProfile.id},
       );
       final downloads = _records(response.data).map((record) {
         final content = record['content'] is Map
@@ -184,7 +212,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       _showErrorSnackbar('Veuillez saisir un nom');
       return;
     }
-    final phoneError = validateInternationalPhone(_phoneController.text);
+    final phoneError = _isMainProfile
+        ? validateInternationalPhone(_phoneController.text)
+        : null;
     if (phoneError != null) {
       _showErrorSnackbar(phoneError);
       return;
@@ -193,11 +223,19 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     setState(() => _isLoading = true);
 
     try {
+      String? parentalPin;
+      if (_isChildProfile) {
+        parentalPin = await ProfileAccessService.askForParentalPin(
+          context,
+          title: 'Autoriser la modification du profil enfant',
+        );
+        if (parentalPin == null || parentalPin.isEmpty) return;
+      }
       final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
       final userProvider = context.read<UserProvider>();
       final apiClient = profileProvider.apiClient;
 
-      if (_isPhoneOnlyAccount) {
+      if (_isMainProfile && _isPhoneOnlyAccount) {
         if (_emailController.text.trim().isEmpty ||
             !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
                 .hasMatch(_emailController.text.trim())) {
@@ -212,11 +250,14 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       }
 
       await apiClient.dio.patch<Object>(
-        '/profiles/${widget.currentProfile.id}/',
+        '/profiles/${_currentProfile.id}/',
         data: {
           'name': _nameController.text.trim(),
           'phone': normalizeInternationalPhone(_phoneController.text),
           if (_isChildProfile) 'age': _selectedAge,
+          if (_isChildProfile) 'allowed_min_age': _allowedAgeRange.start.round(),
+          if (_isChildProfile) 'allowed_max_age': _allowedAgeRange.end.round(),
+          if (_isChildProfile) 'parental_pin': parentalPin,
           if (_selectedCountry != null) 'country_code': _selectedCountry,
         },
       );
@@ -233,19 +274,45 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     }
   }
 
-  /// Contrôle parental
-  Future<void> _updateParentalControls() async {
+  Future<void> _deleteManagedProfile(Profile profile) async {
+    if (profile.id == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Supprimer ce profil ?'),
+        content: Text('Le profil « ${profile.name} » sera supprimé.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final pin = await ProfileAccessService.askForParentalPin(
+      context,
+      title: 'Autoriser la suppression du profil',
+    );
+    if (pin == null || pin.isEmpty || !mounted) return;
     setState(() => _isLoading = true);
-
     try {
-      await Future.delayed(const Duration(milliseconds: 500));
-      _showSuccessSnackbar('Paramètres parentaux mis à jour');
-    } catch (e) {
-      _showErrorSnackbar('Erreur lors de la mise à jour: $e');
+      final provider = context.read<ProfileProvider>();
+      await provider.apiClient.dio.delete<Object>(
+        '/profiles/${profile.id}/',
+        data: {'parental_pin': pin},
+        options: Options(headers: {'x-profile-id': _currentProfile.id}),
+      );
+      await provider.loadProfiles();
+      if (mounted) _showSuccessSnackbar('Profil supprimé.');
+    } catch (error) {
+      if (mounted) _showErrorSnackbar('Suppression impossible : $error');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -334,6 +401,49 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     );
   }
 
+  Future<void> _changeAvatar() async {
+    final avatarProvider = context.read<AvatarProvider>();
+    if (avatarProvider.avatars.isEmpty) {
+      await avatarProvider.loadAvatars(context.read<UserProvider>().apiClient);
+    }
+    if (!mounted || avatarProvider.error != null) return;
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AvatarSelectorDialog(
+        selectedAvatar: _currentProfile.avatarUrl,
+        onAvatarSelected: (url) => Navigator.pop(dialogContext, url),
+      ),
+    );
+    if (selected == null || selected == _currentProfile.avatarUrl || !mounted) return;
+    String? parentalPin;
+    if (_isChildProfile) {
+      parentalPin = await ProfileAccessService.askForParentalPin(
+        context,
+        title: 'Autoriser la modification de l\'avatar enfant',
+      );
+      if (parentalPin == null || parentalPin.isEmpty || !mounted) return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final provider = context.read<ProfileProvider>();
+      await provider.apiClient.dio.patch<Object>(
+        '/profiles/${_currentProfile.id}/',
+        data: {
+          'avatar_url': selected,
+          if (_isChildProfile) 'parental_pin': parentalPin,
+        },
+      );
+      await provider.loadProfiles();
+      final refreshed = provider.getProfileById(_currentProfile.id!);
+      if (mounted && refreshed != null) setState(() => _currentProfile = refreshed);
+      _showSuccessSnackbar('Avatar modifié avec succès');
+    } catch (error) {
+      _showErrorSnackbar('Impossible de modifier l\'avatar : $error');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Widget _buildProfileHeader(BuildContext context, AppLocalizations? loc) {
     final userProvider = Provider.of<UserProvider>(context);
     final currentUser = userProvider.currentUser;
@@ -354,16 +464,33 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       ),
       child: Row(
         children: [
-          ClipOval(
-            child: widget.currentProfile.avatarUrl?.isNotEmpty == true
-                ? Image.network(
-                    widget.currentProfile.avatarUrl!,
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
-                  )
-                : _buildDefaultAvatar(),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            onEnter: (_) => setState(() => _avatarHovered = true),
+            onExit: (_) => setState(() => _avatarHovered = false),
+            child: AnimatedScale(
+              scale: _avatarHovered ? 1.08 : 1,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutBack,
+              child: Tooltip(
+                message: 'Modifier l\'avatar',
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _changeAvatar,
+                  child: ClipOval(
+                    child: _currentProfile.avatarUrl?.isNotEmpty == true
+                    ? Image.network(
+                        _currentProfile.avatarUrl!,
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
+                      )
+                    : _buildDefaultAvatar(),
+                  ),
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -371,7 +498,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.currentProfile.name ?? 'Sans nom',
+                  _currentProfile.name ?? 'Sans nom',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface,
@@ -379,7 +506,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _getProfileTypeDisplayName(widget.currentProfile.type?.name),
+                  _getProfileTypeDisplayName(_currentProfile.type?.name),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                   ),
@@ -396,10 +523,10 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
-                if (_isChildProfile && widget.currentProfile.age != null) ...[
+                if (_isChildProfile && _currentProfile.age != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    'Âge: ${widget.currentProfile.age} ans',
+                    'Âge: ${_currentProfile.age} ans',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                     ),
@@ -429,7 +556,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   Widget _buildDefaultAvatar() => Image.asset(
         _isChildProfile
             ? 'assets/avatars/child.png'
-            : 'assets/avatars/default-profil.webp',
+            : 'assets/avatars/adult.png',
         width: 80,
         height: 80,
         fit: BoxFit.cover,
@@ -533,26 +660,27 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                   ),
                   const SizedBox(height: 12),
 
-                  if (!_isPhoneOnlyAccount)
-                    TextField(
-                      controller: _phoneController,
-                      decoration: AppDecorations.inputDecoration(
-                        context,
-                        label: 'Téléphone avec indicatif (+225…)',
-                        icon: Icons.phone,
+                  if (_isMainProfile) ...[
+                    if (!_isPhoneOnlyAccount)
+                      TextField(
+                        controller: _phoneController,
+                        decoration: AppDecorations.inputDecoration(
+                          context,
+                          label: 'Téléphone avec indicatif (+225…)',
+                          icon: Icons.phone,
+                        ),
+                        keyboardType: TextInputType.phone,
                       ),
-                      keyboardType: TextInputType.phone,
-                    ),
-                  if (_isPhoneOnlyAccount) ...[
-                    TextField(
-                      controller: _emailController,
-                      decoration: AppDecorations.inputDecoration(
-                        context,
-                        label: 'Adresse e-mail modifiable',
-                        icon: Icons.email_outlined,
+                    if (_isPhoneOnlyAccount)
+                      TextField(
+                        controller: _emailController,
+                        decoration: AppDecorations.inputDecoration(
+                          context,
+                          label: 'Adresse e-mail du compte principal',
+                          icon: Icons.email_outlined,
+                        ),
+                        keyboardType: TextInputType.emailAddress,
                       ),
-                      keyboardType: TextInputType.emailAddress,
-                    ),
                   ],
                   const SizedBox(height: 12),
 
@@ -613,7 +741,56 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                               ))
                           .toList(),
                     ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Films autorisés : ${_allowedAgeRange.start.round()} à ${_allowedAgeRange.end.round()} ans',
+                    ),
+                    RangeSlider(
+                      values: _allowedAgeRange,
+                      min: 0,
+                      max: 18,
+                      divisions: 18,
+                      labels: RangeLabels(
+                        '${_allowedAgeRange.start.round()} ans',
+                        '${_allowedAgeRange.end.round()} ans',
+                      ),
+                      onChanged: (values) =>
+                          setState(() => _allowedAgeRange = values),
+                    ),
                   ],
+                ),
+              ),
+            ],
+
+            if (_isMainProfile) ...[
+              const SizedBox(height: 20),
+              _buildSection(
+                title: 'Profils du compte',
+                icon: Icons.manage_accounts,
+                child: Consumer<ProfileProvider>(
+                  builder: (context, provider, _) => Column(
+                    children: provider.availableProfiles
+                        .where((profile) => profile.type?.name != 'main')
+                        .map(
+                          (profile) => ListTile(
+                            leading: const Icon(Icons.person_outline),
+                            title: Text(profile.name),
+                            subtitle: Text(
+                              profile.type?.name == 'child'
+                                  ? 'Profil enfant'
+                                  : 'Profil créé',
+                            ),
+                            trailing: IconButton(
+                              tooltip: 'Supprimer le profil',
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: _isLoading
+                                  ? null
+                                  : () => _deleteManagedProfile(profile),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
                 ),
               ),
             ],
@@ -645,21 +822,6 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                         : Text('Sauvegarder'),
                   ),
                 ),
-                if (_isChildProfile) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _isLoading ? null : _updateParentalControls,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text('Contrôles'),
-                    ),
-                  ),
-                ],
               ],
             ),
             const SizedBox(height: 20),
@@ -1089,12 +1251,18 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       appBar: AppBar(
         title: Text(loc?.compte ?? "Compte"),
         actions: [
-          IconButton(
+          if (_isMainProfile) IconButton(
             icon: Icon(Icons.settings),
             tooltip: loc?.parametres ?? 'Paramètres',
-            onPressed: () {
-              _tabController.animateTo(0);
-              _showSuccessSnackbar('Paramètres du compte ouverts');
+            onPressed: () async {
+              final saved = await showDialog<bool>(
+                context: context,
+                builder: (_) => AccountSettingsDialog(profile: _currentProfile),
+              );
+              if (saved == true && mounted) {
+                await context.read<ProfileProvider>().loadProfiles();
+                _showSuccessSnackbar('Paramètres enregistrés');
+              }
             },
           ),
         ],

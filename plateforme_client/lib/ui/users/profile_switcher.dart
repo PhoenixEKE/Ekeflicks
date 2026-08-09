@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/src/models/profile.dart';
+import 'package:app_ekeflicks/services/profile_access_service.dart';
 
 // Configuration dynamique pour les profils
 class ProfileConfig {
@@ -118,6 +119,8 @@ class _ProfileSwitcherState extends State<ProfileSwitcher> {
           imagePath: imagePath,
           onTap: () async {
             if (profile.id != null) {
+              // Vérifier l'accès au profil (PIN parental si nécessaire)
+              if (!await ProfileAccessService.canOpen(context, profile) || !context.mounted) return;
               await _switchProfile(profile);
               widget.onProfileSelected(profile);
             }
@@ -146,7 +149,7 @@ class _ProfileSwitcherState extends State<ProfileSwitcher> {
   }
 }
 
-class _ProfileCard extends StatelessWidget {
+class _ProfileCard extends StatefulWidget {
   final Profile profile;
   final String profileType;
   final String imagePath;
@@ -160,67 +163,87 @@ class _ProfileCard extends StatelessWidget {
   });
 
   @override
+  State<_ProfileCard> createState() => _ProfileCardState();
+}
+
+class _ProfileCardState extends State<_ProfileCard> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(
-          maxHeight: 120,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              alignment: Alignment.bottomRight,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _hovered ? 1.08 : 1,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutBack,
+          child: Container(
+            constraints: const BoxConstraints(
+              maxHeight: 120,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: theme.colorScheme.surfaceVariant,
-                  backgroundImage: _getImageProvider(imagePath),
-                  child: imagePath.isEmpty
-                      ? const Icon(Icons.person, size: 24)
-                      : null,
-                ),
-                if (profile.type?.name == 'child')
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      shape: BoxShape.circle,
+                Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: theme.colorScheme.surfaceVariant,
+                      backgroundImage: _getImageProvider(widget.imagePath),
+                      child: widget.imagePath.isEmpty
+                          ? const Icon(Icons.person, size: 24)
+                          : null,
                     ),
-                    child: Icon(Icons.child_care,
-                        color: theme.colorScheme.onPrimary, size: 10),
+                    if (widget.profile.type?.name == 'child')
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.child_care,
+                          color: theme.colorScheme.onPrimary,
+                          size: 10,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Flexible(
+                  child: Text(
+                    widget.profile.name ?? 'Unnamed',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
+                ),
+                const SizedBox(height: 2),
+                Flexible(
+                  child: Text(
+                    widget.profileType,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 6),
-            Flexible(
-              child: Text(
-                profile.name ?? 'Unnamed',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Flexible(
-              child: Text(
-                profileType,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

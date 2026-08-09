@@ -127,10 +127,13 @@ class PasswordResetRequestView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = User.objects.filter(email__iexact=serializer.validated_data['email']).first()
-        if user:
-            send_password_reset(user, request)
-        return Response({'status': 'sent_if_account_exists'}, status=status.HTTP_200_OK)
-
+        if not user:
+            return Response(
+                {'email': 'Aucun compte ne correspond à cette adresse e-mail.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        send_password_reset(user, request)
+        return Response({'status': 'sent'}, status=status.HTTP_200_OK)
 
 class PasswordResetConfirmView(generics.GenericAPIView):
     serializer_class = PasswordResetConfirmSerializer

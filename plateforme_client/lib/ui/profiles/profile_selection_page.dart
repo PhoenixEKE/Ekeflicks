@@ -11,6 +11,7 @@ import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/ui/users/post_login_page.dart';
 import 'package:app_ekeflicks/ui/profiles/profile_detail_page.dart';
 import 'package:app_ekeflicks/ui/profiles/create_profile_page.dart';
+import 'package:app_ekeflicks/services/profile_access_service.dart';
 
 // OpenAPI models
 import 'package:app_ekeflicks/src/models/profile.dart';
@@ -122,7 +123,10 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     super.dispose();
   }
 
-  void _handleProfileSelect(Profile profile) {
+  Future<void> _handleProfileSelect(Profile profile) async {
+    // Vérifier l'accès au profil (PIN parental si nécessaire)
+    if (!await ProfileAccessService.canOpen(context, profile) || !mounted) return;
+    
     context.read<ProfileProvider>().selectProfile(profile);
     Navigator.pushReplacement(
       context,
@@ -405,7 +409,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
   // Fonction pour obtenir la couleur en fonction du type de profil
   Color _getProfileColor(Profile profile) {
     final type = profile.type?.toString().split('.').last.toLowerCase() ?? '';
-    
+
     switch (type) {
       case 'main':
         return const Color(0xFFFF6B6B); // Rouge orangé
@@ -501,6 +505,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
         return KeyEventResult.ignored;
       },
       child: MouseRegion(
+        cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hoverStates[index] = true),
         onExit: (_) => setState(() => _hoverStates[index] = false),
         child: AnimatedBuilder(
@@ -509,9 +514,10 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
             final isFocused = focusNode.hasFocus;
             final scale = isFocused || isHovered ? 1.05 : 1.0;
 
-            return Transform(
-              transform: Matrix4.identity()..scale(scale, scale),
-              alignment: Alignment.center,
+            return AnimatedScale(
+              scale: scale,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutBack,
               child: Card(
                 elevation: isFocused ? 16 : isCurrent ? 8 : 4,
                 shape: RoundedRectangleBorder(
@@ -675,6 +681,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
         return KeyEventResult.ignored;
       },
       child: MouseRegion(
+        cursor: isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
         onEnter: (_) {
           if (!isDisabled) {
             setState(() => _hoverStates[-1] = true);
@@ -687,9 +694,10 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
             final isFocused = focusNode.hasFocus;
             final scale = (isFocused || isHovered) && !isDisabled ? 1.05 : 1.0;
 
-            return Transform(
-              transform: Matrix4.identity()..scale(scale, scale),
-              alignment: Alignment.center,
+            return AnimatedScale(
+              scale: scale,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutBack,
               child: Card(
                 elevation: isFocused ? 16 : 4,
                 shape: RoundedRectangleBorder(

@@ -25,6 +25,7 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
   int _focusedIndex = 0;
   final int _crossAxisCount = 3;
   final FocusNode _focusNode = FocusNode();
+  int? _hoveredIndex;
 
   @override
   void initState() {
@@ -111,8 +112,8 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
       final avatarUrl = avatarProvider.avatars[index]['url']!;
       print('🟢 Avatar sélectionné: index=$index, url=$avatarUrl');
 
-      // Fermer le dialogue et retourner l'URL sélectionnée
-      Navigator.of(context).pop(avatarUrl);
+      // Appeler le callback avec l'URL sélectionnée
+      widget.onAvatarSelected(avatarUrl);
     } else {
       // Si index invalide, fermer sans retourner de valeur
       print('🔴 Index invalide: $index');
@@ -274,83 +275,92 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
         final isSelected = avatarUrl == widget.selectedAvatar;
         final isFocused = isTV && index == _focusedIndex;
 
-        return GestureDetector(
-          onTap: () {
-            print('🖱️ Avatar sélectionné: ${avatar['name']}');
-            _selectAvatar(index);
-          },
-          child: Focus(
-            canRequestFocus: false,
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: isFocused
-                      ? AppTheme.primaryOrange
-                      : (isSelected
+        final isHovered = _hoveredIndex == index;
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hoveredIndex = index),
+          onExit: (_) => setState(() => _hoveredIndex = null),
+          child: GestureDetector(
+            onTap: () => _selectAvatar(index),
+            child: Focus(
+              canRequestFocus: false,
+              child: AnimatedScale(
+                scale: isHovered || isFocused ? 1.1 : 1,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutBack,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: isFocused || isHovered
                           ? AppTheme.primaryOrange
-                          : Colors.transparent),
-                  width: isFocused || isSelected ? 3 : 1,
-                ),
-                borderRadius: BorderRadius.circular(60),
-                boxShadow: isFocused
-                    ? [
-                        BoxShadow(
-                          color: AppTheme.primaryOrange.withOpacity(0.5),
-                          blurRadius: 12,
-                          spreadRadius: 2,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: ClipOval(
-                child: Stack(
-                  children: [
-                    Image.network(
-                      avatarUrl,
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
+                          : (isSelected
+                              ? AppTheme.primaryOrange
+                              : Colors.transparent),
+                      width: isFocused || isSelected ? 3 : 1,
+                    ),
+                    borderRadius: BorderRadius.circular(60),
+                    boxShadow: isFocused || isHovered
+                        ? [
+                            BoxShadow(
+                              color: AppTheme.primaryOrange.withOpacity(0.5),
+                              blurRadius: 12,
+                              spreadRadius: 2,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: ClipOval(
+                    child: Stack(
+                      children: [
+                        Image.network(
+                          avatarUrl,
                           width: 100,
                           height: 100,
-                          color: Colors.grey[300],
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                                  : null,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              width: 100,
+                              height: 100,
+                              color: Colors.grey[300],
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 100,
+                              height: 100,
+                              color: Colors.grey[300],
+                              child: Icon(
+                                Icons.person,
+                                size: 40,
+                                color: Colors.grey[600],
+                              ),
+                            );
+                          },
+                        ),
+                        if (isSelected)
+                          Container(
+                            color: Colors.black.withOpacity(0.3),
+                            child: Center(
+                              child: Icon(
+                                Icons.check_circle,
+                                color: Colors.white,
+                                size: 40,
+                              ),
                             ),
                           ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 100,
-                          height: 100,
-                          color: Colors.grey[300],
-                          child: Icon(
-                            Icons.person,
-                            size: 40,
-                            color: Colors.grey[600],
-                          ),
-                        );
-                      },
+                      ],
                     ),
-                    if (isSelected)
-                      Container(
-                        color: Colors.black.withOpacity(0.3),
-                        child: Center(
-                          child: Icon(
-                            Icons.check_circle,
-                            color: Colors.white,
-                            size: 40,
-                          ),
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
               ),
             ),
