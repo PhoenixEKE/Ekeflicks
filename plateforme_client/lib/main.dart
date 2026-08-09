@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/app_theme.dart';
 import 'core/api_config.dart';
+import 'core/deep_link_route.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/device_info_provider.dart';
 import 'providers/locale_provider.dart';
@@ -68,6 +69,9 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  final Uri _launchUri = Uri.base;
+  bool _initialLinkSeen = false;
   late final AppLinks _appLinks;
   late final SharedPreferences _prefs;
 
@@ -122,24 +126,30 @@ class _MyAppState extends State<MyApp> {
   void _handleDeepLink(Uri? uri) {
     if (!mounted || uri == null) return;
 
-    // Gérer la réinitialisation du mot de passe
-    // Supporte les deux formats : /reset-password et /password-reset-confirm
-    if (uri.pathSegments.isNotEmpty &&
-        (uri.pathSegments[0] == 'reset-password' ||
-            uri.pathSegments[0] == 'password-reset-confirm')) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ResetPasswordPage()),
-      );
+    final route = deepLinkRoute(uri);
+    // getInitialLink reports the same link already used by MaterialApp's
+    // initial route. Do not stack a duplicate reset page on app launch.
+    if (!_initialLinkSeen &&
+        route != null &&
+        route == deepLinkRoute(_launchUri)) {
+      _initialLinkSeen = true;
+      return;
     }
-    // Gérer la réinitialisation du PIN parental
-    // Supporte à la fois le format chemin (/reset-parental-pin) et le format query string (?action=reset-parental-pin)
-    else if ((uri.pathSegments.isNotEmpty && uri.pathSegments[0] == 'reset-parental-pin') ||
-             uri.queryParameters['action'] == 'reset-parental-pin') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ResetParentalPinPage()),
-      );
+
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null || route == null) return;
+
+    if (route == '/reset-password') {
+      navigator.push(MaterialPageRoute(
+        builder: (_) => ResetPasswordPage(token: uri.queryParameters['token']),
+      ));
+    } else {
+      navigator.push(MaterialPageRoute(
+        builder: (_) => ResetParentalPinPage(
+          token: uri.queryParameters['token'],
+          profileId: uri.queryParameters['profile'],
+        ),
+      ));
     }
   }
 
@@ -152,19 +162,12 @@ class _MyAppState extends State<MyApp> {
     final locale = localeProvider.locale ?? const Locale('fr');
 
     // Déterminer la route initiale en fonction de l'URL
-    final initialUri = Uri.base;
-    final initialRoute = initialUri.queryParameters['action'] ==
-            'reset-parental-pin'
-        ? '/reset-parental-pin'
-        : initialUri.path == '/reset-password'
-            ? '/reset-password'
-            : initialUri.path == '/reset-parental-pin'
-                ? '/reset-parental-pin'
-                : '/';
+    final initialRoute = deepLinkRoute(_launchUri) ?? '/';
 
     return MaterialApp(
       title: 'EkeFlicks',
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navigatorKey,
       locale: locale,
       localizationsDelegates: const [
         AppLocalizations.delegate,
@@ -177,6 +180,21 @@ class _MyAppState extends State<MyApp> {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.themeMode,
       initialRoute: initialRoute,
+      // Flutter normally expands an initial route such as /reset-password to
+      // both `/` and the requested route. That leaves SplashScreen mounted;
+      // its delayed pushReplacement then removes the reset form. Build only
+      // the requested initial route so authentication bootstrapping cannot
+      // replace a deep-link page.
+      onGenerateInitialRoutes: (routeName) {
+        final builder = app_routes.getAppRoutes()[routeName] ??
+            app_routes.getAppRoutes()['/']!;
+        return [
+          MaterialPageRoute(
+            settings: RouteSettings(name: routeName),
+            builder: builder,
+          ),
+        ];
+      },
       routes: app_routes.getAppRoutes(),
     );
   }

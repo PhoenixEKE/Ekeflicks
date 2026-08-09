@@ -7,7 +7,9 @@ import 'package:app_ekeflicks/core/app_decorations.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
 
 class ResetPasswordPage extends StatefulWidget {
-  const ResetPasswordPage({super.key});
+  const ResetPasswordPage({super.key, this.token});
+
+  final String? token;
 
   @override
   State<ResetPasswordPage> createState() => _ResetPasswordPageState();
@@ -24,14 +26,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   @override
   void initState() {
     super.initState();
-    _parseLink(Uri.base);
-  }
-
-  void _parseLink(Uri? uri) {
-    if (uri == null) return;
-
-    // Récupérer le token depuis les paramètres de requête
-    token = uri.queryParameters['token'];
+    token = widget.token ?? Uri.base.queryParameters['token'];
   }
 
   Future<void> _submit() async {

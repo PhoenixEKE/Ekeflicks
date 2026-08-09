@@ -1,11 +1,13 @@
-import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 
 class ResetParentalPinPage extends StatefulWidget {
-  const ResetParentalPinPage({super.key});
+  const ResetParentalPinPage({super.key, this.token, this.profileId});
+
+  final String? token;
+  final String? profileId;
 
   @override
   State<ResetParentalPinPage> createState() => _ResetParentalPinPageState();
@@ -18,19 +20,20 @@ class _ResetParentalPinPageState extends State<ResetParentalPinPage> {
   String? _profileId;
   bool _saving = false;
 
+  void _close() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    } else {
+      navigator.pushReplacementNamed('/login');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    AppLinks().getInitialLink().then(_readLink);
-    _readLink(Uri.base);
-  }
-
-  void _readLink(Uri? uri) {
-    if (uri == null || !mounted) return;
-    setState(() {
-      _token = uri.queryParameters['token'];
-      _profileId = uri.queryParameters['profile'];
-    });
+    _token = widget.token ?? Uri.base.queryParameters['token'];
+    _profileId = widget.profileId ?? Uri.base.queryParameters['profile'];
   }
 
   Future<void> _submit() async {
@@ -56,7 +59,7 @@ class _ResetParentalPinPageState extends State<ResetParentalPinPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('PIN parental modifié.')),
         );
-        Navigator.pop(context);
+        _close();
       }
     } catch (_) {
       if (mounted) {
@@ -71,7 +74,15 @@ class _ResetParentalPinPageState extends State<ResetParentalPinPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Nouveau PIN parental')),
+        appBar: AppBar(
+          leading: IconButton(
+            tooltip: 'Retour',
+            onPressed: _close,
+            icon: const Icon(Icons.arrow_back),
+          ),
+          title: const Text('Nouveau PIN parental'),
+          backgroundColor: Theme.of(context).colorScheme.surface,
+        ),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
@@ -85,20 +96,41 @@ class _ResetParentalPinPageState extends State<ResetParentalPinPage> {
                     obscureText: true,
                     keyboardType: TextInputType.number,
                     maxLength: 6,
-                    decoration:
-                        const InputDecoration(labelText: 'Nouveau PIN'),
+                    decoration: const InputDecoration(
+                      labelText: 'Nouveau PIN',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: _confirmation,
                     obscureText: true,
                     keyboardType: TextInputType.number,
                     maxLength: 6,
-                    decoration:
-                        const InputDecoration(labelText: 'Confirmer le PIN'),
+                    decoration: const InputDecoration(
+                      labelText: 'Confirmer le PIN',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
-                  FilledButton(
-                    onPressed: _saving ? null : _submit,
-                    child: const Text('Modifier le PIN'),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _saving ? null : _submit,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Modifier le PIN'),
+                    ),
                   ),
                 ],
               ),

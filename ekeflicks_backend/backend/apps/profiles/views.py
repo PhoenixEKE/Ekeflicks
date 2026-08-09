@@ -162,20 +162,27 @@ class ProfileViewSet(viewsets.ModelViewSet):
 
         return response.Response({'detail': 'Lien envoyé par e-mail.'})
 
-    @decorators.action(detail=True, methods=['post'], url_path='confirm-pin-reset')
+    @decorators.action(
+        detail=True,
+        methods=['post'],
+        url_path='confirm-pin-reset',
+        permission_classes=[permissions.AllowAny],
+        authentication_classes=[],
+    )
     def confirm_pin_reset(self, request, pk=None):
         """
         Confirme la réinitialisation du PIN parental avec le token reçu par email.
+        Accessible sans authentification pour permettre la réinitialisation depuis le lien email.
         """
-        profile = self.get_object()
-
-        # Recherche du token valide (non utilisé et non expiré)
+        # Le lien email doit fonctionner même après déconnexion ou dans un autre navigateur.
+        # Le profil est résolu via le token secret à usage unique au lieu de get_object(),
+        # qui est restreint à l'utilisateur authentifié.
         token = ParentalPinResetToken.objects.filter(
-            profile=profile,
+            profile_id=pk,
             token=request.data.get('token'),
             used_at__isnull=True,
             expires_at__gt=timezone.now(),
-        ).first()
+        ).select_related('profile').first()
 
         new_pin = str(request.data.get('new_pin', ''))
 
@@ -191,8 +198,8 @@ class ProfileViewSet(viewsets.ModelViewSet):
             )
 
         # Mise à jour du PIN (hachage)
-        profile.pin_code = make_password(new_pin)
-        profile.save(update_fields=['pin_code', 'updated_at'])
+        token.profile.pin_code = make_password(new_pin)
+        token.profile.save(update_fields=['pin_code', 'updated_at'])
 
         # Marquer le token comme utilisé
         token.used_at = timezone.now()
