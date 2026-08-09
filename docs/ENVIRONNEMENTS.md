@@ -1,32 +1,26 @@
 # Environnements EkeFlicks
 
-Ce guide definit les environnements supportes, les prerequis et les commandes de
-reference. Toutes les commandes partent de la racine du depot, sauf indication
-contraire.
+Ce guide définit les environnements, les prérequis et les commandes de référence.
+Toutes les commandes partent de la racine du dépôt.
 
-## 1. Matrice des environnements
+## Matrice des environnements
 
-| Environnement | Objectif | Donnees | Services externes | Deploiement |
+| Environnement | Objectif | Données | Services externes | Déploiement |
 |---|---|---|---|---|
-| Local | Developpement individuel | Jetables | Doubles ou sandbox | Docker Compose + Flutter local |
-| Test | Tests automatises | Ephemeres | Simules | GitHub Actions |
-| Staging | Validation integree | Non productives | Comptes sandbox | Infrastructure isolee |
-| Production | Utilisateurs reels | Sauvegardees/chiffrees | Comptes live | Infrastructure administree |
+| Local | Développement | Jetables | Doubles ou sandbox | Docker Compose + Flutter local |
+| Test | Automatisation | Éphémères | Simulés | GitHub Actions |
+| Staging | Recette intégrée | Non productives | Comptes sandbox | À construire |
+| Production | Utilisateurs réels | Sauvegardées et chiffrées | Comptes live | À construire |
 
-Ne jamais reutiliser une base, un bucket, une cle, un webhook ou un compte fournisseur
-entre staging et production.
+Une base, un bucket, une clé, un webhook ou un compte fournisseur ne doit jamais être
+partagé entre staging et production.
 
-## 2. Prerequis
+## Prérequis
 
-- Git.
-- Docker avec le plugin `docker compose` pour le backend local.
-- Flutter compatible avec Dart `^3.8.1` pour les trois applications.
-- Les SDK de plateforme necessaires a la cible choisie (Android Studio/JDK, Xcode sur
-  macOS, navigateur pour le web).
-- FFmpeg est fourni dans l'image backend; il n'est requis sur l'hote que pour lancer
-  les traitements hors Docker.
-
-Verification rapide :
+- Git et Docker avec le plugin `docker compose` pour le backend local ;
+- Flutter **3.32.8**, version épinglée par la CI (les portails demandent Dart 3.8.1) ;
+- les SDK de la cible choisie (Android Studio/JDK, Xcode sur macOS ou navigateur) ;
+- FFmpeg seulement si les traitements média sont lancés hors conteneur.
 
 ```bash
 docker --version

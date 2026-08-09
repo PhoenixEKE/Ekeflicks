@@ -1,28 +1,17 @@
-# Application spectateur EkeFlicks
- 
-A new Flutter project.
-Client Flutter multi-supports destine aux spectateurs (`app_ekeflicks`).
- 
-## Getting Started
-## Demarrage
- 
-This project is a starting point for a Flutter application.
-Consulter le [guide commun des environnements](../docs/ENVIRONNEMENTS.md), notamment
-la configuration API encore codee en dur et la procedure Flutter.
- 
-A few resources to get you started if this is your first Flutter project:
+# Application client EkeFlicks
+
+Application Flutter multi-supports destinée aux spectateurs. Elle contient les
+parcours d'authentification, profils, catalogue, abonnement et lecture. Certaines
+zones restent alimentées par des données de démonstration ; consulter l'[audit
+général](../docs/AUDIT_GENERAL.md) avant toute recette.
+
+## Démarrage
+
+Voir le [guide des environnements](../docs/ENVIRONNEMENTS.md), puis :
+
 ```bash
 flutter pub get
 flutter gen-l10n
 flutter analyze
 flutter test
 flutter run -d chrome
-```
- 
--- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
--- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
--
--For help getting started with Flutter development, view the
--[online documentation](https://docs.flutter.dev/), which offers tutorials,
--samples, guidance on mobile development, and a full API reference.
-+Ne pas versionner les sorties de build, caches, medias de test ou secrets.

@@ -1,6 +1,6 @@
 # Audit general d'EkeFlicks
 
-**Date de l'audit :** 29 juillet 2026
+**Date de la revue :** 9 août 2026 (mise à jour de l’audit du 29 juillet 2026)
 **Perimetre :** depot applicatif, backend Django, client Flutter, donnees, streaming,
 securite, exploitation et qualite.
 **Methode :** lecture statique du code et de la configuration, inventaire des routes,
@@ -17,15 +17,17 @@ domaine metier, l'authentification, le catalogue, les profils, les interactions,
 facturation, le workflow producteur, les licences de lecture, l'analytics et les
 recommandations sont modelises et exposes par API. Le pipeline media prevoit HLS,
 DASH, sous-titres, moderation, stockage temporaire/final, CDN et DRM. L'ensemble est
-decoupe par domaines et compte 58 tests backend declares.
+découpé par domaines. Django découvre désormais **87 tests backend** ; sept tests
+client et un test par portail sont également présents.
 
-En revanche, le **produit de bout en bout n'est pas encore pret pour une mise en
-production grand public**. Le client Flutter utilise encore un catalogue, des videos
-et des sous-titres de demonstration. Il ne consomme qu'une petite partie de l'API
-generee (principalement authentification, utilisateurs, profils et avatars). Les
-paiements, l'observabilite, la diffusion video et les integrations externes sont
-largement configurables, mais leur robustesse en conditions reelles n'est pas
-demontree par ce depot.
+En revanche, le **produit de bout en bout n'est pas encore prêt pour une mise en
+production grand public**. Le client Flutter possède désormais des services pour le
+catalogue, les interactions, les notifications et les comptes, mais plusieurs écrans
+parallèles utilisent encore Picsum ou des données locales. Le lecteur reçoit une URL
+directe et ses sous-titres restent simulés : l'obtention d'une licence de lecture
+n'est pas intégrée. Les deux portails n'ont aucune couche HTTP. Les paiements,
+l'observabilité, la diffusion vidéo et les intégrations externes sont configurables,
+mais leur robustesse en conditions réelles n'est pas démontrée par ce dépôt.
 
 ### Verdict
 
@@ -35,7 +37,7 @@ demontree par ce depot.
 | Workflow media/producteur | **Intermediaire a avance** | Architecture presente, industrialisation a prouver |
 | Client spectateur Flutter | **Prototype fonctionnel** | UI riche mais catalogue/player encore factices |
 | Securite et conformite | **Intermediaire** | Bons reglages de base, audit offensif et conformite absents |
-| Qualite et automatisation | **Insuffisant** | Tests backend presents, CI et tests client manquants |
+| Qualité et automatisation | **Intermédiaire** | CI présente et 96 tests découverts, mais couverture E2E et analyse statique absentes |
 | Production/SRE | **Insuffisant** | Docker local documente, aucun dispositif HA/SLO verifiable |
 
 **Conclusion :** le backend constitue un MVP technique credible. La priorite n'est
@@ -113,23 +115,24 @@ chaine de qualite et d'exploitation.
 
 ### P0 — Bloquants avant toute production publique
 
-1. **Brancher le client au vrai catalogue et au vrai streaming.** `ContentProvider`
-   attend artificiellement une seconde, genere des fiches Picsum et lit Big Buck
-   Bunny. Le lecteur affiche des sous-titres en dur. Il faut implementer les clients
-   catalogue, accueil, recherche, interactions, recommandations et licences, puis
-   lire les manifests signes HLS/DASH et les pistes serveur.
+1. **Achever l'intégration client et le vrai streaming.** `ContentProvider` appelle
+   maintenant les API d'accueil, catalogue et interactions, mais des écrans de
+   recherche, genres, information et post-connexion génèrent encore des fiches
+   Picsum. Le lecteur reçoit directement `videoUrl` et affiche des sous-titres
+   simulés. Unifier les parcours sur les services API, obtenir une licence puis lire
+   les manifests signés HLS/DASH et les pistes serveur.
 2. **Fermer le parcours d'abonnement/paiement.** Les ecrans existent mais il faut
    prouver l'initialisation fournisseur, le retour client, le webhook signe,
    l'idempotence, le rapprochement, le renouvellement, l'echec, le remboursement et
    la resiliation sur chaque marche cible. Aucun acces premium ne doit dependre du
    seul statut retourne au client.
-3. **Rendre les tests reproductibles.** La commande documentee echoue sans
-   `DJANGO_SECRET_KEY`, puis sans configuration PostgreSQL. `settings_test.py` importe
-   d'abord les reglages de production et ne definit pas une base autonome. Fournir un
-   environnement test complet (idealement PostgreSQL ephemere) et une commande unique.
-4. **Ajouter une CI bloquante.** Aucun workflow CI n'est versionne. A chaque commit :
-   formatage/lint, migrations, tests backend, analyse/tests Flutter, generation
-   OpenAPI, verification de secrets/dependances et construction des artefacts.
+3. **Étendre la CI existante.** Le workflow fournit PostgreSQL et lance les 87 tests
+   backend ainsi que les tests Flutter des trois applications. Ajouter
+   `flutter analyze`, la vérification des migrations et du schéma OpenAPI, un scan de secrets
+   et dépendances, puis des builds représentatifs.
+4. **Créer les tests d'intégration et E2E.** Les tests Flutter (7 côté client, 1 par
+   portail) restent surtout unitaires. Couvrir les contrats API, rôles, paiements,
+   upload, modération et lecture sur une stack éphémère reproductible.
 5. **Valider la chaine media en conditions proches de la production.** Tester upload
    volumineux et multipart, reprise, antivirus, timeout, echec FFmpeg, profils ABR,
    audio multiples, sous-titres, thumbnails, publication atomique, purge CDN et
@@ -165,55 +168,77 @@ chaine de qualite et d'exploitation.
 - Verrouiller le comportement lorsque les secrets webhook sont absents; journaliser
   et alerter sans stocker de secrets ni de donnees sensibles.
 
-## 4. Ce qui reste a construire ou a demontrer
+## 4. Ce qui reste à construire ou à démontrer, par plateforme
 
-### Produit spectateur
+Les mentions **construire** signalent une capacité absente ou encore factice. Les
+mentions **démontrer** signalent une implémentation présente dont le comportement
+réel, la sécurité ou l'exploitabilité ne sont pas établis par les tests du dépôt.
 
-- Parcours complet API reel : accueil personnalise, fiche, saison/episode, recherche,
-  favoris, listes, notes, historique, reprise multi-appareil et episode suivant.
-- Controle parental robuste : PIN, classification par territoire, verrouillage des
-  profils adultes, historique enfant et regles de recherche.
-- Audio multilingue, sous-titres accessibles, audiodescription, vitesse, qualite
-  manuelle/auto, casting et picture-in-picture selon plateforme.
-- Telechargement reel chiffre, quotas par offre/appareil, expiration et renouvellement
-  de licence.
-- Notifications push/email transactionnelles avec preferences et desabonnement.
-- Centre d'aide exploitable, tickets, diagnostic de lecture et communication incident.
+### 4.1 Plateforme client (spectateur)
 
-### Plateforme media
+| Priorité | Nature | Reste à faire / preuve attendue |
+|---|---|---|
+| P0 | Construire | Unifier les écrans sur les services API déjà présents et remplacer Picsum, les résultats de recherche, genres, épisodes et appareils connectés factices par les endpoints catalogue, sessions et recommandations. |
+| P0 | Construire | Obtenir une licence serveur et lire un manifeste HLS/DASH signé avec sous-titres et progression persistée, au lieu d'un média de démonstration. |
+| P0 | Démontrer | Valider inscription, vérification d'email, connexion, réinitialisation, choix du profil, abonnement, paiement, reprise et déconnexion sur une stack intégrée. |
+| P0 | Démontrer | Prouver que l'autorisation premium, les limites d'âge et l'appartenance au profil sont contrôlées côté serveur, y compris en cas de requêtes modifiées. |
+| P1 | Construire | Implémenter favoris, listes, notes, historique, épisode suivant, reprise multi-appareil et révocation des sessions avec états hors ligne/erreur. |
+| P1 | Construire | Ajouter téléchargement chiffré, quotas, expiration/renouvellement de licence, audio/sous-titres accessibles, casting et picture-in-picture selon cible. |
+| P1 | Démontrer | Tester le cycle de vie du player (buffering, changement réseau, arrière-plan, retry, fin), les deep links et les paiements refusés/annulés/remboursés. |
+| P2 | Construire | Notifications et préférences réelles, consentement analytics, centre d'aide, tickets et diagnostic de lecture. |
+| P2 | Démontrer | Accessibilité, navigation TV/clavier, responsive, français/anglais et builds signés Android, iOS, web et TV/appareils réellement visés. |
 
-- Packaging CMAF, echelle ABR calibree par contenu, codec H.264 puis evaluation
-  HEVC/AV1, normalisation audio, controles qualite objectifs et perceptuels.
-- DRM Widevine/FairPlay/PlayReady selon appareils, rotation de cles, politique HDCP,
-  watermarking et processus de gestion des ayants droit.
-- Origine video hautement disponible, CDN multi-region (eventuellement multi-CDN),
-  invalidation, protection anti-hotlink et pilotage par qualite d'experience.
-- Gestion complete des droits : territoires, fenetres, langues, supports, offres,
-  exclusivites et retrait automatique.
+**Définition de terminé client :** aucun jeu de données de démonstration dans un
+parcours de production, tests de contrat et E2E verts, télémétrie sans données
+sensibles, puis recette sur chaque famille d'appareils officiellement supportée.
 
-### Donnees et personnalisation
+### 4.2 Plateforme producteur
 
-- Taxonomie editoriale et qualite des metadonnees; recherche tolérante aux fautes,
-  synonymes et langues locales via un moteur dedie.
-- Pipeline d'evenements versionne avec consentement, deduplication et controle qualite.
-- Recommandations mesurees hors ligne et en A/B test, diversite/fraicheur, demarrage a
-  froid, explicabilite interne et garde-fous enfant.
-- Separation des analytics produit, finance et remuneration; reconciliation et piste
-  d'audit immuable pour les paiements producteurs.
+| Priorité | Nature | Reste à faire / preuve attendue |
+|---|---|---|
+| P0 | Construire | Ajouter authentification/autorisation producteur et un client API typé : le portail ne contient actuellement aucune couche HTTP. |
+| P0 | Construire | Relier création et modification des films/séries/saisons/épisodes, visuels, upload multipart avec reprise, puis soumission à modération. |
+| P0 | Démontrer | Prouver l'isolation entre producteurs (IDOR), les quotas et formats, l'antivirus, les erreurs/reprises d'upload et l'idempotence des soumissions. |
+| P1 | Construire | Brancher tableau de bord, vues, revenus, reversements, réclamations et profil sur les données backend avec pagination, filtres et états vides/erreur. |
+| P1 | Construire | Exposer le statut du traitement média et de la modération, les motifs de rejet, la correction puis la nouvelle soumission. |
+| P1 | Démontrer | Réconcilier vues éligibles, règles de rémunération, devises, retenues et reversements avec une piste d'audit exportable. |
+| P2 | Construire | Notifications, gestion d'équipe et rôles délégués, contrats/droits territoriaux et exports comptables si retenus dans le périmètre produit. |
+| P2 | Démontrer | Tests E2E navigateur, gros fichiers/réseau instable, accessibilité, localisation et build web de production. |
 
-### Exploitation et organisation
+**Définition de terminé producteur :** un producteur peut déposer un contenu, suivre
+son traitement, corriger un rejet, publier après validation et rapprocher ses revenus
+sans intervention technique, sans pouvoir consulter les données d'un autre compte.
 
-- Environnements dev/staging/production isoles, infrastructure as code, deploiements
-  progressifs, migrations sans interruption et retour arriere teste.
-- Sauvegarde chiffree, restauration testee, plan de reprise (RPO/RTO), rotation des
-  secrets et gestion des acces privilegies.
-- Logs structures avec identifiant de correlation, metriques Prometheus/OpenTelemetry,
-  traces, crash reporting client, dashboards et alertes actionnables.
-- Astreinte, runbooks, classification d'incident, post-mortems sans blame et tests de
-  charge/chaos.
-- Conformite : politique de confidentialite juridiquement validee, consentement,
-  retention/minimisation, export/suppression, registre des traitements, contrats
-  fournisseurs, fiscalite et obligations locales des pays servis.
+### 4.3 Plateforme administrateur
+
+| Priorité | Nature | Reste à faire / preuve attendue |
+|---|---|---|
+| P0 | Construire | Remplacer utilisateurs, producteurs et réclamations d'exemple par un client API administrateur ; ajouter connexion forte, renouvellement et révocation de session. |
+| P0 | Construire | Implémenter RBAC à privilège minimal et contrôles serveur pour support, modérateur, finance et super-administrateur. |
+| P0 | Construire | Brancher les files de modération, validation/rejet motivé, suspension, gestion des comptes et décisions de reversement. |
+| P0 | Démontrer | Prouver l'impossibilité d'escalade de privilège et produire un journal d'audit immuable des consultations et mutations sensibles. |
+| P1 | Construire | Ajouter recherche/pagination/filtrage serveur, pièces jointes de réclamation, doubles validations finance et gestion sûre des erreurs concurrentes. |
+| P1 | Démontrer | Tester les workflows complets producteur→modération→publication et demande→validation→paiement, y compris rejet, retry et doublon. |
+| P1 | Construire | Renommer proprement le package encore nommé `plateforme_producteurs`, y compris bundle IDs, titres et artefacts natifs. |
+| P2 | Construire | Tableaux de bord opérationnels, alertes fraude/abus, exports contrôlés et masquage des données personnelles selon le rôle. |
+| P2 | Démontrer | MFA, durée de session, réauthentification des actions critiques, accessibilité, localisation et build web durci derrière SSO/VPN si retenu. |
+
+**Définition de terminé administrateur :** chaque action sensible est autorisée côté
+serveur, attribuable et réversible lorsque le métier le permet ; les rôles ont été
+testés négativement et aucun écran de production ne dépend de données locales.
+
+### 4.4 Socle partagé à démontrer
+
+- **Média :** chaîne upload→scan→transcodage ABR→contrôle qualité→publication
+  atomique→CDN→DRM, avec reprise, purge et suppression définitive.
+- **Paiements :** signatures webhook, idempotence, rapprochement, renouvellement,
+  échec, remboursement, résiliation et reversement pour chaque fournisseur/pays.
+- **Exploitation :** staging/production isolés, infrastructure as code, sauvegarde et
+  restauration testées, RPO/RTO, observabilité, alertes, runbooks et retour arrière.
+- **Sécurité/conformité :** test d'intrusion indépendant, rotation des secrets,
+  minimisation/rétention/export/suppression des données et validation juridique.
+- **Qualité :** CI enrichie, contrats OpenAPI, tests E2E multi-rôles, charge et chaos,
+  budgets de performance et critères SLO du document dédié.
 
 ## 5. Architecture cible pragmatique
 
@@ -232,5 +257,5 @@ Applications Flutter
         |
  Outbox/evenements ---> bus ---> ClickHouse / recommandation
 
-Upload direct multipart ---> stockage temporaire ---> transcodage/controle
-                                              ---> stockage origine ---> CDN + DRM
+ Upload direct multipart ---> stockage temporaire ---> transcodage/controle
+                                               ---> stockage origine ---> CDN + DRM
