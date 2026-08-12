@@ -49,7 +49,7 @@ class BillingApiTests(APITestCase):
         self.assertEqual(response.data['plan']['id'], str(self.plan.id))
         self.assertTrue(any('Abonnement cree' in message.subject for message in mail.outbox))
         subscription_email = next(message for message in mail.outbox if 'Abonnement cree' in message.subject)
-        self.assertIn('logo_light.png', subscription_email.alternatives[0][0])
+        self.assertIn('logo_dark.png', subscription_email.alternatives[0][0])
 
     def test_free_30_day_subscription_is_activated_without_payment(self):
         free_plan = SubscriptionPlan.objects.create(

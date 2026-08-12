@@ -66,6 +66,8 @@ consulter [`../../docs/ENVIRONNEMENTS.md`](../../docs/ENVIRONNEMENTS.md).
  | `NEO4J_USERNAME` | Utilisateur Neo4j |
  | `NEO4J_PASSWORD` | Mot de passe Neo4j |
  | `NEO4J_DATABASE` | Base Neo4j |
+ | `NEO4J_CONNECTION_TIMEOUT` | Delai maximal de connexion, en secondes (defaut : `5`) |
+ | `NEO4J_MAX_CONNECTION_POOL_SIZE` | Taille maximale du pool Bolt (defaut : `50`) |
  | `CLICKHOUSE_HOST` | Hote ClickHouse |
  
  ## Production

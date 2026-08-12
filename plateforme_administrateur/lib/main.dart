@@ -4,11 +4,17 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:plateforme_producteurs/providers/locale_provider.dart';
 import 'routes.dart';
+import 'api/admin_api_client.dart';
+import 'providers/admin_auth_provider.dart';
 
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => LocaleProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        Provider(create: (_) => AdminApiClient()),
+        ChangeNotifierProvider(create: (context) => AdminAuthProvider(context.read<AdminApiClient>())),
+      ],
       child: const ProducerApp(),
     ),
   );

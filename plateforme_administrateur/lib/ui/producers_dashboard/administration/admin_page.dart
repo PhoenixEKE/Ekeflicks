@@ -1,161 +1,72 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:plateforme_producteurs/api/admin_api_client.dart';
 import 'package:plateforme_producteurs/core/core.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
-import 'package:plateforme_producteurs/widgets/administration/AddAdminFormWidget.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
-
-  @override
-  State<AdminPage> createState() => _AdminPageState();
+  @override State<AdminPage> createState() => _AdminPageState();
 }
 
 class _AdminPageState extends State<AdminPage> {
-  final List<Map<String, dynamic>> _admins = [
-    {
-      'id': 1,
-      'name': 'Admin Principal',
-      'email': 'admin@example.com',
-      'role': 'Super Admin',
-      'lastLogin': '2023-05-20 14:30',
-      'phone': '',
-      'password': '********',
-    },
-  ];
+  late Future<List<Map<String, dynamic>>> _roles;
+  @override void initState() { super.initState(); _reload(); }
+  void _reload() => _roles = context.read<AdminApiClient>().roles();
 
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
-    return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.adminManagement,
-              style: AppTheme.textTitle.copyWith(fontSize: 24),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: _showAddAdminDialog,
-                            icon: const Icon(Icons.add),
-                            label: Text(l10n.addAdmin),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: ListView.separated(
-                          itemCount: _admins.length,
-                          separatorBuilder: (context, index) => const Divider(),
-                          itemBuilder: (context, index) {
-                            final admin = _admins[index];
-                            return ListTile(
-                              leading: const CircleAvatar(
-                                backgroundColor: AppTheme.primary,
-                                child: Icon(Icons.admin_panel_settings,
-                                    color: Colors.white),
-                              ),
-                              title: Text(admin['name']),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(admin['email']),
-                                  Text('${l10n.role}: ${admin['role']}'),
-                                  Text('${l10n.lastLogin}: ${admin['lastLogin']}'),
-                                ],
-                              ),
-                              trailing: PopupMenuButton(
-                                itemBuilder: (context) {
-                                  if (admin['role'] == 'Super Admin') {
-                                    return []; // Pas d'action possible
-                                  }
-                                  return [
-                                    PopupMenuItem(
-                                      child: Text(l10n.edit),
-                                      onTap: () =>
-                                          _editAdmin(Map.from(admin)),
-                                    ),
-                                    PopupMenuItem(
-                                      child: Text(l10n.delete),
-                                      onTap: () =>
-                                          _deleteAdmin(admin['id']),
-                                    ),
-                                  ];
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+  Future<void> _createRole() async {
+    final name = TextEditingController();
+    final permissions = await context.read<AdminApiClient>().permissions();
+    final selected = <int>{};
+    if (!mounted) return;
+    final saved = await showDialog<bool>(context: context, builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Text('Créer un rôle'),
+        content: SizedBox(width: 560, height: 480, child: Column(children: [
+          TextField(controller: name, decoration: const InputDecoration(labelText: 'Nom du rôle')),
+          const SizedBox(height: 12),
+          const Align(alignment: Alignment.centerLeft, child: Text('Permissions (privilège minimal)')),
+          Expanded(child: ListView(children: permissions.map((permission) => CheckboxListTile(
+            dense: true, value: selected.contains(permission['id']),
+            title: Text(permission['name'] as String), subtitle: Text(permission['key'] as String),
+            onChanged: (value) => setDialogState(() => value == true ? selected.add(permission['id'] as int) : selected.remove(permission['id'])),
+          )).toList())),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () async {
+            if (name.text.trim().isEmpty) return;
+            try { await context.read<AdminApiClient>().createRole(name.text.trim(), selected.toList());
+              if (context.mounted) Navigator.pop(context, true);
+            } on AdminApiException catch (error) {
+              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+            }
+          }, child: const Text('Créer')),
+        ],
       ),
-    );
+    ));
+    name.dispose();
+    if (saved == true) setState(_reload);
   }
 
-  void _showAddAdminDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context)!.addAdmin),
-        content: AddAdminFormWidget(
-          onSave: (newAdmin) {
-            setState(() {
-              _admins.add({
-                'id': _admins.length + 1,
-                ...newAdmin,
-              });
-            });
-          },
-        ),
-      ),
-    );
-  }
-
-  void _editAdmin(Map<String, dynamic> admin) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context)!.edit),
-        content: AddAdminFormWidget(
-          initialData: admin,
-          onSave: (updatedAdmin) {
-            setState(() {
-              final index =
-                  _admins.indexWhere((a) => a['id'] == admin['id']);
-              if (index != -1) {
-                _admins[index] = {
-                  'id': admin['id'],
-                  ...updatedAdmin,
-                };
-              }
-            });
-          },
-        ),
-      ),
-    );
-  }
-
-  void _deleteAdmin(int adminId) {
-    setState(() {
-      _admins.removeWhere((a) => a['id'] == adminId);
-    });
-  }
+  @override Widget build(BuildContext context) => Scaffold(
+    body: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text('Rôles et permissions', style: AppTheme.textTitle.copyWith(fontSize: 24)),
+        FilledButton.icon(onPressed: _createRole, icon: const Icon(Icons.add_moderator), label: const Text('Créer un rôle')),
+      ]),
+      const SizedBox(height: 16),
+      Expanded(child: FutureBuilder<List<Map<String, dynamic>>>(future: _roles, builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
+        if (snapshot.hasError) return Center(child: Text('Impossible de charger les rôles : ${snapshot.error}'));
+        final roles = snapshot.data ?? [];
+        if (roles.isEmpty) return const Center(child: Text('Aucun rôle. Créez le premier rôle à privilège minimal.'));
+        return ListView.separated(itemCount: roles.length, separatorBuilder: (_, __) => const Divider(), itemBuilder: (_, index) {
+          final role = roles[index]; final permissionIds = List<dynamic>.from(role['permissions'] ?? []);
+          return ListTile(leading: const CircleAvatar(child: Icon(Icons.admin_panel_settings)),
+            title: Text(role['name'] as String), subtitle: Text('${permissionIds.length} permission(s)'),
+            trailing: const Icon(Icons.chevron_right));
+        });
+      })),
+    ])),
+  );
 }

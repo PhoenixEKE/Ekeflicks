@@ -44,6 +44,12 @@ def get_neo4j_driver():
         _driver = GraphDatabase.driver(
             settings.NEO4J_URI,
             auth=(settings.NEO4J_USERNAME, settings.NEO4J_PASSWORD),
+            connection_timeout=getattr(settings, 'NEO4J_CONNECTION_TIMEOUT', 5),
+            max_connection_pool_size=getattr(
+                settings,
+                'NEO4J_MAX_CONNECTION_POOL_SIZE',
+                50,
+            ),
         )
     return _driver
 
@@ -70,6 +76,18 @@ def ensure_graph_schema():
         session.run('CREATE CONSTRAINT profile_id IF NOT EXISTS FOR (p:Profile) REQUIRE p.id IS UNIQUE')
         session.run('CREATE CONSTRAINT content_id IF NOT EXISTS FOR (c:Content) REQUIRE c.id IS UNIQUE')
         session.run('CREATE CONSTRAINT genre_id IF NOT EXISTS FOR (g:Genre) REQUIRE g.id IS UNIQUE')
+    return True
+
+
+def verify_neo4j_connection():
+    """Verify that the configured server is reachable and accepts credentials."""
+    driver = get_neo4j_driver()
+    if not driver:
+        return False
+    driver.verify_connectivity()
+    database = getattr(settings, 'NEO4J_DATABASE', 'neo4j')
+    with driver.session(database=database) as session:
+        session.run('RETURN 1').consume()
     return True
 
 
@@ -132,12 +150,13 @@ def sync_catalog_to_graph():
     return {'enabled': True, 'contents': contents_count, 'genres': genres_count}
 
 
-def sync_profile_to_graph(profile):
+def sync_profile_to_graph(profile, sync_catalog=True):
     session = _session()
     if not session:
         return {'enabled': False, 'profile_id': str(profile.id), 'relationships': 0}
 
-    sync_catalog_to_graph()
+    if sync_catalog:
+        sync_catalog_to_graph()
     relationships = 0
     with session:
         session.run(

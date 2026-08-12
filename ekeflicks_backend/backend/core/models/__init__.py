@@ -7,6 +7,8 @@ from .users import (
     PasswordResetToken,
     User,
     UserSession,
+    AdminMFADevice,
+    AdminAuditLog,
 )
 from .profiles import ParentalPinResetToken, ProfileType, Profile
 from .content import Genre, Emission, ContentStatus, Content, ContentGenre, ContentEmission
@@ -22,7 +24,7 @@ from .users import User
 
 __all__ = [
     'TimeStampedModel',
-    'User', 'UserSession', 'AccountClosureRequest',
+    'User', 'UserSession', 'AdminMFADevice', 'AdminAuditLog', 'AccountClosureRequest',
     'EmailVerificationToken', 'PasswordResetToken', 'EmailChangeSupportRequest',
     'ProfileType', 'Profile', 'ParentalPinResetToken',
     'Genre', 'Emission', 'ContentStatus', 'Content', 'ContentGenre', 'ContentEmission',

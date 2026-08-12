@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/providers/locale_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:plateforme_producteurs/providers/admin_auth_provider.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -16,6 +17,7 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _otpCtrl = TextEditingController();
 
   bool _loading = false;
   bool _obscurePassword = true;
@@ -30,6 +32,9 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _otpCtrl.dispose();
     _scrollController
       ..removeListener(_handleScroll)
       ..dispose();
@@ -40,10 +45,24 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _offset = _scrollController.offset);
   }
 
-  void _login() {
+  Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _loading = true);
-      Future.delayed(const Duration(seconds: 2), () => context.go('/dashboard'));
+      final auth = context.read<AdminAuthProvider>();
+      final success = await auth.login(
+        _emailCtrl.text.trim(),
+        _passwordCtrl.text,
+        _otpCtrl.text.trim()
+      );
+      if (!mounted) return;
+      setState(() => _loading = false);
+      if (success) {
+        context.go('/dashboard');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.error ?? 'Connexion refusée'))
+        );
+      }
     }
   }
 
@@ -91,6 +110,8 @@ class _LoginPageState extends State<LoginPage> {
                               _buildEmailField(l10n),
                               const SizedBox(height: 20),
                               _buildPasswordField(l10n),
+                              const SizedBox(height: 20),
+                              _buildOtpField(),
                               const SizedBox(height: 24),
                               _buildLoginButton(l10n),
                               const SizedBox(height: 16),
@@ -217,6 +238,20 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
       ),
+    );
+  }
+
+  Widget _buildOtpField() {
+    return TextFormField(
+      controller: _otpCtrl,
+      keyboardType: TextInputType.number,
+      maxLength: 6,
+      decoration: AppDecorations.inputDecoration.copyWith(
+        labelText: 'Code MFA à 6 chiffres',
+        prefixIcon: Icon(Icons.security, color: AppTheme.primary),
+        counterText: '',
+      ),
+      validator: (value) => RegExp(r'^\d{6}$').hasMatch(value ?? '') ? null : 'Saisissez le code de votre application TOTP.',
     );
   }
 

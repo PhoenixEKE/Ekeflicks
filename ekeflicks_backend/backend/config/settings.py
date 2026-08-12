@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'apps.recommendations.apps.RecommendationsConfig',
     'apps.analytics.apps.AnalyticsConfig',
     'apps.streaming.apps.StreamingConfig',
+    'apps.admin_api.apps.AdminApiConfig',
 ]
 
 # =========================================================
@@ -320,6 +321,8 @@ NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://neo4j:7687')
 NEO4J_USERNAME = os.environ.get('NEO4J_USERNAME', 'neo4j')
 NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', '')
 NEO4J_DATABASE = os.environ.get('NEO4J_DATABASE', 'neo4j')
+NEO4J_CONNECTION_TIMEOUT = float(os.environ.get('NEO4J_CONNECTION_TIMEOUT', '5'))
+NEO4J_MAX_CONNECTION_POOL_SIZE = int(os.environ.get('NEO4J_MAX_CONNECTION_POOL_SIZE', '50'))
 
 # =========================================================
 # CORS

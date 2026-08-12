@@ -80,6 +80,8 @@ NEO4J_URI=bolt://neo4j:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=change-me
 NEO4J_DATABASE=neo4j
+NEO4J_CONNECTION_TIMEOUT=5
+NEO4J_MAX_CONNECTION_POOL_SIZE=50
 ```
 
 Demarrage du service :
@@ -93,6 +95,26 @@ Ou avec le profil optionnel :
 ```bash
 docker compose --profile neo4j up -d neo4j
 ```
+Attendre que le conteneur soit sain, puis creer les contraintes et charger le
+catalogue dans le graphe :
+
+```bash
+docker compose --profile neo4j ps neo4j
+docker compose run --rm django python manage.py setup_neo4j
+```
+
+Pour une premiere mise en service, il est possible de synchroniser en plus tous
+les profils actifs, leurs visionnages, favoris et notes :
+
+```bash
+docker compose run --rm django python manage.py setup_neo4j --with-profiles
+```
+
+La commande echoue explicitement si le service est indisponible ou si les
+identifiants sont incorrects. Le mot de passe d'exemple doit etre remplace par
+un secret fort avant tout deploiement. Les executions suivantes sont
+idempotentes : les noeuds, relations et contraintes sont crees avec `MERGE` ou
+`IF NOT EXISTS`.
 
 Verifier le moteur :
 

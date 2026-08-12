@@ -1,6 +1,6 @@
 {
-    "name": "plateforme_producteurs",
-    "short_name": "plateforme_producteurs",
+    "name": "app_ekeflicks",
+    "short_name": "app_ekeflicks",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

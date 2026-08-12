@@ -1,5 +1,6 @@
 import uuid
 import re
+import secrets
 
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
@@ -20,6 +21,10 @@ COUNTRY_CALLING_CODES = {
     '216': 'TN', '213': 'DZ', '33': 'FR', '32': 'BE', '41': 'CH',
     '44': 'GB', '49': 'DE', '39': 'IT', '34': 'ES', '1': 'US',
 }
+
+
+def generate_mfa_secret():
+    return secrets.token_hex(20)
 
 
 def country_code_from_phone(value):
@@ -91,6 +96,33 @@ class UserSession(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.device_type}"
+
+
+class AdminMFADevice(TimeStampedModel):
+    """TOTP second factor attached to a privileged account."""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='admin_mfa_device')
+    secret = models.CharField(max_length=64, default=generate_mfa_secret)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    last_counter = models.BigIntegerField(default=-1)
+
+    class Meta:
+        db_table = 'admin_mfa_devices'
+
+
+class AdminAuditLog(TimeStampedModel):
+    """Append-only attribution trail for privileged changes."""
+
+    actor = models.ForeignKey(User, on_delete=models.PROTECT, related_name='admin_audit_logs')
+    action = models.CharField(max_length=120)
+    target_type = models.CharField(max_length=80)
+    target_id = models.CharField(max_length=80, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'admin_audit_logs'
+        ordering = ('-created_at',)
 
 
 class AccountClosureRequest(TimeStampedModel):

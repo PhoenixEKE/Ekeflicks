@@ -185,7 +185,7 @@ services:
 
 
   neo4j:
-    image: neo4j:5-community
+    image: neo4j:5.26-community
 
     container_name: ekeflicks_neo4j
 
@@ -194,8 +194,10 @@ services:
 
     environment:
       NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-change-me}
+      NEO4J_server_default__listen__address: 0.0.0.0
       NEO4J_server_memory_heap_initial__size: 512m
       NEO4J_server_memory_heap_max__size: 1G
+      NEO4J_server_memory_pagecache_size: 512m
 
     ports:
       - "7474:7474"
@@ -204,6 +206,13 @@ services:
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
+
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USERNAME:-neo4j} -p ${NEO4J_PASSWORD:-change-me} 'RETURN 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
     restart: always
 

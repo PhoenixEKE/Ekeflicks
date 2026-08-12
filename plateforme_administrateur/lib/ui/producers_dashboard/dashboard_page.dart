@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/providers/locale_provider.dart';
+import 'package:plateforme_producteurs/providers/admin_auth_provider.dart';
+import 'package:go_router/go_router.dart';
 
 import 'overview_page.dart';
 import 'users/users_page.dart';
@@ -41,8 +43,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
-  void _logout() {
-    // Implement logout logic
+  Future<void> _logout() async {
+    await context.read<AdminAuthProvider>().logout();
+    if (mounted) context.go('/');
   }
 
   List<Widget> _buildPages(AppLocalizations l10n) => [
@@ -124,6 +127,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Widget _buildBody(BuildContext context, AppLocalizations l10n) {
     return _buildPages(l10n)[_selectedIndex];
   }
+
   Widget _buildBottomNavBar(AppLocalizations l10n) {
     final navItems = [
       _NavItem(Icons.dashboard_rounded, l10n.dashboardTab),
@@ -156,7 +160,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         builder: (context, constraints) {
           final totalWidth = navItems.length * 100.0;
           final isWide = constraints.maxWidth > totalWidth;
-        
+
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Container(
@@ -211,8 +215,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       ),
     );
   }
-  
-  
 
   void _showNotifications(BuildContext context, AppLocalizations l10n) {
     showDialog(

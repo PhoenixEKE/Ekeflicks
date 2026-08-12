@@ -60,7 +60,7 @@ class AuthApiTests(APITestCase):
         self.assertTrue(EmailVerificationToken.objects.filter(user=user, used_at__isnull=True).exists())
         self.assertFalse(Subscription.objects.filter(user=user).exists())
         self.assertEqual(len(mail.outbox), 2)
-        self.assertIn('logo_light.png', mail.outbox[0].alternatives[0][0])
+        self.assertIn('logo_dark.png', mail.outbox[0].alternatives[0][0])
 
     def test_register_and_login_with_phone_without_sending_email(self):
         response = self.client.post(
