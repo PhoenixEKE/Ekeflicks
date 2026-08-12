@@ -1,5 +1,5 @@
-name: plateforme_producteurs
-description: "A new Flutter project."
+name: plateforme_administrateur
+description: "Plateforme sécurisée d’administration EkeFlicks."
 publish_to: 'none'
 
 version: 1.0.0+1

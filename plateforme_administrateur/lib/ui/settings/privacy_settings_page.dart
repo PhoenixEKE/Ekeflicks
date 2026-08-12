@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:plateforme_producteurs/core/core.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/core/core.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 import 'privacy_policy_page.dart';
 
 class PrivacySettingsPage extends StatefulWidget {

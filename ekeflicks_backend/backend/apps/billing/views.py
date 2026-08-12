@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.db import transaction
 from rest_framework import exceptions, filters, permissions, status, views, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -151,33 +152,36 @@ class ProducerPayoutRequestViewSet(viewsets.ModelViewSet):
         return Response(producer_balance(producer))
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def approve(self, request, pk=None):
         serializer = PayoutReviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payout = approve_payout_request(
-            self.get_object(),
+            ProducerPayoutRequest.objects.select_for_update().get(pk=pk),
             reviewer=request.user,
             reason=serializer.validated_data.get('reason', ''),
         )
         return Response(self.get_serializer(payout).data)
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def reject(self, request, pk=None):
         serializer = PayoutRejectSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payout = reject_payout_request(
-            self.get_object(),
+            ProducerPayoutRequest.objects.select_for_update().get(pk=pk),
             reviewer=request.user,
             reason=serializer.validated_data['reason'],
         )
         return Response(self.get_serializer(payout).data)
 
     @action(detail=True, methods=['post'], url_path='mark-paid')
+    @transaction.atomic
     def mark_paid(self, request, pk=None):
         serializer = PayoutReviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payout = mark_payout_paid(
-            self.get_object(),
+            ProducerPayoutRequest.objects.select_for_update().get(pk=pk),
             reviewer=request.user,
             reason=serializer.validated_data.get('reason', ''),
         )

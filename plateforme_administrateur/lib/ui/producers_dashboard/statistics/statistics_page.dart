@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+*import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
-import 'package:plateforme_producteurs/core/core.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/core/core.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 
 class StreamingStatisticsPage extends StatefulWidget {
   const StreamingStatisticsPage({super.key});

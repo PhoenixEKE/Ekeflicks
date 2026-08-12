@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 
 class AddSeasonModal extends StatefulWidget {
   final Function(String) onAddSeason;

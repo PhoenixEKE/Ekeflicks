@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:plateforme_producteurs/api/admin_api_client.dart';
-import 'package:plateforme_producteurs/core/core.dart';
+import 'package:plateforme_administrateur/api/admin_api_client.dart';
+import 'package:plateforme_administrateur/core/core.dart';
 
 class ClaimsManagementPage extends StatefulWidget {
   const ClaimsManagementPage({super.key});

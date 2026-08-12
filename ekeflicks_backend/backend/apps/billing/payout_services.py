@@ -3,11 +3,18 @@ from decimal import Decimal
 from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
+from rest_framework import exceptions
 from rest_framework import serializers
+from rest_framework.status import HTTP_409_CONFLICT
 
 from apps.analytics.services import convert_eur_for_producer, revenue_settings
 from apps.notifications.services import notify_staff, notify_user
 from core.models import ProducerContentView, ProducerPayoutRequest, User
+
+
+class PayoutConflict(exceptions.APIException):
+    status_code = HTTP_409_CONFLICT
+    default_code = 'payout_conflict'
 
 
 def available_producer_views(producer):
@@ -70,6 +77,8 @@ def create_payout_request(producer, payout_method='', payout_account='', produce
 
 
 def approve_payout_request(payout, reviewer, reason=''):
+    if payout.status != 'pending':
+        raise PayoutConflict('Cette demande a déjà été traitée.')
     payout.status = 'approved'
     payout.admin_reason = reason
     payout.reviewed_by = reviewer
@@ -84,6 +93,8 @@ def approve_payout_request(payout, reviewer, reason=''):
 
 
 def reject_payout_request(payout, reviewer, reason):
+    if payout.status != 'pending':
+        raise PayoutConflict('Cette demande a déjà été traitée.')
     payout.status = 'rejected'
     payout.admin_reason = reason
     payout.reviewed_by = reviewer
@@ -100,12 +111,17 @@ def reject_payout_request(payout, reviewer, reason):
 
 
 def mark_payout_paid(payout, reviewer, reason=''):
+    if payout.status != 'approved':
+        raise PayoutConflict('La demande doit être approuvée avant le paiement.')
+    if payout.reviewed_by_id == reviewer.pk:
+        raise exceptions.PermissionDenied(
+            'La mise en paiement doit être validée par un second agent finance.'
+        )
     payout.status = 'paid'
     payout.admin_reason = reason or payout.admin_reason
-    payout.reviewed_by = reviewer
     payout.reviewed_at = payout.reviewed_at or timezone.now()
     payout.paid_at = timezone.now()
-    payout.save(update_fields=['status', 'admin_reason', 'reviewed_by', 'reviewed_at', 'paid_at', 'updated_at'])
+    payout.save(update_fields=['status', 'admin_reason', 'reviewed_at', 'paid_at', 'updated_at'])
     payout.producer_views.update(status='paid')
     return payout
 

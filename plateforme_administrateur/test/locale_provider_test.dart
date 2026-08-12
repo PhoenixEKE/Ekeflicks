@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:plateforme_producteurs/providers/locale_provider.dart';
+import 'package:plateforme_administrateur/providers/locale_provider.dart';
 
 void main() {
   test('administrator locale can be selected explicitly', () {

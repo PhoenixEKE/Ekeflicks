@@ -44,7 +44,10 @@ class AdminPermission(BasePermission):
         if not session_id:
             return False
         from core.models.users import UserSession
-        if not UserSession.objects.filter(pk=session_id, user=user, is_active=True, expires_at__gt=timezone.now()).exists():
+        if not UserSession.objects.filter(
+            pk=session_id, user=user, is_active=True, is_admin=True,
+            expires_at__gt=timezone.now(),
+        ).exists():
             return False
         resolver = getattr(view, 'get_required_permission', None)
         required = resolver() if resolver else getattr(view, 'required_permission', self.permission)

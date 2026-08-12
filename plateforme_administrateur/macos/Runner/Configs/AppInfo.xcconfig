@@ -5,10 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = plateforme_producteurs
+PRODUCT_NAME = plateforme_administrateur
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.plateformeProducteurs
+PRODUCT_BUNDLE_IDENTIFIER = com.ekeflicks.admin
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2025 com.example. All rights reserved.

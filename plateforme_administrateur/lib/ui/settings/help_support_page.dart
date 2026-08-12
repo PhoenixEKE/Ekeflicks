@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'package:plateforme_producteurs/core/core.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/core/core.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 
 class HelpSupportPage extends StatefulWidget {
   const HelpSupportPage({super.key});

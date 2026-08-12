@@ -3,7 +3,7 @@
 Application Flutter destinée à l'administration des utilisateurs, producteurs,
 contenus et réclamations. Les écrans administratifs utilisent le client API sécurisé
 avec MFA, renouvellement de session et RBAC. Le package porte encore le nom technique
-`plateforme_producteurs` ; son renommage devra inclure les identifiants natifs.
+`plateforme_administrateur` ; son renommage devra inclure les identifiants natifs.
 ## Adresses de développement
 
 Les trois services utilisent des adresses distinctes :

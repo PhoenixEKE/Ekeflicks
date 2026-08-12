@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:plateforme_producteurs/core/core.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/core/core.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 
 class FilmsTab extends StatefulWidget {
   const FilmsTab({super.key});

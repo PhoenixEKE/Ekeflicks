@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 
 class AddProducerForm extends StatefulWidget {
   const AddProducerForm({super.key});

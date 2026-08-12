@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:plateforme_producteurs/core/core.dart';
+import 'package:plateforme_administrateur/core/core.dart';
 
 class StatCard extends StatelessWidget {
   final String title;

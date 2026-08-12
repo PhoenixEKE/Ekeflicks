@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 
 class AddEpisodeModal extends StatefulWidget {
   final int seasonNumber;

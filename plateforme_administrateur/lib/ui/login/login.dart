@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 import 'package:go_router/go_router.dart';
-import 'package:plateforme_producteurs/core/core.dart';
-import 'package:plateforme_producteurs/providers/locale_provider.dart';
+import 'package:plateforme_administrateur/core/core.dart';
+import 'package:plateforme_administrateur/providers/locale_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:plateforme_producteurs/providers/admin_auth_provider.dart';
+import 'package:plateforme_administrateur/providers/admin_auth_provider.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

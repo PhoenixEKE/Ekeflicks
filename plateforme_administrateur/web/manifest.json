@@ -1,11 +1,11 @@
 {
-    "name": "app_ekeflicks",
-    "short_name": "app_ekeflicks",
+    "name": "EkeFlicks Administration",
+    "short_name": "EkeFlicks Admin",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Plateforme sécurisée d’administration EkeFlicks.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

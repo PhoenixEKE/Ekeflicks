@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:plateforme_producteurs/api/admin_api_client.dart';
-import 'package:plateforme_producteurs/core/core.dart';
+import 'package:plateforme_administrateur/api/admin_api_client.dart';
+import 'package:plateforme_administrateur/core/core.dart';
+import '../users/user_detail_page.dart';
 
 class ProducersPage extends StatefulWidget {
   const ProducersPage({super.key});
@@ -65,6 +66,15 @@ class _State extends State<ProducersPage> {
                       itemBuilder: (_, i) {
                         final p = rows[i];
                         return ListTile(
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => UserDetailPage(userId: p['id'] as int)
+                              )
+                            );
+                            if (mounted) setState(() => data = _load());
+                          },
                           leading: const CircleAvatar(
                             child: Icon(Icons.movie_creation),
                           ),

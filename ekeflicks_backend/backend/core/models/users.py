@@ -93,6 +93,7 @@ class UserSession(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     is_active = models.BooleanField(default=True)
+    is_admin = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.user.email} - {self.device_type}"

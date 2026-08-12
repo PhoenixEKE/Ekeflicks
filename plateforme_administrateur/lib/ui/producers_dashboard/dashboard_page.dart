@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
-import 'package:plateforme_producteurs/core/core.dart';
-import 'package:plateforme_producteurs/providers/locale_provider.dart';
-import 'package:plateforme_producteurs/providers/admin_auth_provider.dart';
+import 'package:plateforme_administrateur/core/core.dart';
+import 'package:plateforme_administrateur/providers/locale_provider.dart';
+import 'package:plateforme_administrateur/providers/admin_auth_provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:plateforme_administrateur/api/admin_api_client.dart';
 
 import 'overview_page.dart';
 import 'users/users_page.dart';
 import 'producers/producers_page.dart';
 import 'administration/admin_page.dart';
-import 'statistics/statistics_page.dart';
-import 'my_videos/films_tab.dart';
-import 'my_videos/series_tab.dart';
-import 'upload/upload_page.dart';
+import 'moderation/moderation_page.dart';
 import 'finance/finance_page.dart';
 import 'claims/claims_page.dart';
 import 'profile/profile_page.dart';
@@ -48,19 +46,26 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     if (mounted) context.go('/');
   }
 
-  List<Widget> _buildPages(AppLocalizations l10n) => [
-    const OverviewPage(),
-    const UsersPage(),
-    const ProducersPage(),
-    const AdminPage(),
-    const StreamingStatisticsPage(),
-    const FilmsTab(),
-    const SeriesTab(),
-    const UploadPage(),
-    const FinancePage(),
-    const ClaimsManagementPage(),
-    const ProfilePage(),
-  ];
+  List<_Destination> _destinations(AppLocalizations l10n) {
+    final auth = context.read<AdminAuthProvider>();
+    return [
+      _Destination(_NavItem(Icons.dashboard_rounded, l10n.dashboardTab), const OverviewPage()),
+      if (auth.can('core.view_user'))
+        _Destination(_NavItem(Icons.people_alt_rounded, l10n.usersManagement), const UsersPage()),
+      if (auth.can('core.view_user'))
+        _Destination(_NavItem(Icons.business_center_rounded, l10n.producersManagement), const ProducersPage()),
+      if (auth.isSuperuser)
+        _Destination(_NavItem(Icons.admin_panel_settings, l10n.adminManagement), const AdminPage()),
+      if (auth.can('core.view_content')) ...[
+        _Destination(_NavItem(Icons.fact_check_rounded, 'Modération'), const ModerationPage()),
+      ],
+      if (auth.can('core.view_payment'))
+        _Destination(_NavItem(Icons.attach_money_rounded, l10n.financeTab), const FinancePage()),
+      if (auth.can('core.view_accountclosurerequest') || auth.can('core.view_emailchangesupportrequest'))
+        _Destination(_NavItem(Icons.support_agent_rounded, l10n.supportTab), const ClaimsManagementPage()),
+      _Destination(_NavItem(Icons.person_rounded, l10n.profileTab), const ProfilePage()),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +90,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           children: [
             Icon(Icons.movie_filter, color: AppTheme.textPrimary, size: 32),
             SizedBox(width: 8),
-            Text('EKEFLIX PRO', style: AppTheme.textTitle),
+            Text('EKEFLICKS ADMIN', style: AppTheme.textTitle),
           ],
         ),
       ),
@@ -109,11 +114,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         if (_selectedIndex == 0)
           IconButton(
-            icon: Badge(
-              backgroundColor: AppTheme.primary,
-              child: const Icon(Icons.notifications_none_rounded),
-            ),
-            onPressed: () => _showNotifications(context, l10n),
+            icon: const Icon(Icons.notifications_none_rounded),
+            onPressed: () => _showNotifications(context),
+            tooltip: 'Notifications administrateur',
           ),
         IconButton(
           icon: const Icon(Icons.logout_rounded),
@@ -125,23 +128,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Widget _buildBody(BuildContext context, AppLocalizations l10n) {
-    return _buildPages(l10n)[_selectedIndex];
+    final destinations = _destinations(l10n);
+    if (_selectedIndex >= destinations.length) _selectedIndex = 0;
+    return destinations[_selectedIndex].page;
   }
 
   Widget _buildBottomNavBar(AppLocalizations l10n) {
-    final navItems = [
-      _NavItem(Icons.dashboard_rounded, l10n.dashboardTab),
-      _NavItem(Icons.people_alt_rounded, l10n.usersManagement),
-      _NavItem(Icons.business_center_rounded, l10n.producersManagement),
-      _NavItem(Icons.admin_panel_settings, l10n.adminManagement),
-      _NavItem(Icons.analytics_rounded, l10n.statistics),
-      _NavItem(Icons.movie_rounded, l10n.moviesTab),
-      _NavItem(Icons.live_tv_rounded, l10n.seriesTab),
-      _NavItem(Icons.cloud_upload_rounded, l10n.uploadTab),
-      _NavItem(Icons.attach_money_rounded, l10n.financeTab),
-      _NavItem(Icons.support_agent_rounded, l10n.supportTab),
-      _NavItem(Icons.person_rounded, l10n.profileTab),
-    ];
+    final navItems = _destinations(l10n).map((destination) => destination.nav).toList();
 
     return Container(
       height: 70,
@@ -216,43 +209,52 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  void _showNotifications(BuildContext context, AppLocalizations l10n) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Text(l10n.notificationsTitle, style: AppTheme.textTitle),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              _NotificationItem(
-                title: l10n.newVideoSubmitted,
-                subtitle: "Documentaire: 'Les secrets de l'océan'",
-                time: "15 min",
-                icon: Icons.video_library,
-              ),
-              _NotificationItem(
-                title: l10n.paymentRequest,
-                subtitle: "Producteur: StudioSun - 1 250€",
-                time: "1h",
-                icon: Icons.payment,
-              ),
-            ],
+  Future<void> _showNotifications(BuildContext context) async {
+    final api = context.read<AdminApiClient>();
+    final payload = await api.notifications();
+    final rows = List<Map<String, dynamic>>.from(payload['results'] ?? []);
+    if (!context.mounted) return;
+    await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
+      backgroundColor: AppTheme.cardBackground,
+      title: Row(children: [
+        const Expanded(child: Text('Notifications')),
+        if ((payload['unread'] ?? 0) > 0)
+          Badge(label: Text('${payload['unread']}')),
+      ]),
+      content: SizedBox(width: 620, height: 480, child: rows.isEmpty
+        ? const Center(child: Text('Aucune notification.'))
+        : ListView.separated(
+            itemCount: rows.length,
+            separatorBuilder: (_, __) => const Divider(),
+            itemBuilder: (_, index) {
+              final row = rows[index];
+              return ListTile(
+                dense: true,
+                leading: Icon(
+                  row['is_read'] == true ? Icons.notifications_none : Icons.notifications_active,
+                  color: AppTheme.primary,
+                ),
+                title: Text(row['title']?.toString() ?? ''),
+                subtitle: Text(row['message']?.toString() ?? ''),
+                trailing: row['is_read'] == true ? null : const Icon(Icons.circle, size: 9),
+              );
+            },
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.close, style: TextStyle(color: AppTheme.primary)),
-          ),
-        ],
       ),
-    );
+      actions: [
+        TextButton(
+          onPressed: () async {
+            await api.markNotificationsRead();
+            if (dialogContext.mounted) Navigator.pop(dialogContext);
+          },
+          child: const Text('Tout marquer comme lu'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Fermer'),
+        ),
+      ],
+    ));
   }
 }
 
@@ -263,26 +265,9 @@ class _NavItem {
   const _NavItem(this.icon, this.label);
 }
 
-class _NotificationItem extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String time;
-  final IconData icon;
+class _Destination {
+  final _NavItem nav;
+  final Widget page;
 
-  const _NotificationItem({
-    required this.title,
-    required this.subtitle,
-    required this.time,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      title: Text(title, style: AppTheme.textBody),
-      subtitle: Text(subtitle, style: AppTheme.textCaption),
-      trailing: Text(time, style: AppTheme.textCaption),
-      leading: Icon(icon, color: AppTheme.primary),
-    );
-  }
+  const _Destination(this.nav, this.page);
 }

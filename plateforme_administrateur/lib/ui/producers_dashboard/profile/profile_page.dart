@@ -2,12 +2,12 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 import 'package:provider/provider.dart';
-import 'package:plateforme_producteurs/providers/locale_provider.dart';
-import 'package:plateforme_producteurs/core/core.dart';
-import 'package:plateforme_producteurs/ui/settings/privacy_settings_page.dart';
-import 'package:plateforme_producteurs/ui/settings/help_support_page.dart';
+import 'package:plateforme_administrateur/providers/locale_provider.dart';
+import 'package:plateforme_administrateur/core/core.dart';
+import 'package:plateforme_administrateur/ui/settings/privacy_settings_page.dart';
+import 'package:plateforme_administrateur/ui/settings/help_support_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});

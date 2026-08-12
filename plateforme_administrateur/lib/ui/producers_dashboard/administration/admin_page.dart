@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:plateforme_producteurs/api/admin_api_client.dart';
-import 'package:plateforme_producteurs/core/core.dart';
+import 'package:plateforme_administrateur/api/admin_api_client.dart';
+import 'package:plateforme_administrateur/core/core.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -12,6 +12,49 @@ class _AdminPageState extends State<AdminPage> {
   late Future<List<Map<String, dynamic>>> _roles;
   @override void initState() { super.initState(); _reload(); }
   void _reload() => _roles = context.read<AdminApiClient>().roles();
+
+  Future<void> _createStaff() async {
+    final email = TextEditingController();
+    final password = TextEditingController();
+    String role = 'Modérateur';
+    final result = await showDialog<Map<String, dynamic>>(context: context, builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Text('Créer un administrateur'),
+        content: SizedBox(width: 480, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: email, decoration: const InputDecoration(labelText: 'Adresse e-mail')),
+          const SizedBox(height: 12),
+          TextField(controller: password, obscureText: true,
+            decoration: const InputDecoration(labelText: 'Mot de passe initial (12 caractères minimum)')),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(value: role, decoration: const InputDecoration(labelText: 'Rôle'),
+            items: const ['Modérateur', 'Finance', 'Support']
+              .map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+            onChanged: (value) => setDialogState(() => role = value!),
+          ),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+          FilledButton(onPressed: () async {
+            try {
+              final created = await context.read<AdminApiClient>().createStaff(
+                email: email.text.trim(), password: password.text, role: role);
+              if (context.mounted) Navigator.pop(context, created);
+            } on AdminApiException catch (error) {
+              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+            }
+          }, child: const Text('Créer')),
+        ],
+      ),
+    ));
+    email.dispose(); password.dispose();
+    if (result != null && mounted) {
+      await showDialog<void>(context: context, builder: (context) => AlertDialog(
+        title: const Text('Enrôlement MFA requis'),
+        content: SelectableText('Transmettez ce lien une seule fois au nouvel administrateur, via un canal sécurisé :\n\n${result['mfa_provisioning_uri']}'),
+        actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Terminé'))],
+      ));
+    }
+  }
 
   Future<void> _createRole() async {
     final name = TextEditingController();
@@ -52,7 +95,10 @@ class _AdminPageState extends State<AdminPage> {
     body: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Text('Rôles et permissions', style: AppTheme.textTitle.copyWith(fontSize: 24)),
-        FilledButton.icon(onPressed: _createRole, icon: const Icon(Icons.add_moderator), label: const Text('Créer un rôle')),
+        Wrap(spacing: 8, children: [
+          OutlinedButton.icon(onPressed: _createRole, icon: const Icon(Icons.add_moderator), label: const Text('Créer un rôle')),
+          FilledButton.icon(onPressed: _createStaff, icon: const Icon(Icons.person_add), label: const Text('Créer un administrateur')),
+        ]),
       ]),
       const SizedBox(height: 16),
       Expanded(child: FutureBuilder<List<Map<String, dynamic>>>(future: _roles, builder: (context, snapshot) {

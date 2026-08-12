@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
-import 'package:plateforme_producteurs/providers/locale_provider.dart';
+import 'package:plateforme_administrateur/providers/locale_provider.dart';
 import 'routes.dart';
 import 'api/admin_api_client.dart';
 import 'providers/admin_auth_provider.dart';
@@ -28,7 +28,7 @@ class ProducerApp extends StatelessWidget {
     final localeProvider = Provider.of<LocaleProvider>(context);
 
     return MaterialApp.router(
-      title: 'Ekeflicks Producteurs',
+      title: 'Ekeflicks Administration',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(useMaterial3: true),
       routerConfig: appRouter,

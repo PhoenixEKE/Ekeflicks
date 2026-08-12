@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:plateforme_producteurs/ui/producers_dashboard/users/models/user_model.dart';
+import 'package:plateforme_administrateur/ui/producers_dashboard/users/models/user_model.dart';
 
 class UserStatusChip extends StatelessWidget {
   final UserStatus status;

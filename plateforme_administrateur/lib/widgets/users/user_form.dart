@@ -1,8 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart'; 
-import 'package:plateforme_producteurs/ui/producers_dashboard/users/models/user_model.dart';
-import 'package:plateforme_producteurs/widgets/users/linked_profiles_widget.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_administrateur/ui/producers_dashboard/users/models/user_model.dart';
+import 'package:plateforme_administrateur/widgets/users/linked_profiles_widget.dart';
+import 'package:plateforme_administrateur/gen/app_localizations.dart';
 
 class UserForm extends StatefulWidget {
   final User? user;

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:plateforme_producteurs/api/admin_api_client.dart';
-import 'package:plateforme_producteurs/core/core.dart';
+import 'package:plateforme_administrateur/api/admin_api_client.dart';
+import 'package:plateforme_administrateur/core/core.dart';
+import 'user_detail_page.dart';
 
 class UsersPage extends StatefulWidget {
   const UsersPage({super.key});
@@ -98,6 +99,14 @@ class _UserTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = '${user['firstname'] ?? ''} ${user['lastname'] ?? ''}'.trim();
     return ListTile(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => UserDetailPage(userId: user['id'] as int)
+          )
+        );
+      },
       leading: CircleAvatar(
         child: Text(name.isEmpty ? '?' : name[0].toUpperCase()),
       ),

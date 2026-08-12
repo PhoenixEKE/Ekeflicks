@@ -1,127 +1,182 @@
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_charts/charts.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
-import 'package:plateforme_producteurs/core/core.dart';
+import 'package:provider/provider.dart';
 
-import 'components/stat_card.dart';
-import 'components/activity_item.dart';
+import 'package:plateforme_administrateur/api/admin_api_client.dart';
+import 'package:plateforme_administrateur/core/core.dart';
 
-class OverviewPage extends StatelessWidget {
+class OverviewPage extends StatefulWidget {
   const OverviewPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l10n.adminDashboardTitle, style: AppTheme.textTitle.copyWith(fontSize: 24)),
-          const SizedBox(height: 20),
-          
-          // Stats Cards Grid
-          GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 1.2,
-            children: [
-              StatCard(
-                title: l10n.totalUsers,
-                value: "2.4K",
-                icon: Icons.people_outline,
-                color: const Color(0xFF6C5CE7),
-                trend: Icons.trending_up,
-                info: "+12% ce mois",
-              ),
-              StatCard(
-                title: l10n.activeProducers, 
-                value: "156",
-                icon: Icons.business_rounded,
-                color: const Color(0xFF00CEFF),
-                trend: Icons.trending_up,
-                info: "+5 nouveaux",
-              ),
-              StatCard(
-                title: l10n.totalVideos,
-                value: "1,248",
-                icon: Icons.video_library,
-                color: const Color(0xFF9C27B0),
-                trend: Icons.trending_up,
-                info: "+32 ce mois",
-              ),
-              StatCard(
-                title: l10n.publishedVideos, 
-                value: "1,105",
-                icon: Icons.check_circle,
-                color: const Color(0xFF4CAF50),
-                trend: Icons.trending_up,
-                info: "+28 ce mois",
-              ),
-              StatCard(
-                title: l10n.videosToReview, 
-                value: "23",
-                icon: Icons.video_library,
-                color: const Color(0xFFFF7675),
-                trend: Icons.warning_amber_rounded,
-                info: "En attente",
-              ),
-              StatCard(
-                title: l10n.monthlyRevenue, 
-                value: "24K €",
-                icon: Icons.euro_symbol_rounded,
-                color: const Color(0xFF00B894),
-                trend: Icons.trending_up,
-                info: "+8% vs mois dernier",
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 20),
-          
-          // Recent Activity in Card
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l10n.recentActivity, style: AppTheme.textSubtitle.copyWith(fontSize: 18)),
-                  const SizedBox(height: 10),
-                  const ActivityItem(
-                    title: "Nouvelle vidéo soumise",
-                    subtitle: "Documentaire: 'Les secrets de l'océan' par MarineProd",
-                    time: "Il y a 15 min",
-                    icon: Icons.video_camera_back_rounded,
-                    status: "À revoir",
-                    statusColor: AppTheme.warning,
-                  ),
-                  const ActivityItem(
-                    title: "Nouvelle vidéo soumise",
-                    subtitle: "Film: 'Le dernier voyage' par CinéCréa",
-                    time: "Il y a 1h",
-                    icon: Icons.video_camera_back_rounded,
-                    status: "Publiée",
-                    statusColor: AppTheme.warning,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  @override State<OverviewPage> createState() => _OverviewPageState();
 }
 
-class ChartData {
-  final String x;
-  final double y;
+class _OverviewPageState extends State<OverviewPage> {
+  late Future<Map<String, dynamic>> data;
+  @override void initState() { super.initState(); data = _load(); }
+  Future<Map<String, dynamic>> _load() => context.read<AdminApiClient>().dashboard();
+  void _reload() => setState(() => data = _load());
 
-  ChartData(this.x, this.y);
+  String _ago(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+    if (date == null) return '';
+    final difference = DateTime.now().difference(date);
+    if (difference.inMinutes < 60) return 'il y a ${difference.inMinutes} min';
+    if (difference.inHours < 24) return 'il y a ${difference.inHours} h';
+    return 'il y a ${difference.inDays} j';
+  }
+
+  IconData _activityIcon(String? type) => switch (type) {
+    'user' => Icons.person_add_alt_1,
+    'payment' => Icons.payments,
+    _ => Icons.movie_creation,
+  };
+
+  @override Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
+    future: data,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (snapshot.hasError) {
+        return Center(
+          child: FilledButton.icon(
+            onPressed: _reload,
+            icon: const Icon(Icons.refresh),
+            label: Text('Réessayer : ${snapshot.error}')
+          )
+        );
+      }
+      final payload = snapshot.data!;
+      final stats = Map<String, dynamic>.from(payload['stats'] as Map);
+      final activities = List<Map<String, dynamic>>.from(payload['recent_activity'] as List);
+      final alerts = List<Map<String, dynamic>>.from(payload['alerts'] as List);
+      final cards = [
+        ('Utilisateurs', stats['users'], Icons.people, const Color(0xFF6C5CE7)),
+        ('Producteurs actifs', stats['producers'], Icons.business, const Color(0xFF00A8CC)),
+        ('Contenus', stats['contents'], Icons.video_library, const Color(0xFF9C27B0)),
+        ('Publiés', stats['published'], Icons.check_circle, const Color(0xFF4CAF50)),
+        ('À modérer', stats['pending_moderation'], Icons.fact_check, const Color(0xFFFF7675)),
+        ('Revenu mensuel', '${stats['monthly_revenue']} €', Icons.euro, const Color(0xFF00B894)),
+      ];
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(
+              child: Text(
+                'Tableau de bord administrateur',
+                style: AppTheme.textTitle.copyWith(fontSize: 22)
+              )
+            ),
+            IconButton(
+              onPressed: _reload,
+              tooltip: 'Actualiser',
+              icon: const Icon(Icons.refresh)
+            )
+          ]),
+          const SizedBox(height: 8),
+          LayoutBuilder(builder: (_, box) {
+            final columns = box.maxWidth >= 1000 ? 6 : box.maxWidth >= 650 ? 3 : 2;
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: cards.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 1.65
+              ),
+              itemBuilder: (_, index) {
+                final card = cards[index];
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(card.$3, color: card.$4, size: 24),
+                        const SizedBox(height: 4),
+                        Text('${card.$2}', style: AppTheme.textTitle.copyWith(fontSize: 20)),
+                        Text(card.$1, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTheme.textCaption),
+                      ]
+                    )
+                  )
+                );
+              }
+            );
+          }),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(
+                flex: 3,
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Activité récente', style: AppTheme.textSubtitle),
+                      const Divider(),
+                      Expanded(
+                        child: activities.isEmpty
+                          ? const Center(child: Text('Aucune activité récente.'))
+                          : ListView.builder(
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: activities.length,
+                              itemBuilder: (_, index) {
+                                final item = activities[index];
+                                return ListTile(
+                                  dense: true,
+                                  visualDensity: VisualDensity.compact,
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: CircleAvatar(
+                                    radius: 16,
+                                    child: Icon(_activityIcon(item['type']?.toString()), size: 17)
+                                  ),
+                                  title: Text(item['title']?.toString() ?? '', style: AppTheme.textBodyBold),
+                                  subtitle: Text(
+                                    item['message']?.toString() ?? '',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis
+                                  ),
+                                  trailing: Text(_ago(item['created_at']), style: AppTheme.textCaption)
+                                );
+                              }
+                            )
+                      )
+                    ])
+                  )
+                )
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('⚠️ Alertes', style: AppTheme.textSubtitle),
+                      const Divider(),
+                      ...alerts.map((alert) => ListTile(
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          radius: 15,
+                          backgroundColor: (alert['count'] as num) > 0
+                            ? Colors.orange.shade800
+                            : Colors.green.shade800,
+                          child: Text('${alert['count']}', style: const TextStyle(fontSize: 11, color: Colors.white))
+                        ),
+                        title: Text(alert['label']?.toString() ?? '', maxLines: 2)
+                      )),
+                    ])
+                  )
+                )
+              ),
+            ])
+          ),
+        ])
+      );
+    }
+  );
 }
