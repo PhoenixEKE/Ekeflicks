@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (AdminDashboardView, AdminLoginView, AdminMFAConfirmView, AdminNotificationView,
                     AdminRefreshView, AdminUserViewSet, ClaimViewSet,
-                    AdminPayoutViewSet, ContentModerationViewSet, PermissionListView, RoleViewSet,
+                    AdminPayoutViewSet,AdminSubscriptionListView, ContentModerationViewSet, PermissionListView, RoleViewSet,
                     SessionViewSet, VideoModerationViewSet)
 
 router = DefaultRouter()
@@ -19,6 +19,7 @@ urlpatterns = [
     path('auth/mfa/confirm/', AdminMFAConfirmView.as_view(), name='admin-mfa-confirm'),
     path('auth/refresh/', AdminRefreshView.as_view(), name='admin-refresh'),
     path('permissions/', PermissionListView.as_view(), name='admin-permissions'),
+    path('subscriptions/', AdminSubscriptionListView.as_view(), name='admin-subscriptions'),
     path('dashboard/', AdminDashboardView.as_view(), name='admin-dashboard'),
     path('notifications/', AdminNotificationView.as_view(), name='admin-notifications'),
     path('', include(router.urls)),

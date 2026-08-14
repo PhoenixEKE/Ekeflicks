@@ -72,6 +72,17 @@ class AdminSecurityApiTests(APITestCase):
         self.assertTrue(support.is_staff)
         self.assertEqual(list(support.groups.values_list('name', flat=True)), ['Auditeur'])
 
+    def test_custom_role_can_be_deleted_but_base_role_is_protected(self):
+        login = self.login()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        role = self.client.post('/api/v1/admin/roles/', {'name': 'Temporaire'}, format='json')
+        deleted = self.client.delete(f"/api/v1/admin/roles/{role.data['id']}/")
+        base = Group.objects.get(name='Support')
+        protected = self.client.delete(f'/api/v1/admin/roles/{base.pk}/')
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(protected.status_code, 400)
+        self.assertTrue(Group.objects.filter(pk=base.pk).exists())
+
     def test_superadmin_creates_staff_with_fixed_role_and_mfa_enrollment(self):
         login = self.login()
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
@@ -161,6 +172,35 @@ class AdminSecurityApiTests(APITestCase):
         self.assertEqual(response.data['subscription']['plan'], 'Premium')
         self.assertEqual(response.data['profiles'][0]['name'], 'Jean')
         self.assertIn('watch_seconds', response.data['activity'])
+
+    def test_user_search_accepts_phone_and_country(self):
+        customer = User.objects.create_user(
+            'search@example.com', 'strong-password', phone='+2250701020304', country_code='CI',
+        )
+        login = self.login()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        by_phone = self.client.get('/api/v1/admin/users/?kind=customer&search=070102')
+        by_country = self.client.get('/api/v1/admin/users/?kind=customer&search=CI')
+        self.assertEqual(by_phone.data['results'][0]['id'], str(customer.pk))
+        self.assertEqual(by_country.data['results'][0]['id'], str(customer.pk))
+
+    def test_subscription_accounting_list_returns_rows_and_statistics(self):
+        customer = User.objects.create_user('subscriber@example.com', 'strong-password')
+        plan = SubscriptionPlan.objects.create(
+            name='Essentiel', slug='essential-admin-test', price=7, duration_days=30,
+        )
+        subscription = Subscription.objects.create(
+            user=customer, plan=plan, expires_at=timezone.now() + timedelta(days=30),
+        )
+        from core.models.subscriptions import Payment
+        Payment.objects.create(subscription=subscription, amount=7, status='success')
+        login = self.login()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        response = self.client.get('/api/v1/admin/subscriptions/?search=subscriber')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['results'][0]['email'], customer.email)
+        self.assertEqual(response.data['statistics']['by_status']['active'], 1)
+        self.assertEqual(response.data['statistics']['successful_revenue'], Decimal('7'))
 
     def test_producer_detail_returns_content_and_revenue_aggregates(self):
         producer = User.objects.create_user('producer-detail@example.com', 'strong-password', is_producer=True)

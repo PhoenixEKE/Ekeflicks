@@ -16,6 +16,7 @@ import 'moderation/moderation_page.dart';
 import 'finance/finance_page.dart';
 import 'claims/claims_page.dart';
 import 'profile/profile_page.dart';
+import 'subscriptions/subscriptions_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -61,6 +62,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       ],
       if (auth.can('core.view_payment'))
         _Destination(_NavItem(Icons.attach_money_rounded, l10n.financeTab), const FinancePage()),
+      if (auth.isSuperuser || auth.can('core.view_subscription'))
+        _Destination(_NavItem(Icons.subscriptions_rounded, 'Abonnements'), const SubscriptionsPage()),
       if (auth.can('core.view_accountclosurerequest') || auth.can('core.view_emailchangesupportrequest'))
         _Destination(_NavItem(Icons.support_agent_rounded, l10n.supportTab), const ClaimsManagementPage()),
       _Destination(_NavItem(Icons.person_rounded, l10n.profileTab), const ProfilePage()),

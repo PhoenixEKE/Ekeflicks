@@ -4,7 +4,7 @@ import 'package:plateforme_administrateur/api/admin_api_client.dart';
 import 'package:plateforme_administrateur/core/core.dart';
 
 class UserDetailPage extends StatefulWidget {
-  final int userId;
+  final String userId;
   const UserDetailPage({super.key, required this.userId});
 
   @override
@@ -60,7 +60,7 @@ class _UserDetailPageState extends State<UserDetailPage> {
             );
           }
           final user = snapshot.data!;
-          return Padding(
+          return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,7 +139,7 @@ class _UserDetailPageState extends State<UserDetailPage> {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () async {
-                          final newStatus = !(user['is_active'] as bool);
+                          final newStatus = user['is_active'] != true;
                           try {
                             await context.read<AdminApiClient>().setUserStatus(
                                   widget.userId,
@@ -176,9 +176,7 @@ class _UserDetailPageState extends State<UserDetailPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () {
-                          // Voir les paiements
-                        },
+                        onPressed: () => _showPayments(context),
                         icon: const Icon(Icons.payments),
                         label: const Text('Paiements'),
                       ),
@@ -191,6 +189,26 @@ class _UserDetailPageState extends State<UserDetailPage> {
         },
       ),
     );
+  }
+
+  Future<void> _showPayments(BuildContext context) async {
+    final payments = await context.read<AdminApiClient>().userPayments(widget.userId);
+    if (!context.mounted) return;
+    await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
+      title: const Text('Paiements'),
+      content: SizedBox(width: 600, height: 400, child: payments.isEmpty
+        ? const Center(child: Text('Aucun paiement.'))
+        : ListView.builder(itemCount: payments.length, itemBuilder: (_, index) {
+            final payment = payments[index];
+            return ListTile(
+              leading: const Icon(Icons.receipt_long),
+              title: Text('${payment['amount']} ${payment['currency'] ?? ''}'),
+              subtitle: Text('${payment['provider'] ?? ''} • ${payment['created_at'] ?? ''}'),
+              trailing: Text(payment['status']?.toString().toUpperCase() ?? ''),
+            );
+          })),
+      actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Fermer'))],
+    ));
   }
 
   Widget _infoRow(String label, String value) {

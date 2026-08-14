@@ -25,7 +25,12 @@ class _UsersPageState extends State<UsersPage> {
             search: search.text.trim(),
           );
 
-  void reload() => setState(() => data = _load());
+  void reload() {
+    final nextData = _load();
+    setState(() {
+      data = nextData;
+    });
+  }
 
   @override
   void dispose() {
@@ -50,7 +55,7 @@ class _UsersPageState extends State<UsersPage> {
                 onSubmitted: (_) => reload(),
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.search),
-                  labelText: 'Rechercher par e-mail',
+                  labelText: 'Rechercher par nom, numéro, e-mail ou pays',
                   suffixIcon: IconButton(
                     onPressed: reload,
                     icon: const Icon(Icons.refresh),
@@ -103,7 +108,7 @@ class _UserTile extends StatelessWidget {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => UserDetailPage(userId: user['id'] as int)
+            builder: (_) => UserDetailPage(userId: user['id'].toString())
           )
         );
       },

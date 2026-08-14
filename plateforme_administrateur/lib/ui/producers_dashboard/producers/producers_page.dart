@@ -70,8 +70,10 @@ class _State extends State<ProducersPage> {
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => UserDetailPage(userId: p['id'] as int)
-                              )
+                                builder: (_) => UserDetailPage(
+                                  userId: p['id'].toString(),
+                                ),
+                              ),
                             );
                             if (mounted) setState(() => data = _load());
                           },

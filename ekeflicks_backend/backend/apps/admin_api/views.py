@@ -4,7 +4,8 @@ from datetime import timedelta
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import Group, Permission
 from django.db import transaction
-from django.db.models import Sum, Q
+from django.db.models import Count, Prefetch, Sum, Q
+from django.db.models.functions import TruncDay, TruncMonth, TruncWeek, TruncYear
 from django.utils import timezone
 from rest_framework import exceptions, generics, status, viewsets
 from rest_framework.decorators import action
@@ -24,7 +25,7 @@ from apps.auth.serializers import AccountClosureRequestSerializer, EmailChangeSu
 from core.models.users import AccountClosureRequest, AdminMFADevice, EmailChangeSupportRequest, User, UserSession
 from core.models.content import Content
 from core.models.streaming import VideoAsset
-from core.models.subscriptions import Payment
+from core.models.subscriptions import Payment, Subscription
 from core.models.subscriptions import ProducerPayoutRequest
 from apps.billing.payout_services import approve_payout_request, mark_payout_paid, reject_payout_request
 from apps.billing.serializers import PayoutRejectSerializer, PayoutReviewSerializer
@@ -171,7 +172,11 @@ class AdminUserViewSet(viewsets.ReadOnlyModelViewSet):
         if kind == 'customer': queryset = queryset.filter(is_producer=False, is_staff=False)
         search = self.request.query_params.get('search')
         if search:
-            queryset = queryset.filter(Q(email__icontains=search) | Q(firstname__icontains=search) | Q(lastname__icontains=search) | Q(producer_company__icontains=search))
+            queryset = queryset.filter(
+                Q(email__icontains=search) | Q(firstname__icontains=search) |
+                Q(lastname__icontains=search) | Q(phone__icontains=search) |
+                Q(country_code__icontains=search) | Q(producer_company__icontains=search)
+            )
         return queryset
 
     def get_required_permission(self):
@@ -304,6 +309,14 @@ class RoleViewSet(viewsets.ModelViewSet):
         role = serializer.save()
         audit(self.request, 'role.update', role, {'permissions': list(role.permissions.values_list('codename', flat=True))})
 
+    def perform_destroy(self, instance):
+        if instance.name in {'Modérateur', 'Finance', 'Support'}:
+            raise exceptions.ValidationError({
+                'detail': 'Un rôle de base ne peut pas être supprimé. Ses permissions restent modifiables.'
+            })
+        audit(self.request, 'role.delete', instance, {'name': instance.name})
+        instance.delete()
+
 
 class PermissionListView(generics.ListAPIView):
     queryset = Permission.objects.select_related('content_type').order_by('content_type__app_label', 'codename')
@@ -314,6 +327,73 @@ class PermissionListView(generics.ListAPIView):
         super().initial(request, *args, **kwargs)
         if not request.user.is_superuser:
             raise exceptions.PermissionDenied('Permissions réservées au super-administrateur.')
+
+
+class AdminSubscriptionListView(generics.ListAPIView):
+    """Vue comptable des abonnements, avec agrégats pour le tableau admin."""
+    permission_classes = [IsAuthenticated, AdminPermission]
+    required_permission = 'core.view_subscription'
+    pagination_class = None
+
+    def get(self, request, *args, **kwargs):
+        queryset = Subscription.objects.select_related('user', 'plan').prefetch_related(
+            Prefetch('payments', queryset=Payment.objects.order_by('-created_at'))
+        ).order_by('-created_at')
+        search = request.query_params.get('search', '').strip()
+        subscription_status = request.query_params.get('status')
+        if search:
+            queryset = queryset.filter(
+                Q(user__email__icontains=search) | Q(user__firstname__icontains=search) |
+                Q(user__lastname__icontains=search) | Q(plan__name__icontains=search)
+            )
+        if subscription_status:
+            queryset = queryset.filter(status=subscription_status)
+
+        totals = Subscription.objects.values('status').annotate(count=Count('id'))
+        period = request.query_params.get('period', 'month')
+        truncation = {
+            'day': TruncDay, 'week': TruncWeek, 'month': TruncMonth, 'year': TruncYear,
+        }.get(period, TruncMonth)
+        successful_payments = Payment.objects.filter(status='success')
+        revenue = successful_payments.aggregate(total=Sum('amount'))['total'] or 0
+        revenue_history = list(
+            successful_payments.annotate(period=truncation('paid_at')).values('period', 'currency')
+            .annotate(amount=Sum('amount'), transactions=Count('id')).order_by('period')
+        )
+        results = [{
+            'id': str(row.pk),
+            'user_id': str(row.user_id),
+            'email': row.user.email,
+            'name': f'{row.user.firstname} {row.user.lastname}'.strip(),
+            'plan': row.plan.name,
+            'price': row.plan.price,
+            'currency': row.plan.currency,
+            'status': row.status,
+            'started_at': row.started_at,
+            'expires_at': row.expires_at,
+            'auto_renew': row.auto_renew,
+            'payments': [{
+                'id': str(payment.pk),
+                'transaction_id': payment.provider_payment_id or payment.provider_reference or str(payment.pk),
+                'provider_reference': payment.provider_reference,
+                'provider': payment.provider,
+                'amount': payment.amount,
+                'currency': payment.currency,
+                'status': payment.status,
+                'paid_at': payment.paid_at,
+                'created_at': payment.created_at,
+            } for payment in list(row.payments.all())[:20]],
+        } for row in queryset[:500]]
+        return Response({
+            'results': results,
+            'statistics': {
+                'total': Subscription.objects.count(),
+                'by_status': {row['status']: row['count'] for row in totals},
+                'successful_revenue': revenue,
+                'period': period,
+                'revenue_history': revenue_history,
+            },
+        })
 
 
 class ClaimViewSet(viewsets.ReadOnlyModelViewSet):

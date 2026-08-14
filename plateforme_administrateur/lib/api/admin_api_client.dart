@@ -11,13 +11,23 @@ class AdminApiException implements Exception {
 
 class AdminApiClient {
   AdminApiClient({String? baseUrl, http.Client? httpClient})
-      : baseUrl = baseUrl ?? const String.fromEnvironment('API_URL', defaultValue: 'http://localhost:8000/api/v1/admin'),
+      : baseUrl = _resolveBaseUrl(baseUrl),
         _http = httpClient ?? http.Client();
 
   final String baseUrl;
   final http.Client _http;
   final Map<String, String> _tokens = {};
   Future<void>? _renewal;
+
+  static String _resolveBaseUrl(String? override) {
+    if (override != null) return override;
+    const configured = String.fromEnvironment('API_URL');
+    // Ignore the retired direct-IP endpoint embedded in older web builds.
+    if (configured.isNotEmpty && !configured.contains('192.162.68.247')) {
+      return configured;
+    }
+    return 'https://api.ekeflicks.com/api/v1/admin';
+  }
 
   Future<Map<String, dynamic>> login(String email, String password, String otp) async {
     final data = await _request('POST', '/auth/login/', authenticated: false, body: {
@@ -45,18 +55,18 @@ class AdminApiClient {
     return _results(await _request('GET', '/users/?$query'));
   }
 
-  Future<Map<String, dynamic>> userDetail(int id) async =>
+  Future<Map<String, dynamic>> userDetail(Object id) async =>
       Map<String, dynamic>.from(await _request('GET', '/users/$id/') as Map);
 
-  Future<Map<String, dynamic>> updateUser(int id, Map<String, dynamic> changes) async =>
+  Future<Map<String, dynamic>> updateUser(Object id, Map<String, dynamic> changes) async =>
       Map<String, dynamic>.from(await _request('PATCH', '/users/$id/details/', body: changes) as Map);
 
-  Future<Map<String, dynamic>> setUserStatus(int id, {required bool isActive}) async =>
+  Future<Map<String, dynamic>> setUserStatus(Object id, {required bool isActive}) async =>
       Map<String, dynamic>.from(await _request('PATCH', '/users/$id/status/', body: {'is_active': isActive}) as Map);
 
-  Future<void> deleteUser(int id) async => _request('DELETE', '/users/$id/delete-account/');
+  Future<void> deleteUser(Object id) async => _request('DELETE', '/users/$id/delete-account/');
 
-  Future<List<Map<String, dynamic>>> userPayments(int id) async =>
+  Future<List<Map<String, dynamic>>> userPayments(Object id) async =>
       _results(await _request('GET', '/users/$id/payments/'));
 
   Future<Map<String, dynamic>> createStaff({
@@ -104,6 +114,27 @@ class AdminApiClient {
       body: {'name': name, 'permissions': permissionIds},
     );
     return Map<String, dynamic>.from(data as Map);
+  }
+
+  Future<Map<String, dynamic>> updateRole(Object id, String name, List<int> permissionIds) async =>
+      Map<String, dynamic>.from(await _request('PUT', '/roles/$id/', body: {
+        'name': name,
+        'permissions': permissionIds,
+      }) as Map);
+
+  Future<void> deleteRole(Object id) async => _request('DELETE', '/roles/$id/');
+
+  Future<Map<String, dynamic>> subscriptions({
+    String search = '',
+    String? status,
+    String period = 'month',
+  }) async {
+    final query = Uri(queryParameters: {
+      if (search.isNotEmpty) 'search': search,
+      if (status != null) 'status': status,
+      'period': period,
+    }).query;
+    return Map<String, dynamic>.from(await _request('GET', '/subscriptions/?$query') as Map);
   }
 
   Future<void> assignRoles(int userId, List<int> roleIds) async {
@@ -161,9 +192,19 @@ class AdminApiClient {
     }
     final data = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AdminApiException(data is Map ? (data['detail']?.toString() ?? 'Erreur API') : 'Erreur API', response.statusCode);
+      throw AdminApiException(_errorMessage(data), response.statusCode);
     }
     return data;
+  }
+
+  String _errorMessage(dynamic data) {
+    if (data is! Map) return 'Erreur API';
+    if (data['detail'] != null) return data['detail'].toString();
+    return data.entries.map((entry) {
+      final value = entry.value;
+      final message = value is List ? value.join(' ') : value.toString();
+      return '${entry.key}: $message';
+    }).join('\n');
   }
 
   Future<void> _renew() async {
