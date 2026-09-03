@@ -131,6 +131,7 @@ def _producer_data(account: ProducerAccount) -> dict:
         "Forme juridique": data["legal_form"],
         "Pays": data["country_code"],
         "Adresse": data["address"],
+        "Ville": data["city"],
         "Numero d'immatriculation": data["registration_number"],
         "Representant legal": data["representative_name"],
         "Fonction du representant": data["representative_role"],
@@ -266,31 +267,48 @@ def _overlay_page_12(data):
 
     values = [
         (380.25, "Raison sociale", data["legal_name"]),
-        (353.85, "Nom commercial", data["company_name"]),
-        (327.45, "Pays", data["country_code"]),
-        (301.05, "Forme juridique", data["legal_form"]),
-        (274.65, "Numero d'immatriculation", data["registration_number"]),
+        (354.85, "Nom commercial", data["company_name"]),
+        (329.45, "Pays", data["country_code"]),
+        (304.05, "Forme juridique", data["legal_form"]),
         (
-            248.25,
+            278.65,
+            "Numero d'immatriculation",
+            data["registration_number"],
+        ),
+        (
+            253.25,
             "Numero fiscal",
             data["tax_number"] or "Non renseigne",
         ),
-        (221.85, "Adresse", _address(data)),
-        (195.45, "Representant", data["representative_name"]),
+        (227.85, "Adresse", data["address"]),
+        (202.45, "Ville", data["city"]),
         (
-            169.05,
+            177.05,
+            "Representant",
+            data["representative_name"],
+        ),
+        (
+            151.65,
             "Qualite du representant",
             data["representative_role"],
         ),
-        (142.65, "Email du compte Producteur", data["email"]),
-        (116.25, "Telephone", data["phone"] or "Non renseigne"),
         (
-            89.85,
+            126.25,
+            "Email du compte Producteur",
+            data["email"],
+        ),
+        (
+            100.85,
+            "Telephone",
+            data["phone"] or "Non renseigne",
+        ),
+        (
+            75.45,
             "Devise de paiement",
             "A definir dans l'espace de paiement",
         ),
         (
-            63.45,
+            50.05,
             "Moyen de paiement",
             "A definir dans l'espace de paiement",
         ),
@@ -311,7 +329,6 @@ def _overlay_page_12(data):
     c.save()
     return buf.getvalue()
 
-
 def _overlay_page_13(
     data,
     *,
@@ -322,56 +339,151 @@ def _overlay_page_13(
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(612, 792))
 
-    # Partie Producteur.
-    for y in (678.65, 663.85, 649.05, 634.25, 619.45, 575.55):
-        _cover(c, 302, y - 4, 260, 18)
+    # ------------------------------------------------------
+    # Tableau de signature Producteur.
+    #
+    # Les rectangles blancs masquent les anciennes valeurs
+    # du template. Les bordures sont ensuite redessinées afin
+    # qu'aucune cellule ne paraisse coupée.
+    # ------------------------------------------------------
+
+    right_x = 302
+    right_width = 260
+
+    # Première ligne : version du contrat.
+    _cover(c, right_x, 690.2, right_width, 16)
 
     _draw_fitted_text(
-        c, 306.1, 678.65, data["legal_name"],
+        c,
+        306.1,
+        693.65,
+        f"Version du contrat {settings.PRODUCER_AGREEMENT_CURRENT_VERSION}",
         max_width=250,
-        preferred_size=9,
+        preferred_size=8.5,
         min_size=6.5,
     )
+
+    # Valeurs Producteur.
+    for y in (
+        678.65,
+        663.85,
+        649.05,
+        634.25,
+        619.45,
+        575.55,
+    ):
+        _cover(c, right_x, y - 4, right_width, 18)
+
     _draw_fitted_text(
-        c, 306.1, 663.85, data["representative_name"],
+        c,
+        306.1,
+        678.65,
+        data["legal_name"],
         max_width=250,
         preferred_size=9,
         min_size=6.5,
     )
+
     _draw_fitted_text(
-        c, 306.1, 649.05, data["representative_role"],
+        c,
+        306.1,
+        663.85,
+        data["representative_name"],
         max_width=250,
         preferred_size=9,
         min_size=6.5,
     )
-    _text(c, 306.1, 634.25, data["country_code"], 9)
+
+    _draw_fitted_text(
+        c,
+        306.1,
+        649.05,
+        data["representative_role"],
+        max_width=250,
+        preferred_size=9,
+        min_size=6.5,
+    )
+
+    _text(
+        c,
+        306.1,
+        634.25,
+        data["country_code"],
+        9,
+    )
 
     if producer_signed_at:
         _text(
             c,
             306.1,
             619.45,
-            producer_signed_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            producer_signed_at.strftime(
+                "%Y-%m-%d %H:%M:%S UTC"
+            ),
             8.2,
         )
-        _text(c, 306.1, 575.55, presented_hash, 6.7)
+
+        _draw_fitted_text(
+            c,
+            306.1,
+            575.55,
+            presented_hash,
+            max_width=250,
+            preferred_size=6.7,
+            min_size=5.5,
+        )
     else:
-        _text(
+        _draw_fitted_text(
             c,
             306.1,
             619.45,
             "En attente de signature du Producteur",
-            8.2,
+            max_width=250,
+            preferred_size=8.2,
+            min_size=6.5,
         )
-        _text(
+
+        _draw_fitted_text(
             c,
             306.1,
             575.55,
             "Empreinte generee avant acceptation",
-            7.2,
+            max_width=250,
+            preferred_size=7.2,
+            min_size=6.0,
         )
 
+    # ------------------------------------------------------
+    # Réparation des bordures effacées par les overlays.
+    # ------------------------------------------------------
+
+    c.setStrokeColorRGB(0, 0, 0)
+    c.setLineWidth(0.45)
+
+    # Bordure droite du tableau.
+    c.line(562, 558, 562, 706)
+
+    # Séparation centrale.
+    c.line(302, 558, 302, 706)
+
+    # Bordures horizontales principales de la zone droite.
+    for y in (
+        706,
+        690,
+        675,
+        660,
+        645,
+        630,
+        615,
+        588,
+        558,
+    ):
+        c.line(302, y, 562, y)
+
+    # ------------------------------------------------------
     # Signature institutionnelle EKEFLICKS.
+    # ------------------------------------------------------
+
     _cover(c, 55, 449, 245, 75)
 
     c.setFillColorRGB(0, 0, 0)
@@ -391,6 +503,7 @@ def _overlay_page_13(
         preferred_size=8.5,
         min_size=6.5,
     )
+
     _draw_fitted_text(
         c,
         59.65,
@@ -400,17 +513,19 @@ def _overlay_page_13(
         preferred_size=8.5,
         min_size=6.5,
     )
+
     _text(
         c,
         59.65,
         464,
-        ekeflicks_signed_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        ekeflicks_signed_at.strftime(
+            "%Y-%m-%d %H:%M:%S UTC"
+        ),
         8.2,
     )
 
     c.save()
     return buf.getvalue()
-
 
 def _merge(page, overlay):
     page.merge_page(PdfReader(io.BytesIO(overlay)).pages[0])
