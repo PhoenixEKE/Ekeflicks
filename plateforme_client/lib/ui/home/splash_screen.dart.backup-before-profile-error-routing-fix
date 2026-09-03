@@ -1,0 +1,110 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:app_ekeflicks/providers/device_info_provider.dart';
+import 'package:app_ekeflicks/providers/profile_provider.dart';
+import 'package:app_ekeflicks/providers/user_provider.dart';
+import 'package:app_ekeflicks/ui/home/home_screen.dart';
+import 'package:app_ekeflicks/ui/users/login_screen.dart'; // Correction: LoginPage au lieu de LoginScreen
+import 'package:app_ekeflicks/ui/profiles/profile_selection_page.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  bool _navigated = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _checkAndNavigate();
+  }
+
+  Future<void> _checkAndNavigate() async {
+    if (_navigated) return;
+    _navigated = true;
+
+    final deviceInfo = Provider.of<DeviceInfoProvider>(context, listen: false);
+    final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final mediaQuery = MediaQuery.of(context);
+
+    // Attendre l'initialisation du device info
+    int tries = 0;
+    while (!deviceInfo.isInitialized && tries < 30) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      tries++;
+    }
+
+    if (!mounted) return;
+
+    final isLoggedIn = userProvider.isLoggedIn;
+    final hasUser = userProvider.currentUser != null;
+
+    // Redirection Desktop
+    if (deviceInfo.isInitialized && !deviceInfo.isTV && mediaQuery.size.width >= 1000) {
+      final Widget nextPage =
+          (isLoggedIn && hasUser) ? const HomeScreen() : const LoginPage();
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => nextPage),
+      );
+      return;
+    }
+
+    // Attendre 2s pour mobile/TV
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    Widget nextPage;
+    if (isLoggedIn && hasUser) {
+      try {
+        // CORRECTION: Retirer le paramètre user_Id
+        await profileProvider.loadProfiles();
+        
+        if (profileProvider.availableProfiles.length > 1) {
+          nextPage = const ProfileSelectionPage();
+        } else {
+          nextPage = const HomeScreen();
+        }
+      } catch (e) {
+        debugPrint('Error loading profiles: $e');
+        nextPage = const LoginPage(); // Correction: LoginPage au lieu de LoginScreen
+      }
+    } else {
+      nextPage = const LoginPage(); // Correction: LoginPage au lieu de LoginScreen
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => nextPage),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final deviceInfo = Provider.of<DeviceInfoProvider>(context);
+
+    if (deviceInfo.isInitialized && !deviceInfo.isTV && mediaQuery.size.width >= 1000) {
+      return const SizedBox.shrink();
+    }
+
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset('assets/animations/splashscreen.gif', width: 150),
+            const SizedBox(height: 20),
+            const CircularProgressIndicator(),
+          ],
+        ),
+      ),
+    );
+  }
+}

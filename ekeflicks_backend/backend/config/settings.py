@@ -34,7 +34,11 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = env_list(
     'ALLOWED_HOSTS',
-    'localhost,127.0.0.1,ekeflicks.com,180.149.198.245,www.ekeflicks.com,api.ekeflicks.com'
+    (
+        'localhost,127.0.0.1'
+        if DEBUG
+        else 'api.ekeflicks.com,ekeflicks.com,www.ekeflicks.com'
+    ),
 )
 
 # =========================================================
@@ -227,6 +231,9 @@ REST_FRAMEWORK = {
         'user': '1000/day',
         'anon': '100/day',
         'login': '5/minute',
+        'register': '5/hour',
+        'password_reset': '3/hour',
+        'token_refresh': '30/minute',
     },
 }
 
@@ -310,6 +317,10 @@ FLUTTERWAVE_WEBHOOK_SECRET = os.environ.get('FLUTTERWAVE_WEBHOOK_SECRET', '')
 WAVE_API_KEY = os.environ.get('WAVE_API_KEY', '')
 WAVE_WEBHOOK_SECRET = os.environ.get('WAVE_WEBHOOK_SECRET', '')
 
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+
 # =========================================================
 # RECOMMENDATION ENGINE / NEO4J
 # =========================================================
@@ -354,8 +365,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = env_list(
     ','.join([
         r'^https?://localhost:\d+$',
         r'^https?://127\.0\.0\.1:\d+$',
-        r'^https?://(\w+\.)*ekeflicks\.com$',
-    ]),
+    ]) if DEBUG else '',
 )
 
 CORS_ALLOW_CREDENTIALS = True
@@ -389,9 +399,13 @@ CSRF_TRUSTED_ORIGINS = [
     'https://ekeflicks.com',
     'https://api.ekeflicks.com',
     'https://www.ekeflicks.com',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
 ]
+
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS += [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+    ]
 
 # =========================================================
 # STORAGE

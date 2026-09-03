@@ -7,6 +7,7 @@ import 'ui/pages/faq_page.dart';
 import 'ui/profiles/profile_selection_page.dart';
 import 'ui/profiles/reset_parental_pin_page.dart';
 import 'ui/subscription/subscription_step1_page.dart';
+import 'ui/subscription/payment_return_page.dart';
 import 'ui/users/forgot_password_page.dart';
 import 'ui/users/login_screen.dart';
 import 'ui/users/reset_password_page.dart';
@@ -28,6 +29,7 @@ Map<String, WidgetBuilder> getAppRoutes() {
     '/terms': (context) => const TermsOfUsePage(),
     '/privacy': (context) => const PrivacyPolicyPage(),
     '/subscription-step1': (context) => const SubscriptionStep1Page(),
+    '/payment/return': (context) => const PaymentReturnPage(),
     '/profile-selection': (context) => const ProfileSelectionPage(),
     '/notifications': (context) => const NotificationsPage(),
     '/unsubscribe': (context) => UnsubscribePage(token: Uri.base.queryParameters['token']), 

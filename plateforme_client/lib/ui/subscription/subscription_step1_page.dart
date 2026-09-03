@@ -79,6 +79,8 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
         email: email,
         offerTitle: offer.title,
         offerPrice: offer.price ?? '',
+          offerCurrency: offer.currency,
+        offerPlanSlug: offer.planSlug,
       );
     }
     if (!mounted) return;
@@ -88,6 +90,8 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
         builder: (context) => SubscriptionStep2Page(
           offerTitle: offer.title,
           offerPrice: offer.price ?? '',
+            offerCurrency: offer.currency,
+          planSlug: offer.planSlug,
           accountEmail: email,
         ),
       ),

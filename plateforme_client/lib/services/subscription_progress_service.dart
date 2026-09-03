@@ -7,11 +7,15 @@ class SubscriptionProgress {
     required this.step,
     this.offerTitle,
     this.offerPrice,
+      this.offerCurrency,
+    this.offerPlanSlug,
   });
 
   final SubscriptionStep step;
   final String? offerTitle;
   final String? offerPrice;
+  final String? offerCurrency;
+  final String? offerPlanSlug;
 }
 
 /// Persists an unfinished subscription journey for each account.
@@ -22,6 +26,8 @@ class SubscriptionProgressService {
   static const _stepSuffix = 'subscription_step';
   static const _offerTitleSuffix = 'subscription_offer_title';
   static const _offerPriceSuffix = 'subscription_offer_price';
+  static const _offerCurrencySuffix = 'subscription_offer_currency';
+  static const _offerPlanSlugSuffix = 'subscription_offer_plan_slug';
 
   static String _key(String email, String suffix) =>
       '${email.trim().toLowerCase()}:$suffix';
@@ -38,6 +44,8 @@ class SubscriptionProgressService {
     required String email,
     required String offerTitle,
     required String offerPrice,
+    required String offerCurrency,
+    required String offerPlanSlug,
   }) async {
     final preferences = await SharedPreferences.getInstance();
     await Future.wait([
@@ -47,6 +55,14 @@ class SubscriptionProgressService {
       ),
       preferences.setString(_key(email, _offerTitleSuffix), offerTitle),
       preferences.setString(_key(email, _offerPriceSuffix), offerPrice),
+        preferences.setString(
+          _key(email, _offerCurrencySuffix),
+          offerCurrency,
+        ),
+      preferences.setString(
+        _key(email, _offerPlanSlugSuffix),
+        offerPlanSlug,
+      ),
     ]);
   }
 
@@ -61,11 +77,23 @@ class SubscriptionProgressService {
     if (savedStep == SubscriptionStep.payment.name) {
       final offerTitle = preferences.getString(_key(email, _offerTitleSuffix));
       final offerPrice = preferences.getString(_key(email, _offerPriceSuffix));
-      if (offerTitle != null && offerPrice != null) {
+        final offerCurrency =
+            preferences.getString(_key(email, _offerCurrencySuffix));
+      final offerPlanSlug =
+          preferences.getString(_key(email, _offerPlanSlugSuffix));
+
+      if (offerTitle != null &&
+          offerPrice != null &&
+            offerCurrency != null &&
+            offerCurrency.isNotEmpty &&
+          offerPlanSlug != null &&
+          offerPlanSlug.isNotEmpty) {
         return SubscriptionProgress(
           step: SubscriptionStep.payment,
           offerTitle: offerTitle,
           offerPrice: offerPrice,
+            offerCurrency: offerCurrency,
+          offerPlanSlug: offerPlanSlug,
         );
       }
 
@@ -82,6 +110,8 @@ class SubscriptionProgressService {
       preferences.remove(_key(email, _stepSuffix)),
       preferences.remove(_key(email, _offerTitleSuffix)),
       preferences.remove(_key(email, _offerPriceSuffix)),
+        preferences.remove(_key(email, _offerCurrencySuffix)),
+      preferences.remove(_key(email, _offerPlanSlugSuffix)),
     ]);
   }
 }

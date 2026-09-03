@@ -36,7 +36,7 @@ class _AdminPageState extends State<AdminPage> {
                 onPressed: () => setDialogState(() => visible = !visible),
               ))),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(initialValue: role, isExpanded: true,
+          DropdownButtonFormField<String>(value: role, isExpanded: true,
             decoration: const InputDecoration(labelText: 'Rôle'),
             items: const ['Modérateur', 'Finance', 'Support']
               .map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),

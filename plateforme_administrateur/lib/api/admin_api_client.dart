@@ -142,6 +142,85 @@ class AdminApiClient {
   }
 
   // =========================================================
+  // PLANS D'ABONNEMENT PARENTS
+  // =========================================================
+
+  Future<List<Map<String, dynamic>>> subscriptionPlans() async {
+    return _results(
+      await _request(
+        'GET',
+        '/subscription-plans/',
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> updateSubscriptionPlan(
+    Object id,
+    Map<String, dynamic> data,
+  ) async =>
+      Map<String, dynamic>.from(
+        await _request(
+          'PATCH',
+          '/subscription-plans/$id/',
+          body: data,
+        ) as Map,
+      );
+
+  // =========================================================
+  // GRILLES D'ABONNEMENT RÉGIONALES
+  // =========================================================
+
+  Future<List<Map<String, dynamic>>> subscriptionOffers({
+    String? zone,
+    String? plan,
+    bool? isActive,
+  }) async {
+    final query = Uri(
+      queryParameters: {
+        if (zone != null && zone.isNotEmpty) 'zone': zone,
+        if (plan != null && plan.isNotEmpty) 'plan': plan,
+        if (isActive != null) 'is_active': isActive.toString(),
+      },
+    ).query;
+
+    return _results(
+      await _request(
+        'GET',
+        '/subscription-offers/${query.isEmpty ? '' : '?$query'}',
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> createSubscriptionOffer(
+    Map<String, dynamic> data,
+  ) async =>
+      Map<String, dynamic>.from(
+        await _request(
+          'POST',
+          '/subscription-offers/',
+          body: data,
+        ) as Map,
+      );
+
+  Future<Map<String, dynamic>> updateSubscriptionOffer(
+    Object id,
+    Map<String, dynamic> data,
+  ) async =>
+      Map<String, dynamic>.from(
+        await _request(
+          'PATCH',
+          '/subscription-offers/$id/',
+          body: data,
+        ) as Map,
+      );
+
+  Future<void> deleteSubscriptionOffer(Object id) async =>
+      _request(
+        'DELETE',
+        '/subscription-offers/$id/',
+      );
+
+  // =========================================================
   // MODÉRATION
   // =========================================================
 

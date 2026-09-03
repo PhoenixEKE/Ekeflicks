@@ -7,6 +7,7 @@ from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 from apps.common.avatar_detail_views import AvatarDetailView
 from apps.common.avatar_views import AvatarListView
+from apps.common.cdn_views import cdn_media
 from config.schema import API_INFO
 
 
@@ -24,6 +25,7 @@ def health_check(_request):
 urlpatterns = [
     path('', health_check, name='health_check'),
     path('health/', health_check, name='health'),
+    path('cdn/<path:media_path>', cdn_media, name='cdn-media'),
     path('admin/', admin.site.urls),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),

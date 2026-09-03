@@ -1,0 +1,236 @@
+# core/models/subscriptions.py
+from django.db import models
+from .base import TimeStampedModel
+from .users import User
+
+
+class SubscriptionPlan(TimeStampedModel):
+    """Plans d'abonnement"""
+
+    QUALITY_CHOICES = [
+        ('SD', 'SD'),
+        ('HD', 'HD'),
+        ('FULL_HD', 'Full HD'),
+        ('4K', '4K'),
+    ]
+
+    name = models.CharField(max_length=50, unique=True)
+    slug = models.SlugField(max_length=50, unique=True)
+    description = models.TextField(blank=True)
+
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='EUR')
+
+    duration_days = models.IntegerField()
+    max_profiles = models.IntegerField(default=4)
+    max_devices = models.IntegerField(default=4)
+
+    max_quality = models.CharField(
+        max_length=20,
+        choices=QUALITY_CHOICES,
+        blank=True
+    )
+
+    ads_included = models.BooleanField(default=False)
+    download_enabled = models.BooleanField(default=True)
+
+    # ✅ FIX IMPORTANT ICI
+    features = models.JSONField(default=list)
+
+    display_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'subscription_plans'
+        ordering = ['display_order']
+
+    def __str__(self):
+        return f"{self.name} - {self.price}€"
+
+
+class Subscription(TimeStampedModel):
+    """Abonnements utilisateur"""
+
+    STATUS_CHOICES = [
+        ('active', 'Actif'),
+        ('expired', 'Expiré'),
+        ('cancelled', 'Annulé'),
+        ('pending', 'En attente'),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='subscriptions'
+    )
+
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE)
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active'
+    )
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    auto_renew = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'subscriptions'
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['expires_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.plan.name} ({self.status})"
+
+
+class Payment(TimeStampedModel):
+    """Paiements"""
+
+    STATUS_CHOICES = [
+        ('pending', 'En attente'),
+        ('success', 'Réussi'),
+        ('failed', 'Échoué'),
+        ('refunded', 'Remboursé'),
+    ]
+
+    PROVIDER_CHOICES = [
+        ('stripe', 'Stripe'),
+        ('paypal', 'PayPal'),
+        ('cinetpay', 'CinetPay'),
+        ('paystack', 'Paystack'),
+        ('flutterwave', 'Flutterwave'),
+        ('orange_money', 'Orange Money'),
+        ('mtn_money', 'MTN Money'),
+        ('moov_money', 'Moov Money'),
+        ('wave', 'Wave'),
+    ]
+
+    subscription = models.ForeignKey(
+        Subscription,
+        on_delete=models.CASCADE,
+        related_name='payments'
+    )
+
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='EUR')
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+
+    provider = models.CharField(
+        max_length=50,
+        choices=PROVIDER_CHOICES,
+        blank=True
+    )
+
+    provider_payment_id = models.CharField(max_length=255, blank=True)
+    provider_reference = models.CharField(max_length=255, null=True, blank=True, unique=True)
+    checkout_url = models.URLField(max_length=1000, blank=True)
+    metadata = models.JSONField(default=dict)
+    provider_payload = models.JSONField(default=dict)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'payments'
+        indexes = [
+            models.Index(fields=['subscription']),
+            models.Index(fields=['status']),
+            models.Index(fields=['provider']),
+            models.Index(fields=['provider_reference']),
+        ]
+
+    def __str__(self):
+        return f"{self.subscription.user.email} - {self.amount}{self.currency} ({self.status})"
+
+
+class PaymentWebhookEvent(TimeStampedModel):
+    """Raw payment provider webhook stored for idempotency and audit."""
+
+    provider = models.CharField(max_length=50, choices=Payment.PROVIDER_CHOICES)
+    event_id = models.CharField(max_length=255, blank=True)
+    event_type = models.CharField(max_length=100, blank=True)
+    provider_reference = models.CharField(max_length=255, blank=True)
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.SET_NULL,
+        related_name='webhook_events',
+        null=True,
+        blank=True
+    )
+    payload = models.JSONField(default=dict)
+    headers = models.JSONField(default=dict)
+    signature_valid = models.BooleanField(default=False)
+    processed = models.BooleanField(default=False)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+
+
+    class Meta:
+        db_table = 'payment_webhook_events'
+        constraints = [
+           models.UniqueConstraint(
+               fields=['provider', 'event_id'],
+               condition=~models.Q(event_id=''),
+               name='uniq_payment_webhook_provider_event_id',
+           ),
+        ]
+        indexes = [
+            models.Index(fields=['provider', 'provider_reference']),
+            models.Index(fields=['processed']),
+        ]
+
+    def __str__(self):
+        return f"{self.provider} - {self.event_type or self.event_id}"
+
+class ProducerPayoutRequest(TimeStampedModel):
+    STATUS_CHOICES = [
+        ('pending', 'En attente'),
+        ('approved', 'Valide'),
+        ('rejected', 'Refuse'),
+        ('paid', 'Paye'),
+        ('cancelled', 'Annule'),
+    ]
+
+    producer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='payout_requests'
+    )
+    amount_eur = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    currency = models.CharField(max_length=3, default='EUR')
+    amount_local = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    eligible_views = models.PositiveIntegerField(default=0)
+    payout_method = models.CharField(max_length=50, blank=True)
+    payout_account = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    producer_note = models.TextField(blank=True)
+    admin_reason = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name='reviewed_payout_requests',
+        null=True,
+        blank=True
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'producer_payout_requests'
+        indexes = [
+            models.Index(fields=['producer', 'status']),
+            models.Index(fields=['status', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.producer.email} - {self.amount_local} {self.currency} ({self.status})"

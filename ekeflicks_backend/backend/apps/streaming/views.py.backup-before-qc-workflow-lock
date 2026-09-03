@@ -1,0 +1,656 @@
+from django.conf import settings
+from django.db.models import Count, Q
+from django.http import HttpResponse
+from django.urls import reverse
+from django.utils import timezone
+from rest_framework import exceptions, permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.response import Response
+
+from apps.common.permissions import IsStaffOrProducerAssetOwner, is_producer_user
+from apps.notifications.services import notify_new_publication, notify_user
+from apps.streaming.media_services import publish_subtitle_track
+from apps.streaming.serializers import (
+    OfflineDownloadLicenseSerializer,
+    PlaybackLicenseRequestSerializer,
+    SubtitleUploadSerializer,
+    SubtitleTrackSerializer,
+    VideoAssetModerationSerializer,
+    VideoAssetRejectSerializer,
+    VideoAssetSerializer,
+    VideoRenditionSerializer,
+)
+from apps.streaming.services import (
+    create_playback_license,
+    derive_aes128_content_key,
+    drm_configuration,
+    ensure_encryption_key_id,
+    get_active_subscription,
+    get_profile_for_user,
+    offline_license_days,
+    offline_license_days_for_platform,
+    provider_license_url,
+    sign_streaming_collection_urls,
+    sign_streaming_url,
+    streaming_subscription_required,
+    store_video_source,
+    validate_playback_license,
+)
+from apps.streaming.tasks import analyze_video_asset, transcode_video_asset_to_hls
+from core.models import MediaAnalysisReport, OfflineDownloadLicense, VideoAsset
+
+
+class VideoAssetViewSet(viewsets.ModelViewSet):
+    serializer_class = VideoAssetSerializer
+    permission_classes = [IsStaffOrProducerAssetOwner]
+
+    def get_permissions(self):
+        if self.action in {'request_offline', 'license', 'offline_license'}:
+            return [permissions.IsAuthenticated()]
+        if self.action == 'drm_key':
+            return [permissions.AllowAny()]
+        if self.action in {
+            'approve',
+            'reject',
+            'publish',
+            'unpublish',
+            'start_transcode',
+            'pending_submissions',
+        }:
+            return [permissions.IsAdminUser()]
+        if self.action in {'mine', 'producer_dashboard'}:
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        queryset = (
+            VideoAsset.objects.select_related('content', 'content__producer', 'episode', 'episode__season')
+            .prefetch_related('renditions', 'subtitle_tracks')
+            .all()
+        )
+        if not (self.request.user.is_authenticated and self.request.user.is_staff):
+            public_filter = Q(
+                status='ready',
+                moderation_status='approved',
+                published_at__isnull=False,
+            )
+            producer_management_actions = {
+                'mine',
+                'producer_dashboard',
+                'upload_source',
+                'upload_subtitle',
+                'update',
+                'partial_update',
+                'destroy',
+            }
+            if (
+                self.request.user.is_authenticated
+                and getattr(self.request.user, 'is_producer', False)
+                and self.action in producer_management_actions
+            ):
+                queryset = queryset.filter(content__producer=self.request.user)
+            elif (
+                self.request.user.is_authenticated
+                and getattr(self.request.user, 'is_producer', False)
+                and self.action == 'retrieve'
+            ):
+                queryset = queryset.filter(public_filter | Q(content__producer=self.request.user))
+            else:
+                queryset = queryset.filter(public_filter)
+
+        content_id = self.request.query_params.get('content')
+        episode_id = self.request.query_params.get('episode')
+        if content_id:
+            queryset = queryset.filter(content_id=content_id)
+        if episode_id:
+            queryset = queryset.filter(episode_id=episode_id)
+        return queryset.order_by('-is_default', '-created_at')
+
+    def _require_producer_role(self, request):
+        if not is_producer_user(request.user):
+            raise exceptions.PermissionDenied('Un compte producteur est requis.')
+
+    def _ensure_can_manage_content(self, content):
+        user = self.request.user
+        if user.is_staff:
+            return
+        if not getattr(user, 'is_producer', False) or content.producer_id != user.id:
+            raise exceptions.PermissionDenied('Ce contenu appartient a un autre producteur.')
+
+    def _producer_queryset(self, request):
+        self._require_producer_role(request)
+        queryset = self.get_queryset()
+        if request.user.is_staff:
+            producer_id = request.query_params.get('producer')
+            if producer_id:
+                queryset = queryset.filter(content__producer_id=producer_id)
+            return queryset
+        return queryset.filter(content__producer=request.user)
+
+    def _status_counts(self, queryset, field_name):
+        return {
+            item[field_name]: item['total']
+            for item in queryset.values(field_name).annotate(total=Count('id')).order_by()
+        }
+
+    def perform_create(self, serializer):
+        content = serializer.validated_data['content']
+        self._ensure_can_manage_content(content)
+        serializer.save(status='draft', moderation_status='pending')
+
+    def perform_update(self, serializer):
+        content = serializer.validated_data.get('content') or serializer.instance.content
+        self._ensure_can_manage_content(content)
+        if self.request.user.is_staff:
+            serializer.save()
+            return
+        serializer.save(
+            status='draft',
+            moderation_status='pending',
+            moderation_reason='',
+            moderated_by=None,
+            moderated_at=None,
+            published_at=None,
+        )
+
+    @action(detail=False, methods=['get'])
+    def mine(self, request):
+        queryset = self._producer_queryset(request).order_by('-updated_at')
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        return Response(self.get_serializer(queryset, many=True).data)
+
+    @action(detail=False, methods=['get'], url_path='producer-dashboard')
+    def producer_dashboard(self, request):
+        queryset = self._producer_queryset(request)
+        recent_assets = queryset.order_by('-updated_at')[:10]
+        return Response({
+            'video_asset_total': queryset.count(),
+            'by_status': self._status_counts(queryset, 'status'),
+            'by_moderation_status': self._status_counts(queryset, 'moderation_status'),
+            'awaiting_source': queryset.filter(
+                source_file_path='',
+                source_file_url='',
+            ).count(),
+            'ready_to_review': queryset.filter(moderation_status='pending').count(),
+            'published': queryset.filter(published_at__isnull=False).count(),
+            'recent_assets': self.get_serializer(recent_assets, many=True).data,
+        })
+
+    @action(detail=False, methods=['get'], url_path='pending-submissions')
+    def pending_submissions(self, request):
+        queryset = self.filter_queryset(
+            self.get_queryset()
+            .filter(moderation_status='pending')
+            .order_by('source_uploaded_at', 'created_at')
+        )
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        return Response(self.get_serializer(queryset, many=True).data)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='upload-source',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_source(self, request, pk=None):
+        asset = self.get_object()
+        uploaded_file = request.FILES.get('file') or request.FILES.get('source')
+        if not uploaded_file:
+            raise exceptions.ValidationError({'file': 'Un fichier video est obligatoire.'})
+
+        asset = store_video_source(asset, uploaded_file, request.user)
+
+        MediaAnalysisReport.objects.update_or_create(
+            asset=asset,
+            defaults={
+                'status': 'pending',
+                'error_message': '',
+                'flags': [],
+                'moderation_scores': {},
+                'detected_events': [],
+                'technical_metadata': {},
+                'analyzed_at': None,
+            },
+        )
+
+        asset.moderation_status = 'pending'
+        asset.moderation_reason = ''
+        asset.moderated_by = None
+        asset.moderated_at = None
+        asset.published_at = None
+        asset.save(update_fields=[
+            'moderation_status',
+            'moderation_reason',
+            'moderated_by',
+            'moderated_at',
+            'published_at',
+            'updated_at',
+        ])
+        analyze_video_asset.delay(str(asset.id))
+
+        if asset.content.producer:
+            notify_user(
+                asset.content.producer,
+                'video_uploaded',
+                data={'asset_id': str(asset.id), 'content_id': str(asset.content_id)},
+            )
+        serializer = self.get_serializer(asset)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='upload-subtitle',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_subtitle(self, request, pk=None):
+        asset = self.get_object()
+        serializer = SubtitleUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        track, published = publish_subtitle_track(
+            asset=asset,
+            uploaded_file=serializer.validated_data['file'],
+            language=serializer.validated_data['language'],
+            label=serializer.validated_data.get('label', ''),
+            kind=serializer.validated_data.get('kind', 'subtitle'),
+            is_default=serializer.validated_data.get('is_default', False),
+            uploader=request.user,
+        )
+        if not request.user.is_staff:
+            asset.moderation_status = 'pending'
+            asset.moderation_reason = ''
+            asset.moderated_by = None
+            asset.moderated_at = None
+            asset.save(update_fields=[
+                'moderation_status',
+                'moderation_reason',
+                'moderated_by',
+                'moderated_at',
+                'updated_at',
+            ])
+        return Response(
+            {
+                **published,
+                'subtitle_track': SubtitleTrackSerializer(track).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'], url_path='start-transcode')
+    def start_transcode(self, request, pk=None):
+        asset = self.get_object()
+        if not asset.source_file_path and not asset.source_file_url:
+            raise exceptions.ValidationError(
+                {'source': 'Ajoutez une source video avant de lancer le transcodage.'}
+            )
+
+        asset.status = 'processing'
+        asset.save(update_fields=['status', 'updated_at'])
+        task = transcode_video_asset_to_hls.delay(str(asset.id))
+        return Response(
+            {
+                'asset_id': str(asset.id),
+                'status': asset.status,
+                'task_id': str(task.id),
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    @action(detail=True, methods=['post'])
+    def publish(self, request, pk=None):
+        asset = self.get_object()
+        if not asset.hls_master_url and not asset.dash_manifest_url:
+            raise exceptions.ValidationError(
+                {'manifest': 'Un manifest HLS ou DASH est requis avant publication.'}
+            )
+        if asset.moderation_status != 'approved':
+            raise exceptions.ValidationError(
+                {'moderation_status': 'La video doit etre validee avant publication.'}
+            )
+
+        ensure_encryption_key_id(asset)
+        asset.status = 'ready'
+        asset.published_at = timezone.now()
+        asset.save(update_fields=['encryption_key_id', 'status', 'published_at', 'updated_at'])
+        notify_new_publication(asset.content)
+        serializer = self.get_serializer(asset)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        asset = self.get_object()
+        serializer = VideoAssetModerationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        asset.moderation_status = 'approved'
+        asset.moderation_reason = serializer.validated_data.get('reason', '')
+        asset.moderated_by = request.user
+        asset.moderated_at = timezone.now()
+        asset.save(update_fields=[
+            'moderation_status',
+            'moderation_reason',
+            'moderated_by',
+            'moderated_at',
+            'updated_at',
+        ])
+
+        if asset.content.producer:
+            notify_user(
+                asset.content.producer,
+                'video_approved',
+                message=asset.moderation_reason or f"La video de {asset.content.title} a ete validee.",
+                data={'asset_id': str(asset.id), 'content_id': str(asset.content_id)},
+            )
+        return Response(self.get_serializer(asset).data)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        asset = self.get_object()
+        serializer = VideoAssetRejectSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        asset.moderation_status = 'rejected'
+        asset.moderation_reason = serializer.validated_data['reason']
+        asset.moderated_by = request.user
+        asset.moderated_at = timezone.now()
+        asset.published_at = None
+        asset.status = 'draft'
+        asset.save(update_fields=[
+            'status',
+            'moderation_status',
+            'moderation_reason',
+            'moderated_by',
+            'moderated_at',
+            'published_at',
+            'updated_at',
+        ])
+
+        if asset.content.producer:
+            notify_user(
+                asset.content.producer,
+                'video_rejected',
+                message=asset.moderation_reason,
+                data={'asset_id': str(asset.id), 'content_id': str(asset.content_id)},
+            )
+        return Response(self.get_serializer(asset).data)
+
+    @action(detail=True, methods=['post'])
+    def unpublish(self, request, pk=None):
+        asset = self.get_object()
+        asset.status = 'draft'
+        asset.published_at = None
+        asset.save(update_fields=['status', 'published_at', 'updated_at'])
+        serializer = self.get_serializer(asset)
+        return Response(serializer.data)
+
+    def _get_playback_context(self, request, profile_id=None):
+        requested_profile = profile_id or request.query_params.get('profile')
+        profile = get_profile_for_user(request.user, requested_profile)
+        if not profile:
+            raise exceptions.PermissionDenied('Aucun profil actif disponible.')
+
+        subscription = get_active_subscription(request.user)
+        if streaming_subscription_required() and not subscription:
+            raise exceptions.PermissionDenied('Un abonnement actif est requis pour lire ce contenu.')
+
+        return profile, subscription
+
+    def _absolute_action_url(self, request, action_name, asset):
+        return request.build_absolute_uri(reverse(f'video-asset-{action_name}', args=[asset.id]))
+
+    @action(detail=True, methods=['get'])
+    def manifest(self, request, pk=None):
+        asset = self.get_object()
+        profile, subscription = self._get_playback_context(request)
+        platform = request.query_params.get('platform') or request.query_params.get('device_type') or ''
+        drm_system = request.query_params.get('drm_system') or ''
+        plan = subscription.plan if subscription else None
+        offline_allowed = bool(asset.is_downloadable and plan and plan.download_enabled)
+        signed_expires_at = timezone.now() + timezone.timedelta(
+            seconds=getattr(settings, 'STREAMING_SIGNED_URL_TTL_SECONDS', 3600)
+        )
+        renditions = VideoRenditionSerializer(asset.renditions.all(), many=True).data
+        subtitles = SubtitleTrackSerializer(asset.subtitle_tracks.all(), many=True).data
+
+        payload = {
+            'asset_id': str(asset.id),
+            'profile_id': str(profile.id),
+            'content_id': str(asset.content_id),
+            'episode_id': str(asset.episode_id) if asset.episode_id else None,
+            'hls_master_url': sign_streaming_url(
+                asset.hls_master_url,
+                asset,
+                profile,
+                request.user,
+                signed_expires_at,
+            ),
+            'dash_manifest_url': sign_streaming_url(
+                asset.dash_manifest_url,
+                asset,
+                profile,
+                request.user,
+                signed_expires_at,
+            ),
+            'duration_seconds': asset.duration_seconds,
+            'drm_provider': asset.drm_provider,
+            'drm_required': asset.drm_provider != 'none',
+            'playback_license_url': self._absolute_action_url(request, 'license', asset),
+            'offline_license_url': self._absolute_action_url(request, 'offline-license', asset),
+            'drm_key_url': self._absolute_action_url(request, 'drm-key', asset)
+            if asset.drm_provider == 'aes_128'
+            else '',
+            'provider_license_url': provider_license_url(asset, drm_system, platform=platform),
+            'drm': drm_configuration(asset, platform=platform, drm_system=drm_system),
+            'manifest_ttl_seconds': getattr(settings, 'STREAMING_MANIFEST_TTL_SECONDS', 3600),
+            'signed_urls_enabled': getattr(settings, 'STREAMING_SIGNED_URLS_ENABLED', True),
+            'signed_url_expires_at': signed_expires_at.isoformat(),
+            'offline_allowed': offline_allowed,
+            'max_quality': plan.max_quality if plan else '',
+            'renditions': sign_streaming_collection_urls(
+                renditions,
+                'hls_playlist_url',
+                asset,
+                profile,
+                request.user,
+                signed_expires_at,
+            ),
+            'subtitles': sign_streaming_collection_urls(
+                subtitles,
+                'url',
+                asset,
+                profile,
+                request.user,
+                signed_expires_at,
+            ),
+        }
+        return Response(payload)
+
+    @action(detail=True, methods=['post'], url_path='license')
+    def license(self, request, pk=None):
+        asset = self.get_object()
+        return self._create_playback_license_response(request, asset, request.data)
+
+    @action(detail=True, methods=['post'], url_path='offline-license')
+    def offline_license(self, request, pk=None):
+        asset = self.get_object()
+        data = request.data.copy()
+        data['offline'] = True
+        return self._create_playback_license_response(request, asset, data, force_offline=True)
+
+    def _create_playback_license_response(self, request, asset, data, force_offline=False):
+        serializer = PlaybackLicenseRequestSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        profile_id = (
+            serializer.validated_data.get('profile_id')
+            or serializer.validated_data.get('profile')
+        )
+        profile, subscription = self._get_playback_context(request, profile_id)
+        offline_requested = force_offline or serializer.validated_data.get('offline', False)
+        platform = serializer.validated_data.get('platform', '')
+        drm_system = serializer.validated_data.get('drm_system', '')
+
+        if offline_requested:
+            if not subscription or not subscription.plan.download_enabled:
+                raise exceptions.PermissionDenied('Le plan actuel ne permet pas le telechargement offline.')
+            if not asset.is_downloadable:
+                raise exceptions.PermissionDenied('Ce contenu ne peut pas etre telecharge offline.')
+
+        license_obj = create_playback_license(
+            asset=asset,
+            profile=profile,
+            subscription=subscription,
+            device_id=serializer.validated_data['device_id'],
+            device_type=serializer.validated_data.get('device_type', ''),
+            offline=offline_requested,
+            platform=platform,
+            drm_system=drm_system,
+        )
+        key_url = ''
+        if asset.drm_provider == 'aes_128':
+            key_url = (
+                f"{self._absolute_action_url(request, 'drm-key', asset)}"
+                f"?license_token={license_obj.license_token}"
+            )
+
+        payload = {
+            'license_id': str(license_obj.id),
+            'license_token': str(license_obj.license_token),
+            'license_mode': license_obj.license_mode,
+            'asset_id': str(asset.id),
+            'profile_id': str(profile.id),
+            'device_id': license_obj.device_id,
+            'device_type': license_obj.device_type,
+            'drm_provider': asset.drm_provider,
+            'drm_required': asset.drm_provider != 'none',
+            'key_id': license_obj.key_id,
+            'key_url': key_url,
+            'provider_license_url': provider_license_url(asset, drm_system, platform=platform),
+            'fairplay_certificate_url': drm_configuration(asset).get('fairplay_certificate_url', ''),
+            'drm': drm_configuration(
+                asset,
+                license_obj=license_obj,
+                platform=platform,
+                drm_system=drm_system,
+                offline=offline_requested,
+            ),
+            'platform': platform,
+            'offline_license_days': offline_license_days_for_platform(platform)
+            if offline_requested
+            else None,
+            'expires_at': license_obj.expires_at,
+            'status': license_obj.status,
+        }
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'], url_path='drm-key')
+    def drm_key(self, request, pk=None):
+        asset = self.get_object()
+        if asset.drm_provider != 'aes_128':
+            raise exceptions.ValidationError({'drm_provider': 'La cle AES-128 est disponible uniquement pour HLS AES-128.'})
+
+        token = request.query_params.get('license_token') or request.query_params.get('license')
+        license_obj = validate_playback_license(asset, token)
+        if not license_obj:
+            raise exceptions.PermissionDenied('Licence DRM invalide ou expiree.')
+
+        response = HttpResponse(
+            derive_aes128_content_key(asset),
+            content_type='application/octet-stream',
+        )
+        response['Cache-Control'] = 'no-store'
+        response['X-EkeFlicks-Key-Id'] = asset.encryption_key_id
+        response['X-EkeFlicks-License-Id'] = str(license_obj.id)
+        return response
+
+    @action(detail=True, methods=['post'], url_path='request-offline')
+    def request_offline(self, request, pk=None):
+        asset = self.get_object()
+        profile_id = request.data.get('profile_id') or request.data.get('profile')
+        profile = get_profile_for_user(request.user, profile_id)
+        if not profile:
+            raise exceptions.PermissionDenied('Aucun profil actif disponible.')
+
+        subscription = get_active_subscription(request.user)
+        if not subscription:
+            raise exceptions.PermissionDenied('Un abonnement actif est requis pour telecharger ce contenu.')
+        if not subscription.plan.download_enabled:
+            raise exceptions.PermissionDenied('Le plan actuel ne permet pas le telechargement offline.')
+        if not asset.is_downloadable:
+            raise exceptions.PermissionDenied('Ce contenu ne peut pas etre telecharge offline.')
+
+        device_id = request.data.get('device_id')
+        if not device_id:
+            raise exceptions.ValidationError({'device_id': 'Ce champ est obligatoire.'})
+        platform = request.data.get('platform') or request.data.get('device_type') or ''
+
+        expires_at = timezone.now() + timezone.timedelta(days=offline_license_days_for_platform(platform))
+        license_obj = (
+            OfflineDownloadLicense.objects.filter(
+                profile=profile,
+                asset=asset,
+                device_id=device_id,
+                status='active',
+            )
+            .order_by('-created_at')
+            .first()
+        )
+
+        defaults = {
+            'content': asset.content,
+            'episode': asset.episode,
+            'device_name': request.data.get('device_name', ''),
+            'device_type': request.data.get('device_type', ''),
+            'max_quality': request.data.get('max_quality') or subscription.plan.max_quality,
+            'expires_at': expires_at,
+            'last_verified_at': timezone.now(),
+        }
+
+        if license_obj:
+            for field, value in defaults.items():
+                setattr(license_obj, field, value)
+            license_obj.save(update_fields=[*defaults.keys(), 'updated_at'])
+        else:
+            license_obj = OfflineDownloadLicense.objects.create(
+                profile=profile,
+                asset=asset,
+                device_id=device_id,
+                **defaults,
+            )
+
+        serializer = OfflineDownloadLicenseSerializer(license_obj)
+        payload = serializer.data
+        payload['platform'] = platform
+        payload['offline_license_days'] = offline_license_days_for_platform(platform)
+        payload['drm'] = drm_configuration(asset, platform=platform, offline=True)
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class OfflineDownloadLicenseViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = OfflineDownloadLicenseSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = (
+            OfflineDownloadLicense.objects.filter(profile__user=self.request.user)
+            .select_related('profile', 'profile__type', 'asset', 'content', 'episode')
+            .order_by('-created_at')
+        )
+        profile_id = self.request.query_params.get('profile')
+        if profile_id:
+            queryset = queryset.filter(profile_id=profile_id)
+        return queryset
+
+    @action(detail=True, methods=['post'])
+    def revoke(self, request, pk=None):
+        license_obj = self.get_object()
+        license_obj.status = 'revoked'
+        license_obj.save(update_fields=['status', 'updated_at'])
+        serializer = self.get_serializer(license_obj)
+        return Response(serializer.data)

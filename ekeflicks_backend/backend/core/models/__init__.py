@@ -16,8 +16,8 @@ from .seasons import Season, Episode
 from .interactions import WatchHistory, Favorite, Rating
 from .lists import CustomList, ListItem
 from .recommendations import Recommendation, TrendingCache, ContentSimilarity
-from .subscriptions import SubscriptionPlan, Subscription, Payment, PaymentWebhookEvent, ProducerPayoutRequest
-from .streaming import VideoAsset, VideoRendition, SubtitleTrack, OfflineDownloadLicense, PlaybackLicense
+from .subscriptions import SubscriptionPlan, SubscriptionPlanOffer, Subscription, Payment, PaymentWebhookEvent, ProducerPayoutRequest
+from .streaming import VideoAsset, VideoRendition, SubtitleTrack, OfflineDownloadLicense, PlaybackLicense, MediaAnalysisReport
 from .analytics import DailyStat, ProducerContentView, ProducerCountryCurrency, ProducerRevenueSetting, ViewingSession
 from .notifications import NotificationType, Notification
 from .users import User
@@ -32,8 +32,8 @@ __all__ = [
     'WatchHistory', 'Favorite', 'Rating',
     'CustomList', 'ListItem',
     'Recommendation', 'TrendingCache', 'ContentSimilarity',
-    'SubscriptionPlan', 'Subscription', 'Payment', 'PaymentWebhookEvent', 'ProducerPayoutRequest',
-    'VideoAsset', 'VideoRendition', 'SubtitleTrack', 'OfflineDownloadLicense', 'PlaybackLicense',
+    'SubscriptionPlan', 'SubscriptionPlanOffer', 'Subscription', 'Payment', 'PaymentWebhookEvent', 'ProducerPayoutRequest',
+    'VideoAsset', 'VideoRendition', 'SubtitleTrack', 'OfflineDownloadLicense', 'PlaybackLicense', 'MediaAnalysisReport',
     'ViewingSession', 'DailyStat', 'ProducerRevenueSetting', 'ProducerCountryCurrency', 'ProducerContentView',
     'NotificationType', 'Notification',
 ]

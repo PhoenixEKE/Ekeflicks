@@ -3,9 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:app_ekeflicks/providers/device_info_provider.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
-import 'package:app_ekeflicks/ui/home/home_screen.dart';
 import 'package:app_ekeflicks/ui/users/login_screen.dart'; // Correction: LoginPage au lieu de LoginScreen
 import 'package:app_ekeflicks/ui/profiles/profile_selection_page.dart';
+import 'package:app_ekeflicks/ui/users/post_login_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -30,7 +30,6 @@ class _SplashScreenState extends State<SplashScreen> {
     final deviceInfo = Provider.of<DeviceInfoProvider>(context, listen: false);
     final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final mediaQuery = MediaQuery.of(context);
 
     // Attendre l'initialisation du device info
     int tries = 0;
@@ -41,17 +40,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
 
-    final isLoggedIn = await userProvider.checkAuthStatus();
+    final isLoggedIn = userProvider.isLoggedIn;
     final hasUser = userProvider.currentUser != null;
 
-    // Redirection Desktop
-    if (deviceInfo.isInitialized && !deviceInfo.isTV && mediaQuery.size.width >= 1000) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
-      return;
-    }
+    // Sur toutes les plateformes, une session restaurée doit reprendre
+    // le même parcours qu'une connexion réussie.
 
     // Attendre 2s pour mobile/TV
     await Future.delayed(const Duration(seconds: 2));
@@ -66,11 +59,13 @@ class _SplashScreenState extends State<SplashScreen> {
         if (profileProvider.availableProfiles.length > 1) {
           nextPage = const ProfileSelectionPage();
         } else {
-          nextPage = const HomeScreen();
+          nextPage = const PostLoginPage();
         }
       } catch (e) {
-        print('Error loading profiles: $e');
-        nextPage = const LoginPage(); // Correction: LoginPage au lieu de LoginScreen
+        // Le compte reste authentifié même si les profils ne peuvent pas
+        // être chargés temporairement.
+        debugPrint('Error loading profiles: $e');
+        nextPage = const PostLoginPage();
       }
     } else {
       nextPage = const LoginPage(); // Correction: LoginPage au lieu de LoginScreen
@@ -84,8 +79,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
     final deviceInfo = Provider.of<DeviceInfoProvider>(context);
+    final mediaQuery = MediaQuery.of(context);
 
     if (deviceInfo.isInitialized && !deviceInfo.isTV && mediaQuery.size.width >= 1000) {
       return const SizedBox.shrink();

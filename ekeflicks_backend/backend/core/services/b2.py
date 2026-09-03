@@ -11,3 +11,16 @@ def get_b2_client():
         region_name=settings.B2_REGION,
         verify=getattr(settings, "AWS_S3_VERIFY", True),
     )
+
+
+def generate_b2_presigned_get_url(bucket_name, object_key, expires_in=300):
+    client = get_b2_client()
+
+    return client.generate_presigned_url(
+        ClientMethod="get_object",
+        Params={
+            "Bucket": bucket_name,
+            "Key": object_key,
+        },
+        ExpiresIn=int(expires_in),
+    )

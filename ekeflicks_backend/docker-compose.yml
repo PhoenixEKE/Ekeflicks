@@ -15,7 +15,7 @@ services:
       - .env
 
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
     volumes:
       - static_volume:/app/staticfiles
@@ -97,7 +97,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
 
     restart: always
 
@@ -122,7 +122,7 @@ services:
       - redis_data:/data
 
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
     restart: always
 
@@ -148,8 +148,8 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
 
     ports:
-      - "9010:9000"
-      - "9011:9001"
+      - "127.0.0.1:9010:9000"
+      - "127.0.0.1:9011:9001"
 
     volumes:
       - minio_data:/data
@@ -171,10 +171,9 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
 
     ports:
-      - "8124:8123"
-      - "9002:9000"
-      - "9009:9009"
-
+      - "127.0.0.1:8124:8123"
+      - "127.0.0.1:9002:9000"
+      - "127.0.0.1:9009:9009"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
 

@@ -1,0 +1,180 @@
+import hashlib
+import hmac
+from dataclasses import dataclass
+
+from django.conf import settings
+from django.utils import timezone
+
+from apps.notifications.services import notify_user
+from core.models import Payment
+
+
+@dataclass
+class PaymentEvent:
+    event_id: str
+    event_type: str
+    provider_reference: str
+    provider_payment_id: str
+    successful: bool
+    failed: bool
+
+
+def _header(headers, name):
+    return headers.get(name) or headers.get(name.lower()) or headers.get(name.upper())
+
+
+def _hmac_digest(secret, body, algorithm):
+    return hmac.new(secret.encode(), body, algorithm).hexdigest()
+
+
+def verify_webhook_signature(provider, body, headers):
+    if provider == 'paystack':
+        secret = getattr(settings, 'PAYSTACK_SECRET_KEY', '')
+        signature = _header(headers, 'x-paystack-signature')
+        if not secret or not signature:
+            return False
+        expected = _hmac_digest(secret, body, hashlib.sha512)
+        return hmac.compare_digest(expected, signature)
+
+    if provider == 'flutterwave':
+        secret = getattr(settings, 'FLUTTERWAVE_WEBHOOK_SECRET', '')
+        signature = _header(headers, 'verif-hash')
+        return bool(secret and signature and hmac.compare_digest(secret, signature))
+
+    secret_map = {
+        'cinetpay': getattr(settings, 'CINETPAY_WEBHOOK_SECRET', ''),
+        'wave': getattr(settings, 'WAVE_WEBHOOK_SECRET', ''),
+    }
+    secret = secret_map.get(provider, '')
+    signature = (
+        _header(headers, 'x-signature')
+        or _header(headers, 'x-token')
+        or _header(headers, f'x-{provider}-signature')
+    )
+    if not secret or not signature:
+        return False
+
+    expected = _hmac_digest(secret, body, hashlib.sha256)
+    return hmac.compare_digest(expected, signature)
+
+
+def normalize_payment_event(provider, payload):
+    if provider == 'paystack':
+        data = payload.get('data') or {}
+        event_type = payload.get('event', '')
+        reference = data.get('reference') or payload.get('reference') or ''
+        provider_payment_id = str(data.get('id') or '')
+        return PaymentEvent(
+            event_id=provider_payment_id or reference,
+            event_type=event_type,
+            provider_reference=reference,
+            provider_payment_id=provider_payment_id,
+            successful=event_type == 'charge.success' or data.get('status') == 'success',
+            failed=data.get('status') == 'failed',
+        )
+
+    if provider == 'flutterwave':
+        data = payload.get('data') or {}
+        event_type = payload.get('event', '')
+        reference = data.get('tx_ref') or data.get('reference') or payload.get('tx_ref') or ''
+        provider_payment_id = str(data.get('id') or data.get('flw_ref') or '')
+        status = data.get('status') or payload.get('status')
+        return PaymentEvent(
+            event_id=provider_payment_id or reference,
+            event_type=event_type,
+            provider_reference=reference,
+            provider_payment_id=provider_payment_id,
+            successful=event_type == 'charge.completed' and status == 'successful',
+            failed=status in {'failed', 'cancelled'},
+        )
+
+    if provider == 'cinetpay':
+        reference = (
+            payload.get('transaction_id')
+            or payload.get('cpm_trans_id')
+            or payload.get('metadata')
+            or ''
+        )
+        provider_payment_id = str(payload.get('payment_token') or payload.get('cpm_trans_id') or '')
+        event_type = payload.get('event') or payload.get('type') or 'payment.notification'
+        provider_status = payload.get('cpm_trans_status') or payload.get('status') or payload.get('code')
+        return PaymentEvent(
+            event_id=provider_payment_id or str(reference),
+            event_type=event_type,
+            provider_reference=str(reference),
+            provider_payment_id=provider_payment_id,
+            successful=provider_status in {'ACCEPTED', 'SUCCESS', 'SUCCEEDED', '00'},
+            failed=provider_status in {'REFUSED', 'FAILED', 'CANCELLED'},
+        )
+
+    if provider == 'wave':
+        reference = payload.get('client_reference') or payload.get('reference') or payload.get('transaction_id') or ''
+        provider_payment_id = str(payload.get('id') or payload.get('transaction_id') or '')
+        event_type = payload.get('event') or payload.get('type') or 'payment.notification'
+        provider_status = payload.get('status')
+        return PaymentEvent(
+            event_id=provider_payment_id or str(reference),
+            event_type=event_type,
+            provider_reference=str(reference),
+            provider_payment_id=provider_payment_id,
+            successful=provider_status in {'success', 'succeeded', 'completed'},
+            failed=provider_status in {'failed', 'cancelled', 'expired'},
+        )
+
+    reference = payload.get('reference') or payload.get('transaction_id') or ''
+    provider_payment_id = str(payload.get('id') or '')
+    status = payload.get('status')
+    return PaymentEvent(
+        event_id=provider_payment_id or str(reference),
+        event_type=payload.get('event') or payload.get('type') or 'payment.notification',
+        provider_reference=str(reference),
+        provider_payment_id=provider_payment_id,
+        successful=status in {'success', 'succeeded', 'completed'},
+        failed=status in {'failed', 'cancelled'},
+    )
+
+
+def apply_verified_payment_event(provider, event, payload):
+    payment = Payment.objects.filter(
+        provider=provider,
+        provider_reference=event.provider_reference,
+    ).select_related('subscription').first()
+
+    if not payment:
+        return None, 'Paiement introuvable pour cette reference.'
+
+    payment.provider_payment_id = event.provider_payment_id or payment.provider_payment_id
+    payment.provider_payload = payload
+    payment.verified_at = timezone.now()
+
+    if event.successful:
+        payment.status = 'success'
+        payment.paid_at = payment.paid_at or timezone.now()
+        payment.subscription.status = 'active'
+        payment.subscription.save(update_fields=['status', 'updated_at'])
+        notify_user(
+            payment.subscription.user,
+            'subscription_created',
+            title='Abonnement active',
+            message='Votre abonnement EkeFlicks est maintenant actif.',
+            data={'payment_id': str(payment.id), 'subscription_id': str(payment.subscription_id)},
+        )
+    elif event.failed:
+        payment.status = 'failed'
+        notify_user(
+            payment.subscription.user,
+            'subscription_created',
+            title='Paiement refuse',
+            message='Votre paiement n a pas pu etre valide.',
+            data={'payment_id': str(payment.id), 'subscription_id': str(payment.subscription_id)},
+        )
+
+    payment.save(update_fields=[
+        'provider_payment_id',
+        'provider_payload',
+        'verified_at',
+        'status',
+        'paid_at',
+        'updated_at',
+    ])
+    return payment, ''

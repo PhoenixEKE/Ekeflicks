@@ -13,6 +13,10 @@ from .views import (
     RegisterView,
     ResendEmailVerificationView,
     VerifyEmailView,
+    WebLoginView,
+    WebLogoutView,
+    WebRegisterView,
+    WebTokenRefreshView,
 )
 
 router = DefaultRouter()
@@ -21,6 +25,10 @@ router.register('email-change-support-requests', EmailChangeSupportRequestViewSe
 
 urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
+    path('web/login/', WebLoginView.as_view(), name='web-login'),
+    path('web/register/', WebRegisterView.as_view(), name='web-register'),
+    path('web/refresh/', WebTokenRefreshView.as_view(), name='web-token-refresh'),
+    path('web/logout/', WebLogoutView.as_view(), name='web-logout'),
     path('register/', RegisterView.as_view(), name='register'),
     path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh_compat'),

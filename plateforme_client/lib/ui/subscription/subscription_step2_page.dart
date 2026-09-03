@@ -2,16 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/widgets/footers/reusable_footer.dart';
 import 'subscription_step1_page.dart';
+import 'package:app_ekeflicks/providers/user_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SubscriptionStep2Page extends StatefulWidget {
   final String offerTitle;
   final String offerPrice;
+  final String offerCurrency;
+  final String planSlug;
   final String? accountEmail;
 
   const SubscriptionStep2Page({
     super.key,
     required this.offerTitle,
     required this.offerPrice,
+    required this.offerCurrency,
+    required this.planSlug,
     this.accountEmail,
   });
 
@@ -23,6 +30,7 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
     with TickerProviderStateMixin {
   late final AnimationController _controller;
   late final List<Animation<double>> _fadeAnimations;
+  bool _isProcessingPayment = false;
 
   final List<PaymentMethod> paymentMethods = [
     PaymentMethod(key: 'visaMaster', label: 'Visa/Mastercard', iconPath: 'assets/payments/visamaster.png'),
@@ -62,19 +70,84 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
     super.dispose();
   }
 
-  void _handlePaymentTap(String methodKey) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        content: Text(AppLocalizations.of(context)!.paymentPageComingSoon),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+  Future<void> _handlePaymentTap(String methodKey) async {
+    if (_isProcessingPayment) return;
+
+    // Stripe currently handles Visa/Mastercard.
+    if (methodKey != 'visaMaster') {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          content: Text(
+            AppLocalizations.of(context)!.paymentPageComingSoon,
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isProcessingPayment = true);
+
+    try {
+      final checkoutUrl = await context
+          .read<UserProvider>()
+          .startStripeCheckout(widget.planSlug);
+
+      final uri = Uri.parse(checkoutUrl);
+
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+        webOnlyWindowName: '_self',
+      );
+
+      if (!launched) {
+        throw StateError('Impossible d\'ouvrir Stripe Checkout.');
+      }
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().replaceFirst('Bad state: ', ''),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessingPayment = false);
+      }
+    }
+  }
+
+  String get _formattedOfferPrice {
+    final parsed =
+        double.tryParse(widget.offerPrice.replaceAll(',', '.'));
+
+    final price =
+        parsed != null && parsed == parsed.truncateToDouble()
+            ? parsed.toInt().toString()
+            : widget.offerPrice;
+
+    switch (widget.offerCurrency.toUpperCase()) {
+      case 'XOF':
+      case 'XAF':
+        return '$price FCFA';
+      case 'EUR':
+        return '$price €';
+      case 'USD':
+        return '$price ${r'$'}';
+      default:
+        return '$price ${widget.offerCurrency.toUpperCase()}';
+    }
   }
 
   @override
@@ -177,7 +250,10 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Text(
-                        loc.chooseYourPaymentMethodForOffer(widget.offerTitle, widget.offerPrice),
+                        loc.chooseYourPaymentMethodForOffer(
+                            widget.offerTitle,
+                            _formattedOfferPrice,
+                          ),
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),

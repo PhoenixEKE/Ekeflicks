@@ -51,7 +51,7 @@ dependencies:
   youtube_player_flutter: ^9.1.1
   speech_to_text: ^7.3.0
   flutter_tts: ^4.2.3
-  flutter_secure_storage: ^9.2.4
+  flutter_secure_storage: ^10.3.1
   built_value: ^8.12.0
   built_collection: ^5.1.1
   app_links: ^6.4.1
@@ -71,7 +71,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  build_runner: ^2.16.0
+  build_runner: ^2.15.1
   json_serializable: ^6.11.1
   built_value_generator: ^8.12.0
 

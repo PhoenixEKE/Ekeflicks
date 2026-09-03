@@ -175,7 +175,17 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
     try {
       final userProvider = context.read<UserProvider>();
       final email = userProvider.currentUser?.email ?? _emailController.text.trim();
-      final subscriptionProgress = await SubscriptionProgressService().load(email);
+      // Le backend est la source de vérité.
+      // Un abonnement actif doit toujours prendre la priorité sur une
+      // progression locale d'abonnement devenue obsolète.
+      if (userProvider.hasActiveSubscription) {
+        await SubscriptionProgressService().complete(email);
+      }
+
+      final subscriptionProgress =
+          userProvider.hasActiveSubscription
+              ? null
+              : await SubscriptionProgressService().load(email);
 
       if (subscriptionProgress != null && mounted) {
         final destination = subscriptionProgress.step ==
@@ -183,6 +193,8 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
             ? SubscriptionStep2Page(
                 offerTitle: subscriptionProgress.offerTitle!,
                 offerPrice: subscriptionProgress.offerPrice!,
+                offerCurrency: subscriptionProgress.offerCurrency!,
+                planSlug: subscriptionProgress.offerPlanSlug!,
                 accountEmail: email,
               )
             : SubscriptionStep1Page(accountEmail: email);

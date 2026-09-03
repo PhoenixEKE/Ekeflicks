@@ -273,3 +273,101 @@ class PlaybackLicense(TimeStampedModel):
 
     def __str__(self):
         return f"{self.profile.name} - {self.asset} - {self.device_id}"
+
+
+class MediaAnalysisReport(TimeStampedModel):
+    """Automated technical QC and AI moderation report for a source video."""
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('analyzing', 'Analyzing'),
+        ('passed', 'Passed'),
+        ('review_required', 'Review required'),
+        ('failed', 'Failed'),
+    ]
+
+    asset = models.OneToOneField(
+        VideoAsset,
+        on_delete=models.CASCADE,
+        related_name='analysis_report',
+    )
+
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default='pending',
+        db_index=True,
+    )
+
+    # Technical metadata
+    container = models.CharField(max_length=50, blank=True)
+    video_codec = models.CharField(max_length=50, blank=True)
+    audio_codec = models.CharField(max_length=50, blank=True)
+
+    width = models.PositiveIntegerField(default=0)
+    height = models.PositiveIntegerField(default=0)
+
+    frame_rate = models.DecimalField(
+        max_digits=8,
+        decimal_places=3,
+        null=True,
+        blank=True,
+    )
+
+    video_bitrate = models.BigIntegerField(default=0)
+    audio_bitrate = models.BigIntegerField(default=0)
+
+    duration_seconds = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+    )
+
+    audio_channels = models.PositiveSmallIntegerField(default=0)
+    sample_rate = models.PositiveIntegerField(default=0)
+
+    # Quality measurements
+    loudness_lufs = models.DecimalField(
+        max_digits=7,
+        decimal_places=3,
+        null=True,
+        blank=True,
+    )
+
+    black_frame_count = models.PositiveIntegerField(default=0)
+    freeze_frame_count = models.PositiveIntegerField(default=0)
+
+    technical_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    # AI/moderation scores and detected events.
+    moderation_scores = models.JSONField(default=dict, blank=True)
+    detected_events = models.JSONField(default=list, blank=True)
+
+    # Complete ffprobe/analysis information for auditing.
+    technical_metadata = models.JSONField(default=dict, blank=True)
+
+    flags = models.JSONField(default=list, blank=True)
+
+    analysis_version = models.CharField(
+        max_length=50,
+        default='eke-qc-v1',
+    )
+
+    error_message = models.TextField(blank=True)
+
+    analyzed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'media_analysis_reports'
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"QC {self.asset_id} - {self.status}"

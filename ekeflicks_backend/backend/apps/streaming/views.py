@@ -37,8 +37,8 @@ from apps.streaming.services import (
     store_video_source,
     validate_playback_license,
 )
-from apps.streaming.tasks import transcode_video_asset_to_hls
-from core.models import OfflineDownloadLicense, VideoAsset
+from apps.streaming.tasks import analyze_video_asset, transcode_video_asset_to_hls
+from core.models import MediaAnalysisReport, OfflineDownloadLicense, VideoAsset
 
 
 class VideoAssetViewSet(viewsets.ModelViewSet):
@@ -206,6 +206,20 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
             raise exceptions.ValidationError({'file': 'Un fichier video est obligatoire.'})
 
         asset = store_video_source(asset, uploaded_file, request.user)
+
+        MediaAnalysisReport.objects.update_or_create(
+            asset=asset,
+            defaults={
+                'status': 'pending',
+                'error_message': '',
+                'flags': [],
+                'moderation_scores': {},
+                'detected_events': [],
+                'technical_metadata': {},
+                'analyzed_at': None,
+            },
+        )
+
         asset.moderation_status = 'pending'
         asset.moderation_reason = ''
         asset.moderated_by = None
@@ -219,6 +233,8 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
             'published_at',
             'updated_at',
         ])
+        analyze_video_asset.delay(str(asset.id))
+
         if asset.content.producer:
             notify_user(
                 asset.content.producer,
@@ -275,6 +291,27 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
                 {'source': 'Ajoutez une source video avant de lancer le transcodage.'}
             )
 
+        try:
+            analysis_report = asset.analysis_report
+        except MediaAnalysisReport.DoesNotExist:
+            raise exceptions.ValidationError({
+                'analysis_report':
+                    'L analyse QC/IA est requise avant transcodage.'
+            })
+
+        if analysis_report.status not in {'passed', 'review_required'}:
+            raise exceptions.ValidationError({
+                'analysis_report':
+                    'L analyse QC/IA doit etre terminee avant transcodage. '
+                    f'Statut actuel: {analysis_report.status}.'
+            })
+
+        if asset.moderation_status != 'approved':
+            raise exceptions.ValidationError({
+                'moderation_status':
+                    'La validation administrateur est requise avant transcodage.'
+            })
+
         asset.status = 'processing'
         asset.save(update_fields=['status', 'updated_at'])
         task = transcode_video_asset_to_hls.delay(str(asset.id))
@@ -310,6 +347,22 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         asset = self.get_object()
+
+        try:
+            analysis_report = asset.analysis_report
+        except MediaAnalysisReport.DoesNotExist:
+            raise exceptions.ValidationError({
+                'analysis_report':
+                    'L analyse QC/IA doit etre terminee avant validation.'
+            })
+
+        if analysis_report.status not in {'passed', 'review_required'}:
+            raise exceptions.ValidationError({
+                'analysis_report':
+                    'L analyse QC/IA doit etre terminee avant validation. '
+                    f'Statut actuel: {analysis_report.status}.'
+            })
+
         serializer = VideoAssetModerationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -324,6 +377,7 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
             'moderated_at',
             'updated_at',
         ])
+
         if asset.content.producer:
             notify_user(
                 asset.content.producer,
@@ -354,6 +408,7 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
             'published_at',
             'updated_at',
         ])
+
         if asset.content.producer:
             notify_user(
                 asset.content.producer,

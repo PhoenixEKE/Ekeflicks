@@ -2,7 +2,10 @@ import hashlib
 import hmac
 from dataclasses import dataclass
 
+import stripe
+
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 
 from apps.notifications.services import notify_user
@@ -17,6 +20,8 @@ class PaymentEvent:
     provider_payment_id: str
     successful: bool
     failed: bool
+    amount: int | None = None
+    currency: str = ''
 
 
 def _header(headers, name):
@@ -28,6 +33,23 @@ def _hmac_digest(secret, body, algorithm):
 
 
 def verify_webhook_signature(provider, body, headers):
+    if provider == 'stripe':
+        secret = getattr(settings, 'STRIPE_WEBHOOK_SECRET', '')
+        signature = _header(headers, 'stripe-signature')
+
+        if not secret or not signature:
+            return False
+
+        try:
+            stripe.Webhook.construct_event(
+                payload=body,
+                sig_header=signature,
+                secret=secret,
+            )
+            return True
+        except (ValueError, stripe.error.SignatureVerificationError):
+            return False
+
     if provider == 'paystack':
         secret = getattr(settings, 'PAYSTACK_SECRET_KEY', '')
         signature = _header(headers, 'x-paystack-signature')
@@ -59,6 +81,46 @@ def verify_webhook_signature(provider, body, headers):
 
 
 def normalize_payment_event(provider, payload):
+    if provider == 'stripe':
+        event_type = payload.get('type', '')
+        data = payload.get('data') or {}
+        obj = data.get('object') or {}
+
+        reference = (
+            obj.get('client_reference_id')
+            or (obj.get('metadata') or {}).get('provider_reference')
+            or ''
+        )
+
+        provider_payment_id = str(
+            obj.get('payment_intent')
+            or obj.get('id')
+            or ''
+        )
+
+        payment_status = obj.get('payment_status', '')
+
+        successful = (
+            event_type in {
+                'checkout.session.completed',
+                'checkout.session.async_payment_succeeded',
+            }
+            and payment_status in {'paid', 'no_payment_required'}
+        )
+
+        failed = event_type == 'checkout.session.async_payment_failed'
+
+        return PaymentEvent(
+            event_id=str(payload.get('id') or obj.get('id') or reference),
+            event_type=event_type,
+            provider_reference=str(reference),
+            provider_payment_id=provider_payment_id,
+            successful=successful,
+            failed=failed,
+            amount=obj.get('amount_total'),
+            currency=str(obj.get('currency') or '').upper(),
+        )
+
     if provider == 'paystack':
         data = payload.get('data') or {}
         event_type = payload.get('event', '')
@@ -135,46 +197,135 @@ def normalize_payment_event(provider, payload):
 
 
 def apply_verified_payment_event(provider, event, payload):
-    payment = Payment.objects.filter(
-        provider=provider,
-        provider_reference=event.provider_reference,
-    ).select_related('subscription').first()
-
-    if not payment:
-        return None, 'Paiement introuvable pour cette reference.'
-
-    payment.provider_payment_id = event.provider_payment_id or payment.provider_payment_id
-    payment.provider_payload = payload
-    payment.verified_at = timezone.now()
-
-    if event.successful:
-        payment.status = 'success'
-        payment.paid_at = payment.paid_at or timezone.now()
-        payment.subscription.status = 'active'
-        payment.subscription.save(update_fields=['status', 'updated_at'])
-        notify_user(
-            payment.subscription.user,
-            'subscription_created',
-            title='Abonnement active',
-            message='Votre abonnement EkeFlicks est maintenant actif.',
-            data={'payment_id': str(payment.id), 'subscription_id': str(payment.subscription_id)},
-        )
-    elif event.failed:
-        payment.status = 'failed'
-        notify_user(
-            payment.subscription.user,
-            'subscription_created',
-            title='Paiement refuse',
-            message='Votre paiement n a pas pu etre valide.',
-            data={'payment_id': str(payment.id), 'subscription_id': str(payment.subscription_id)},
+    with transaction.atomic():
+        payment = (
+            Payment.objects
+            .select_for_update()
+            .select_related('subscription', 'subscription__user')
+            .filter(
+                provider=provider,
+                provider_reference=event.provider_reference,
+            )
+            .first()
         )
 
-    payment.save(update_fields=[
-        'provider_payment_id',
-        'provider_payload',
-        'verified_at',
-        'status',
-        'paid_at',
-        'updated_at',
-    ])
-    return payment, ''
+        if not payment:
+            return None, 'Paiement introuvable pour cette reference.'
+
+        previous_status = payment.status
+
+        # Stripe doit confirmer exactement le montant et la devise
+        # enregistres localement lors de la creation du paiement.
+        if provider == 'stripe' and event.successful:
+            zero_decimal_currencies = {
+                'BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF',
+                'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND',
+                'VUV', 'XAF', 'XOF', 'XPF',
+            }
+
+            expected_currency = str(payment.currency or '').upper()
+
+            if expected_currency in zero_decimal_currencies:
+                expected_amount = int(payment.amount)
+            else:
+                expected_amount = int(payment.amount * 100)
+
+            if event.amount is None:
+                return None, (
+                    'Montant Stripe absent du webhook.'
+                )
+
+            if not event.currency:
+                return None, (
+                    'Devise Stripe absente du webhook.'
+                )
+
+            if int(event.amount) != expected_amount:
+                return None, (
+                    'Montant Stripe incoherent avec le paiement attendu.'
+                )
+
+            if event.currency.upper() != expected_currency:
+                return None, (
+                    'Devise Stripe incoherente avec le paiement attendu.'
+                )
+
+        payment.provider_payment_id = (
+            event.provider_payment_id
+            or payment.provider_payment_id
+        )
+        payment.provider_payload = payload
+        payment.verified_at = timezone.now()
+
+        if event.successful:
+            payment.status = 'success'
+            payment.paid_at = payment.paid_at or timezone.now()
+
+            if payment.subscription.status != 'active':
+                payment.subscription.status = 'active'
+                payment.subscription.save(
+                    update_fields=['status', 'updated_at']
+                )
+
+            # Notification uniquement lors de la premiere transition
+            # vers un paiement reussi.
+            if previous_status != 'success':
+                user = payment.subscription.user
+                payment_id = str(payment.id)
+                subscription_id = str(payment.subscription_id)
+
+                transaction.on_commit(
+                    lambda: notify_user(
+                        user,
+                        'subscription_created',
+                        title='Abonnement active',
+                        message=(
+                            'Votre abonnement EkeFlicks est maintenant actif.'
+                        ),
+                        data={
+                            'payment_id': payment_id,
+                            'subscription_id': subscription_id,
+                        },
+                    )
+                )
+
+        elif event.failed:
+            # Un evenement tardif ne doit jamais degrader
+            # un paiement deja confirme comme reussi.
+            if previous_status != 'success':
+                payment.status = 'failed'
+
+                # Notification uniquement lors de la premiere transition
+                # vers failed.
+                if previous_status != 'failed':
+                    user = payment.subscription.user
+                    payment_id = str(payment.id)
+                    subscription_id = str(payment.subscription_id)
+
+                    transaction.on_commit(
+                        lambda: notify_user(
+                            user,
+                            'subscription_created',
+                            title='Paiement refuse',
+                            message=(
+                                'Votre paiement n a pas pu etre valide.'
+                            ),
+                            data={
+                                'payment_id': payment_id,
+                                'subscription_id': subscription_id,
+                            },
+                        )
+                    )
+
+        payment.save(
+            update_fields=[
+                'provider_payment_id',
+                'provider_payload',
+                'verified_at',
+                'status',
+                'paid_at',
+                'updated_at',
+            ]
+        )
+
+        return payment, ''

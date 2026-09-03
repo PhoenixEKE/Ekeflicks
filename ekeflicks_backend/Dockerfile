@@ -3,12 +3,23 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     ffmpeg \
     libpq-dev \
     libmagic1 \
+    ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Shaka Packager
+ARG SHAKA_PACKAGER_VERSION=3.8.0
+
+RUN curl -fsSL \
+    "https://github.com/shaka-project/shaka-packager/releases/download/v${SHAKA_PACKAGER_VERSION}/packager-linux-x64" \
+    -o /usr/local/bin/packager \
+    && chmod 0755 /usr/local/bin/packager \
+    && packager --version
 
 # Copy requirements and install
 COPY backend/requirements.txt .

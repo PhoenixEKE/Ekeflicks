@@ -56,9 +56,13 @@ class LoginSerializer(serializers.Serializer):
 
 class UserSerializer(serializers.ModelSerializer):
     email = serializers.SerializerMethodField()
+    has_active_subscription = serializers.SerializerMethodField()
 
     def get_email(self, obj):
         return public_email(obj)
+
+    def get_has_active_subscription(self, obj):
+        return obj.subscriptions.filter(status='active').exists()
 
     class Meta:
         model = User
@@ -73,6 +77,7 @@ class UserSerializer(serializers.ModelSerializer):
             'is_verified',
             'is_producer',
             'producer_company',
+            'has_active_subscription',
             'created_at',
         ]
         read_only_fields = ['id', 'email', 'is_active', 'is_verified', 'is_producer', 'created_at']
@@ -182,6 +187,19 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     def validate_phone(self, value):
         return normalize_phone(value)
+
+    def validate_country_code(self, value):
+        code = str(value or '').strip().upper()
+
+        if not code:
+            return ''
+
+        if len(code) != 2 or not code.isalpha():
+            raise serializers.ValidationError(
+                'Utilisez un code pays ISO à 2 lettres, par exemple CI, FR ou US.'
+            )
+
+        return code
 
     def validate(self, attrs):
         email = attrs.get('email', '').strip().lower()

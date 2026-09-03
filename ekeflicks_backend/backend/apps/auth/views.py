@@ -2,6 +2,7 @@ from django.utils import timezone
 from rest_framework import exceptions, generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -32,13 +33,134 @@ from core.models.profiles import Profile
 from core.models.users import AccountClosureRequest, EmailChangeSupportRequest, User
 
 
+WEB_REFRESH_COOKIE_NAME = 'ekeflicks_refresh'
+
+WEB_AUTH_ALLOWED_ORIGINS = {
+    'https://ekeflicks.com',
+    'https://www.ekeflicks.com',
+}
+
+
+def _reject_untrusted_web_origin(request):
+    origin = request.headers.get('Origin')
+
+    if origin not in WEB_AUTH_ALLOWED_ORIGINS:
+        return Response(
+            {'detail': 'Origine web non autorisee.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    return None
+
+
+def _set_web_refresh_cookie(response, refresh_token):
+    response.set_cookie(
+        WEB_REFRESH_COOKIE_NAME,
+        refresh_token,
+        max_age=7 * 24 * 60 * 60,
+        httponly=True,
+        secure=True,
+        samesite='Lax',
+        path='/api/v1/auth/',
+    )
+    return response
+
+
+def _delete_web_refresh_cookie(response):
+    response.delete_cookie(
+        WEB_REFRESH_COOKIE_NAME,
+        path='/api/v1/auth/',
+        samesite='Lax',
+    )
+    return response
+
+
+class WebLoginView(TokenObtainPairView):
+    serializer_class = LoginSerializer
+    throttle_scope = 'login'
+
+    def post(self, request, *args, **kwargs):
+        origin_error = _reject_untrusted_web_origin(request)
+        if origin_error is not None:
+            return origin_error
+
+        response = super().post(request, *args, **kwargs)
+
+        if response.status_code == status.HTTP_200_OK:
+            refresh = response.data.pop('refresh', None)
+            if refresh:
+                _set_web_refresh_cookie(response, refresh)
+
+        return response
+
+
+class WebTokenRefreshView(generics.GenericAPIView):
+    serializer_class = TokenRefreshSerializer
+    throttle_scope = 'token_refresh'
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        origin_error = _reject_untrusted_web_origin(request)
+        if origin_error is not None:
+            return origin_error
+
+        refresh_token = request.COOKIES.get(WEB_REFRESH_COOKIE_NAME)
+
+        if not refresh_token:
+            return Response(
+                {'detail': 'Session web absente.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        serializer = TokenRefreshSerializer(data={'refresh': refresh_token})
+        serializer.is_valid(raise_exception=True)
+
+        data = dict(serializer.validated_data)
+        rotated_refresh = data.pop('refresh', None)
+
+        response = Response(data, status=status.HTTP_200_OK)
+
+        if rotated_refresh:
+            _set_web_refresh_cookie(response, rotated_refresh)
+
+        return response
+
+
+class WebLogoutView(generics.GenericAPIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        origin_error = _reject_untrusted_web_origin(request)
+        if origin_error is not None:
+            return origin_error
+
+        refresh_token = request.COOKIES.get(WEB_REFRESH_COOKIE_NAME)
+
+        if refresh_token:
+            try:
+                RefreshToken(refresh_token).blacklist()
+            except Exception:
+                pass
+
+        response = Response(
+            {'message': 'Deconnecte avec succes'},
+            status=status.HTTP_200_OK,
+        )
+        _delete_web_refresh_cookie(response)
+        return response
+
+
 class LoginView(TokenObtainPairView):
     serializer_class = LoginSerializer
+    throttle_scope = 'login'
 
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserCreateSerializer
+    throttle_scope = 'register'
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
@@ -67,6 +189,50 @@ class RegisterView(generics.CreateAPIView):
         if serializer.validated_data.get('email'):
             send_email_verification(user, request)
         return Response(response_data, status=status.HTTP_201_CREATED)
+
+
+class WebRegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserCreateSerializer
+    throttle_scope = 'register'
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request, *args, **kwargs):
+        origin_error = _reject_untrusted_web_origin(request)
+        if origin_error is not None:
+            return origin_error
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        profile = Profile.objects.filter(user=user, is_active=True).first()
+        refresh = RefreshToken.for_user(user)
+
+        response_data = {
+            'user': UserSerializer(user).data,
+            'access': str(refresh.access_token),
+        }
+
+        if profile:
+            response_data['profile'] = {
+                'id': str(profile.id),
+                'name': profile.name,
+                'avatar_url': profile.avatar_url,
+                'type': profile.type.name if profile.type else None,
+            }
+
+        if serializer.validated_data.get('email'):
+            send_email_verification(user, request)
+
+        response = Response(
+            response_data,
+            status=status.HTTP_201_CREATED,
+        )
+
+        _set_web_refresh_cookie(response, str(refresh))
+        return response
 
 
 class MeView(generics.RetrieveUpdateAPIView):
@@ -120,6 +286,7 @@ class ResendEmailVerificationView(generics.GenericAPIView):
 
 class PasswordResetRequestView(generics.GenericAPIView):
     serializer_class = PasswordResetRequestSerializer
+    throttle_scope = 'password_reset'
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
 
@@ -127,17 +294,18 @@ class PasswordResetRequestView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = User.objects.filter(email__iexact=serializer.validated_data['email']).first()
-        if not user:
-            return Response(
-                {'email': 'Aucun compte ne correspond à cette adresse e-mail.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        send_password_reset(user, request)
+
+        # Toujours retourner la même réponse afin de ne pas révéler
+        # si une adresse e-mail possède un compte EKEFLICKS.
+        if user:
+            send_password_reset(user, request)
+
         return Response({'status': 'sent'}, status=status.HTTP_200_OK)
 
 
 class PasswordResetConfirmView(generics.GenericAPIView):
     serializer_class = PasswordResetConfirmSerializer
+    throttle_scope = 'password_reset'
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
 

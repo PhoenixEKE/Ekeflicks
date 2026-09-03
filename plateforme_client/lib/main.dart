@@ -44,6 +44,10 @@ void main() async {
     basePathOverride: '${ApiConfig.origin}/api/v1/',
   );
 
+  // Restore the HttpOnly-cookie session before rendering the application.
+  final userProvider = UserProvider(openapi);
+  await userProvider.checkAuthStatus();
+
   runApp(
     MultiProvider(
       providers: [
@@ -53,7 +57,7 @@ void main() async {
         ChangeNotifierProvider(
           create: (_) => ContentProvider(ContentApiService(openapi.dio)),
         ),
-        ChangeNotifierProvider(create: (_) => UserProvider(openapi)),
+        ChangeNotifierProvider.value(value: userProvider),
         ChangeNotifierProvider(create: (_) => ProfileProvider(openapi)),
         ChangeNotifierProvider(create: (context) => AvatarProvider()),
       ],
@@ -90,7 +94,7 @@ class _MyAppState extends State<MyApp> {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
 
-      final isLoggedIn = await userProvider.checkAuthStatus();
+      final isLoggedIn = userProvider.isLoggedIn;
       if (isLoggedIn) {
         try {
           await profileProvider.loadProfilesGlobal();
@@ -109,7 +113,9 @@ class _MyAppState extends State<MyApp> {
             );
           }
         } catch (e) {
-          await userProvider.logout();
+          // Une erreur de restauration/sélection du profil ne doit jamais
+          // invalider une session utilisateur déjà authentifiée.
+          debugPrint('Profile initialization failed: $e');
           await profileProvider.reset();
         }
       }
@@ -164,7 +170,7 @@ class _MyAppState extends State<MyApp> {
     final localeProvider = Provider.of<LocaleProvider>(context);
 
     // Si la locale n'est pas définie, on force le français
-    final locale = localeProvider.locale ?? const Locale('fr');
+    final locale = localeProvider.locale;
 
     // Déterminer la route initiale en fonction de l'URL
     final initialRoute = deepLinkRoute(_launchUri) ?? '/';

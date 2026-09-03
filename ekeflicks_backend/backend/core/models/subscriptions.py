@@ -45,7 +45,90 @@ class SubscriptionPlan(TimeStampedModel):
         ordering = ['display_order']
 
     def __str__(self):
-        return f"{self.name} - {self.price}€"
+        return f"{self.name} - {self.price} {self.currency}"
+
+
+class SubscriptionPlanOffer(TimeStampedModel):
+    """Regional commercial version of a subscription plan."""
+
+    ZONE_UEMOA = 'UEMOA'
+    ZONE_EUROPE = 'EUROPE'
+    ZONE_USA = 'USA'
+    ZONE_AFRICA_OTHER = 'AFRICA_OTHER'
+    ZONE_GLOBAL = 'GLOBAL'
+
+    ZONE_CHOICES = [
+        (ZONE_UEMOA, 'UEMOA'),
+        (ZONE_EUROPE, 'Europe'),
+        (ZONE_USA, 'Etats-Unis'),
+        (ZONE_AFRICA_OTHER, 'Afrique hors UEMOA'),
+        (ZONE_GLOBAL, 'Global'),
+    ]
+
+    plan = models.ForeignKey(
+        SubscriptionPlan,
+        on_delete=models.CASCADE,
+        related_name='regional_offers',
+    )
+
+    zone = models.CharField(
+        max_length=30,
+        choices=ZONE_CHOICES,
+    )
+
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+    )
+
+    currency = models.CharField(
+        max_length=3,
+    )
+
+    duration_days = models.IntegerField()
+
+    max_profiles = models.PositiveIntegerField(default=1)
+    max_devices = models.PositiveIntegerField(default=1)
+
+    max_quality = models.CharField(
+        max_length=20,
+        choices=SubscriptionPlan.QUALITY_CHOICES,
+        blank=True,
+    )
+
+    ads_included = models.BooleanField(default=False)
+    download_enabled = models.BooleanField(default=False)
+    tv_enabled = models.BooleanField(default=False)
+
+    features = models.JSONField(default=list)
+
+    display_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'subscription_plan_offers'
+        ordering = ['zone', 'display_order', 'price']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['plan', 'zone'],
+                name='uniq_subscription_plan_offer_zone',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['zone', 'is_active']),
+            models.Index(fields=['plan', 'is_active']),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.currency = (self.currency or '').upper()
+        self.zone = (self.zone or '').upper()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return (
+            f"{self.plan.name} - {self.zone} - "
+            f"{self.price} {self.currency}"
+        )
 
 
 class Subscription(TimeStampedModel):
@@ -65,6 +148,69 @@ class Subscription(TimeStampedModel):
     )
 
     plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE)
+
+    # Offre commerciale regionale effectivement choisie lors de l'achat.
+    # Nullable pour conserver la compatibilite avec les abonnements historiques.
+    regional_offer = models.ForeignKey(
+        SubscriptionPlanOffer,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='subscriptions',
+    )
+
+    # Snapshot commercial au moment de la souscription.
+    # Ces valeurs ne doivent plus changer si l'admin modifie ensuite la grille.
+    market_zone = models.CharField(
+        max_length=30,
+        blank=True,
+        default='',
+    )
+    price_at_purchase = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    currency_at_purchase = models.CharField(
+        max_length=3,
+        blank=True,
+        default='',
+    )
+    duration_days_at_purchase = models.IntegerField(
+        null=True,
+        blank=True,
+    )
+    max_profiles_at_purchase = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+    max_devices_at_purchase = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+    max_quality_at_purchase = models.CharField(
+        max_length=20,
+        choices=SubscriptionPlan.QUALITY_CHOICES,
+        blank=True,
+        default='',
+    )
+    ads_included_at_purchase = models.BooleanField(
+        null=True,
+        blank=True,
+    )
+    download_enabled_at_purchase = models.BooleanField(
+        null=True,
+        blank=True,
+    )
+    tv_enabled_at_purchase = models.BooleanField(
+        null=True,
+        blank=True,
+    )
+    features_at_purchase = models.JSONField(
+        null=True,
+        blank=True,
+    )
 
     status = models.CharField(
         max_length=20,
@@ -174,17 +320,23 @@ class PaymentWebhookEvent(TimeStampedModel):
     processed_at = models.DateTimeField(null=True, blank=True)
     error_message = models.TextField(blank=True)
 
+
     class Meta:
         db_table = 'payment_webhook_events'
+        constraints = [
+           models.UniqueConstraint(
+               fields=['provider', 'event_id'],
+               condition=~models.Q(event_id=''),
+               name='uniq_payment_webhook_provider_event_id',
+           ),
+        ]
         indexes = [
-            models.Index(fields=['provider', 'event_id']),
             models.Index(fields=['provider', 'provider_reference']),
             models.Index(fields=['processed']),
         ]
 
     def __str__(self):
         return f"{self.provider} - {self.event_type or self.event_id}"
-
 
 class ProducerPayoutRequest(TimeStampedModel):
     STATUS_CHOICES = [

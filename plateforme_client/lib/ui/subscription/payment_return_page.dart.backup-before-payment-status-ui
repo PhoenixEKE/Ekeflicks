@@ -1,0 +1,121 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../providers/profile_provider.dart';
+import '../../providers/user_provider.dart';
+import '../../services/subscription_progress_service.dart';
+import '../profiles/profile_selection_page.dart';
+import '../users/login_screen.dart';
+import '../users/post_login_page.dart';
+
+class PaymentReturnPage extends StatefulWidget {
+  const PaymentReturnPage({super.key});
+
+  @override
+  State<PaymentReturnPage> createState() => _PaymentReturnPageState();
+}
+
+class _PaymentReturnPageState extends State<PaymentReturnPage> {
+  bool _checking = true;
+  String _message = 'Validation de votre abonnement...';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _verifySubscription();
+    });
+  }
+
+  Future<void> _verifySubscription() async {
+    final userProvider = context.read<UserProvider>();
+    final profileProvider = context.read<ProfileProvider>();
+
+    if (!userProvider.isLoggedIn) {
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (route) => false,
+      );
+      return;
+    }
+
+    for (var attempt = 0; attempt < 8; attempt++) {
+      await userProvider.refreshCurrentUser();
+
+      if (userProvider.hasActiveSubscription) {
+        final email = userProvider.currentUser?.email;
+
+        if (email != null && email.isNotEmpty) {
+          await SubscriptionProgressService().complete(email);
+        }
+
+        await profileProvider.loadProfiles();
+
+        if (!mounted) return;
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => profileProvider.availableProfiles.length > 1
+                ? const ProfileSelectionPage()
+                : const PostLoginPage(),
+          ),
+          (route) => false,
+        );
+        return;
+      }
+
+      if (attempt < 7) {
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _checking = false;
+      _message =
+          'Votre paiement a été reçu. L’activation prend un peu plus de temps que prévu.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_checking) const CircularProgressIndicator(),
+              if (_checking) const SizedBox(height: 24),
+              Text(
+                _message,
+                textAlign: TextAlign.center,
+              ),
+              if (!_checking) ...[
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _checking = true;
+                      _message = 'Validation de votre abonnement...';
+                    });
+                    _verifySubscription();
+                  },
+                  child: const Text('Réessayer'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

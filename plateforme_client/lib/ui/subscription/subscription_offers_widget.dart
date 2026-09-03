@@ -1,42 +1,74 @@
 import 'package:flutter/material.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
+import 'package:app_ekeflicks/providers/user_provider.dart';
+import 'package:provider/provider.dart';
 
 
 class SubscriptionOffer {
   final String title;
   final String? price;
+  final String currency;
   final String quality;
   final String resolution;
   final String devicesSupported;
   final int simultaneousDevices;
-  final int downloadsAllowed;
+  final bool downloadEnabled;
   final bool adsIncluded;
   final String planSlug;
+  final int durationDays;
 
   SubscriptionOffer({
     required this.title,
     required this.price,
+    required this.currency,
     required this.quality,
     required this.resolution,
     required this.devicesSupported,
     required this.simultaneousDevices,
-    required this.downloadsAllowed,
+    required this.downloadEnabled,
     required this.adsIncluded,
     required this.planSlug,
+    required this.durationDays,
   });
+  String get currencyLabel {
+    switch (currency.toUpperCase()) {
+      case 'XOF':
+      case 'XAF':
+        return 'FCFA';
+      case 'EUR':
+        return '€';
+      case 'USD':
+        return r'$';
+      default:
+        return currency.toUpperCase();
+    }
+  }
+
+  String get formattedPrice {
+    final rawPrice = price ?? '';
+    final parsed = double.tryParse(rawPrice.replaceAll(',', '.'));
+
+    final formatted =
+        parsed != null && parsed == parsed.truncateToDouble()
+            ? parsed.toInt().toString()
+            : rawPrice;
+
+    return '$formatted $currencyLabel';
+  }
+
+
 
   bool get isFree {
     final normalizedTitle = title.trim().toLowerCase();
     final parsedPrice = double.tryParse((price ?? '').replaceAll(',', '.'));
 
-    return price == null ||
+    return planSlug == 'free-30-days' ||
+        price == null ||
         parsedPrice == 0 ||
         normalizedTitle == 'free' ||
         normalizedTitle == 'gratuit' ||
-        normalizedTitle == 'gratuite' ||
-        normalizedTitle == 'free 30 days' ||
-        normalizedTitle == 'gratuit 30 jours';
+        normalizedTitle == 'gratuite';
   }
 }
 
@@ -53,74 +85,74 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
   int? _selectedIndex;
   int? hoveredIndex;
 
-  final List<SubscriptionOffer> offers = [
-    SubscriptionOffer(
-      title: "Free 30 Days",
-      price: null,
-      quality: "Standard",
-      resolution: "720p",
-      devicesSupported: "TV, ordinateur, smartphone, tablette",
-      simultaneousDevices: 1,
-      downloadsAllowed: 0,
-      adsIncluded: true,
-      planSlug: 'free-30-days',
-    ),
-    SubscriptionOffer(
-      title: "Basic",
-      price: "5.99",
-      quality: "Standard",
-      resolution: "720p",
-      devicesSupported: "TV, ordinateur, smartphone, tablette",
-      simultaneousDevices: 1,
-      downloadsAllowed: 1,
-      adsIncluded: true,
-      planSlug: 'basic',
-    ),
-    SubscriptionOffer(
-      title: "Standard",
-      price: "9.99",
-      quality: "Good",
-      resolution: "1080p",
-      devicesSupported: "TV, ordinateur, smartphone, tablette",
-      simultaneousDevices: 2,
-      downloadsAllowed: 2,
-      adsIncluded: false,
-      planSlug: 'standard',
-    ),
-    SubscriptionOffer(
-      title: "Premium",
-      price: "13.99",
-      quality: "High",
-      resolution: "4K",
-      devicesSupported: "TV, ordinateur, smartphone, tablette",
-      simultaneousDevices: 4,
-      downloadsAllowed: 4,
-      adsIncluded: false,
-      planSlug: 'premium',
-    ),
-    SubscriptionOffer(
-      title: "Family",
-      price: "17.99",
-      quality: "High",
-      resolution: "4K",
-      devicesSupported: "TV, ordinateur, smartphone, tablette",
-      simultaneousDevices: 6,
-      downloadsAllowed: 6,
-      adsIncluded: false,
-      planSlug: 'family',
-    ),
-    SubscriptionOffer(
-      title: "Ad-Supported",
-      price: "3.99",
-      quality: "Standard",
-      resolution: "720p",
-      devicesSupported: "TV, ordinateur, smartphone, tablette",
-      simultaneousDevices: 1,
-      downloadsAllowed: 0,
-      adsIncluded: true,
-      planSlug: 'ad-supported',
-    ),
-  ];
+  List<SubscriptionOffer> offers = [];
+  bool _isLoading = true;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOffers();
+  }
+
+  Future<void> _loadOffers() async {
+    try {
+      final userProvider = context.read<UserProvider>();
+
+      final response =
+          await userProvider.apiClient.dio.get<Map<String, dynamic>>(
+        '/subscription-plans/',
+      );
+
+      final payload = response.data;
+      final rawPlans = payload?['results'] ?? payload;
+
+      if (rawPlans is! List) {
+        throw StateError('Liste des offres indisponible.');
+      }
+
+      final loadedOffers = rawPlans
+          .whereType<Map>()
+          .where((plan) => plan['is_active'] == true)
+          .map((plan) {
+        final price = plan['price']?.toString();
+        final currency =
+            plan['currency']?.toString().toUpperCase() ?? 'EUR';
+        final maxDevices = (plan['max_devices'] as num?)?.toInt() ?? 1;
+        final quality = plan['max_quality']?.toString() ?? 'HD';
+        final downloadEnabled = plan['download_enabled'] == true;
+
+        return SubscriptionOffer(
+          title: plan['name']?.toString() ?? '',
+          price: price,
+            currency: currency,
+          quality: quality,
+          resolution: quality,
+          devicesSupported: 'TV, ordinateur, smartphone, tablette',
+          simultaneousDevices: maxDevices,
+          downloadEnabled: downloadEnabled,
+          adsIncluded: plan['ads_included'] == true,
+          planSlug: plan['slug']?.toString() ?? '',
+          durationDays: (plan['duration_days'] as num?)?.toInt() ?? 30,
+        );
+      }).toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        offers = loadedOffers;
+        _isLoading = false;
+        _loadError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _loadError = error.toString().replaceFirst('Bad state: ', '');
+      });
+    }
+  }
 
   void _selectOffer(int index) {
     setState(() {
@@ -134,6 +166,45 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
+
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_loadError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 40),
+              const SizedBox(height: 12),
+              Text(
+                _loadError!,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    _isLoading = true;
+                    _loadError = null;
+                  });
+                  _loadOffers();
+                },
+                child: const Text('Réessayer'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -169,7 +240,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                       width: cardWidth,
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? Theme.of(context).colorScheme.primary.withOpacity(0.2)
+                            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
                             : Theme.of(context).cardColor,
                         border: Border.all(
                           color: isSelected
@@ -192,7 +263,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                "GRATUIT 30 JOURS",
+                                "GRATUIT ${offer.durationDays} JOURS",
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 10,
@@ -216,7 +287,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                           const SizedBox(height: 8),
                           if (isFree) ...[
                             Text(
-                              "0€ / 30 jours",
+                              "GRATUIT / ${offer.durationDays} jours",
                               style: AppTheme.offerPriceStyle(context).copyWith(
                                 color: Colors.green,
                                 fontWeight: FontWeight.bold,
@@ -224,7 +295,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              "Essai gratuit de 30 jours",
+                              "Essai gratuit de ${offer.durationDays} jours",
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Theme.of(context).hintColor,
@@ -233,7 +304,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                           ] else ...[
                             Text(
                               offer.price != null
-                                  ? loc.prixParMois("${offer.price!}€")
+                                  ? loc.prixParMois(offer.formattedPrice)
                                   : loc.prixNonDisponible,
                               style: AppTheme.offerPriceStyle(context),
                             ),
@@ -297,17 +368,17 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (offer.isFree) ...[
-            infoRow(Icons.timer, "Durée", "30 jours"),
+            infoRow(Icons.timer, "Durée", "${offer.durationDays} jours"),
             infoRow(Icons.card_giftcard, "Type", "Essai gratuit"),
           ] else ...[
             infoRow(Icons.monetization_on, loc.abonnementMensuel,
-                offer.price != null ? "${offer.price}€" : loc.prixNonDisponible),
+                offer.price != null ? offer.formattedPrice : loc.prixNonDisponible),
           ],
           infoRow(Icons.high_quality, loc.qualite, offer.quality),
           infoRow(Icons.tv, loc.resolution, offer.resolution),
           infoRow(Icons.devices, loc.appareilsPrisEnCharge, offer.devicesSupported),
           infoRow(Icons.group, loc.appareilsSimultanes, offer.simultaneousDevices.toString()),
-          infoRow(Icons.download, loc.telechargement, offer.downloadsAllowed.toString()),
+          infoRow(Icons.download, loc.telechargement, offer.downloadEnabled ? loc.oui : loc.non),
           infoRow(Icons.ads_click, loc.publicites, offer.adsIncluded ? loc.oui : loc.non),
         ],
       ),

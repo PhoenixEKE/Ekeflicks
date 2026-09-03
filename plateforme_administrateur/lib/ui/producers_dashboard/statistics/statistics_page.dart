@@ -1,4 +1,4 @@
-*import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:plateforme_administrateur/core/core.dart';
 import 'package:plateforme_administrateur/gen/app_localizations.dart';

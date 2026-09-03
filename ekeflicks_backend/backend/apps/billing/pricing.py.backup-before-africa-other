@@ -1,0 +1,68 @@
+from core.models import SubscriptionPlanOffer
+
+
+UEMOA_COUNTRIES = {
+    'BJ', 'BF', 'CI', 'GW', 'ML', 'NE', 'SN', 'TG',
+}
+
+AFRICA_OTHER_COUNTRIES = {
+    'DZ', 'AO', 'BW', 'BI', 'CM', 'CV', 'CF', 'TD', 'KM', 'CG', 'CD',
+    'DJ', 'EG', 'GQ', 'ER', 'SZ', 'ET', 'GA', 'GM', 'GH', 'GN', 'KE',
+    'LS', 'LR', 'LY', 'MG', 'MW', 'MR', 'MU', 'MA', 'MZ', 'NA', 'NG',
+    'RW', 'ST', 'SC', 'SL', 'SO', 'ZA', 'SS', 'SD', 'TZ', 'TG', 'TN',
+    'UG', 'ZM', 'ZW',
+}
+
+USA_COUNTRIES = {
+    'US',
+}
+
+EUROPE_COUNTRIES = {
+    'FR', 'DE', 'ES', 'IT', 'BE', 'NL', 'PT', 'LU',
+    'IE', 'AT', 'FI', 'GR', 'CY', 'MT', 'SI', 'SK',
+    'EE', 'LV', 'LT', 'HR',
+}
+
+
+def normalize_country_code(country_code):
+    return (country_code or '').strip().upper()
+
+
+def resolve_market_zone(country_code):
+    code = normalize_country_code(country_code)
+
+    if code in UEMOA_COUNTRIES:
+        return SubscriptionPlanOffer.ZONE_UEMOA
+
+    if code in AFRICA_OTHER_COUNTRIES:
+        return SubscriptionPlanOffer.ZONE_AFRICA_OTHER
+
+    if code in USA_COUNTRIES:
+        return SubscriptionPlanOffer.ZONE_USA
+
+    if code in EUROPE_COUNTRIES:
+        return SubscriptionPlanOffer.ZONE_EUROPE
+
+    return SubscriptionPlanOffer.ZONE_GLOBAL
+
+
+def resolve_plan_offer(plan, country_code):
+    zone = resolve_market_zone(country_code)
+
+    offer = (
+        plan.regional_offers
+        .filter(zone=zone, is_active=True)
+        .first()
+    )
+
+    if offer:
+        return offer
+
+    return (
+        plan.regional_offers
+        .filter(
+            zone=SubscriptionPlanOffer.ZONE_GLOBAL,
+            is_active=True,
+        )
+        .first()
+    )

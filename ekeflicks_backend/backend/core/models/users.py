@@ -2,6 +2,8 @@ import uuid
 import re
 import secrets
 
+import phonenumbers
+
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.db import models
@@ -16,11 +18,25 @@ def normalize_phone_number(value):
     return phone
 
 
-COUNTRY_CALLING_CODES = {
-    '225': 'CI', '221': 'SN', '237': 'CM', '261': 'MG', '212': 'MA',
-    '216': 'TN', '213': 'DZ', '33': 'FR', '32': 'BE', '41': 'CH',
-    '44': 'GB', '49': 'DE', '39': 'IT', '34': 'ES', '1': 'US',
-}
+
+def normalize_country_code(value):
+    """
+    Normalise un code pays ISO alpha-2.
+
+    Une valeur vide est autorisée afin de conserver la
+    compatibilité avec les comptes sans pays renseigné.
+    """
+    code = str(value or '').strip().upper()
+
+    if not code:
+        return ''
+
+    if len(code) != 2 or not code.isalpha():
+        raise ValueError(
+            "Country code must be a 2-letter ISO alpha-2 code."
+        )
+
+    return code
 
 
 def generate_mfa_secret():
@@ -28,12 +44,28 @@ def generate_mfa_secret():
 
 
 def country_code_from_phone(value):
-    """Infer an ISO country code from an E.164 calling code when possible."""
-    digits = normalize_phone_number(value)[1:]
-    for prefix in sorted(COUNTRY_CALLING_CODES, key=len, reverse=True):
-        if digits.startswith(prefix):
-            return COUNTRY_CALLING_CODES[prefix]
-    return ''
+    """
+    Déduit le code pays ISO alpha-2 depuis un numéro E.164.
+
+    Retourne une chaîne vide si le pays ne peut pas être
+    déterminé de manière fiable.
+    """
+    phone = normalize_phone_number(value)
+
+    try:
+        parsed = phonenumbers.parse(phone, None)
+    except phonenumbers.NumberParseException:
+        return ''
+
+    if not phonenumbers.is_valid_number(parsed):
+        return ''
+
+    region = phonenumbers.region_code_for_number(parsed) or ''
+
+    try:
+        return normalize_country_code(region)
+    except ValueError:
+        return ''
 
 
 class UserManager(BaseUserManager):
@@ -48,6 +80,11 @@ class UserManager(BaseUserManager):
         extra_fields['phone'] = normalize_phone_number(phone) if phone else ''
         if phone and not extra_fields.get('country_code'):
             extra_fields['country_code'] = country_code_from_phone(phone)
+
+        extra_fields['country_code'] = normalize_country_code(
+            extra_fields.get('country_code', '')
+        )
+
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)

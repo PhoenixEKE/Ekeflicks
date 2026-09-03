@@ -55,3 +55,7 @@ def build_video_output_prefix(asset):
 def build_final_hls_path(asset, relative_path):
     filename = 'manifest.m3u8' if relative_path == 'master.m3u8' else relative_path
     return f"{build_video_output_prefix(asset)}/{filename}"
+
+
+def build_final_dash_path(asset, relative_path):
+    return f"{build_video_output_prefix(asset)}/dash/{relative_path}"

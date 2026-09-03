@@ -27,7 +27,7 @@ class InfoDialogCubit extends Cubit<InfoDialogState> {
   Future<void> _initVideo() async {
     try {
       _controller = VideoPlayerController.network(
-        content.videoUrl.isNotEmpty ? content.videoUrl : Content.defaultTrailerUrl,
+        content.videoUrl,
       );
       
       await _controller.initialize();
