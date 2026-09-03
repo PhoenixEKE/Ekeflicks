@@ -339,155 +339,217 @@ def _overlay_page_13(
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(612, 792))
 
-    # ------------------------------------------------------
-    # Tableau de signature Producteur.
-    #
-    # Les rectangles blancs masquent les anciennes valeurs
-    # du template. Les bordures sont ensuite redessinées afin
-    # qu'aucune cellule ne paraisse coupée.
-    # ------------------------------------------------------
+    # ======================================================
+    # TABLEAU DE SIGNATURE
+    # ======================================================
 
-    right_x = 302
-    right_width = 260
+    left = 55
+    middle = 302
+    right = 562
 
-    # Première ligne : version du contrat.
-    _cover(c, right_x, 690.2, right_width, 16)
+    top = 720
+    bottom = 558
 
-    _draw_fitted_text(
+    # Fond blanc propre.
+    _cover(
         c,
-        306.1,
-        693.65,
-        f"Version du contrat {settings.PRODUCER_AGREEMENT_CURRENT_VERSION}",
-        max_width=250,
-        preferred_size=8.5,
-        min_size=6.5,
+        left,
+        bottom,
+        right - left,
+        top - bottom,
     )
-
-    # Valeurs Producteur.
-    for y in (
-        678.65,
-        663.85,
-        649.05,
-        634.25,
-        619.45,
-        575.55,
-    ):
-        _cover(c, right_x, y - 4, right_width, 18)
-
-    _draw_fitted_text(
-        c,
-        306.1,
-        678.65,
-        data["legal_name"],
-        max_width=250,
-        preferred_size=9,
-        min_size=6.5,
-    )
-
-    _draw_fitted_text(
-        c,
-        306.1,
-        663.85,
-        data["representative_name"],
-        max_width=250,
-        preferred_size=9,
-        min_size=6.5,
-    )
-
-    _draw_fitted_text(
-        c,
-        306.1,
-        649.05,
-        data["representative_role"],
-        max_width=250,
-        preferred_size=9,
-        min_size=6.5,
-    )
-
-    _text(
-        c,
-        306.1,
-        634.25,
-        data["country_code"],
-        9,
-    )
-
-    if producer_signed_at:
-        _text(
-            c,
-            306.1,
-            619.45,
-            producer_signed_at.strftime(
-                "%Y-%m-%d %H:%M:%S UTC"
-            ),
-            8.2,
-        )
-
-        _draw_fitted_text(
-            c,
-            306.1,
-            575.55,
-            presented_hash,
-            max_width=250,
-            preferred_size=6.7,
-            min_size=5.5,
-        )
-    else:
-        _draw_fitted_text(
-            c,
-            306.1,
-            619.45,
-            "En attente de signature du Producteur",
-            max_width=250,
-            preferred_size=8.2,
-            min_size=6.5,
-        )
-
-        _draw_fitted_text(
-            c,
-            306.1,
-            575.55,
-            "Empreinte generee avant acceptation",
-            max_width=250,
-            preferred_size=7.2,
-            min_size=6.0,
-        )
-
-    # ------------------------------------------------------
-    # Réparation des bordures effacées par les overlays.
-    # ------------------------------------------------------
 
     c.setStrokeColorRGB(0, 0, 0)
     c.setLineWidth(0.45)
 
-    # Bordure droite du tableau.
-    c.line(562, 558, 562, 706)
+    # Contour.
+    c.rect(
+        left,
+        bottom,
+        right - left,
+        top - bottom,
+        stroke=1,
+        fill=0,
+    )
 
-    # Séparation centrale.
-    c.line(302, 558, 302, 706)
+    # Séparation colonnes.
+    c.line(
+        middle,
+        bottom,
+        middle,
+        top,
+    )
 
-    # Bordures horizontales principales de la zone droite.
-    for y in (
-        706,
+    # Lignes.
+    rows = [
+        705,
         690,
         675,
         660,
         645,
         630,
         615,
-        588,
+        585,
         558,
-    ):
-        c.line(302, y, 562, y)
+    ]
+
+    for y in rows:
+        c.line(left, y, right, y)
+
+    labels = [
+        (708.5, "Version du contrat"),
+        (693.5, "Titre"),
+        (678.5, "Producteur"),
+        (663.5, "Nom du signataire"),
+        (648.5, "Qualite"),
+        (633.5, "Pays"),
+        (618.5, "Date et heure UTC"),
+        (588.5, "Methode"),
+        (573.0, "Empreinte SHA-256"),
+        (560.5, "Acceptation"),
+    ]
+
+    for y, label in labels:
+        _draw_fitted_text(
+            c,
+            59.65,
+            y,
+            label,
+            max_width=235,
+            preferred_size=8.5,
+            min_size=6.5,
+        )
 
     # ------------------------------------------------------
-    # Signature institutionnelle EKEFLICKS.
+    # Valeurs
     # ------------------------------------------------------
+
+    _draw_fitted_text(
+        c,
+        306.1,
+        708.5,
+        settings.PRODUCER_AGREEMENT_CURRENT_VERSION,
+        max_width=250,
+        preferred_size=8.5,
+        min_size=6.5,
+    )
+
+    _draw_fitted_text(
+        c,
+        306.1,
+        693.5,
+        settings.PRODUCER_AGREEMENT_TITLE,
+        max_width=250,
+        preferred_size=8.5,
+        min_size=6.5,
+    )
+
+    _draw_fitted_text(
+        c,
+        306.1,
+        678.5,
+        data["legal_name"],
+        max_width=250,
+        preferred_size=8.5,
+        min_size=6.5,
+    )
+
+    _draw_fitted_text(
+        c,
+        306.1,
+        663.5,
+        data["representative_name"],
+        max_width=250,
+        preferred_size=8.5,
+        min_size=6.5,
+    )
+
+    _draw_fitted_text(
+        c,
+        306.1,
+        648.5,
+        data["representative_role"],
+        max_width=250,
+        preferred_size=8.5,
+        min_size=6.5,
+    )
+
+    _text(
+        c,
+        306.1,
+        633.5,
+        data["country_code"],
+        8.5,
+    )
+
+    if producer_signed_at:
+        signature_date = producer_signed_at.strftime(
+            "%Y-%m-%d %H:%M:%S UTC"
+        )
+        fingerprint = presented_hash
+    else:
+        signature_date = "En attente de signature du Producteur"
+        fingerprint = "Empreinte generee avant acceptation"
+
+    _draw_fitted_text(
+        c,
+        306.1,
+        618.5,
+        signature_date,
+        max_width=250,
+        preferred_size=8.0,
+        min_size=6.0,
+    )
+
+    _draw_fitted_text(
+        c,
+        306.1,
+        600,
+        "Signature electronique EKEFLICKS / clickwrap",
+        max_width=250,
+        preferred_size=7.7,
+        min_size=6.0,
+    )
+
+    _draw_fitted_text(
+        c,
+        306.1,
+        589,
+        "ou prestataire externe",
+        max_width=250,
+        preferred_size=7.7,
+        min_size=6.0,
+    )
+
+    _draw_fitted_text(
+        c,
+        306.1,
+        573,
+        fingerprint,
+        max_width=250,
+        preferred_size=6.3,
+        min_size=5.0,
+    )
+
+    _draw_fitted_text(
+        c,
+        306.1,
+        560.5,
+        "Je reconnais avoir lu et accepte le contrat.",
+        max_width=250,
+        preferred_size=6.8,
+        min_size=5.5,
+    )
+
+    # ======================================================
+    # SIGNATURE INSTITUTIONNELLE EKEFLICKS
+    # ======================================================
 
     _cover(c, 55, 449, 245, 75)
 
     c.setFillColorRGB(0, 0, 0)
     c.setFont(CONTRACT_FONT_BOLD, 9)
+
     c.drawString(
         59.65,
         505,
