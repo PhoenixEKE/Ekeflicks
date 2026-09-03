@@ -127,6 +127,8 @@ class _LoginPageState extends State<LoginPage> {
                               _buildPasswordField(l10n),
                               const SizedBox(height: 24),
                               _buildLoginButton(l10n),
+                              const SizedBox(height: 12),
+                              _buildRegisterButton(),
                               const SizedBox(height: 16),
                               _buildForgotPasswordButton(l10n),
                             ],
@@ -253,6 +255,17 @@ class _LoginPageState extends State<LoginPage> {
                   color: Colors.white,
                 ),
               ),
+      ),
+    );
+  }
+
+  Widget _buildRegisterButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _loading ? null : () => context.go('/register'),
+        icon: const Icon(Icons.person_add_alt_1),
+        label: const Text('Créer un compte Producteur'),
       ),
     );
   }

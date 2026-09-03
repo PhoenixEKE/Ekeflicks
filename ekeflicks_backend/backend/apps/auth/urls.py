@@ -17,6 +17,11 @@ from .views import (
     WebLogoutView,
     WebRegisterView,
     WebTokenRefreshView,
+    WebProducerRegisterView,
+    ProducerOnboardingView,
+    ProducerAgreementCurrentView,
+    ProducerAgreementSignView,
+    ProducerAgreementDocumentView,
 )
 
 router = DefaultRouter()
@@ -27,6 +32,31 @@ urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
     path('web/login/', WebLoginView.as_view(), name='web-login'),
     path('web/register/', WebRegisterView.as_view(), name='web-register'),
+    path(
+        'web/producer/register/',
+        WebProducerRegisterView.as_view(),
+        name='web-producer-register',
+    ),
+    path(
+        'producer/onboarding/',
+        ProducerOnboardingView.as_view(),
+        name='producer-onboarding',
+    ),
+    path(
+        'producer/agreement/',
+        ProducerAgreementCurrentView.as_view(),
+        name='producer-agreement-current',
+    ),
+    path(
+        'producer/agreement/sign/',
+        ProducerAgreementSignView.as_view(),
+        name='producer-agreement-sign',
+    ),
+    path(
+        'producer/agreement/document/',
+        ProducerAgreementDocumentView.as_view(),
+        name='producer-agreement-document',
+    ),
     path('web/refresh/', WebTokenRefreshView.as_view(), name='web-token-refresh'),
     path('web/logout/', WebLogoutView.as_view(), name='web-logout'),
     path('register/', RegisterView.as_view(), name='register'),

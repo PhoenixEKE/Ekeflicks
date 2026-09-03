@@ -1,0 +1,471 @@
+from __future__ import annotations
+
+import hashlib
+import io
+from dataclasses import dataclass
+from pathlib import Path
+
+from django.conf import settings
+from django.core.files.base import ContentFile
+from django.core.files.storage import storages
+from django.utils import timezone
+
+from pypdf import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase.pdfmetrics import stringWidth
+
+from core.models.producers import ProducerAccount, ProducerAgreement
+
+
+CONTRACT_TEMPLATE_NAME = "contrat-producteur-ekeflicks-2026-09-v1.pdf"
+
+
+class ProducerContractError(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class GeneratedProducerContract:
+    pdf_bytes: bytes
+    sha256: str
+    effective_date: object
+
+
+def _clean(value) -> str:
+    return "" if value is None else str(value).strip()
+
+
+def _template_path() -> Path:
+    path = (
+        Path(settings.BASE_DIR)
+        / "apps"
+        / "auth"
+        / "contract_templates"
+        / CONTRACT_TEMPLATE_NAME
+    )
+    if not path.exists():
+        raise ProducerContractError(
+            "Le contrat canonique Producteur est introuvable."
+        )
+    return path
+
+
+def _producer_data(account: ProducerAccount) -> dict:
+    data = {
+        "company_name": _clean(account.company_name),
+        "legal_name": _clean(account.legal_name),
+        "legal_form": _clean(account.legal_form),
+        "country_code": _clean(account.country_code).upper(),
+        "address": _clean(account.address),
+        "city": _clean(account.city),
+        "registration_number": _clean(account.registration_number),
+        "tax_number": _clean(account.tax_number),
+        "representative_name": _clean(account.representative_name),
+        "representative_role": _clean(account.representative_role),
+        "email": _clean(account.user.email),
+        "phone": _clean(account.phone or account.user.phone),
+    }
+
+    required = {
+        "Nom commercial / structure": data["company_name"],
+        "Raison sociale": data["legal_name"],
+        "Forme juridique": data["legal_form"],
+        "Pays": data["country_code"],
+        "Adresse": data["address"],
+        "Numero d'immatriculation": data["registration_number"],
+        "Representant legal": data["representative_name"],
+        "Fonction du representant": data["representative_role"],
+        "Email": data["email"],
+    }
+
+    missing = [name for name, value in required.items() if not value]
+
+    if missing:
+        raise ProducerContractError(
+            "Informations professionnelles incompletes : "
+            + ", ".join(missing)
+            + "."
+        )
+
+    return data
+
+
+def _cover(c, x, y, width, height=16):
+    c.setFillColorRGB(1, 1, 1)
+    c.rect(x, y, width, height, stroke=0, fill=1)
+
+
+def _text(c, x, y, value, size=9):
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("Helvetica", size)
+    c.drawString(x, y, _clean(value))
+
+
+def _draw_fitted_text(
+    c,
+    x,
+    y,
+    value,
+    *,
+    max_width,
+    preferred_size=9,
+    min_size=6.5,
+    font="Helvetica",
+):
+    """
+    Draw the complete legal value without truncation.
+
+    Font size is reduced until the complete text fits.
+    If the full value cannot fit even at min_size, contract
+    generation stops instead of altering legal information.
+    """
+    value = _clean(value)
+
+    size = float(preferred_size)
+
+    while size >= float(min_size):
+        if stringWidth(value, font, size) <= max_width:
+            c.setFillColorRGB(0, 0, 0)
+            c.setFont(font, size)
+            c.drawString(x, y, value)
+            return
+
+        size -= 0.25
+
+    raise ProducerContractError(
+        "Une information juridique est trop longue pour le contrat : "
+        + value
+    )
+
+
+def _address(data):
+    value = data["address"]
+    if data["city"]:
+        value = f'{value}, {data["city"]}'
+    return value
+
+
+def _overlay_page_1(data, effective_date):
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(612, 792))
+
+    _cover(c, 300, 602, 230)
+    _text(c, 300, 605.5, effective_date.strftime("%d/%m/%Y"), 10)
+
+    _cover(c, 55, 297, 505, 17)
+    _cover(c, 55, 280, 505, 17)
+    _cover(c, 55, 264, 505, 17)
+
+    line1 = (
+        f'{data["legal_name"]}, forme juridique {data["legal_form"]}, '
+        f'etabli(e) en {data["country_code"]},'
+    )
+
+    tax = (
+        f', numero fiscal {data["tax_number"]}'
+        if data["tax_number"]
+        else ""
+    )
+
+    line2 = (
+        f'adresse {_address(data)}, numero d\'immatriculation '
+        f'{data["registration_number"]}{tax},'
+    )
+
+    line3 = (
+        f'represente(e) par {data["representative_name"]}, '
+        f'en qualite de {data["representative_role"]}, '
+        'ci-apres denomme(e) le « Producteur » ;'
+    )
+
+    _draw_fitted_text(
+        c, 59.65, 301.35, line1,
+        max_width=500,
+        preferred_size=9,
+        min_size=6.5,
+    )
+    _draw_fitted_text(
+        c, 59.65, 284.95, line2,
+        max_width=500,
+        preferred_size=8.7,
+        min_size=6.5,
+    )
+    _draw_fitted_text(
+        c, 59.65, 268.55, line3,
+        max_width=500,
+        preferred_size=8.5,
+        min_size=6.5,
+    )
+
+    c.save()
+    return buf.getvalue()
+
+
+def _overlay_page_12(data):
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(612, 792))
+
+    values = [
+        (380.25, "Raison sociale", data["legal_name"]),
+        (353.85, "Nom commercial", data["company_name"]),
+        (327.45, "Pays", data["country_code"]),
+        (301.05, "Forme juridique", data["legal_form"]),
+        (274.65, "Numero d'immatriculation", data["registration_number"]),
+        (
+            248.25,
+            "Numero fiscal",
+            data["tax_number"] or "Non renseigne",
+        ),
+        (221.85, "Adresse", _address(data)),
+        (195.45, "Representant", data["representative_name"]),
+        (
+            169.05,
+            "Qualite du representant",
+            data["representative_role"],
+        ),
+        (142.65, "Email du compte Producteur", data["email"]),
+        (116.25, "Telephone", data["phone"] or "Non renseigne"),
+        (
+            89.85,
+            "Devise de paiement",
+            "A definir dans l'espace de paiement",
+        ),
+        (
+            63.45,
+            "Moyen de paiement",
+            "A definir dans l'espace de paiement",
+        ),
+    ]
+
+    for y, label, value in values:
+        _cover(c, 55, y - 3, 505, 17)
+        _draw_fitted_text(
+            c,
+            59.65,
+            y,
+            f"{label} : {value}",
+            max_width=500,
+            preferred_size=9,
+            min_size=6.5,
+        )
+
+    c.save()
+    return buf.getvalue()
+
+
+def _overlay_page_13(
+    data,
+    *,
+    ekeflicks_signed_at,
+    producer_signed_at=None,
+    presented_hash="",
+):
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(612, 792))
+
+    # Partie Producteur.
+    for y in (678.65, 663.85, 649.05, 634.25, 619.45, 575.55):
+        _cover(c, 302, y - 4, 260, 18)
+
+    _draw_fitted_text(
+        c, 306.1, 678.65, data["legal_name"],
+        max_width=250,
+        preferred_size=9,
+        min_size=6.5,
+    )
+    _draw_fitted_text(
+        c, 306.1, 663.85, data["representative_name"],
+        max_width=250,
+        preferred_size=9,
+        min_size=6.5,
+    )
+    _draw_fitted_text(
+        c, 306.1, 649.05, data["representative_role"],
+        max_width=250,
+        preferred_size=9,
+        min_size=6.5,
+    )
+    _text(c, 306.1, 634.25, data["country_code"], 9)
+
+    if producer_signed_at:
+        _text(
+            c,
+            306.1,
+            619.45,
+            producer_signed_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            8.2,
+        )
+        _text(c, 306.1, 575.55, presented_hash, 6.7)
+    else:
+        _text(
+            c,
+            306.1,
+            619.45,
+            "En attente de signature du Producteur",
+            8.2,
+        )
+        _text(
+            c,
+            306.1,
+            575.55,
+            "Empreinte generee avant acceptation",
+            7.2,
+        )
+
+    # Pré-signature institutionnelle EKEFLICKS.
+    _cover(c, 55, 449, 245, 75)
+
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(
+        59.65,
+        505,
+        "Pre-signe electroniquement par EKEFLICKS",
+    )
+
+    _draw_fitted_text(
+        c,
+        59.65,
+        490,
+        settings.EKEFLICKS_CONTRACT_SIGNER_NAME,
+        max_width=235,
+        preferred_size=8.5,
+        min_size=6.5,
+    )
+    _draw_fitted_text(
+        c,
+        59.65,
+        477,
+        settings.EKEFLICKS_CONTRACT_SIGNER_ROLE,
+        max_width=235,
+        preferred_size=8.5,
+        min_size=6.5,
+    )
+    _text(
+        c,
+        59.65,
+        464,
+        ekeflicks_signed_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        8.2,
+    )
+
+    c.save()
+    return buf.getvalue()
+
+
+def _merge(page, overlay):
+    page.merge_page(PdfReader(io.BytesIO(overlay)).pages[0])
+
+
+def _write(reader):
+    out = io.BytesIO()
+    writer = PdfWriter()
+
+    for page in reader.pages:
+        writer.add_page(page)
+
+    writer.write(out)
+    return out.getvalue()
+
+
+def generate_presented_contract(
+    account: ProducerAccount,
+    *,
+    ekeflicks_signed_at=None,
+) -> GeneratedProducerContract:
+    data = _producer_data(account)
+    ekeflicks_signed_at = ekeflicks_signed_at or timezone.now()
+    effective_date = timezone.localdate(ekeflicks_signed_at)
+
+    reader = PdfReader(str(_template_path()))
+
+    if len(reader.pages) != 13:
+        raise ProducerContractError(
+            "La version canonique doit contenir 13 pages."
+        )
+
+    _merge(
+        reader.pages[0],
+        _overlay_page_1(data, effective_date),
+    )
+
+    _merge(
+        reader.pages[11],
+        _overlay_page_12(data),
+    )
+
+    _merge(
+        reader.pages[12],
+        _overlay_page_13(
+            data,
+            ekeflicks_signed_at=ekeflicks_signed_at,
+        ),
+    )
+
+    pdf_bytes = _write(reader)
+
+    return GeneratedProducerContract(
+        pdf_bytes=pdf_bytes,
+        sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+        effective_date=effective_date,
+    )
+
+
+def generate_signed_contract(
+    account: ProducerAccount,
+    *,
+    presented_contract: GeneratedProducerContract,
+    signed_at,
+    ekeflicks_signed_at,
+) -> GeneratedProducerContract:
+    data = _producer_data(account)
+
+    reader = PdfReader(io.BytesIO(presented_contract.pdf_bytes))
+
+    _merge(
+        reader.pages[12],
+        _overlay_page_13(
+            data,
+            ekeflicks_signed_at=ekeflicks_signed_at,
+            producer_signed_at=signed_at,
+            presented_hash=presented_contract.sha256,
+        ),
+    )
+
+    pdf_bytes = _write(reader)
+
+    return GeneratedProducerContract(
+        pdf_bytes=pdf_bytes,
+        sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+        effective_date=presented_contract.effective_date,
+    )
+
+
+def store_presented_contract(
+    agreement: ProducerAgreement,
+    contract: GeneratedProducerContract,
+) -> str:
+    storage = storages["producer_contracts"]
+
+    key = (
+        f"producer-agreements/{agreement.producer_account_id}/"
+        f"{agreement.contract_version}/"
+        f"agreement-{agreement.id}-presented.pdf"
+    )
+
+    return storage.save(key, ContentFile(contract.pdf_bytes))
+
+
+def store_signed_contract(
+    agreement: ProducerAgreement,
+    contract: GeneratedProducerContract,
+) -> str:
+    storage = storages["producer_contracts"]
+
+    key = (
+        f"producer-agreements/{agreement.producer_account_id}/"
+        f"{agreement.contract_version}/"
+        f"agreement-{agreement.id}-signed.pdf"
+    )
+
+    return storage.save(key, ContentFile(contract.pdf_bytes))

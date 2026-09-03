@@ -523,18 +523,6 @@ class ProducerAccountSerializer(serializers.ModelSerializer):
         ).first()
 
     def get_current_agreement_status(self, obj):
-        signed_agreement = obj.agreements.filter(
-            contract_version__in=settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS,
-            status=ProducerAgreement.STATUS_SIGNED,
-            signed_at__isnull=False,
-        ).order_by(
-            '-signed_at',
-            '-created_at',
-        ).first()
-
-        if signed_agreement:
-            return ProducerAgreement.STATUS_SIGNED
-
         agreement = self._current_agreement(obj)
         return agreement.status if agreement else 'not_signed'
 

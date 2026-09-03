@@ -52,6 +52,13 @@ class ApiClient {
     );
   }
 
+  Future<http.Response> getBytes(String path, {bool authenticated = false}) {
+    return _client.get(
+      Uri.parse('$baseUrl$path'),
+      headers: _headers(authenticated: authenticated),
+    );
+  }
+
   Future<http.Response> post(
     String path, {
     Map<String, dynamic>? body,
@@ -93,25 +100,70 @@ class ApiClient {
     String fallback = 'Une erreur est survenue.',
   }) {
     final data = decode(response);
+    final message = _extractErrorMessage(data);
 
-    if (data is Map<String, dynamic>) {
-      final detail = data['detail'];
+    if (message != null && message.trim().isNotEmpty) {
+      return message.trim();
+    }
 
-      if (detail is String && detail.trim().isNotEmpty) {
-        return detail;
+    return fallback;
+  }
+
+  String? _extractErrorMessage(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is String) {
+      final text = value.trim();
+      return text.isEmpty ? null : text;
+    }
+
+    if (value is List) {
+      for (final item in value) {
+        final message = _extractErrorMessage(item);
+        if (message != null && message.isNotEmpty) {
+          return message;
+        }
+      }
+      return null;
+    }
+
+    if (value is Map) {
+      const priorityKeys = <String>[
+        'detail',
+        'non_field_errors',
+        'email',
+        'phone',
+        'password',
+        'company_name',
+        'legal_name',
+        'legal_form',
+        'registration_number',
+        'country_code',
+        'address',
+        'city',
+        'representative_name',
+        'representative_role',
+      ];
+
+      for (final key in priorityKeys) {
+        if (value.containsKey(key)) {
+          final message = _extractErrorMessage(value[key]);
+          if (message != null && message.isNotEmpty) {
+            return message;
+          }
+        }
       }
 
-      for (final value in data.values) {
-        if (value is String && value.trim().isNotEmpty) {
-          return value;
-        }
-
-        if (value is List && value.isNotEmpty) {
-          return value.first.toString();
+      for (final entry in value.entries) {
+        final message = _extractErrorMessage(entry.value);
+        if (message != null && message.isNotEmpty) {
+          return message;
         }
       }
     }
 
-    return fallback;
+    return null;
   }
 }

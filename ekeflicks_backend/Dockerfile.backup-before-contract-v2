@@ -6,7 +6,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     ffmpeg \
-    fonts-noto-core \
     libpq-dev \
     libmagic1 \
     ca-certificates \

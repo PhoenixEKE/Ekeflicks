@@ -85,11 +85,11 @@ def is_active_producer_user(user):
     if producer_account.status != 'active':
         return False
 
-    accepted_versions = settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS
+    current_version = settings.PRODUCER_AGREEMENT_CURRENT_VERSION
 
     return ProducerAgreement.objects.filter(
         producer_account=producer_account,
-        contract_version__in=accepted_versions,
+        contract_version=current_version,
         status=ProducerAgreement.STATUS_SIGNED,
         signed_at__isnull=False,
     ).exists()

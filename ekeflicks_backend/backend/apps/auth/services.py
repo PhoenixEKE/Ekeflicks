@@ -46,7 +46,22 @@ def _frontend_link(token, path_setting, default_path, action=None):
     return f"{base_url}{path}{separator}{urlencode(parameters)}"
 
 
-def _email_verification_link(request, token):
+def _producer_email_verification_link(token):
+    base_url = getattr(
+        settings,
+        'PRODUCER_FRONTEND_BASE_URL',
+        'https://producteurs.ekeflicks.com',
+    ).rstrip('/')
+
+    parameters = urlencode({'token': str(token)})
+
+    return f"{base_url}/#/verify-email?{parameters}"
+
+
+def _email_verification_link(request, token, user=None):
+    if user is not None and getattr(user, 'is_producer', False):
+        return _producer_email_verification_link(token)
+
     return (
         _frontend_link(token, 'EMAIL_VERIFICATION_FRONTEND_PATH', '/verify-email')
         or _absolute_link(request, 'verify-email', token)
@@ -79,7 +94,7 @@ def send_email_verification(user, request=None):
         user=user,
         expires_at=email_verification_expires_at(),
     )
-    link = _email_verification_link(request, token.token)
+    link = _email_verification_link(request, token.token, user=user)
     notify_user(
         user,
         'email_verification',

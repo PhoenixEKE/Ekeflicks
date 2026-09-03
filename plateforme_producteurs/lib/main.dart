@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:plateforme_producteurs/core/web_helpers.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +7,8 @@ import 'package:plateforme_producteurs/providers/locale_provider.dart';
 import 'routes.dart';
 
 void main() {
+  canonicalizeProducerPortalUrl();
+
   runApp(
     ChangeNotifierProvider(
       create: (context) => LocaleProvider(),

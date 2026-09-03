@@ -755,28 +755,6 @@ PRODUCER_AGREEMENT_CURRENT_VERSION = os.environ.get(
     '2026-09-v1',
 )
 
-
-# Versions antérieures dont une signature déjà réalisée continue
-# d'autoriser l'accès Producteur. Cela permet une migration de
-# contrat sans désactiver brutalement les producteurs existants.
-PRODUCER_AGREEMENT_LEGACY_ACCEPTED_VERSIONS = tuple(
-    version.strip()
-    for version in os.environ.get(
-        'PRODUCER_AGREEMENT_LEGACY_ACCEPTED_VERSIONS',
-        '2026-09-v1',
-    ).split(',')
-    if version.strip()
-)
-
-PRODUCER_AGREEMENT_ACCEPTED_VERSIONS = tuple(
-    dict.fromkeys(
-        (
-            PRODUCER_AGREEMENT_CURRENT_VERSION,
-            *PRODUCER_AGREEMENT_LEGACY_ACCEPTED_VERSIONS,
-        )
-    )
-)
-
 PRODUCER_AGREEMENT_TITLE = os.environ.get(
     'PRODUCER_AGREEMENT_TITLE',
     'Contrat Producteur EKEFLICKS',

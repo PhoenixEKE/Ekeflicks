@@ -20,6 +20,7 @@ from .subscriptions import SubscriptionPlan, SubscriptionPlanOffer, Subscription
 from .streaming import VideoAsset, VideoRendition, SubtitleTrack, OfflineDownloadLicense, PlaybackLicense, MediaAnalysisReport
 from .analytics import DailyStat, ProducerContentView, ProducerCountryCurrency, ProducerRevenueSetting, ViewingSession
 from .notifications import NotificationType, Notification
+from .producers import ProducerAccount, ProducerAgreement
 from .users import User
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     'VideoAsset', 'VideoRendition', 'SubtitleTrack', 'OfflineDownloadLicense', 'PlaybackLicense', 'MediaAnalysisReport',
     'ViewingSession', 'DailyStat', 'ProducerRevenueSetting', 'ProducerCountryCurrency', 'ProducerContentView',
     'NotificationType', 'Notification',
+    'ProducerAccount', 'ProducerAgreement',
 ]
