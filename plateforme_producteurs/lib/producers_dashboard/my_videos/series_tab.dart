@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:plateforme_producteurs/core/core.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:plateforme_producteurs/models/series_models.dart';
 // Import séparé pour éviter les conflits
 import 'add_season_modal.dart' as season_modal;
@@ -42,9 +41,7 @@ class _SeriesTabState extends State<SeriesTab> {
         likes: 100,
         comments: 10,
         rating: 4.0,
-        publicationHistory: [
-          PublicationEvent("Test", DateTime.now()),
-        ],
+        publicationHistory: [PublicationEvent("Test", DateTime.now())],
         recentComments: [
           SeriesComment("Testeur", "Commentaire test", DateTime.now()),
         ],
@@ -65,7 +62,8 @@ class _SeriesTabState extends State<SeriesTab> {
         Expanded(
           child: ListView.builder(
             itemCount: seriesList.length,
-            itemBuilder: (context, index) => _buildSeriesCard(context, seriesList[index], index),
+            itemBuilder: (context, index) =>
+                _buildSeriesCard(context, seriesList[index], index),
           ),
         ),
       ],
@@ -83,7 +81,9 @@ class _SeriesTabState extends State<SeriesTab> {
                 hintText: "Rechercher une série...",
                 prefixIcon: Icon(Icons.search, color: AppTheme.primary),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.borderRadiusMedium,
+                  ),
                 ),
                 filled: true,
                 fillColor: AppTheme.cardBackground,
@@ -116,7 +116,7 @@ class _SeriesTabState extends State<SeriesTab> {
         children: [
           Text(
             "Filtres à implémenter",
-            style: TextStyle(color: AppTheme.textPrimary)
+            style: TextStyle(color: AppTheme.textPrimary),
           ),
         ],
       ),
@@ -124,7 +124,9 @@ class _SeriesTabState extends State<SeriesTab> {
   }
 
   Widget _buildSeriesCard(BuildContext context, Series series, int index) {
-    final publishedEpisodes = series.totalEpisodes.where((e) => e.status == "Publié").length;
+    final publishedEpisodes = series.totalEpisodes
+        .where((e) => e.status == "Publié")
+        .length;
     final totalEpisodes = series.totalEpisodes.length;
 
     return Card(
@@ -141,7 +143,9 @@ class _SeriesTabState extends State<SeriesTab> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(AppTheme.borderRadiusMedium)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppTheme.borderRadiusMedium),
+              ),
               child: Image.asset(
                 series.media.bannerUrl,
                 height: 150,
@@ -149,7 +153,13 @@ class _SeriesTabState extends State<SeriesTab> {
                 errorBuilder: (context, error, stackTrace) => Container(
                   height: 150,
                   color: Colors.grey[200],
-                  child: Center(child: Icon(Icons.live_tv, size: 50, color: AppTheme.primary)),
+                  child: Center(
+                    child: Icon(
+                      Icons.live_tv,
+                      size: 50,
+                      color: AppTheme.primary,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -178,10 +188,15 @@ class _SeriesTabState extends State<SeriesTab> {
                     spacing: 8,
                     runSpacing: 4,
                     children: [
-                      _buildMetaChip(Icons.calendar_today, '${series.releaseYear}'),
+                      _buildMetaChip(
+                        Icons.calendar_today,
+                        '${series.releaseYear}',
+                      ),
                       _buildMetaChip(Icons.language, series.language),
                       _buildMetaChip(Icons.place, series.country),
-                      ...series.genres.map((genre) => _buildMetaChip(Icons.category, genre)),
+                      ...series.genres.map(
+                        (genre) => _buildMetaChip(Icons.category, genre),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -198,21 +213,21 @@ class _SeriesTabState extends State<SeriesTab> {
   Widget _buildStatusBadge(BuildContext context, String status) {
     Color color;
     String statusText;
-    
+
     switch (status) {
-      case 'Publié': 
+      case 'Publié':
         color = AppTheme.success;
         statusText = 'Publié';
         break;
-      case 'En attente': 
+      case 'En attente':
         color = AppTheme.warning;
         statusText = 'En attente';
         break;
-      case 'Rejeté': 
+      case 'Rejeté':
         color = AppTheme.error;
         statusText = 'Rejeté';
         break;
-      default: 
+      default:
         color = AppTheme.disabled;
         statusText = status;
     }
@@ -220,7 +235,7 @@ class _SeriesTabState extends State<SeriesTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(AppTheme.borderRadiusSmall),
       ),
       child: Text(
@@ -244,16 +259,26 @@ class _SeriesTabState extends State<SeriesTab> {
     );
   }
 
-  Widget _buildStatsRow(Series series, int publishedEpisodes, int totalEpisodes) {
+  Widget _buildStatsRow(
+    Series series,
+    int publishedEpisodes,
+    int totalEpisodes,
+  ) {
     final formatter = NumberFormat.compact();
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        _buildStatItem(Icons.remove_red_eye, formatter.format(series.stats.views)),
+        _buildStatItem(
+          Icons.remove_red_eye,
+          formatter.format(series.stats.views),
+        ),
         _buildStatItem(Icons.thumb_up, formatter.format(series.stats.likes)),
         _buildStatItem(Icons.comment, formatter.format(series.stats.comments)),
         _buildStatItem(Icons.star, series.stats.rating.toString()),
-        _buildStatItem(Icons.playlist_play, '$publishedEpisodes/$totalEpisodes'),
+        _buildStatItem(
+          Icons.playlist_play,
+          '$publishedEpisodes/$totalEpisodes',
+        ),
       ],
     );
   }
@@ -272,7 +297,7 @@ class _SeriesTabState extends State<SeriesTab> {
     setState(() {
       _selectedSeriesIndex = index;
     });
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -286,22 +311,24 @@ class _SeriesTabState extends State<SeriesTab> {
   }
 
   void _showAddSeasonDialog() {
-    final nextSeasonNumber = seriesList[_selectedSeriesIndex].seasons.isEmpty 
-        ? 1 
+    final nextSeasonNumber = seriesList[_selectedSeriesIndex].seasons.isEmpty
+        ? 1
         : seriesList[_selectedSeriesIndex].seasons.last.number + 1;
-    
+
     showDialog(
       context: context,
       builder: (context) => season_modal.AddSeasonModal(
         nextSeasonNumber: nextSeasonNumber,
-        onAddSeason: (title, description, posterPath, bannerPath, trailerPath) => _addSeason(
-          title: title,
-          description: description,
-          posterPath: posterPath,
-          bannerPath: bannerPath,
-          trailerPath: trailerPath,
-          seasonNumber: nextSeasonNumber,
-        ),
+        onAddSeason:
+            (title, description, posterPath, bannerPath, trailerPath) =>
+                _addSeason(
+                  title: title,
+                  description: description,
+                  posterPath: posterPath,
+                  bannerPath: bannerPath,
+                  trailerPath: trailerPath,
+                  seasonNumber: nextSeasonNumber,
+                ),
       ),
     ).then((_) {
       setState(() {});
@@ -340,14 +367,18 @@ class _SeriesTabState extends State<SeriesTab> {
           number: seasonNumber,
           title: title,
           description: description,
-          posterUrl: posterPath.isNotEmpty ? posterPath : 'assets/placeholder_poster.jpg',
-          bannerUrl: bannerPath.isNotEmpty ? bannerPath : 'assets/placeholder_banner.jpg',
+          posterUrl: posterPath.isNotEmpty
+              ? posterPath
+              : 'assets/placeholder_poster.jpg',
+          bannerUrl: bannerPath.isNotEmpty
+              ? bannerPath
+              : 'assets/placeholder_banner.jpg',
           trailerUrl: trailerPath.isNotEmpty ? trailerPath : '',
           episodes: [],
         ),
       );
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Saison $seasonNumber ajoutée avec succès!'),
@@ -367,15 +398,17 @@ class _SeriesTabState extends State<SeriesTab> {
       final season = seriesList[_selectedSeriesIndex].seasons.firstWhere(
         (s) => s.number == seasonNumber,
       );
-      
+
       final episodes = season.episodes;
       final newEpisodeNumber = episodes.isEmpty ? 1 : episodes.last.number + 1;
-      
+
       season.episodes.add(
         Episode(
           number: newEpisodeNumber,
           title: title.isNotEmpty ? title : 'Épisode $newEpisodeNumber',
-          description: description.isNotEmpty ? description : 'Description à compléter',
+          description: description.isNotEmpty
+              ? description
+              : 'Description à compléter',
           duration: duration,
           status: "En attente",
           releaseDate: DateTime.now(),

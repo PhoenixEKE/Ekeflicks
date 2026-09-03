@@ -23,9 +23,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(l10n.privacySettings),
-      ),
+      appBar: AppBar(title: Text(l10n.privacySettings)),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,14 +63,16 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                     title: Text(l10n.enableTwoFactorAuth),
                     subtitle: Text(l10n.enableTwoFactorAuthDescription),
                     value: _twoFactorAuth,
-                    onChanged: (value) => setState(() => _twoFactorAuth = value),
+                    onChanged: (value) =>
+                        setState(() => _twoFactorAuth = value),
                   ),
                   const Divider(height: 1),
                   SwitchListTile(
                     title: Text(l10n.acceptAnalyticsTracking),
                     subtitle: Text(l10n.acceptAnalyticsTrackingDescription),
                     value: _acceptAnalytics,
-                    onChanged: (value) => setState(() => _acceptAnalytics = value),
+                    onChanged: (value) =>
+                        setState(() => _acceptAnalytics = value),
                   ),
                 ],
               ),
@@ -110,7 +110,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
 
   void _saveSettings(BuildContext context) {
     // Implémentez la sauvegarde des préférences
-    // Exemple : 
+    // Exemple :
     // final prefs = await SharedPreferences.getInstance();
     // prefs.setBool('shareData', _shareData);
     // prefs.setBool('showEmail', _showEmail);
@@ -120,9 +120,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   void _openPrivacyPolicy(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const PrivacyPolicyPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const PrivacyPolicyPage()),
     );
   }
 }

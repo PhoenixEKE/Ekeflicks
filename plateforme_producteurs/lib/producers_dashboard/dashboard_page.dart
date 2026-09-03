@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:provider/provider.dart';
-import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:flutter/services.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/providers/locale_provider.dart';
@@ -23,7 +22,6 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 0;
-  String _timeRange = 'daily'; // Utilisez une clé pour la traduction
 
   @override
   void initState() {
@@ -90,8 +88,10 @@ class _DashboardPageState extends State<DashboardPage> {
       padding: const EdgeInsets.all(6),
       decoration: _selectedIndex == index
           ? BoxDecoration(
-              color: AppTheme.primary.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(AppDecorations.borderRadiusSmall),
+              color: AppTheme.primary.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(
+                AppDecorations.borderRadiusSmall,
+              ),
             )
           : null,
       child: Icon(icon),
@@ -111,7 +111,11 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context, AppLocalizations l10n, LocaleProvider localeProvider) {
+  PreferredSizeWidget _buildAppBar(
+    BuildContext context,
+    AppLocalizations l10n,
+    LocaleProvider localeProvider,
+  ) {
     return AppBar(
       title: Image.asset(
         'assets/images/logo_dark.png',
@@ -121,10 +125,7 @@ class _DashboardPageState extends State<DashboardPage> {
           children: [
             Icon(Icons.movie_filter, color: AppTheme.textPrimary, size: 32),
             SizedBox(width: 8),
-            Text(
-              'EKEFLIX PRO',
-              style: AppTheme.textTitle,
-            ),
+            Text('EKEFLIX PRO', style: AppTheme.textTitle),
           ],
         ),
       ),
@@ -134,7 +135,10 @@ class _DashboardPageState extends State<DashboardPage> {
       flexibleSpace: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [AppTheme.background.withOpacity(0.9), Colors.transparent],
+            colors: [
+              AppTheme.background.withValues(alpha: 0.9),
+              Colors.transparent,
+            ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -172,7 +176,7 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 10,
             spreadRadius: 2,
           ),
@@ -200,19 +204,21 @@ class _DashboardPageState extends State<DashboardPage> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppDecorations.borderRadiusLarge),
         ),
-        title: Text(
-          l10n.notificationsTitle,
-          style: AppTheme.textTitle,
-        ),
+        title: Text(l10n.notificationsTitle, style: AppTheme.textTitle),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView(
             shrinkWrap: true,
             children: [
               ListTile(
-                title: Text(l10n.notificationNewComment, style: AppTheme.textBody),
-                subtitle: Text(l10n.notificationOnContent("Mon Film - Episode 2"),
-                    style: AppTheme.textCaption),
+                title: Text(
+                  l10n.notificationNewComment,
+                  style: AppTheme.textBody,
+                ),
+                subtitle: Text(
+                  l10n.notificationOnContent("Mon Film - Episode 2"),
+                  style: AppTheme.textCaption,
+                ),
                 trailing: Text('12:30', style: AppTheme.textCaption),
               ),
               ListTile(
@@ -226,10 +232,7 @@ class _DashboardPageState extends State<DashboardPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              l10n.close,
-              style: TextStyle(color: AppTheme.primary),
-            ),
+            child: Text(l10n.close, style: TextStyle(color: AppTheme.primary)),
           ),
         ],
       ),

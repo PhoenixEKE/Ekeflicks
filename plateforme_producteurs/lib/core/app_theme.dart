@@ -43,17 +43,14 @@ class AppTheme {
     fontWeight: FontWeight.bold,
     color: textPrimary,
   );
-  
+
   static const TextStyle textSubtitle = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w500,
     color: textPrimary,
   );
-  
-  static const TextStyle textBody = TextStyle(
-    fontSize: 14,
-    color: textPrimary,
-  );
+
+  static const TextStyle textBody = TextStyle(fontSize: 14, color: textPrimary);
 
   static const TextStyle textBodyBold = TextStyle(
     fontSize: 14,
@@ -81,168 +78,150 @@ class AppTheme {
 
   // Theme Data
   static ThemeData get themeData => ThemeData.dark().copyWith(
-        colorScheme: ColorScheme.dark(
-          primary: primary,
-          secondary: secondary,
-          surface: cardBackground,
-          background: background,
-          error: error,
+    colorScheme: ColorScheme.dark(
+      primary: primary,
+      secondary: secondary,
+      surface: cardBackground,
+      error: error,
+    ),
+    scaffoldBackgroundColor: background,
+    cardTheme: CardThemeData(
+      color: cardBackground,
+      elevation: 2,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
+      ),
+    ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: cardBackground,
+      elevation: 0,
+      centerTitle: true,
+      titleTextStyle: textTitle.copyWith(fontSize: fontSizeTitle),
+      iconTheme: const IconThemeData(color: textPrimary),
+    ),
+    textTheme: TextTheme(
+      displayLarge: TextStyle(
+        fontSize: fontSizeHeadline,
+        fontWeight: FontWeight.bold,
+        color: textPrimary,
+      ),
+      displayMedium: textTitle,
+      titleLarge: textTitle,
+      titleMedium: textSubtitle,
+      bodyLarge: textBody,
+      bodyMedium: TextStyle(fontSize: fontSizeMedium, color: textSecondary),
+      labelLarge: TextStyle(
+        fontSize: fontSizeLarge,
+        fontWeight: FontWeight.bold,
+        color: textPrimary,
+      ),
+      labelMedium: TextStyle(fontSize: fontSizeMedium, color: grey),
+      headlineSmall: TextStyle(
+        fontSize: fontSizeMedium,
+        fontWeight: FontWeight.w600,
+        color: textPrimary,
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.grey[850],
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      hintStyle: const TextStyle(color: textDisabled),
+      labelStyle: const TextStyle(color: textSecondary),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primary,
+        foregroundColor: textPrimary,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
         ),
-        scaffoldBackgroundColor: background,
-        cardTheme: CardThemeData(
-          color: cardBackground,
-          elevation: 2,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
-          ),
+        textStyle: const TextStyle(
+          fontSize: fontSizeLarge,
+          fontWeight: FontWeight.bold,
         ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: cardBackground,
-          elevation: 0,
-          centerTitle: true,
-          titleTextStyle: textTitle.copyWith(fontSize: fontSizeTitle),
-          iconTheme: const IconThemeData(color: textPrimary),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: primary,
+        side: const BorderSide(color: primary),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
         ),
-        textTheme: TextTheme(
-          displayLarge: TextStyle(
-            fontSize: fontSizeHeadline,
-            fontWeight: FontWeight.bold,
-            color: textPrimary,
-          ),
-          displayMedium: textTitle,
-          titleLarge: textTitle,
-          titleMedium: textSubtitle,
-          bodyLarge: textBody,
-          bodyMedium: TextStyle(
-            fontSize: fontSizeMedium,
-            color: textSecondary,
-          ),
-          labelLarge: TextStyle(
-            fontSize: fontSizeLarge,
-            fontWeight: FontWeight.bold,
-            color: textPrimary,
-          ),
-          labelMedium: TextStyle(
-            fontSize: fontSizeMedium,
-            color: grey,
-          ),
-          headlineSmall: TextStyle(
-            fontSize: fontSizeMedium,
-            fontWeight: FontWeight.w600,
-            color: textPrimary,
-          ),
+        textStyle: const TextStyle(
+          fontSize: fontSizeLarge,
+          fontWeight: FontWeight.bold,
         ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.grey[850],
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ),
-          hintStyle: const TextStyle(color: textDisabled),
-          labelStyle: const TextStyle(color: textSecondary),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primary,
-            foregroundColor: textPrimary,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 16,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
-            ),
-            textStyle: const TextStyle(
-              fontSize: fontSizeLarge,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: primary,
-            side: const BorderSide(color: primary),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 16,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
-            ),
-            textStyle: const TextStyle(
-              fontSize: fontSizeLarge,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        iconTheme: const IconThemeData(color: textSecondary),
-        dividerTheme: DividerThemeData(
-          color: divider,
-          thickness: 1,
-          space: 1,
-        ),
-        snackBarTheme: SnackBarThemeData(
-          backgroundColor: cardBackground,
-          contentTextStyle: const TextStyle(color: textPrimary),
-          actionTextColor: primary,
-        ),
-        dialogTheme: DialogThemeData(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppTheme.borderRadiusLarge),
-          ),
-          backgroundColor: cardBackground,
-        ),
-      );
+      ),
+    ),
+    iconTheme: const IconThemeData(color: textSecondary),
+    dividerTheme: DividerThemeData(color: divider, thickness: 1, space: 1),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: cardBackground,
+      contentTextStyle: const TextStyle(color: textPrimary),
+      actionTextColor: primary,
+    ),
+    dialogTheme: DialogThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.borderRadiusLarge),
+      ),
+      backgroundColor: cardBackground,
+    ),
+  );
 
   // Méthodes pour les styles dynamiques
-  static TextStyle textStyleAppBarTitle(BuildContext context) => 
+  static TextStyle textStyleAppBarTitle(BuildContext context) =>
       Theme.of(context).textTheme.titleLarge!;
-  
-  static TextStyle textStyleBody(BuildContext context) => 
+
+  static TextStyle textStyleBody(BuildContext context) =>
       Theme.of(context).textTheme.bodyLarge!;
-  
-  static TextStyle textStyleBodyBold(BuildContext context) => 
-      Theme.of(context).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.bold);
-  
-  static TextStyle textStyleBodyItalic(BuildContext context) => 
-      Theme.of(context).textTheme.bodyLarge!.copyWith(fontStyle: FontStyle.italic);
-  
-  static TextStyle textStyleHint(BuildContext context) => 
+
+  static TextStyle textStyleBodyBold(BuildContext context) => Theme.of(
+    context,
+  ).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.bold);
+
+  static TextStyle textStyleBodyItalic(BuildContext context) => Theme.of(
+    context,
+  ).textTheme.bodyLarge!.copyWith(fontStyle: FontStyle.italic);
+
+  static TextStyle textStyleHint(BuildContext context) =>
       Theme.of(context).textTheme.bodyMedium!;
-  
-  static TextStyle textStyleTitleMedium(BuildContext context) => 
+
+  static TextStyle textStyleTitleMedium(BuildContext context) =>
       Theme.of(context).textTheme.titleMedium!;
-  
-  static TextStyle textStyleTitleLarge(BuildContext context) => 
+
+  static TextStyle textStyleTitleLarge(BuildContext context) =>
       Theme.of(context).textTheme.titleLarge!;
-  
-  static TextStyle textStyleCaption(BuildContext context) => 
+
+  static TextStyle textStyleCaption(BuildContext context) =>
       Theme.of(context).textTheme.bodySmall!;
-  
-  static TextStyle textStyleButtonText(BuildContext context) => 
+
+  static TextStyle textStyleButtonText(BuildContext context) =>
       Theme.of(context).textTheme.labelLarge!;
-  
-  static TextStyle textStyleSnackBarText(BuildContext context) => 
+
+  static TextStyle textStyleSnackBarText(BuildContext context) =>
       Theme.of(context).textTheme.bodyLarge!;
-  
-  static Color iconColor(BuildContext context) => 
+
+  static Color iconColor(BuildContext context) =>
       Theme.of(context).iconTheme.color!;
-  
-  static Color scaffoldBackgroundColor(BuildContext context) => 
+
+  static Color scaffoldBackgroundColor(BuildContext context) =>
       Theme.of(context).scaffoldBackgroundColor;
-  
-  static Color cardBackgroundColor(BuildContext context) => 
+
+  static Color cardBackgroundColor(BuildContext context) =>
       Theme.of(context).cardTheme.color!;
-  
-  static Color appBarBackgroundColor(BuildContext context) => 
+
+  static Color appBarBackgroundColor(BuildContext context) =>
       Theme.of(context).appBarTheme.backgroundColor!;
-  
-  static Color dividerColor(BuildContext context) => 
+
+  static Color dividerColor(BuildContext context) =>
       Theme.of(context).dividerTheme.color!;
 }

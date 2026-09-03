@@ -8,7 +8,6 @@ import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/settings/privacy_settings_page.dart';
 import 'package:plateforme_producteurs/settings/help_support_page.dart';
 
-
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -102,14 +101,8 @@ class _ProfilePageState extends State<ProfilePage> {
           value: currentLocale.languageCode,
           iconEnabledColor: AppTheme.primaryOrange,
           items: [
-            DropdownMenuItem(
-              value: 'fr',
-              child: Text(l10n.french),
-            ),
-            DropdownMenuItem(
-              value: 'en',
-              child: Text(l10n.english),
-            ),
+            DropdownMenuItem(value: 'fr', child: Text(l10n.french)),
+            DropdownMenuItem(value: 'en', child: Text(l10n.english)),
           ],
           onChanged: (value) {
             if (value != null) {
@@ -127,10 +120,16 @@ class _ProfilePageState extends State<ProfilePage> {
       children: [
         CircleAvatar(
           radius: 60,
-          backgroundColor: AppTheme.primaryOrange.withOpacity(0.2),
-          backgroundImage: _profileImage != null ? FileImage(_profileImage!) : null,
+          backgroundColor: AppTheme.primaryOrange.withValues(alpha: 0.2),
+          backgroundImage: _profileImage != null
+              ? FileImage(_profileImage!)
+              : null,
           child: _profileImage == null
-              ? const Icon(Icons.person_rounded, size: 60, color: AppTheme.textWhite)
+              ? const Icon(
+                  Icons.person_rounded,
+                  size: 60,
+                  color: AppTheme.textWhite,
+                )
               : null,
         ),
         Container(
@@ -189,7 +188,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
                 color: AppTheme.textWhite70,
               ),
-              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
             ),
           ),
         ),
@@ -278,8 +278,11 @@ class _ProfilePageState extends State<ProfilePage> {
                     decoration: InputDecoration(
                       labelText: l10n.newPassword,
                       suffixIcon: IconButton(
-                        icon: Icon(obscureNew ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setStateDialog(() => obscureNew = !obscureNew),
+                        icon: Icon(
+                          obscureNew ? Icons.visibility_off : Icons.visibility,
+                        ),
+                        onPressed: () =>
+                            setStateDialog(() => obscureNew = !obscureNew),
                       ),
                     ),
                   ),
@@ -290,8 +293,14 @@ class _ProfilePageState extends State<ProfilePage> {
                     decoration: InputDecoration(
                       labelText: l10n.confirmPassword,
                       suffixIcon: IconButton(
-                        icon: Icon(obscureConfirm ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setStateDialog(() => obscureConfirm = !obscureConfirm),
+                        icon: Icon(
+                          obscureConfirm
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () => setStateDialog(
+                          () => obscureConfirm = !obscureConfirm,
+                        ),
                       ),
                     ),
                   ),
@@ -304,7 +313,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    if (newPassCtrl.text.isEmpty || confirmPassCtrl.text.isEmpty) {
+                    if (newPassCtrl.text.isEmpty ||
+                        confirmPassCtrl.text.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text(l10n.fillAllFields)),
                       );
@@ -362,12 +372,11 @@ class _ProfilePageState extends State<ProfilePage> {
               ListTile(
                 leading: const Icon(Icons.help),
                 title: Text(AppLocalizations.of(context)!.helpSupport),
-                onTap: () {Navigator.pop(context);
+                onTap: () {
+                  Navigator.pop(context);
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const HelpSupportPage(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const HelpSupportPage()),
                   );
                 },
               ),

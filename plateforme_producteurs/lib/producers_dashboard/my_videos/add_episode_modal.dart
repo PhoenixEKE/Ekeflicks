@@ -16,14 +16,15 @@ class AddEpisodeModal extends StatefulWidget {
   State<AddEpisodeModal> createState() => _AddEpisodeModalState();
 }
 
-class _AddEpisodeModalState extends State<AddEpisodeModal> with SingleTickerProviderStateMixin {
+class _AddEpisodeModalState extends State<AddEpisodeModal>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
   final TextEditingController _durationController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   String _videoPath = '';
   bool _isUploading = false;
-  
+
   late TabController _tabController;
 
   @override
@@ -61,9 +62,7 @@ class _AddEpisodeModalState extends State<AddEpisodeModal> with SingleTickerProv
     final l10n = AppLocalizations.of(context)!;
 
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: 600,
@@ -149,8 +148,9 @@ class _AddEpisodeModalState extends State<AddEpisodeModal> with SingleTickerProv
                                 hintStyle: TextStyle(color: Colors.grey[500]),
                               ),
                               style: TextStyle(color: Colors.white),
-                              validator: (value) =>
-                                  value?.isEmpty ?? true ? l10n.requiredField : null,
+                              validator: (value) => value?.isEmpty ?? true
+                                  ? l10n.requiredField
+                                  : null,
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
@@ -182,8 +182,12 @@ class _AddEpisodeModalState extends State<AddEpisodeModal> with SingleTickerProv
                               style: TextStyle(color: Colors.white),
                               keyboardType: TextInputType.number,
                               validator: (value) {
-                                if (value?.isEmpty ?? true) return l10n.requiredField;
-                                if (int.tryParse(value!) == null) return l10n.invalidNumber;
+                                if (value?.isEmpty ?? true) {
+                                  return l10n.requiredField;
+                                }
+                                if (int.tryParse(value!) == null) {
+                                  return l10n.invalidNumber;
+                                }
                                 return null;
                               },
                             ),
@@ -202,9 +206,12 @@ class _AddEpisodeModalState extends State<AddEpisodeModal> with SingleTickerProv
                               padding: const EdgeInsets.all(12),
                               margin: const EdgeInsets.only(bottom: 16),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
+                                color: Colors.green.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.green, width: 1),
+                                border: Border.all(
+                                  color: Colors.green,
+                                  width: 1,
+                                ),
                               ),
                               child: Row(
                                 children: [
@@ -212,7 +219,8 @@ class _AddEpisodeModalState extends State<AddEpisodeModal> with SingleTickerProv
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           l10n.selectedFile,
@@ -234,7 +242,11 @@ class _AddEpisodeModalState extends State<AddEpisodeModal> with SingleTickerProv
                                     ),
                                   ),
                                   IconButton(
-                                    icon: Icon(Icons.close, color: Colors.red, size: 20),
+                                    icon: Icon(
+                                      Icons.close,
+                                      color: Colors.red,
+                                      size: 20,
+                                    ),
                                     onPressed: () {
                                       setState(() {
                                         _videoPath = '';
@@ -244,14 +256,14 @@ class _AddEpisodeModalState extends State<AddEpisodeModal> with SingleTickerProv
                                 ],
                               ),
                             ),
-                          
+
                           Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
                               color: Colors.grey[800],
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Colors.orange.withOpacity(0.3),
+                                color: Colors.orange.withValues(alpha: 0.3),
                                 width: 2,
                               ),
                             ),
@@ -282,27 +294,34 @@ class _AddEpisodeModalState extends State<AddEpisodeModal> with SingleTickerProv
                                 ),
                                 const SizedBox(height: 20),
                                 ElevatedButton.icon(
-                                  icon: _isUploading 
+                                  icon: _isUploading
                                       ? const SizedBox(
                                           width: 16,
                                           height: 16,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
                                         )
                                       : const Icon(Icons.upload),
                                   label: Text(
-                                    _isUploading ? l10n.uploading : l10n.uploadVideo,
+                                    _isUploading
+                                        ? l10n.uploading
+                                        : l10n.uploadVideo,
                                   ),
                                   onPressed: _isUploading ? null : _pickVideo,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.orange,
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 12,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          
+
                           if (_videoPath.isEmpty && !_isUploading)
                             Padding(
                               padding: const EdgeInsets.only(top: 16.0),

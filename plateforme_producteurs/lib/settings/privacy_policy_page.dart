@@ -11,7 +11,7 @@ class PrivacyPolicyPage extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
 
-    Widget _buildSectionTitle(String title) {
+    Widget buildSectionTitle(String title) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: AppTheme.paddingMedium),
         child: Text(
@@ -23,7 +23,7 @@ class PrivacyPolicyPage extends StatelessWidget {
       );
     }
 
-    Widget _buildBulletPoint(String text) {
+    Widget buildBulletPoint(String text) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: AppTheme.paddingSmall),
         child: Row(
@@ -36,25 +36,20 @@ class PrivacyPolicyPage extends StatelessWidget {
       );
     }
 
-    Future<void> _launchEmail(String email) async {
-      final Uri uri = Uri(
-        scheme: 'mailto',
-        path: email,
-      );
-      
+    Future<void> launchEmail(String email) async {
+      final messenger = ScaffoldMessenger.of(context);
+      final uri = Uri(scheme: 'mailto', path: email);
+
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.emailLaunchError)),
-        );
+        return;
       }
+
+      messenger.showSnackBar(SnackBar(content: Text(l10n.emailLaunchError)));
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.privacyPolicy),
-      ),
+      appBar: AppBar(title: Text(l10n.privacyPolicy)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppTheme.paddingLarge),
         child: Column(
@@ -67,81 +62,81 @@ class PrivacyPolicyPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppTheme.paddingLarge),
-            
+
             // Section 1 - Introduction
-            _buildSectionTitle(l10n.privacyPolicyIntroductionTitle),
+            buildSectionTitle(l10n.privacyPolicyIntroductionTitle),
             Text(
               l10n.privacyPolicyIntroductionContent,
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: AppTheme.paddingMedium),
-            
+
             // Section 2 - Données collectées
-            _buildSectionTitle(l10n.privacyPolicyDataCollectedTitle),
+            buildSectionTitle(l10n.privacyPolicyDataCollectedTitle),
             Text(
               l10n.privacyPolicyDataCollectedContent,
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: AppTheme.paddingSmall),
-            _buildBulletPoint(l10n.privacyPolicyDataCollectedItem1),
-            _buildBulletPoint(l10n.privacyPolicyDataCollectedItem2),
-            _buildBulletPoint(l10n.privacyPolicyDataCollectedItem3),
-            
+            buildBulletPoint(l10n.privacyPolicyDataCollectedItem1),
+            buildBulletPoint(l10n.privacyPolicyDataCollectedItem2),
+            buildBulletPoint(l10n.privacyPolicyDataCollectedItem3),
+
             // Section 3 - Utilisation des données
-            _buildSectionTitle(l10n.privacyPolicyDataUsageTitle),
+            buildSectionTitle(l10n.privacyPolicyDataUsageTitle),
             Text(
               l10n.privacyPolicyDataUsageContent,
               style: theme.textTheme.bodyMedium,
             ),
-            
+
             // Section 4 - Partage des données
-            _buildSectionTitle(l10n.privacyPolicyDataSharingTitle),
+            buildSectionTitle(l10n.privacyPolicyDataSharingTitle),
             Text(
               l10n.privacyPolicyDataSharingContent,
               style: theme.textTheme.bodyMedium,
             ),
-            
+
             // Section 5 - Droits des utilisateurs
-            _buildSectionTitle(l10n.privacyPolicyUserRightsTitle),
+            buildSectionTitle(l10n.privacyPolicyUserRightsTitle),
             Text(
               l10n.privacyPolicyUserRightsContent,
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: AppTheme.paddingSmall),
-            _buildBulletPoint(l10n.privacyPolicyUserRightsItem1),
-            _buildBulletPoint(l10n.privacyPolicyUserRightsItem2),
-            _buildBulletPoint(l10n.privacyPolicyUserRightsItem3),
-            
+            buildBulletPoint(l10n.privacyPolicyUserRightsItem1),
+            buildBulletPoint(l10n.privacyPolicyUserRightsItem2),
+            buildBulletPoint(l10n.privacyPolicyUserRightsItem3),
+
             // Section 6 - Cookies
-            _buildSectionTitle(l10n.privacyPolicyCookiesTitle),
+            buildSectionTitle(l10n.privacyPolicyCookiesTitle),
             Text(
               l10n.privacyPolicyCookiesContent,
               style: theme.textTheme.bodyMedium,
             ),
-            
+
             // Section 7 - Sécurité
-            _buildSectionTitle(l10n.privacyPolicySecurityTitle),
+            buildSectionTitle(l10n.privacyPolicySecurityTitle),
             Text(
               l10n.privacyPolicySecurityContent,
               style: theme.textTheme.bodyMedium,
             ),
-            
+
             // Section 8 - Modifications
-            _buildSectionTitle(l10n.privacyPolicyChangesTitle),
+            buildSectionTitle(l10n.privacyPolicyChangesTitle),
             Text(
               l10n.privacyPolicyChangesContent,
               style: theme.textTheme.bodyMedium,
             ),
-            
+
             // Section 9 - Contact
-            _buildSectionTitle(l10n.privacyPolicyContactTitle),
+            buildSectionTitle(l10n.privacyPolicyContactTitle),
             Text(
               l10n.privacyPolicyContactContent,
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: AppTheme.paddingSmall),
             InkWell(
-              onTap: () => _launchEmail('contact@votreplateforme.com'),
+              onTap: () => launchEmail('contact@votreplateforme.com'),
               child: Text(
                 'contact@ephrata.com',
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -150,7 +145,7 @@ class PrivacyPolicyPage extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: AppTheme.paddingLarge),
             Text(
               l10n.privacyPolicyLastUpdate('01/01/2023'),

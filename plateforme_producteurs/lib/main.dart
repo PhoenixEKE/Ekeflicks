@@ -33,10 +33,7 @@ class ProducerApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('en'),
-        Locale('fr'),
-      ],
+      supportedLocales: const [Locale('en'), Locale('fr')],
     );
   }
 }

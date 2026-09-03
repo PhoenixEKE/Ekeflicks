@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
 
 class HelpSupportPage extends StatefulWidget {
@@ -13,7 +12,7 @@ class HelpSupportPage extends StatefulWidget {
 
 class _HelpSupportPageState extends State<HelpSupportPage> {
   late YoutubePlayerController _ytController;
-  
+
   final List<Map<String, String>> _videoTutorials = const [
     {"id": "video1", "icon": "account_circle"},
     {"id": "video2", "icon": "inventory_2"},
@@ -27,10 +26,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     super.initState();
     _ytController = YoutubePlayerController(
       initialVideoId: 'EXEMPLE1',
-      flags: const YoutubePlayerFlags(
-        autoPlay: false,
-        mute: false,
-      ),
+      flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
     );
   }
 
@@ -119,7 +115,11 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.help_center, size: 48, color: theme.primaryColor),
+                    Icon(
+                      Icons.help_center,
+                      size: 48,
+                      color: theme.primaryColor,
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       l10n.helpCenterTitle,
@@ -162,7 +162,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
           ),
           SliverList(
             delegate: SliverChildBuilderDelegate(
-              (context, index) => _buildVideoItem(context, _videoTutorials[index], l10n),
+              (context, index) =>
+                  _buildVideoItem(context, _videoTutorials[index], l10n),
               childCount: _videoTutorials.length,
             ),
           ),
@@ -210,19 +211,25 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     icon: Icons.phone,
                     label: l10n.contactPhoneFrLabel,
                     value: l10n.contactPhoneFr,
-                    onTap: () => _launchUrl('tel:${l10n.contactPhoneFr.replaceAll(' ', '')}'),
+                    onTap: () => _launchUrl(
+                      'tel:${l10n.contactPhoneFr.replaceAll(' ', '')}',
+                    ),
                   ),
                   _buildContactInfo(
                     icon: Icons.phone,
                     label: l10n.contactPhoneCiLabel,
                     value: l10n.contactPhoneCi,
-                    onTap: () => _launchUrl('tel:${l10n.contactPhoneCi.replaceAll(' ', '')}'),
+                    onTap: () => _launchUrl(
+                      'tel:${l10n.contactPhoneCi.replaceAll(' ', '')}',
+                    ),
                   ),
                   _buildContactInfo(
                     icon: Icons.chat,
                     label: l10n.contactWhatsAppLabel,
                     value: l10n.contactWhatsApp,
-                    onTap: () => _launchUrl('https://wa.me/${l10n.contactWhatsApp.replaceAll(' ', '')}'),
+                    onTap: () => _launchUrl(
+                      'https://wa.me/${l10n.contactWhatsApp.replaceAll(' ', '')}',
+                    ),
                   ),
                 ],
               ),
@@ -233,16 +240,20 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     );
   }
 
-  Widget _buildVideoItem(BuildContext context, Map<String, String> video, AppLocalizations l10n) {
+  Widget _buildVideoItem(
+    BuildContext context,
+    Map<String, String> video,
+    AppLocalizations l10n,
+  ) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => _playVideo('EXEMPLE${video['id']?.substring(video['id']!.length - 1)}'),
+        onTap: () => _playVideo(
+          'EXEMPLE${video['id']?.substring(video['id']!.length - 1)}',
+        ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -267,7 +278,11 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     );
   }
 
-  Widget _buildFaqItem(BuildContext context, String faqId, AppLocalizations l10n) {
+  Widget _buildFaqItem(
+    BuildContext context,
+    String faqId,
+    AppLocalizations l10n,
+  ) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ExpansionTile(
@@ -305,10 +320,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     label,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  Text(
-                    value,
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
+                  Text(value, style: TextStyle(color: Colors.grey.shade600)),
                 ],
               ),
             ),

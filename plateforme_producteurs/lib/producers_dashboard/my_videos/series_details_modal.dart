@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:plateforme_producteurs/core/core.dart';
-import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:plateforme_producteurs/models/series_models.dart';
 
 class SeriesDetailsModal extends StatefulWidget {
@@ -10,7 +9,7 @@ class SeriesDetailsModal extends StatefulWidget {
   final Function(int)? onAddEpisode;
 
   const SeriesDetailsModal({
-    super.key, 
+    super.key,
     required this.series,
     this.onAddSeason,
     this.onAddEpisode,
@@ -39,10 +38,6 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
     }
   }
 
-  void _refreshModal() {
-    setState(() {});
-  }
-
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
@@ -68,7 +63,11 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
                       errorBuilder: (_, __, ___) => Container(
                         color: AppTheme.cardBackground,
                         child: Center(
-                          child: Icon(Icons.live_tv, size: 50, color: AppTheme.primary),
+                          child: Icon(
+                            Icons.live_tv,
+                            size: 50,
+                            color: AppTheme.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -78,7 +77,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
                           begin: Alignment.bottomCenter,
                           end: Alignment.topCenter,
                           colors: [
-                            Colors.black.withOpacity(0.7),
+                            Colors.black.withValues(alpha: 0.7),
                             Colors.transparent,
                           ],
                         ),
@@ -143,10 +142,15 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
           spacing: 8,
           runSpacing: 4,
           children: [
-            _buildMetaChip(Icons.calendar_today, '${_currentSeries.releaseYear}'),
+            _buildMetaChip(
+              Icons.calendar_today,
+              '${_currentSeries.releaseYear}',
+            ),
             _buildMetaChip(Icons.language, _currentSeries.language),
             _buildMetaChip(Icons.place, _currentSeries.country),
-            ..._currentSeries.genres.map((genre) => _buildMetaChip(Icons.category, genre)),
+            ..._currentSeries.genres.map(
+              (genre) => _buildMetaChip(Icons.category, genre),
+            ),
           ],
         ),
       ],
@@ -168,10 +172,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
         const SizedBox(height: 8),
         Text(
           _currentSeries.description,
-          style: TextStyle(
-            color: AppTheme.textSecondary,
-            height: 1.6,
-          ),
+          style: TextStyle(color: AppTheme.textSecondary, height: 1.6),
         ),
       ],
     );
@@ -189,10 +190,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
       ),
       children: [
         Table(
-          columnWidths: const {
-            0: FlexColumnWidth(1),
-            1: FlexColumnWidth(2),
-          },
+          columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(2)},
           children: [
             _buildTableRow('Genres', _currentSeries.genres.join(', ')),
             _buildTableRow('Langue', _currentSeries.language),
@@ -227,8 +225,8 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
           ),
         ),
         const SizedBox(height: 8),
-        ..._currentSeries.team.actors.entries.map((e) => 
-          Padding(
+        ..._currentSeries.team.actors.entries.map(
+          (e) => Padding(
             padding: const EdgeInsets.symmetric(vertical: 4.0),
             child: Text(
               '• ${e.key} : ${e.value}',
@@ -243,7 +241,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
   Widget _buildStatsSection(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy');
     final formatter = NumberFormat.compact();
-    
+
     return ExpansionTile(
       title: Text(
         'Statistiques',
@@ -258,9 +256,18 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
           spacing: 12,
           runSpacing: 8,
           children: [
-            _buildStatCard('Vues', formatter.format(_currentSeries.stats.views)),
-            _buildStatCard('J\'aime', formatter.format(_currentSeries.stats.likes)),
-            _buildStatCard('Commentaires', formatter.format(_currentSeries.stats.comments)),
+            _buildStatCard(
+              'Vues',
+              formatter.format(_currentSeries.stats.views),
+            ),
+            _buildStatCard(
+              'J\'aime',
+              formatter.format(_currentSeries.stats.likes),
+            ),
+            _buildStatCard(
+              'Commentaires',
+              formatter.format(_currentSeries.stats.comments),
+            ),
             _buildStatCard('Note', _currentSeries.stats.rating.toString()),
           ],
         ),
@@ -273,8 +280,8 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
           ),
         ),
         const SizedBox(height: 8),
-        ..._currentSeries.stats.publicationHistory.map((e) => 
-          Padding(
+        ..._currentSeries.stats.publicationHistory.map(
+          (e) => Padding(
             padding: const EdgeInsets.symmetric(vertical: 2.0),
             child: Text(
               '• ${e.action} : ${dateFormat.format(e.date)}',
@@ -287,7 +294,9 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
   }
 
   Widget _buildSeasonsSection(BuildContext context) {
-    final publishedEpisodes = _currentSeries.totalEpisodes.where((e) => e.status == "Publié").length;
+    final publishedEpisodes = _currentSeries.totalEpisodes
+        .where((e) => e.status == "Publié")
+        .length;
     final totalEpisodes = _currentSeries.totalEpisodes.length;
 
     return Column(
@@ -306,15 +315,12 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
             const Spacer(),
             Text(
               '$publishedEpisodes/$totalEpisodes épisodes',
-              style: TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        
+
         if (widget.onAddSeason != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 16.0),
@@ -327,11 +333,14 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primary,
                 foregroundColor: AppTheme.textPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
               ),
             ),
           ),
-        
+
         if (_currentSeries.seasons.isEmpty)
           Container(
             padding: const EdgeInsets.all(24),
@@ -345,32 +354,30 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
                 const SizedBox(height: 12),
                 Text(
                   'Aucune saison disponible',
-                  style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Commencez par ajouter votre première saison',
-                  style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
               ],
             ),
           )
         else
-          ..._currentSeries.seasons.map((season) => _buildSeasonCard(context, season)).toList(),
+          ..._currentSeries.seasons.map(
+            (season) => _buildSeasonCard(context, season),
+          ),
       ],
     );
   }
 
   Widget _buildSeasonCard(BuildContext context, Season season) {
-    final publishedEpisodes = season.episodes.where((e) => e.status == "Publié").length;
+    final publishedEpisodes = season.episodes
+        .where((e) => e.status == "Publié")
+        .length;
     final totalEpisodes = season.episodes.length;
 
     return Card(
@@ -387,7 +394,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
             errorBuilder: (_, __, ___) => Container(
               width: 40,
               height: 40,
-              color: AppTheme.primary.withOpacity(0.1),
+              color: AppTheme.primary.withValues(alpha: 0.1),
               child: Icon(Icons.tv, color: AppTheme.primary, size: 20),
             ),
           ),
@@ -450,7 +457,11 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
                   if (season.trailerUrl.isNotEmpty)
                     Row(
                       children: [
-                        Icon(Icons.play_circle_outline, color: AppTheme.primary, size: 16),
+                        Icon(
+                          Icons.play_circle_outline,
+                          color: AppTheme.primary,
+                          size: 16,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Bande-annonce disponible',
@@ -465,11 +476,14 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
                 ],
               ),
             ),
-          
+
           // Bouton ajouter épisode
           if (widget.onAddEpisode != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
               child: Align(
                 alignment: Alignment.centerRight,
                 child: ElevatedButton.icon(
@@ -485,7 +499,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
                 ),
               ),
             ),
-          
+
           // Liste des épisodes
           if (season.episodes.isEmpty)
             Container(
@@ -497,19 +511,28 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: AppTheme.textSecondary, size: 20),
+                  Icon(
+                    Icons.info_outline,
+                    color: AppTheme.textSecondary,
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Aucun épisode dans cette saison',
-                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
               ),
             )
           else
-            ...season.episodes.map((episode) => _buildEpisodeTile(context, episode)).toList(),
+            ...season.episodes.map(
+              (episode) => _buildEpisodeTile(context, episode),
+            ),
         ],
       ),
     );
@@ -517,7 +540,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
 
   Widget _buildEpisodeTile(BuildContext context, Episode episode) {
     final dateFormat = DateFormat('dd/MM/yyyy');
-    
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
@@ -532,8 +555,8 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
           child: Container(
             width: 60,
             height: 40,
-            color: AppTheme.primary.withOpacity(0.1),
-            child: episode.thumbnailUrl.isNotEmpty 
+            color: AppTheme.primary.withValues(alpha: 0.1),
+            child: episode.thumbnailUrl.isNotEmpty
                 ? Image.asset(
                     episode.thumbnailUrl,
                     fit: BoxFit.cover,
@@ -556,27 +579,18 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
             const SizedBox(height: 4),
             Text(
               dateFormat.format(episode.releaseDate),
-              style: TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
             ),
             if (episode.status == "Publié")
               Text(
                 '${NumberFormat.compact().format(episode.views)} vues • ${episode.duration} min',
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
               ),
             if (episode.description.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
                 episode.description,
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -647,10 +661,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
                     ),
                     Text(
                       episode.title,
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                   ],
                 ),
@@ -669,10 +680,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Fermer',
-              style: TextStyle(color: AppTheme.primary),
-            ),
+            child: Text('Fermer', style: TextStyle(color: AppTheme.primary)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -693,7 +701,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
   Widget _buildCommentsSection(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final comments = _currentSeries.stats.recentComments;
-    
+
     if (comments.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -707,56 +715,61 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
           color: AppTheme.textPrimary,
         ),
       ),
-      children: comments.take(5).map((comment) => Card(
-        color: AppTheme.cardBackground,
-        margin: const EdgeInsets.only(bottom: 8),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: AppTheme.primary,
-                    radius: 16,
-                    child: Text(
-                      comment.username.substring(0, 1).toUpperCase(),
-                      style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
+      children: comments
+          .take(5)
+          .map(
+            (comment) => Card(
+              color: AppTheme.cardBackground,
+              margin: const EdgeInsets.only(bottom: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: AppTheme.primary,
+                          radius: 16,
+                          child: Text(
+                            comment.username.substring(0, 1).toUpperCase(),
+                            style: TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            comment.username,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          dateFormat.format(comment.date),
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      comment.username,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
-                      ),
+                    const SizedBox(height: 8),
+                    Text(
+                      comment.text,
+                      style: TextStyle(color: AppTheme.textSecondary),
                     ),
-                  ),
-                  Text(
-                    dateFormat.format(comment.date),
-                    style: TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                comment.text,
-                style: TextStyle(color: AppTheme.textSecondary),
-              ),
-            ],
-          ),
-        ),
-      )).toList(),
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -828,10 +841,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Fermer',
-              style: TextStyle(color: AppTheme.primary),
-            ),
+            child: Text('Fermer', style: TextStyle(color: AppTheme.primary)),
           ),
         ],
       ),
@@ -842,21 +852,21 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
   Widget _buildStatusBadge(BuildContext context, String status) {
     Color color;
     String statusText;
-    
+
     switch (status) {
-      case 'Publié': 
+      case 'Publié':
         color = AppTheme.success;
         statusText = 'Publié';
         break;
-      case 'En attente': 
+      case 'En attente':
         color = AppTheme.warning;
         statusText = 'En attente';
         break;
-      case 'Rejeté': 
+      case 'Rejeté':
         color = AppTheme.error;
         statusText = 'Rejeté';
         break;
-      default: 
+      default:
         color = AppTheme.disabled;
         statusText = status;
     }
@@ -864,7 +874,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
       ),
       child: Text(
@@ -883,10 +893,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
       avatar: Icon(icon, size: 16, color: AppTheme.primary),
       label: Text(
         text,
-        style: TextStyle(
-          color: AppTheme.textPrimary,
-          fontSize: 12,
-        ),
+        style: TextStyle(color: AppTheme.textPrimary, fontSize: 12),
       ),
       backgroundColor: AppTheme.cardBackground,
       visualDensity: VisualDensity.compact,
@@ -927,21 +934,21 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
   Widget _buildEpisodeStatusChip(BuildContext context, String status) {
     Color color;
     String statusText;
-    
+
     switch (status) {
-      case 'Publié': 
+      case 'Publié':
         color = AppTheme.success;
         statusText = 'Publié';
         break;
-      case 'En attente': 
+      case 'En attente':
         color = AppTheme.warning;
         statusText = 'En attente';
         break;
-      case 'Rejeté': 
+      case 'Rejeté':
         color = AppTheme.error;
         statusText = 'Rejeté';
         break;
-      default: 
+      default:
         color = AppTheme.disabled;
         statusText = status;
     }
@@ -955,7 +962,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
           fontWeight: FontWeight.bold,
         ),
       ),
-      backgroundColor: color.withOpacity(0.2),
+      backgroundColor: color.withValues(alpha: 0.2),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
     );
@@ -976,10 +983,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 6.0),
-          child: Text(
-            value,
-            style: TextStyle(color: AppTheme.textPrimary),
-          ),
+          child: Text(value, style: TextStyle(color: AppTheme.textPrimary)),
         ),
       ],
     );
@@ -1002,10 +1006,7 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
             ),
           ),
           Expanded(
-            child: Text(
-              name,
-              style: TextStyle(color: AppTheme.textPrimary),
-            ),
+            child: Text(name, style: TextStyle(color: AppTheme.textPrimary)),
           ),
         ],
       ),

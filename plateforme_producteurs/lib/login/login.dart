@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/providers/locale_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:plateforme_producteurs/services/api_client.dart';
+import 'package:plateforme_producteurs/services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -40,10 +42,41 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _offset = _scrollController.offset);
   }
 
-  void _login() {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _loading = true);
-      Future.delayed(const Duration(seconds: 2), () => context.go('/dashboard'));
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate() || _loading) {
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      await AuthService.instance.login(
+        email: _emailCtrl.text,
+        password: _passwordCtrl.text,
+      );
+
+      if (!mounted) return;
+
+      context.go('/dashboard');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), behavior: SnackBarBehavior.floating),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Impossible de se connecter au serveur EKEFLICKS.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -72,10 +105,11 @@ class _LoginPageState extends State<LoginPage> {
                       elevation: 16,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(
-                            AppDecorations.borderRadiusLarge),
+                          AppDecorations.borderRadiusLarge,
+                        ),
                       ),
-                      color: AppTheme.cardBackground.withOpacity(0.8),
-                      shadowColor: AppTheme.primary.withOpacity(0.3),
+                      color: AppTheme.cardBackground.withValues(alpha: 0.8),
+                      shadowColor: AppTheme.primary.withValues(alpha: 0.3),
                       child: Padding(
                         padding: const EdgeInsets.all(32),
                         child: Form(
@@ -124,8 +158,8 @@ class _LoginPageState extends State<LoginPage> {
               center: Alignment.center,
               radius: 1.5,
               colors: [
-                AppTheme.primary.withOpacity(0.8),
-                AppTheme.background.withOpacity(0.1),
+                AppTheme.primary.withValues(alpha: 0.8),
+                AppTheme.background.withValues(alpha: 0.1),
               ],
               stops: const [0.1, 1.0],
             ),
@@ -135,7 +169,10 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildLanguageButton(LocaleProvider localeProvider, AppLocalizations l10n) {
+  Widget _buildLanguageButton(
+    LocaleProvider localeProvider,
+    AppLocalizations l10n,
+  ) {
     return Align(
       alignment: Alignment.topRight,
       child: IconButton(
@@ -157,9 +194,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget _buildTitle(AppLocalizations l10n) {
     return Text(
       l10n.loginPageTitle,
-      style: AppTheme.textTitle.copyWith(
-        letterSpacing: 1.2,
-      ),
+      style: AppTheme.textTitle.copyWith(letterSpacing: 1.2),
     );
   }
 
@@ -172,7 +207,8 @@ class _LoginPageState extends State<LoginPage> {
         labelStyle: TextStyle(color: AppTheme.textSecondary),
         prefixIcon: Icon(Icons.email, color: AppTheme.primary),
       ),
-      validator: (v) => v != null && v.contains('@') ? null : l10n.emailValidationError,
+      validator: (v) =>
+          v != null && v.contains('@') ? null : l10n.emailValidationError,
     );
   }
 
@@ -193,7 +229,8 @@ class _LoginPageState extends State<LoginPage> {
           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
         ),
       ),
-      validator: (v) => v != null && v.length >= 6 ? null : l10n.passwordValidationError,
+      validator: (v) =>
+          v != null && v.length >= 6 ? null : l10n.passwordValidationError,
     );
   }
 
@@ -203,7 +240,7 @@ class _LoginPageState extends State<LoginPage> {
       child: ElevatedButton(
         onPressed: _loading ? null : _login,
         style: AppDecorations.elevatedButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(AppTheme.primary),
+          backgroundColor: WidgetStateProperty.all(AppTheme.primary),
         ),
         child: _loading
             ? const CircularProgressIndicator(

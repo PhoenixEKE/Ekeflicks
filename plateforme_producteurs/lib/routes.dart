@@ -11,32 +11,24 @@ final appRouter = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const LoginPage(),
-      ),
+      pageBuilder: (context, state) =>
+          MaterialPage(key: state.pageKey, child: const LoginPage()),
     ),
     GoRoute(
       path: '/dashboard',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const DashboardPage(),
-      ),
+      pageBuilder: (context, state) =>
+          MaterialPage(key: state.pageKey, child: const DashboardPage()),
     ),
     GoRoute(
       path: '/profile',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const ProfilePage(),
-      ),
+      pageBuilder: (context, state) =>
+          MaterialPage(key: state.pageKey, child: const ProfilePage()),
     ),
   ],
   errorPageBuilder: (context, state) => MaterialPage(
     key: state.pageKey,
     child: Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context)!.pageNotFound),
-      ),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.pageNotFound)),
       body: Center(
         child: Text(AppLocalizations.of(context)!.pageNotFoundMessage),
       ),

@@ -16,8 +16,10 @@ class _FilmsTabState extends State<FilmsTab> {
     Film(
       title: "Le Dernier Voyage",
       originalTitle: "The Last Journey",
-      description: "Un thriller psychologique explorant les limites de la réalité virtuelle.",
-      synopsis: "Alex, un développeur de réalité virtuelle, se retrouve piégé dans son propre programme. Alors qu'il tente de distinguer la réalité de la simulation, il découvre des secrets qui pourraient changer le cours de l'humanité.",
+      description:
+          "Un thriller psychologique explorant les limites de la réalité virtuelle.",
+      synopsis:
+          "Alex, un développeur de réalité virtuelle, se retrouve piégé dans son propre programme. Alors qu'il tente de distinguer la réalité de la simulation, il découvre des secrets qui pourraient changer le cours de l'humanité.",
       genres: ["Thriller", "Science-Fiction"],
       language: "Français",
       originalLanguage: "Français",
@@ -38,7 +40,7 @@ class _FilmsTabState extends State<FilmsTab> {
         cast: {
           "Thomas Durand": "Alex",
           "Sophie Marceau": "Dr. Leroy",
-          "Pierre Richard": "Professeur Martin"
+          "Pierre Richard": "Professeur Martin",
         },
         cinematographer: "Luc Besson",
         composer: "Yann Tiersen",
@@ -83,9 +85,18 @@ class _FilmsTabState extends State<FilmsTab> {
       ],
       distributionRights: [
         DistributionRight("France", DateTime(2023, 1, 1), DateTime(2033, 1, 1)),
-        DistributionRight("Monde Francophone", DateTime(2023, 1, 1), DateTime(2030, 1, 1)),
+        DistributionRight(
+          "Monde Francophone",
+          DateTime(2023, 1, 1),
+          DateTime(2030, 1, 1),
+        ),
       ],
-      tags: ["réalité virtuelle", "thriller", "science-fiction", "psychologique"],
+      tags: [
+        "réalité virtuelle",
+        "thriller",
+        "science-fiction",
+        "psychologique",
+      ],
       isExclusive: true,
       isFeatured: false,
       addedDate: DateTime(2023, 9, 15),
@@ -98,23 +109,48 @@ class _FilmsTabState extends State<FilmsTab> {
         watchTime: 254800,
         completionRate: 78.5,
         publicationHistory: [
-          PublicationEvent("Soumission", DateTime(2023, 9, 15), "Producteur: Jean Films"),
-          PublicationEvent("Validation technique", DateTime(2023, 9, 16), "Admin: Marie Tech"),
-          PublicationEvent("Approbation contenu", DateTime(2023, 9, 18), "Admin: Pierre Content"),
-          PublicationEvent("Publication", DateTime(2023, 10, 1), "Système automatique"),
+          PublicationEvent(
+            "Soumission",
+            DateTime(2023, 9, 15),
+            "Producteur: Jean Films",
+          ),
+          PublicationEvent(
+            "Validation technique",
+            DateTime(2023, 9, 16),
+            "Admin: Marie Tech",
+          ),
+          PublicationEvent(
+            "Approbation contenu",
+            DateTime(2023, 9, 18),
+            "Admin: Pierre Content",
+          ),
+          PublicationEvent(
+            "Publication",
+            DateTime(2023, 10, 1),
+            "Système automatique",
+          ),
         ],
         recentComments: [
-          FilmComment("User123", "Excellent film, je recommande !", DateTime(2023, 10, 5), 4.5),
-          FilmComment("Cinéphile22", "La fin m'a surpris, très bon scénario", DateTime(2023, 10, 4), 4.0),
-          FilmComment("MovieLover", "Effets spéciaux impressionnants", DateTime(2023, 10, 3), 5.0),
+          FilmComment(
+            "User123",
+            "Excellent film, je recommande !",
+            DateTime(2023, 10, 5),
+            4.5,
+          ),
+          FilmComment(
+            "Cinéphile22",
+            "La fin m'a surpris, très bon scénario",
+            DateTime(2023, 10, 4),
+            4.0,
+          ),
+          FilmComment(
+            "MovieLover",
+            "Effets spéciaux impressionnants",
+            DateTime(2023, 10, 3),
+            5.0,
+          ),
         ],
-        ratingsDistribution: {
-          "5": 45,
-          "4": 35,
-          "3": 15,
-          "2": 3,
-          "1": 2,
-        },
+        ratingsDistribution: {"5": 45, "4": 35, "3": 15, "2": 3, "1": 2},
       ),
       metadata: FilmMetadata(
         imdbId: "tt1234567",
@@ -142,7 +178,8 @@ class _FilmsTabState extends State<FilmsTab> {
         Expanded(
           child: ListView.builder(
             itemCount: films.length,
-            itemBuilder: (context, index) => _buildFilmCard(context, films[index]),
+            itemBuilder: (context, index) =>
+                _buildFilmCard(context, films[index]),
           ),
         ),
       ],
@@ -160,7 +197,9 @@ class _FilmsTabState extends State<FilmsTab> {
                 hintText: AppLocalizations.of(context)!.searchFilmHint,
                 prefixIcon: Icon(Icons.search, color: AppTheme.primary),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.borderRadiusMedium,
+                  ),
                 ),
                 filled: true,
                 fillColor: AppTheme.cardBackground,
@@ -208,7 +247,11 @@ class _FilmsTabState extends State<FilmsTab> {
                       height: 150,
                       color: Colors.grey[200],
                       child: Center(
-                        child: Icon(Icons.live_tv, size: 50, color: AppTheme.primary),
+                        child: Icon(
+                          Icons.live_tv,
+                          size: 50,
+                          color: AppTheme.primary,
+                        ),
                       ),
                     ),
                   ),
@@ -218,10 +261,15 @@ class _FilmsTabState extends State<FilmsTab> {
                     top: 8,
                     right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: AppTheme.primary.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(AppTheme.borderRadiusSmall),
+                        color: AppTheme.primary.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.borderRadiusSmall,
+                        ),
                       ),
                       child: Text(
                         'EXCLUSIF',
@@ -274,12 +322,20 @@ class _FilmsTabState extends State<FilmsTab> {
                     spacing: 8,
                     runSpacing: 4,
                     children: [
-                      _buildMetaChip(Icons.calendar_today, '${film.releaseYear}'),
+                      _buildMetaChip(
+                        Icons.calendar_today,
+                        '${film.releaseYear}',
+                      ),
                       _buildMetaChip(Icons.language, film.language),
                       _buildMetaChip(Icons.timer, '${film.duration} min'),
                       _buildMetaChip(Icons.place, film.country),
-                      _buildMetaChip(Icons.attach_money, '${(film.budget / 1000000).toStringAsFixed(1)}M'),
-                      ...film.genres.map((genre) => _buildMetaChip(Icons.category, genre)),
+                      _buildMetaChip(
+                        Icons.attach_money,
+                        '${(film.budget / 1000000).toStringAsFixed(1)}M',
+                      ),
+                      ...film.genres.map(
+                        (genre) => _buildMetaChip(Icons.category, genre),
+                      ),
                     ],
                   ),
                   const SizedBox(height: AppTheme.paddingMedium),
@@ -296,21 +352,21 @@ class _FilmsTabState extends State<FilmsTab> {
   Widget _buildStatusBadge(BuildContext context, String status) {
     Color color;
     String statusText;
-    
+
     switch (status) {
-      case 'Publié': 
+      case 'Publié':
         color = AppTheme.success;
         statusText = 'Publié';
-      case 'En attente': 
+      case 'En attente':
         color = AppTheme.warning;
         statusText = 'En attente';
-      case 'Rejeté': 
+      case 'Rejeté':
         color = AppTheme.error;
         statusText = 'Rejeté';
-      case 'En traitement': 
+      case 'En traitement':
         color = Colors.blue;
         statusText = 'En traitement';
-      default: 
+      default:
         color = AppTheme.disabled;
         statusText = status;
     }
@@ -321,7 +377,7 @@ class _FilmsTabState extends State<FilmsTab> {
         vertical: 4,
       ),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(AppTheme.borderRadiusSmall),
       ),
       child: Text(
@@ -338,10 +394,7 @@ class _FilmsTabState extends State<FilmsTab> {
   Widget _buildMetaChip(IconData icon, String text) {
     return Chip(
       avatar: Icon(icon, size: 16, color: AppTheme.textSecondary),
-      label: Text(
-        text,
-        style: TextStyle(color: AppTheme.textPrimary),
-      ),
+      label: Text(text, style: TextStyle(color: AppTheme.textPrimary)),
       backgroundColor: AppTheme.background,
       visualDensity: VisualDensity.compact,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -353,11 +406,17 @@ class _FilmsTabState extends State<FilmsTab> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        _buildStatItem(Icons.remove_red_eye, formatter.format(film.stats.views)),
+        _buildStatItem(
+          Icons.remove_red_eye,
+          formatter.format(film.stats.views),
+        ),
         _buildStatItem(Icons.thumb_up, formatter.format(film.stats.likes)),
         _buildStatItem(Icons.comment, formatter.format(film.stats.comments)),
         _buildStatItem(Icons.star, film.stats.rating.toString()),
-        _buildStatItem(Icons.trending_up, '${film.stats.completionRate.toInt()}%'),
+        _buildStatItem(
+          Icons.trending_up,
+          '${film.stats.completionRate.toInt()}%',
+        ),
       ],
     );
   }
@@ -367,10 +426,7 @@ class _FilmsTabState extends State<FilmsTab> {
       children: [
         Icon(icon, size: 20, color: AppTheme.primary),
         const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(color: AppTheme.textPrimary),
-        ),
+        Text(value, style: TextStyle(color: AppTheme.textPrimary)),
       ],
     );
   }
@@ -662,7 +718,11 @@ class FilmDetailsModal extends StatelessWidget {
                       errorBuilder: (_, __, ___) => Container(
                         color: AppTheme.cardBackground,
                         child: Center(
-                          child: Icon(Icons.live_tv, size: 50, color: AppTheme.primary),
+                          child: Icon(
+                            Icons.live_tv,
+                            size: 50,
+                            color: AppTheme.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -672,7 +732,7 @@ class FilmDetailsModal extends StatelessWidget {
                           begin: Alignment.bottomCenter,
                           end: Alignment.topCenter,
                           colors: [
-                            Colors.black.withOpacity(0.7),
+                            Colors.black.withValues(alpha: 0.7),
                             Colors.transparent,
                           ],
                         ),
@@ -691,7 +751,7 @@ class FilmDetailsModal extends StatelessWidget {
                     // En-tête avec titre et badges
                     _buildHeaderSection(context),
                     const SizedBox(height: AppTheme.paddingLarge),
-                    
+
                     // Sections organisées dans des ExpansionTile
                     _buildSynopsisSection(context),
                     _buildInformationSection(context),
@@ -755,7 +815,9 @@ class FilmDetailsModal extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppTheme.primary,
-                  borderRadius: BorderRadius.circular(AppTheme.borderRadiusSmall),
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.borderRadiusSmall,
+                  ),
                 ),
                 child: Text(
                   'EXCLUSIF',
@@ -771,7 +833,9 @@ class FilmDetailsModal extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppTheme.success,
-                  borderRadius: BorderRadius.circular(AppTheme.borderRadiusSmall),
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.borderRadiusSmall,
+                  ),
                 ),
                 child: Text(
                   'EN VEDETTE',
@@ -805,11 +869,14 @@ class FilmDetailsModal extends StatelessWidget {
 
   Widget _buildSynopsisSection(BuildContext context) {
     return ExpansionTile(
-      title: Text('Synopsis', style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: AppTheme.textPrimary,
-      )),
+      title: Text(
+        'Synopsis',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.textPrimary,
+        ),
+      ),
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: AppTheme.paddingMedium),
@@ -824,11 +891,14 @@ class FilmDetailsModal extends StatelessWidget {
 
   Widget _buildInformationSection(BuildContext context) {
     return ExpansionTile(
-      title: Text('Informations', style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: AppTheme.textPrimary,
-      )),
+      title: Text(
+        'Informations',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.textPrimary,
+        ),
+      ),
       children: [
         Table(
           columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(2)},
@@ -840,11 +910,20 @@ class FilmDetailsModal extends StatelessWidget {
             _buildTableRow('Année', film.releaseYear.toString()),
             _buildTableRow('Durée', '${film.duration} min'),
             _buildTableRow('Pays', film.country),
-            _buildTableRow('Pays de production', film.productionCountries.join(', ')),
+            _buildTableRow(
+              'Pays de production',
+              film.productionCountries.join(', '),
+            ),
             _buildTableRow('Classification', film.ageRating),
             _buildTableRow('Certification', film.certification),
-            _buildTableRow('Budget', '${(film.budget / 1000000).toStringAsFixed(1)}M €'),
-            _buildTableRow('Recettes', '${(film.revenue / 1000000).toStringAsFixed(1)}M €'),
+            _buildTableRow(
+              'Budget',
+              '${(film.budget / 1000000).toStringAsFixed(1)}M €',
+            ),
+            _buildTableRow(
+              'Recettes',
+              '${(film.revenue / 1000000).toStringAsFixed(1)}M €',
+            ),
           ],
         ),
       ],
@@ -853,11 +932,14 @@ class FilmDetailsModal extends StatelessWidget {
 
   Widget _buildTechnicalSection(BuildContext context) {
     return ExpansionTile(
-      title: Text('Informations techniques', style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: AppTheme.textPrimary,
-      )),
+      title: Text(
+        'Informations techniques',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.textPrimary,
+        ),
+      ),
       children: [
         Table(
           columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(2)},
@@ -875,23 +957,31 @@ class FilmDetailsModal extends StatelessWidget {
         const SizedBox(height: AppTheme.paddingMedium),
         Text(
           'Qualités disponibles:',
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary,
+          ),
         ),
-        ...film.videoQualities.map((quality) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Text('• ${quality.quality} - ${quality.fileSize}'),
-        )),
+        ...film.videoQualities.map(
+          (quality) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text('• ${quality.quality} - ${quality.fileSize}'),
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildTeamSection(BuildContext context) {
     return ExpansionTile(
-      title: Text('Équipe', style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: AppTheme.textPrimary,
-      )),
+      title: Text(
+        'Équipe',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.textPrimary,
+        ),
+      ),
       children: [
         _buildTeamItem('Réalisateur', film.team.director),
         _buildTeamItem('Scénariste', film.team.screenwriter),
@@ -902,12 +992,17 @@ class FilmDetailsModal extends StatelessWidget {
         const SizedBox(height: AppTheme.paddingMedium),
         Text(
           'Distribution principale:',
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary,
+          ),
         ),
-        ...film.team.cast.entries.map((e) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Text('• ${e.key} : ${e.value}'),
-        )),
+        ...film.team.cast.entries.map(
+          (e) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text('• ${e.key} : ${e.value}'),
+          ),
+        ),
       ],
     );
   }
@@ -915,28 +1010,36 @@ class FilmDetailsModal extends StatelessWidget {
   Widget _buildDistributionSection(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy');
     return ExpansionTile(
-      title: Text('Droits de distribution', style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: AppTheme.textPrimary,
-      )),
+      title: Text(
+        'Droits de distribution',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.textPrimary,
+        ),
+      ),
       children: [
-        ...film.distributionRights.map((right) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                right.territory,
-                style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
-              ),
-              Text(
-                '${dateFormat.format(right.startDate)} - ${dateFormat.format(right.endDate)}',
-                style: TextStyle(color: AppTheme.textSecondary),
-              ),
-            ],
+        ...film.distributionRights.map(
+          (right) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  right.territory,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                Text(
+                  '${dateFormat.format(right.startDate)} - ${dateFormat.format(right.endDate)}',
+                  style: TextStyle(color: AppTheme.textSecondary),
+                ),
+              ],
+            ),
           ),
-        )),
+        ),
       ],
     );
   }
@@ -945,11 +1048,14 @@ class FilmDetailsModal extends StatelessWidget {
     final dateFormat = DateFormat('dd/MM/yyyy');
     final formatter = NumberFormat.compact();
     return ExpansionTile(
-      title: Text('Statistiques', style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: AppTheme.textPrimary,
-      )),
+      title: Text(
+        'Statistiques',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.textPrimary,
+        ),
+      ),
       children: [
         Wrap(
           spacing: AppTheme.paddingMedium,
@@ -957,20 +1063,31 @@ class FilmDetailsModal extends StatelessWidget {
           children: [
             _buildStatCard('Vues', formatter.format(film.stats.views)),
             _buildStatCard('J\'aime', formatter.format(film.stats.likes)),
-            _buildStatCard('Commentaires', formatter.format(film.stats.comments)),
+            _buildStatCard(
+              'Commentaires',
+              formatter.format(film.stats.comments),
+            ),
             _buildStatCard('Note', film.stats.rating.toString()),
-            _buildStatCard('Taux complétion', '${film.stats.completionRate.toInt()}%'),
+            _buildStatCard(
+              'Taux complétion',
+              '${film.stats.completionRate.toInt()}%',
+            ),
           ],
         ),
         const SizedBox(height: AppTheme.paddingMedium),
         Text(
           'Historique de publication:',
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary,
+          ),
         ),
-        ...film.stats.publicationHistory.map((e) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Text('• ${e.action} - ${dateFormat.format(e.date)}'),
-        )),
+        ...film.stats.publicationHistory.map(
+          (e) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text('• ${e.action} - ${dateFormat.format(e.date)}'),
+          ),
+        ),
       ],
     );
   }
@@ -978,85 +1095,115 @@ class FilmDetailsModal extends StatelessWidget {
   Widget _buildCommentsSection(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     return ExpansionTile(
-      title: Text('Commentaires récents', style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: AppTheme.textPrimary,
-      )),
-      children: film.stats.recentComments.map((comment) => Card(
-        color: AppTheme.background,
-        margin: const EdgeInsets.only(bottom: AppTheme.paddingSmall),
-        child: Padding(
-          padding: const EdgeInsets.all(AppTheme.paddingMedium),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    comment.username,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '⭐ ${comment.rating}',
-                    style: TextStyle(color: AppTheme.warning),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    dateFormat.format(comment.date),
-                    style: TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: AppTheme.fontSizeSmall,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppTheme.paddingSmall),
-              Text(
-                comment.text,
-                style: TextStyle(color: AppTheme.textSecondary),
-              ),
-            ],
-          ),
+      title: Text(
+        'Commentaires récents',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.textPrimary,
         ),
-      )).toList(),
+      ),
+      children: film.stats.recentComments
+          .map(
+            (comment) => Card(
+              color: AppTheme.background,
+              margin: const EdgeInsets.only(bottom: AppTheme.paddingSmall),
+              child: Padding(
+                padding: const EdgeInsets.all(AppTheme.paddingMedium),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          comment.username,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '⭐ ${comment.rating}',
+                          style: TextStyle(color: AppTheme.warning),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          dateFormat.format(comment.date),
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: AppTheme.fontSizeSmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppTheme.paddingSmall),
+                    Text(
+                      comment.text,
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 
   Widget _buildMetadataSection(BuildContext context) {
     return ExpansionTile(
-      title: Text('Métadonnées', style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: AppTheme.textPrimary,
-      )),
+      title: Text(
+        'Métadonnées',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.textPrimary,
+        ),
+      ),
       children: [
         _buildMetadataItem('ID IMDb', film.metadata.imdbId),
         _buildMetadataItem('ID TMDb', film.metadata.tmdbId),
-        _buildMetadataItem('Sociétés de production', film.metadata.productionCompanies.join(', ')),
-        _buildMetadataItem('Lieux de tournage', film.metadata.filmingLocations.join(', ')),
+        _buildMetadataItem(
+          'Sociétés de production',
+          film.metadata.productionCompanies.join(', '),
+        ),
+        _buildMetadataItem(
+          'Lieux de tournage',
+          film.metadata.filmingLocations.join(', '),
+        ),
         const SizedBox(height: AppTheme.paddingMedium),
         Text(
           'Récompenses:',
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary,
+          ),
         ),
-        ...film.metadata.awards.map((award) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Text('• ${award.organization} (${award.year}) - ${award.category} - ${award.result}'),
-        )),
+        ...film.metadata.awards.map(
+          (award) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(
+              '• ${award.organization} (${award.year}) - ${award.category} - ${award.result}',
+            ),
+          ),
+        ),
         const SizedBox(height: AppTheme.paddingMedium),
         Text(
           'Festivals:',
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary,
+          ),
         ),
-        ...film.metadata.festivals.map((festival) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Text('• ${festival.name} (${festival.year}) - ${festival.section}'),
-        )),
+        ...film.metadata.festivals.map(
+          (festival) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(
+              '• ${festival.name} (${festival.year}) - ${festival.section}',
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1085,7 +1232,9 @@ class FilmDetailsModal extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               foregroundColor: AppTheme.textPrimary,
               side: BorderSide(color: AppTheme.textPrimary),
-              padding: const EdgeInsets.symmetric(vertical: AppTheme.paddingMedium),
+              padding: const EdgeInsets.symmetric(
+                vertical: AppTheme.paddingMedium,
+              ),
             ),
             onPressed: () => Navigator.pop(context),
             icon: Icon(Icons.close, color: AppTheme.textPrimary),
@@ -1114,10 +1263,7 @@ class FilmDetailsModal extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: AppTheme.paddingSmall),
-          child: Text(
-            value,
-            style: TextStyle(color: AppTheme.textPrimary),
-          ),
+          child: Text(value, style: TextStyle(color: AppTheme.textPrimary)),
         ),
       ],
     );
@@ -1133,7 +1279,10 @@ class FilmDetailsModal extends StatelessWidget {
             width: 120,
             child: Text(
               '$role :',
-              style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textSecondary),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textSecondary,
+              ),
             ),
           ),
           Expanded(child: Text(name)),
@@ -1152,7 +1301,10 @@ class FilmDetailsModal extends StatelessWidget {
             width: 150,
             child: Text(
               '$label :',
-              style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textSecondary),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textSecondary,
+              ),
             ),
           ),
           Expanded(child: Text(value)),
@@ -1192,21 +1344,21 @@ class FilmDetailsModal extends StatelessWidget {
   Widget _buildStatusBadge(BuildContext context, String status) {
     Color color;
     String statusText;
-    
+
     switch (status) {
-      case 'Publié': 
+      case 'Publié':
         color = AppTheme.success;
         statusText = 'Publié';
-      case 'En attente': 
+      case 'En attente':
         color = AppTheme.warning;
         statusText = 'En attente';
-      case 'Rejeté': 
+      case 'Rejeté':
         color = AppTheme.error;
         statusText = 'Rejeté';
-      case 'En traitement': 
+      case 'En traitement':
         color = Colors.blue;
         statusText = 'En traitement';
-      default: 
+      default:
         color = AppTheme.disabled;
         statusText = status;
     }
@@ -1217,15 +1369,12 @@ class FilmDetailsModal extends StatelessWidget {
         vertical: AppTheme.paddingSmall,
       ),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
       ),
       child: Text(
         statusText,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.bold,
-        ),
+        style: TextStyle(color: color, fontWeight: FontWeight.bold),
       ),
     );
   }

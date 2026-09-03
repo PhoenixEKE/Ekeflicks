@@ -27,7 +27,9 @@ class _FinancePageState extends State<FinancePage> {
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppTheme.error,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppDecorations.borderRadiusMedium),
+            borderRadius: BorderRadius.circular(
+              AppDecorations.borderRadiusMedium,
+            ),
           ),
         ),
       );
@@ -55,7 +57,9 @@ class _FinancePageState extends State<FinancePage> {
                 backgroundColor: AppTheme.success,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppDecorations.borderRadiusMedium),
+                  borderRadius: BorderRadius.circular(
+                    AppDecorations.borderRadiusMedium,
+                  ),
                 ),
               ),
             );
@@ -74,7 +78,7 @@ class _FinancePageState extends State<FinancePage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    
+
     if (!_accessGranted) {
       return Scaffold(
         backgroundColor: AppTheme.background,
@@ -85,15 +89,13 @@ class _FinancePageState extends State<FinancePage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.lock_outline,
-                  size: 64,
-                  color: AppTheme.primary,
-                ),
+                Icon(Icons.lock_outline, size: 64, color: AppTheme.primary),
                 const SizedBox(height: 24),
                 Text(
                   l10n.secure_access,
-                  style: AppTheme.textTitle.copyWith(fontWeight: FontWeight.bold),
+                  style: AppTheme.textTitle.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -108,7 +110,7 @@ class _FinancePageState extends State<FinancePage> {
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 24, 
+                    fontSize: 24,
                     letterSpacing: 4,
                     color: AppTheme.textPrimary,
                   ),
@@ -151,7 +153,9 @@ class _FinancePageState extends State<FinancePage> {
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppDecorations.borderRadiusMedium),
+                borderRadius: BorderRadius.circular(
+                  AppDecorations.borderRadiusMedium,
+                ),
               ),
               color: AppTheme.cardBackground,
               child: Padding(
@@ -188,7 +192,9 @@ class _FinancePageState extends State<FinancePage> {
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppDecorations.borderRadiusMedium),
+                borderRadius: BorderRadius.circular(
+                  AppDecorations.borderRadiusMedium,
+                ),
               ),
               color: AppTheme.cardBackground,
               child: ListTile(
@@ -199,23 +205,22 @@ class _FinancePageState extends State<FinancePage> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.orange.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(AppDecorations.borderRadiusSmall),
+                    color: AppTheme.orange.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(
+                      AppDecorations.borderRadiusSmall,
+                    ),
                   ),
-                  child: Icon(
-                    Icons.pending_actions,
-                    color: AppTheme.orange,
-                  ),
+                  child: Icon(Icons.pending_actions, color: AppTheme.orange),
                 ),
                 title: Text(
                   l10n.pending_payments,
                   style: AppTheme.textBodyBold,
                 ),
-                subtitle: Text(l10n.available_in_48h, style: AppTheme.textCaption),
-                trailing: Text(
-                  '500 €',
-                  style: AppTheme.textBodyBold,
+                subtitle: Text(
+                  l10n.available_in_48h,
+                  style: AppTheme.textCaption,
                 ),
+                trailing: Text('500 €', style: AppTheme.textBodyBold),
               ),
             ),
             const SizedBox(height: 24),
@@ -224,7 +229,10 @@ class _FinancePageState extends State<FinancePage> {
               child: ElevatedButton.icon(
                 onPressed: _showWithdrawalModal,
                 icon: Icon(Icons.monetization_on, color: AppTheme.textPrimary),
-                label: Text(l10n.request_withdrawal, style: AppTheme.textBodyBold),
+                label: Text(
+                  l10n.request_withdrawal,
+                  style: AppTheme.textBodyBold,
+                ),
                 style: AppDecorations.elevatedButtonStyle,
               ),
             ),
@@ -238,15 +246,9 @@ class _FinancePageState extends State<FinancePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: AppTheme.textCaption,
-        ),
+        Text(title, style: AppTheme.textCaption),
         const SizedBox(height: 4),
-        Text(
-          value,
-          style: AppTheme.textBodyBold,
-        ),
+        Text(value, style: AppTheme.textBodyBold),
       ],
     );
   }
@@ -301,7 +303,7 @@ class _WithdrawalFormState extends State<WithdrawalForm> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    
+
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -314,10 +316,7 @@ class _WithdrawalFormState extends State<WithdrawalForm> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              l10n.withdrawal_request,
-              style: AppTheme.textTitle,
-            ),
+            Text(l10n.withdrawal_request, style: AppTheme.textTitle),
             const SizedBox(height: 16),
             TextFormField(
               controller: _amountController,
@@ -336,7 +335,9 @@ class _WithdrawalFormState extends State<WithdrawalForm> {
                   return l10n.amount_positive;
                 }
                 if (amount > widget.availableBalance) {
-                  return l10n.amount_exceeds_balance(widget.availableBalance.toStringAsFixed(2));
+                  return l10n.amount_exceeds_balance(
+                    widget.availableBalance.toStringAsFixed(2),
+                  );
                 }
                 return null;
               },
@@ -369,7 +370,8 @@ class _WithdrawalFormState extends State<WithdrawalForm> {
                   prefixIcon: Icon(Icons.phone, color: AppTheme.primary),
                 ),
                 validator: (value) {
-                  if (_selectedMethod != 'RIB' && (value == null || value.isEmpty)) {
+                  if (_selectedMethod != 'RIB' &&
+                      (value == null || value.isEmpty)) {
                     return l10n.enter_number;
                   }
                   return null;
@@ -383,10 +385,14 @@ class _WithdrawalFormState extends State<WithdrawalForm> {
                     style: TextStyle(color: AppTheme.textPrimary),
                     decoration: AppDecorations.inputDecoration.copyWith(
                       labelText: l10n.iban,
-                      prefixIcon: Icon(Icons.account_balance, color: AppTheme.primary),
+                      prefixIcon: Icon(
+                        Icons.account_balance,
+                        color: AppTheme.primary,
+                      ),
                     ),
                     validator: (value) {
-                      if (_selectedMethod == 'RIB' && (value == null || value.isEmpty)) {
+                      if (_selectedMethod == 'RIB' &&
+                          (value == null || value.isEmpty)) {
                         return l10n.enter_iban;
                       }
                       return null;
@@ -401,7 +407,8 @@ class _WithdrawalFormState extends State<WithdrawalForm> {
                       prefixIcon: Icon(Icons.person, color: AppTheme.primary),
                     ),
                     validator: (value) {
-                      if (_selectedMethod == 'RIB' && (value == null || value.isEmpty)) {
+                      if (_selectedMethod == 'RIB' &&
+                          (value == null || value.isEmpty)) {
                         return l10n.enter_name;
                       }
                       return null;

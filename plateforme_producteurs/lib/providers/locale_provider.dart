@@ -12,9 +12,9 @@ class LocaleProvider with ChangeNotifier {
   }
 
   void toggleLocale() {
-    _locale = _locale.languageCode == 'fr' 
-      ? const Locale('en') 
-      : const Locale('fr');
+    _locale = _locale.languageCode == 'fr'
+        ? const Locale('en')
+        : const Locale('fr');
     notifyListeners();
   }
 }

@@ -8,7 +8,7 @@ class ClaimsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    
+
     final claims = [
       {
         'title': l10n.payment_not_received,
@@ -70,7 +70,7 @@ class ClaimsPage extends StatelessWidget {
 
   Widget _buildClaimCard(BuildContext context, Map<String, String> claim) {
     final l10n = AppLocalizations.of(context)!;
-    
+
     Color statusColor;
     IconData statusIcon;
     switch (claim['status']) {
@@ -91,7 +91,7 @@ class ClaimsPage extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(
-        horizontal: AppTheme.paddingMedium, 
+        horizontal: AppTheme.paddingMedium,
         vertical: AppTheme.paddingSmall,
       ),
       elevation: 2,
@@ -120,11 +120,11 @@ class ClaimsPage extends StatelessWidget {
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12, 
+                      horizontal: 12,
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.2),
+                      color: statusColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -154,22 +154,25 @@ class ClaimsPage extends StatelessWidget {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Icon(Icons.calendar_today, size: 16, color: AppTheme.textSecondary),
-                  const SizedBox(width: 4),
-                  Text(
-                    claim['date']!,
-                    style: AppTheme.textCaption,
+                  Icon(
+                    Icons.calendar_today,
+                    size: 16,
+                    color: AppTheme.textSecondary,
                   ),
+                  const SizedBox(width: 4),
+                  Text(claim['date']!, style: AppTheme.textCaption),
                   const Spacer(),
-                  Icon(Icons.priority_high, size: 16, color: AppTheme.textSecondary),
-                  const SizedBox(width: 4),
-                  Text(
-                    claim['priority']!,
-                    style: AppTheme.textCaption,
+                  Icon(
+                    Icons.priority_high,
+                    size: 16,
+                    color: AppTheme.textSecondary,
                   ),
+                  const SizedBox(width: 4),
+                  Text(claim['priority']!, style: AppTheme.textCaption),
                 ],
               ),
-              if (claim['status'] == l10n.claim_status_resolved && claim['response']!.isNotEmpty)
+              if (claim['status'] == l10n.claim_status_resolved &&
+                  claim['response']!.isNotEmpty)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -183,10 +186,7 @@ class ClaimsPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      claim['response']!,
-                      style: AppTheme.textBodyItalic,
-                    ),
+                    Text(claim['response']!, style: AppTheme.textBodyItalic),
                   ],
                 ),
             ],
@@ -198,7 +198,7 @@ class ClaimsPage extends StatelessWidget {
 
   void _showClaimDetails(BuildContext context, Map<String, String> claim) {
     final l10n = AppLocalizations.of(context)!;
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -226,15 +226,12 @@ class ClaimsPage extends StatelessWidget {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: AppTheme.divider.withOpacity(0.4),
+                    color: AppTheme.divider.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
-              Text(
-                claim['title']!,
-                style: AppTheme.textTitle,
-              ),
+              Text(claim['title']!, style: AppTheme.textTitle),
               const SizedBox(height: 16),
               _buildDetailRow(context, l10n.status, claim['status']!),
               _buildDetailRow(context, l10n.date, claim['date']!),
@@ -247,11 +244,9 @@ class ClaimsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                claim['description']!,
-                style: AppTheme.textBody,
-              ),
-              if (claim['status'] == l10n.claim_status_resolved && claim['response']!.isNotEmpty) ...[
+              Text(claim['description']!, style: AppTheme.textBody),
+              if (claim['status'] == l10n.claim_status_resolved &&
+                  claim['response']!.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text(
                   l10n.support_response,
@@ -264,7 +259,9 @@ class ClaimsPage extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: AppTheme.cardBackground,
-                    borderRadius: BorderRadius.circular(AppDecorations.borderRadiusSmall),
+                    borderRadius: BorderRadius.circular(
+                      AppDecorations.borderRadiusSmall,
+                    ),
                   ),
                   child: Text(
                     claim['response']!,
@@ -294,10 +291,7 @@ class ClaimsPage extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Text(
-            '$label : ',
-            style: AppTheme.textBodyBold,
-          ),
+          Text('$label : ', style: AppTheme.textBodyBold),
           Expanded(
             child: Text(
               value,
@@ -320,13 +314,12 @@ class ClaimsPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          l10n.new_claim,
-          style: AppTheme.textSubtitle,
-        ),
+        title: Text(l10n.new_claim, style: AppTheme.textSubtitle),
         backgroundColor: AppTheme.cardBackground,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDecorations.borderRadiusMedium),
+          borderRadius: BorderRadius.circular(
+            AppDecorations.borderRadiusMedium,
+          ),
         ),
         content: Form(
           key: formKey,
@@ -358,15 +351,19 @@ class ClaimsPage extends StatelessWidget {
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   value: priority,
-                  items: [
-                    l10n.high_priority,
-                    l10n.medium_priority,
-                    l10n.low_priority
-                  ].map((p) => DropdownMenuItem(
-                        value: p,
-                        child: Text(p, style: AppTheme.textBody),
-                      ))
-                      .toList(),
+                  items:
+                      [
+                            l10n.high_priority,
+                            l10n.medium_priority,
+                            l10n.low_priority,
+                          ]
+                          .map(
+                            (p) => DropdownMenuItem(
+                              value: p,
+                              child: Text(p, style: AppTheme.textBody),
+                            ),
+                          )
+                          .toList(),
                   decoration: AppDecorations.inputDecoration.copyWith(
                     labelText: l10n.priority,
                   ),
@@ -380,10 +377,7 @@ class ClaimsPage extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              l10n.cancel,
-              style: TextStyle(color: AppTheme.primary),
-            ),
+            child: Text(l10n.cancel, style: TextStyle(color: AppTheme.primary)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -398,17 +392,16 @@ class ClaimsPage extends StatelessWidget {
                     backgroundColor: AppTheme.success,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppDecorations.borderRadiusMedium),
+                      borderRadius: BorderRadius.circular(
+                        AppDecorations.borderRadiusMedium,
+                      ),
                     ),
                   ),
                 );
               }
             },
             style: AppDecorations.elevatedButtonStyle,
-            child: Text(
-              l10n.submit,
-              style: AppTheme.textBodyBold,
-            ),
+            child: Text(l10n.submit, style: AppTheme.textBodyBold),
           ),
         ],
       ),

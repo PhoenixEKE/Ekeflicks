@@ -22,11 +22,11 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  
+
   String _posterPath = '';
   String _bannerPath = '';
   String _trailerPath = '';
-  
+
   bool _isUploadingPoster = false;
   bool _isUploadingBanner = false;
   bool _isUploadingTrailer = false;
@@ -56,7 +56,7 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
         type: type == 'trailer' ? FileType.video : FileType.image,
         allowMultiple: false,
       );
-      
+
       if (result != null && result.files.single.path != null) {
         setState(() {
           switch (type) {
@@ -126,13 +126,13 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
           ),
         ),
         const SizedBox(height: 8),
-        
+
         if (filePath.isNotEmpty)
           Container(
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
-              color: AppTheme.success.withOpacity(0.1),
+              color: AppTheme.success.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: AppTheme.success, width: 1),
             ),
@@ -171,22 +171,21 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
               ],
             ),
           ),
-        
+
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: AppTheme.cardBackground,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.primary.withOpacity(0.3), width: 1),
+            border: Border.all(
+              color: AppTheme.primary.withValues(alpha: 0.3),
+              width: 1,
+            ),
           ),
           child: Column(
             children: [
-              Icon(
-                icon,
-                size: 32,
-                color: AppTheme.primary,
-              ),
+              Icon(icon, size: 32, color: AppTheme.primary),
               const SizedBox(height: 8),
               Text(
                 filePath.isEmpty ? 'Ajouter $fileType' : 'Remplacer $fileType',
@@ -202,7 +201,10 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: AppTheme.textPrimary,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                 ),
                 child: isUploading
                     ? const SizedBox(
@@ -225,9 +227,7 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
     final l10n = AppLocalizations.of(context)!;
 
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: 600,
@@ -247,7 +247,7 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               Expanded(
                 child: SingleChildScrollView(
                   child: Form(
@@ -265,7 +265,9 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
                             ),
                             filled: true,
                             fillColor: AppTheme.cardBackground,
-                            labelStyle: TextStyle(color: AppTheme.textSecondary),
+                            labelStyle: TextStyle(
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                           style: TextStyle(color: AppTheme.textPrimary),
                           validator: (value) {
@@ -276,7 +278,7 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        
+
                         TextFormField(
                           controller: _descController,
                           decoration: InputDecoration(
@@ -287,13 +289,15 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
                             ),
                             filled: true,
                             fillColor: AppTheme.cardBackground,
-                            labelStyle: TextStyle(color: AppTheme.textSecondary),
+                            labelStyle: TextStyle(
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                           style: TextStyle(color: AppTheme.textPrimary),
                           maxLines: 4,
                         ),
                         const SizedBox(height: 24),
-                        
+
                         // Upload des médias
                         _buildFileUploadSection(
                           title: 'Affiche (Poster)',
@@ -304,7 +308,7 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
                           icon: Icons.photo,
                           fileType: 'l\'affiche',
                         ),
-                        
+
                         _buildFileUploadSection(
                           title: 'Bannière',
                           filePath: _bannerPath,
@@ -314,7 +318,7 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
                           icon: Icons.photo_library,
                           fileType: 'la bannière',
                         ),
-                        
+
                         _buildFileUploadSection(
                           title: 'Bande-annonce',
                           filePath: _trailerPath,
@@ -329,7 +333,7 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
