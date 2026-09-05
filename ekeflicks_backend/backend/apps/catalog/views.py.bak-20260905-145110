@@ -109,12 +109,7 @@ class ContentViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in {'pending_submissions', 'approve_submission', 'reject_submission'}:
             return [permissions.IsAdminUser()]
-        if self.action in {
-            'mine',
-            'producer_dashboard',
-            'trailer_upload_session',
-            'trailer_upload_complete',
-        }:
+        if self.action in {'mine', 'producer_dashboard'}:
             return [permissions.IsAuthenticated()]
         return super().get_permissions()
 

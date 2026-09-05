@@ -188,11 +188,6 @@ class ContentDetailSerializer(ContentListSerializer):
             'available_from',
             'available_until',
             'producer_notes',
-            'poster_temp_path',
-            'backdrop_temp_path',
-            'trailer_temp_path',
-            'director_image_temp_path',
-            'screenwriter_image_temp_path',
             'language',
             'country',
             'director_name',
@@ -212,11 +207,6 @@ class ContentDetailSerializer(ContentListSerializer):
             'seasons',
         ]
         read_only_fields = ContentListSerializer.Meta.read_only_fields + [
-            'poster_temp_path',
-            'backdrop_temp_path',
-            'trailer_temp_path',
-            'director_image_temp_path',
-            'screenwriter_image_temp_path',
             'review_reason',
             'submitted_at',
             'reviewed_by',

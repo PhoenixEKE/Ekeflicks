@@ -552,7 +552,7 @@ class _UploadPageState extends State<UploadPage> {
       final trailer = trailerFile;
 
       if (trailer != null) {
-        final trailerLength = await getBlobUrlSize(trailer.path);
+        final trailerLength = await trailer.length();
 
         final trailerSession = await service.createTrailerUploadSession(
           contentId: contentId,
@@ -598,7 +598,7 @@ class _UploadPageState extends State<UploadPage> {
 
       final master = videoFile!;
 
-      final masterLength = await getBlobUrlSize(master.path);
+      final masterLength = await master.length();
 
       final uploadSession = await service.createSourceUploadSession(
         assetId: assetId,

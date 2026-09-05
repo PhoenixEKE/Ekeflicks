@@ -1,4 +1,3 @@
-from django.core.files.storage import storages
 from rest_framework import serializers
 
 from apps.common.media_storage import (
@@ -107,72 +106,53 @@ def promote_content_media_to_final(content):
     """
     Copie les médias TEMP du contenu vers B2 FINAL/CDN.
 
-    En cas d'échec pendant la promotion, les objets FINAL déjà
-    copiés pendant cette tentative sont supprimés.
-
     Cette fonction ne modifie PAS le statut d'approbation.
+    L'appelant ne doit marquer le contenu approved qu'après succès complet.
     """
     promoted = {}
 
-    try:
-        for media_type, config in CONTENT_MEDIA_CONFIG.items():
-            temp_field = config['temp_field']
-            final_field = config['final_field']
-            temp_path = getattr(content, temp_field, '')
+    for media_type, config in CONTENT_MEDIA_CONFIG.items():
+        temp_field = config['temp_field']
+        final_field = config['final_field']
+        temp_path = getattr(content, temp_field, '')
 
-            if not temp_path:
-                continue
+        if not temp_path:
+            continue
 
-            extension = safe_extension(
-                temp_path,
-                config['default_extension'],
-            )
+        extension = safe_extension(
+            temp_path,
+            config['default_extension'],
+        )
 
-            if extension not in config['allowed_extensions']:
-                raise serializers.ValidationError({
-                    temp_field: (
-                        f"Extension TEMP non autorisée pour "
-                        f"{media_type}: {extension}"
-                    )
-                })
+        if extension not in config['allowed_extensions']:
+            raise serializers.ValidationError({
+                temp_field: (
+                    f"Extension TEMP non autorisée pour "
+                    f"{media_type}: {extension}"
+                )
+            })
 
-            final_path = (
-                f"{content.id}/"
-                f"{config['final_name']}{extension}"
-            )
+        final_path = (
+            f"{content.id}/"
+            f"{config['final_name']}{extension}"
+        )
 
-            saved_path, public_url = copy_internal_to_final(
-                internal_path=temp_path,
-                storage_alias=config['storage_alias'],
-                final_path=final_path,
-                cdn_prefix=config['cdn_prefix'],
-            )
+        saved_path, public_url = copy_internal_to_final(
+            internal_path=temp_path,
+            storage_alias=config['storage_alias'],
+            final_path=final_path,
+            cdn_prefix=config['cdn_prefix'],
+        )
 
-            promoted[media_type] = {
-                'temp_field': temp_field,
-                'temp_path': temp_path,
-                'final_field': final_field,
-                'final_path': saved_path,
-                'storage_alias': config['storage_alias'],
-                'url': public_url,
-            }
+        promoted[media_type] = {
+            'temp_field': temp_field,
+            'temp_path': temp_path,
+            'final_field': final_field,
+            'final_path': saved_path,
+            'url': public_url,
+        }
 
-    except Exception:
-        # Rollback best-effort des objets FINAL créés pendant
-        # CETTE tentative. Une erreur de cleanup ne doit jamais
-        # masquer l'erreur de promotion originale.
-        for item in reversed(list(promoted.values())):
-            try:
-                final_storage = storages[item['storage_alias']]
-                if final_storage.exists(item['final_path']):
-                    final_storage.delete(item['final_path'])
-            except Exception:
-                pass
-
-        raise
-
-    # Les URLs ne sont persistées qu'après réussite de TOUTES
-    # les copies.
+    # On ne persiste les URLs qu'après réussite de TOUTES les copies.
     if promoted:
         update_fields = []
 
@@ -188,3 +168,4 @@ def promote_content_media_to_final(content):
         content.save(update_fields=update_fields)
 
     return promoted
+

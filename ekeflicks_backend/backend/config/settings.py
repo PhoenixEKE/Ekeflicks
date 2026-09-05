@@ -421,6 +421,10 @@ MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY")
 MINIO_BUCKET = os.environ.get("MINIO_BUCKET", "ekeflicks-temp")
 MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT", "http://minio:9000")
+MINIO_PUBLIC_ENDPOINT = os.environ.get(
+    "MINIO_PUBLIC_ENDPOINT",
+    "https://upload.ekeflicks.com",
+).rstrip("/")
 MINIO_USE_SSL = env_bool("MINIO_USE_SSL", False)
 MINIO_REGION = os.environ.get("MINIO_REGION", "us-east-1")
 

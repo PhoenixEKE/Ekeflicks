@@ -1,6 +1,3 @@
-from pathlib import Path
-from django.conf import settings
-from django.core import signing
 from django.db.models import Count, Q
 from django.utils import timezone
 from rest_framework import exceptions, filters, permissions, status, viewsets
@@ -8,10 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
-from apps.catalog.media_services import (
-    promote_content_media_to_final,
-    store_content_media_temp,
-)
+from apps.catalog.media_services import publish_content_media
 from apps.catalog.experience_services import (
     apply_advanced_search_filters,
     base_content_queryset,
@@ -39,10 +33,6 @@ from apps.catalog.serializers import (
     SeasonSerializer,
 )
 from apps.common.api import is_int, is_true, paginate
-from apps.common.minio_storage import (
-    minio_internal_client,
-    minio_public_upload_client,
-)
 from apps.common.permissions import (
     IsAdminOrProducerRelatedContentOrReadOnly,
     IsAdminOrProducerOwnerOrReadOnly,
@@ -109,12 +99,7 @@ class ContentViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in {'pending_submissions', 'approve_submission', 'reject_submission'}:
             return [permissions.IsAdminUser()]
-        if self.action in {
-            'mine',
-            'producer_dashboard',
-            'trailer_upload_session',
-            'trailer_upload_complete',
-        }:
+        if self.action in {'mine', 'producer_dashboard'}:
             return [permissions.IsAuthenticated()]
         return super().get_permissions()
 
@@ -483,38 +468,10 @@ class ContentViewSet(viewsets.ModelViewSet):
         serializer = ContentReviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        if content.producer_submission_status != 'pending':
-            return Response(
-                {
-                    'detail': (
-                        'Seul un contenu en attente de validation '
-                        'peut être approuvé.'
-                    )
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
-
-        # IMPORTANT :
-        # la promotion MinIO TEMP -> B2 FINAL/CDN doit réussir
-        # entièrement AVANT le passage au statut approved.
-        try:
-            promote_content_media_to_final(content)
-        except Exception:
-            return Response(
-                {
-                    'detail': (
-                        'La promotion des médias vers le stockage final '
-                        'a échoué. Le contenu reste en attente.'
-                    )
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
         content.producer_submission_status = 'approved'
         content.review_reason = serializer.validated_data.get('reason', '')
         content.reviewed_by = request.user
         content.reviewed_at = timezone.now()
-
         content.save(update_fields=[
             'producer_submission_status',
             'review_reason',
@@ -522,18 +479,13 @@ class ContentViewSet(viewsets.ModelViewSet):
             'reviewed_at',
             'updated_at',
         ])
-
         if content.producer:
             notify_user(
                 content.producer,
                 'content_approved',
-                message=(
-                    content.review_reason
-                    or f"{content.title} a ete valide."
-                ),
+                message=content.review_reason or f"{content.title} a ete valide.",
                 data={'content_id': str(content.id)},
             )
-
         return Response(self.get_serializer(content).data)
 
     @action(detail=True, methods=['post'], url_path='reject-submission')
@@ -590,7 +542,7 @@ class ContentViewSet(viewsets.ModelViewSet):
         content = self.get_object()
         serializer = ContentMediaUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        payload = store_content_media_temp(
+        payload = publish_content_media(
             content=content,
             uploaded_file=serializer.validated_data['file'],
             media_type=media_type,
@@ -624,326 +576,6 @@ class ContentViewSet(viewsets.ModelViewSet):
     )
     def upload_trailer(self, request, pk=None):
         return self._upload_media(request, 'trailer')
-
-
-    def _ensure_trailer_direct_upload_allowed(
-        self,
-        request,
-        content,
-    ):
-        user = request.user
-
-        if user.is_staff:
-            return
-
-        if (
-            not getattr(user, 'is_producer', False)
-            or content.producer_id != user.id
-        ):
-            raise exceptions.PermissionDenied(
-                'Ce contenu appartient à un autre producteur.'
-            )
-
-        if content.producer_submission_status != 'draft':
-            raise exceptions.ValidationError({
-                'producer_submission_status': (
-                    'Le trailer ne peut être remplacé que '
-                    'pendant l’état brouillon.'
-                )
-            })
-
-    @action(
-        detail=True,
-        methods=['post'],
-        url_path='trailer-upload-session',
-    )
-    def trailer_upload_session(self, request, pk=None):
-        content = self.get_object()
-
-        self._ensure_trailer_direct_upload_allowed(
-            request,
-            content,
-        )
-
-        filename = str(
-            request.data.get('filename') or ''
-        ).strip()
-        raw_size = request.data.get('size_bytes')
-
-        if not filename:
-            raise exceptions.ValidationError({
-                'filename':
-                    'Le nom du fichier trailer est obligatoire.'
-            })
-
-        try:
-            size_bytes = int(raw_size)
-        except (TypeError, ValueError):
-            raise exceptions.ValidationError({
-                'size_bytes':
-                    'La taille du trailer est invalide.'
-            })
-
-        if size_bytes <= 0:
-            raise exceptions.ValidationError({
-                'size_bytes': (
-                    'La taille du trailer doit être '
-                    'supérieure à zéro.'
-                )
-            })
-
-        max_size = int(
-            getattr(
-                settings,
-                'PRODUCER_TRAILER_MAX_BYTES',
-                1073741824,
-            )
-        )
-
-        if size_bytes > max_size:
-            raise exceptions.ValidationError({
-                'size_bytes': (
-                    'Le trailer dépasse la taille '
-                    'maximale autorisée.'
-                )
-            })
-
-        extension = Path(filename).suffix.lower()
-
-        allowed_extensions = {
-            '.mp4',
-            '.m4v',
-            '.mov',
-            '.webm',
-        }
-
-        if extension not in allowed_extensions:
-            raise exceptions.ValidationError({
-                'filename': (
-                    f'Extension trailer non autorisée: '
-                    f'{extension or "aucune"}'
-                )
-            })
-
-        producer_id = (
-            content.producer_id
-            or request.user.id
-        )
-
-        object_key = (
-            f'uploads/producer_{producer_id}/'
-            f'content_{content.id}/'
-            f'trailer_original{extension}'
-        )
-
-        bucket = settings.MINIO_BUCKET
-        expires_in = 3600
-
-        upload_url = (
-            minio_public_upload_client()
-            .generate_presigned_url(
-                ClientMethod='put_object',
-                Params={
-                    'Bucket': bucket,
-                    'Key': object_key,
-                },
-                ExpiresIn=expires_in,
-                HttpMethod='PUT',
-            )
-        )
-
-        completion_token = signing.dumps(
-            {
-                'content_id': str(content.id),
-                'producer_id': str(producer_id),
-                'user_id': str(request.user.id),
-                'media_type': 'trailer',
-                'bucket': bucket,
-                'object_key': object_key,
-                'size_bytes': size_bytes,
-            },
-            salt='catalog-trailer-upload',
-            compress=True,
-        )
-
-        return Response({
-            'upload_url': upload_url,
-            'completion_token': completion_token,
-            'expires_in': expires_in,
-            'size_bytes': size_bytes,
-        })
-
-    @action(
-        detail=True,
-        methods=['post'],
-        url_path='trailer-upload-complete',
-    )
-    def trailer_upload_complete(self, request, pk=None):
-        content = self.get_object()
-
-        self._ensure_trailer_direct_upload_allowed(
-            request,
-            content,
-        )
-
-        completion_token = str(
-            request.data.get('completion_token') or ''
-        ).strip()
-
-        if not completion_token:
-            raise exceptions.ValidationError({
-                'completion_token': (
-                    'Le jeton de confirmation '
-                    'est obligatoire.'
-                )
-            })
-
-        try:
-            payload = signing.loads(
-                completion_token,
-                salt='catalog-trailer-upload',
-                max_age=3600,
-            )
-        except signing.SignatureExpired:
-            raise exceptions.ValidationError({
-                'completion_token':
-                    'La session d’upload a expiré.'
-            })
-        except signing.BadSignature:
-            raise exceptions.ValidationError({
-                'completion_token':
-                    'La session d’upload est invalide.'
-            })
-
-        if (
-            str(payload.get('content_id'))
-            != str(content.id)
-        ):
-            raise exceptions.ValidationError({
-                'completion_token': (
-                    'La session ne correspond pas '
-                    'à ce contenu.'
-                )
-            })
-
-        if (
-            str(payload.get('user_id'))
-            != str(request.user.id)
-        ):
-            raise exceptions.PermissionDenied(
-                'Cette session appartient à '
-                'un autre utilisateur.'
-            )
-
-        producer_id = (
-            content.producer_id
-            or request.user.id
-        )
-
-        if (
-            str(payload.get('producer_id'))
-            != str(producer_id)
-        ):
-            raise exceptions.ValidationError({
-                'completion_token':
-                    'Producteur de stockage invalide.'
-            })
-
-        if payload.get('media_type') != 'trailer':
-            raise exceptions.ValidationError({
-                'completion_token':
-                    'Type de média invalide.'
-            })
-
-        bucket = str(
-            payload.get('bucket') or ''
-        )
-        object_key = str(
-            payload.get('object_key') or ''
-        )
-
-        try:
-            expected_size = int(
-                payload.get('size_bytes') or 0
-            )
-        except (TypeError, ValueError):
-            expected_size = 0
-
-        if (
-            bucket != settings.MINIO_BUCKET
-            or not object_key
-            or expected_size <= 0
-        ):
-            raise exceptions.ValidationError({
-                'completion_token':
-                    'Référence de stockage invalide.'
-            })
-
-        expected_prefix = (
-            f'uploads/producer_{producer_id}/'
-            f'content_{content.id}/'
-            f'trailer_original'
-        )
-
-        if not object_key.startswith(expected_prefix):
-            raise exceptions.ValidationError({
-                'completion_token':
-                    'Chemin de stockage invalide.'
-            })
-
-        client = minio_internal_client()
-
-        try:
-            metadata = client.head_object(
-                Bucket=bucket,
-                Key=object_key,
-            )
-        except Exception as exc:
-            raise exceptions.ValidationError({
-                'trailer': (
-                    'Le trailer envoyé est introuvable '
-                    'dans le stockage temporaire.'
-                )
-            }) from exc
-
-        stored_size = int(
-            metadata.get('ContentLength') or 0
-        )
-
-        if stored_size <= 0:
-            raise exceptions.ValidationError({
-                'trailer':
-                    'Le trailer stocké est vide.'
-            })
-
-        if stored_size != expected_size:
-            raise exceptions.ValidationError({
-                'trailer': (
-                    'La taille du trailer stocké '
-                    'ne correspond pas au fichier envoyé.'
-                )
-            })
-
-        content.trailer_temp_path = object_key
-        content.trailer_url = ''
-
-        content.save(
-            update_fields=[
-                'trailer_temp_path',
-                'trailer_url',
-                'updated_at',
-            ]
-        )
-
-        return Response({
-            'media_type': 'trailer',
-            'field': 'trailer_temp_path',
-            'temporary_path': object_key,
-            'final_field': 'trailer_url',
-            'url': '',
-            'storage': 'temporary',
-            'size_bytes': stored_size,
-        })
 
 
 class ProducerContentOwnershipMixin:

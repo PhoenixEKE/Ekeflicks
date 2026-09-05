@@ -86,20 +86,12 @@ class Content(TimeStampedModel):
         editable=False
     )
 
-    # Médias FINAL — B2 / CDN uniquement après validation
+    # URLs MinIO
     poster_url = models.URLField(max_length=500, blank=True)
     backdrop_url = models.URLField(max_length=500, blank=True)
     banner_url = models.URLField(max_length=500, blank=True)
     video_url = models.URLField(max_length=500, blank=True)
     trailer_url = models.URLField(max_length=500, blank=True)
-
-    # Médias TEMP — chemins privés dans MinIO avant validation
-    poster_temp_path = models.CharField(max_length=1000, blank=True)
-    backdrop_temp_path = models.CharField(max_length=1000, blank=True)
-    trailer_temp_path = models.CharField(max_length=1000, blank=True)
-
-    director_image_temp_path = models.CharField(max_length=1000, blank=True)
-    screenwriter_image_temp_path = models.CharField(max_length=1000, blank=True)
 
     # Métadonnées
     release_year = models.IntegerField(

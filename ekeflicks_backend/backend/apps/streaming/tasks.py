@@ -6,6 +6,7 @@ from pathlib import Path
 
 from celery import shared_task
 from django.conf import settings
+
 from django.core.files import File
 from django.core.files.storage import default_storage
 from django.core.files.storage import storages
@@ -58,6 +59,7 @@ def _source_input(asset, work_root):
                     for chunk in source_file.chunks():
                         destination.write(chunk)
             return str(local_source)
+
     return asset.source_file_url
 
 

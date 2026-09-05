@@ -54,26 +54,6 @@ void downloadPdfBytes(List<int> bytes, String filename) {
   web.URL.revokeObjectURL(url);
 }
 
-Future<int> getBlobUrlSize(String blobUrl) async {
-  final sourceRequest = web.Request(blobUrl.toJS);
-  final sourceResponse = await web.window.fetch(sourceRequest).toDart;
-
-  if (!sourceResponse.ok) {
-    throw StateError(
-      'Impossible de lire le fichier sélectionné dans le navigateur.',
-    );
-  }
-
-  final blob = await sourceResponse.blob().toDart;
-  final size = blob.size;
-
-  if (size <= 0) {
-    throw StateError('Le fichier sélectionné est vide.');
-  }
-
-  return size;
-}
-
 Future<void> uploadBlobUrlToPresignedUrl({
   required String blobUrl,
   required String uploadUrl,

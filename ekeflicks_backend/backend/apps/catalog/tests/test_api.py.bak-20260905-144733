@@ -8,16 +8,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from core.models import (
-    Content,
-    Genre,
-    ProducerAccount,
-    ProducerAgreement,
-    Profile,
-    Recommendation,
-    User,
-    WatchHistory,
-)
+from core.models import Content, Genre, Profile, Recommendation, User, WatchHistory
 
 
 TEST_FILE_STORAGES = {
@@ -446,25 +437,6 @@ class CatalogApiTests(APITestCase):
             is_producer=True,
             producer_company='Eke Studios',
         )
-        producer.is_verified = True
-        producer.save(update_fields=['is_verified'])
-
-        producer_account = ProducerAccount.objects.create(
-            user=producer,
-            company_name='Test Producer Company',
-            status=ProducerAccount.STATUS_ACTIVE,
-            activated_at=timezone.now(),
-        )
-
-        ProducerAgreement.objects.create(
-            producer_account=producer_account,
-            contract_version=settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0],
-            contract_title='EKEFLICKS Producer Agreement - Test',
-            status=ProducerAgreement.STATUS_SIGNED,
-            accepted_at=timezone.now(),
-            signed_at=timezone.now(),
-        )
-
         self.client.force_authenticate(user=producer)
 
         create_response = self.client.post(
@@ -515,17 +487,14 @@ class CatalogApiTests(APITestCase):
         self,
         mock_public_client,
     ):
-        producer = User.objects.create_user(
-            email='trailer-session@example.com',
-            password='StrongPass123',
-            is_producer=True,
+        self.client.force_authenticate(
+            user=self.producer
         )
-        self.client.force_authenticate(user=producer)
 
         content = Content.objects.create(
             title='Trailer direct',
             type='movie',
-            producer=producer,
+            producer=self.producer,
             producer_submission_status='draft',
         )
 
@@ -535,10 +504,8 @@ class CatalogApiTests(APITestCase):
         )
 
         response = self.client.post(
-            reverse(
-                'content-trailer-upload-session',
-                args=[content.id],
-            ),
+            f'/api/v1/contents/{content.id}/'
+            'trailer-upload-session/',
             {
                 'filename': 'trailer.mp4',
                 'size_bytes': 123456,
@@ -550,7 +517,11 @@ class CatalogApiTests(APITestCase):
             response.status_code,
             status.HTTP_200_OK,
         )
-        self.assertIn('upload_url', response.data)
+
+        self.assertIn(
+            'upload_url',
+            response.data,
+        )
         self.assertIn(
             'completion_token',
             response.data,
@@ -577,10 +548,11 @@ class CatalogApiTests(APITestCase):
             params['Bucket'],
             settings.MINIO_BUCKET,
         )
+
         self.assertEqual(
             params['Key'],
             (
-                f'uploads/producer_{producer.id}/'
+                f'uploads/producer_{self.producer.id}/'
                 f'content_{content.id}/'
                 'trailer_original.mp4'
             ),
@@ -589,25 +561,20 @@ class CatalogApiTests(APITestCase):
     def test_trailer_direct_upload_rejects_bad_extension(
         self,
     ):
-        producer = User.objects.create_user(
-            email='trailer-extension@example.com',
-            password='StrongPass123',
-            is_producer=True,
+        self.client.force_authenticate(
+            user=self.producer
         )
-        self.client.force_authenticate(user=producer)
 
         content = Content.objects.create(
             title='Bad trailer',
             type='movie',
-            producer=producer,
+            producer=self.producer,
             producer_submission_status='draft',
         )
 
         response = self.client.post(
-            reverse(
-                'content-trailer-upload-session',
-                args=[content.id],
-            ),
+            f'/api/v1/contents/{content.id}/'
+            'trailer-upload-session/',
             {
                 'filename': 'trailer.exe',
                 'size_bytes': 1000,
@@ -623,25 +590,20 @@ class CatalogApiTests(APITestCase):
     def test_trailer_direct_upload_rejects_non_draft(
         self,
     ):
-        producer = User.objects.create_user(
-            email='trailer-pending@example.com',
-            password='StrongPass123',
-            is_producer=True,
+        self.client.force_authenticate(
+            user=self.producer
         )
-        self.client.force_authenticate(user=producer)
 
         content = Content.objects.create(
             title='Pending trailer',
             type='movie',
-            producer=producer,
+            producer=self.producer,
             producer_submission_status='pending',
         )
 
         response = self.client.post(
-            reverse(
-                'content-trailer-upload-session',
-                args=[content.id],
-            ),
+            f'/api/v1/contents/{content.id}/'
+            'trailer-upload-session/',
             {
                 'filename': 'trailer.mp4',
                 'size_bytes': 1000,
@@ -657,31 +619,29 @@ class CatalogApiTests(APITestCase):
     def test_trailer_direct_upload_rejects_other_producer(
         self,
     ):
-        owner = User.objects.create_user(
-            email='trailer-owner@example.com',
-            password='StrongPass123',
-            is_producer=True,
+        other_producer = self.user_model.objects.create_user(
+            email='other-producer@example.com',
+            password='password123',
         )
-        other = User.objects.create_user(
-            email='trailer-other@example.com',
-            password='StrongPass123',
-            is_producer=True,
+        other_producer.is_producer = True
+        other_producer.save(
+            update_fields=['is_producer']
         )
 
         content = Content.objects.create(
             title='Other producer trailer',
             type='movie',
-            producer=owner,
+            producer=self.producer,
             producer_submission_status='draft',
         )
 
-        self.client.force_authenticate(user=other)
+        self.client.force_authenticate(
+            user=other_producer
+        )
 
         response = self.client.post(
-            reverse(
-                'content-trailer-upload-session',
-                args=[content.id],
-            ),
+            f'/api/v1/contents/{content.id}/'
+            'trailer-upload-session/',
             {
                 'filename': 'trailer.mp4',
                 'size_bytes': 1000,
@@ -708,17 +668,14 @@ class CatalogApiTests(APITestCase):
         mock_public_client,
         mock_internal_client,
     ):
-        producer = User.objects.create_user(
-            email='trailer-complete@example.com',
-            password='StrongPass123',
-            is_producer=True,
+        self.client.force_authenticate(
+            user=self.producer
         )
-        self.client.force_authenticate(user=producer)
 
         content = Content.objects.create(
             title='Trailer complete',
             type='movie',
-            producer=producer,
+            producer=self.producer,
             producer_submission_status='draft',
             trailer_url='https://old.example/trailer.mp4',
         )
@@ -731,10 +688,8 @@ class CatalogApiTests(APITestCase):
         )
 
         session_response = self.client.post(
-            reverse(
-                'content-trailer-upload-session',
-                args=[content.id],
-            ),
+            f'/api/v1/contents/{content.id}/'
+            'trailer-upload-session/',
             {
                 'filename': 'trailer.mp4',
                 'size_bytes': 987654,
@@ -759,10 +714,8 @@ class CatalogApiTests(APITestCase):
         }
 
         complete_response = self.client.post(
-            reverse(
-                'content-trailer-upload-complete',
-                args=[content.id],
-            ),
+            f'/api/v1/contents/{content.id}/'
+            'trailer-upload-complete/',
             {
                 'completion_token': token,
             },
@@ -777,7 +730,7 @@ class CatalogApiTests(APITestCase):
         content.refresh_from_db()
 
         expected_path = (
-            f'uploads/producer_{producer.id}/'
+            f'uploads/producer_{self.producer.id}/'
             f'content_{content.id}/'
             'trailer_original.mp4'
         )
@@ -790,6 +743,7 @@ class CatalogApiTests(APITestCase):
             content.trailer_url,
             '',
         )
+
         self.assertEqual(
             complete_response.data[
                 'temporary_path'
@@ -821,17 +775,14 @@ class CatalogApiTests(APITestCase):
         mock_public_client,
         mock_internal_client,
     ):
-        producer = User.objects.create_user(
-            email='trailer-size@example.com',
-            password='StrongPass123',
-            is_producer=True,
+        self.client.force_authenticate(
+            user=self.producer
         )
-        self.client.force_authenticate(user=producer)
 
         content = Content.objects.create(
             title='Trailer mismatch',
             type='movie',
-            producer=producer,
+            producer=self.producer,
             producer_submission_status='draft',
         )
 
@@ -843,10 +794,8 @@ class CatalogApiTests(APITestCase):
         )
 
         session_response = self.client.post(
-            reverse(
-                'content-trailer-upload-session',
-                args=[content.id],
-            ),
+            f'/api/v1/contents/{content.id}/'
+            'trailer-upload-session/',
             {
                 'filename': 'trailer.mp4',
                 'size_bytes': 5000,
@@ -864,10 +813,8 @@ class CatalogApiTests(APITestCase):
         }
 
         response = self.client.post(
-            reverse(
-                'content-trailer-upload-complete',
-                args=[content.id],
-            ),
+            f'/api/v1/contents/{content.id}/'
+            'trailer-upload-complete/',
             {
                 'completion_token':
                     session_response.data[
@@ -892,25 +839,20 @@ class CatalogApiTests(APITestCase):
     def test_trailer_direct_upload_rejects_invalid_token(
         self,
     ):
-        producer = User.objects.create_user(
-            email='trailer-token@example.com',
-            password='StrongPass123',
-            is_producer=True,
+        self.client.force_authenticate(
+            user=self.producer
         )
-        self.client.force_authenticate(user=producer)
 
         content = Content.objects.create(
             title='Invalid token trailer',
             type='movie',
-            producer=producer,
+            producer=self.producer,
             producer_submission_status='draft',
         )
 
         response = self.client.post(
-            reverse(
-                'content-trailer-upload-complete',
-                args=[content.id],
-            ),
+            f'/api/v1/contents/{content.id}/'
+            'trailer-upload-complete/',
             {
                 'completion_token':
                     'invalid-token',
@@ -922,7 +864,6 @@ class CatalogApiTests(APITestCase):
             response.status_code,
             status.HTTP_400_BAD_REQUEST,
         )
-
 
     def test_admin_can_approve_and_reject_producer_submissions(self):
         producer = User.objects.create_user(

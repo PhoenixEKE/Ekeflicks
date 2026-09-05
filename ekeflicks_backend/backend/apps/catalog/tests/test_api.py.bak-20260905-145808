@@ -8,16 +8,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from core.models import (
-    Content,
-    Genre,
-    ProducerAccount,
-    ProducerAgreement,
-    Profile,
-    Recommendation,
-    User,
-    WatchHistory,
-)
+from core.models import Content, Genre, Profile, Recommendation, User, WatchHistory
 
 
 TEST_FILE_STORAGES = {
@@ -446,25 +437,6 @@ class CatalogApiTests(APITestCase):
             is_producer=True,
             producer_company='Eke Studios',
         )
-        producer.is_verified = True
-        producer.save(update_fields=['is_verified'])
-
-        producer_account = ProducerAccount.objects.create(
-            user=producer,
-            company_name='Test Producer Company',
-            status=ProducerAccount.STATUS_ACTIVE,
-            activated_at=timezone.now(),
-        )
-
-        ProducerAgreement.objects.create(
-            producer_account=producer_account,
-            contract_version=settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0],
-            contract_title='EKEFLICKS Producer Agreement - Test',
-            status=ProducerAgreement.STATUS_SIGNED,
-            accepted_at=timezone.now(),
-            signed_at=timezone.now(),
-        )
-
         self.client.force_authenticate(user=producer)
 
         create_response = self.client.post(

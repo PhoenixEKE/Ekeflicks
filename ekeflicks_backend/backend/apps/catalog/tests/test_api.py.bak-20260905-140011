@@ -1,0 +1,342 @@
+from django.core.files.storage import storages
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from django.urls import reverse
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from core.models import Content, Genre, Profile, Recommendation, User, WatchHistory
+
+
+TEST_FILE_STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+    'final_media': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'final_videos': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'final_posters': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'final_backdrops': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'final_trailers': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'final_avatars': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'final_subtitles': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+}
+
+
+class CatalogApiTests(APITestCase):
+    def setUp(self):
+        self.genre = Genre.objects.create(name='Action', slug='action')
+        self.series_genre = Genre.objects.create(name='Drama', slug='drama')
+        self.content = Content.objects.create(
+            title='Eke Mission',
+            description='Film de test',
+            type='movie',
+            release_year=2026,
+            popularity_score=90,
+            trending_score=95,
+        )
+        self.content.genres.add(self.genre)
+        self.series = Content.objects.create(
+            title='Eke Series',
+            description='Serie de test',
+            type='series',
+            release_year=2026,
+            popularity_score=70,
+            trending_score=85,
+            view_count=200,
+        )
+        self.series.genres.add(self.series_genre)
+
+    def test_content_list_is_public(self):
+        response = self.client.get(reverse('content-list'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        payload = response.data['results'] if 'results' in response.data else response.data
+        self.assertEqual(payload[0]['title'], 'Eke Mission')
+
+    def test_content_can_be_filtered_by_genre_slug(self):
+        response = self.client.get(reverse('content-list'), {'genre': 'action'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        payload = response.data['results'] if 'results' in response.data else response.data
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]['id'], str(self.content.id))
+
+    def test_advanced_search_returns_matching_content(self):
+        response = self.client.get(
+            reverse('content-search'),
+            {'q': 'series', 'type': 'series'},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(response.data['results'][0]['id'], str(self.series.id))
+
+    def test_home_returns_netflix_style_rows(self):
+        user = User.objects.create_user(email='home@example.com', password='StrongPass123')
+        profile = Profile.objects.get(user=user)
+        WatchHistory.objects.create(
+            profile=profile,
+            content=self.content,
+            progress=40,
+            last_position=320,
+        )
+        Recommendation.objects.create(
+            profile=profile,
+            content=self.series,
+            score=98,
+            reason='ai_match',
+            expires_at=timezone.now() + timezone.timedelta(days=1),
+        )
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(reverse('content-home'), {'profile': str(profile.id)})
+        legacy_response = self.client.get(
+            reverse('catalog-home'),
+            {'profile': str(profile.id)},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(legacy_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(legacy_response.data, response.data)
+        row_keys = [row['key'] for row in response.data['rows']]
+        self.assertIn('continue_watching', row_keys)
+        self.assertIn('recommended', row_keys)
+        self.assertIn('top_10', row_keys)
+
+    def test_non_staff_cannot_create_content(self):
+        user = User.objects.create_user(email='viewer@example.com', password='StrongPass123')
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(
+            reverse('content-list'),
+            {'title': 'Forbidden', 'type': 'movie'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_settings(
+        MEDIA_CDN_BASE_URL='https://cdn.ekeflicks.com',
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_staff_can_upload_content_media_assets(self):
+        storages._storages.clear()
+        user = User.objects.create_user(
+            email='staff@example.com',
+            password='StrongPass123',
+            is_staff=True,
+        )
+        self.client.force_authenticate(user=user)
+        cases = [
+            ('content-upload-poster', 'poster.jpg', b'poster', 'poster_url', 'posters', 'poster.jpg'),
+            ('content-upload-backdrop', 'backdrop.jpg', b'backdrop', 'backdrop_url', 'backdrops', 'backdrop.jpg'),
+            ('content-upload-trailer', 'trailer.mp4', b'trailer', 'trailer_url', 'trailers', 'trailer.mp4'),
+        ]
+
+        for route_name, filename, payload, field, cdn_prefix, final_name in cases:
+            uploaded_file = SimpleUploadedFile(filename, payload)
+            response = self.client.post(
+                reverse(route_name, args=[self.content.id]),
+                {'file': uploaded_file},
+                format='multipart',
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.data['field'], field)
+            expected_url = f'https://cdn.ekeflicks.com/{cdn_prefix}/{self.content.id}/{final_name}'
+            self.assertEqual(response.data['url'], expected_url)
+            self.content.refresh_from_db()
+            self.assertEqual(getattr(self.content, field), expected_url)
+
+    def test_producer_can_create_submit_and_view_own_content(self):
+        producer = User.objects.create_user(
+            email='producer@example.com',
+            password='StrongPass123',
+            is_producer=True,
+            producer_company='Eke Studios',
+        )
+        self.client.force_authenticate(user=producer)
+
+        create_response = self.client.post(
+            reverse('content-list'),
+            {
+                'title': 'Producer Movie',
+                'type': 'movie',
+                'description': 'Depot producteur',
+            },
+            format='json',
+        )
+
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+        content = Content.objects.get(id=create_response.data['id'])
+        self.assertEqual(content.producer, producer)
+        self.assertEqual(content.producer_submission_status, 'draft')
+
+        submit_response = self.client.post(
+            reverse('content-submit', args=[content.id]),
+            {'producer_notes': 'Pret pour validation.'},
+            format='json',
+        )
+
+        self.assertEqual(submit_response.status_code, status.HTTP_200_OK)
+        content.refresh_from_db()
+        self.assertEqual(content.producer_submission_status, 'pending')
+        self.assertEqual(content.producer_notes, 'Pret pour validation.')
+        self.assertIsNotNone(content.submitted_at)
+
+        mine_response = self.client.get(reverse('content-mine'))
+        payload = mine_response.data['results'] if 'results' in mine_response.data else mine_response.data
+        self.assertEqual(mine_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(payload[0]['id'], str(content.id))
+
+        dashboard_response = self.client.get(reverse('content-producer-dashboard'))
+        self.assertEqual(dashboard_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(dashboard_response.data['content_total'], 1)
+        self.assertEqual(
+            dashboard_response.data['content_by_submission_status']['pending'],
+            1,
+        )
+
+    def test_admin_can_approve_and_reject_producer_submissions(self):
+        producer = User.objects.create_user(
+            email='producer-review@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        staff = User.objects.create_user(
+            email='reviewer@example.com',
+            password='StrongPass123',
+            is_staff=True,
+        )
+        content = Content.objects.create(
+            title='Pending Review',
+            type='movie',
+            producer=producer,
+            producer_submission_status='pending',
+            submitted_at=timezone.now(),
+        )
+        rejected_content = Content.objects.create(
+            title='Rejected Review',
+            type='movie',
+            producer=producer,
+            producer_submission_status='pending',
+            submitted_at=timezone.now(),
+        )
+        self.client.force_authenticate(user=staff)
+
+        pending_response = self.client.get(reverse('content-pending-submissions'))
+        pending_payload = (
+            pending_response.data['results']
+            if 'results' in pending_response.data
+            else pending_response.data
+        )
+        self.assertEqual(pending_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(pending_payload), 2)
+
+        approve_response = self.client.post(
+            reverse('content-approve-submission', args=[content.id]),
+            {'reason': 'Catalogue valide.'},
+            format='json',
+        )
+
+        self.assertEqual(approve_response.status_code, status.HTTP_200_OK)
+        content.refresh_from_db()
+        self.assertEqual(content.producer_submission_status, 'approved')
+        self.assertEqual(content.review_reason, 'Catalogue valide.')
+        self.assertEqual(content.reviewed_by, staff)
+
+        bad_reject_response = self.client.post(
+            reverse('content-reject-submission', args=[rejected_content.id]),
+            {},
+            format='json',
+        )
+        self.assertEqual(bad_reject_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        reject_response = self.client.post(
+            reverse('content-reject-submission', args=[rejected_content.id]),
+            {'reason': 'Poster manquant.'},
+            format='json',
+        )
+
+        self.assertEqual(reject_response.status_code, status.HTTP_200_OK)
+        rejected_content.refresh_from_db()
+        self.assertEqual(rejected_content.producer_submission_status, 'rejected')
+        self.assertEqual(rejected_content.review_reason, 'Poster manquant.')
+
+    def test_producer_cannot_manage_another_producer_content(self):
+        owner = User.objects.create_user(
+            email='owner@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        other = User.objects.create_user(
+            email='other-producer@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        content = Content.objects.create(title='Private Draft', type='series', producer=owner)
+        self.client.force_authenticate(user=other)
+
+        update_response = self.client.patch(
+            reverse('content-detail', args=[content.id]),
+            {'title': 'Hijacked'},
+            format='json',
+        )
+
+        self.assertEqual(update_response.status_code, status.HTTP_403_FORBIDDEN)
+
+        season_response = self.client.post(
+            reverse('season-list'),
+            {'content_id': str(content.id), 'season_number': 1, 'title': 'Season 1'},
+            format='json',
+        )
+
+        self.assertEqual(season_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_producer_can_manage_own_series_structure(self):
+        producer = User.objects.create_user(
+            email='series-producer@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        series = Content.objects.create(title='Producer Series', type='series', producer=producer)
+        self.client.force_authenticate(user=producer)
+
+        season_response = self.client.post(
+            reverse('season-list'),
+            {'content_id': str(series.id), 'season_number': 1, 'title': 'Season 1'},
+            format='json',
+        )
+
+        self.assertEqual(season_response.status_code, status.HTTP_201_CREATED)
+
+        episode_response = self.client.post(
+            reverse('episode-list'),
+            {
+                'season_id': season_response.data['id'],
+                'episode_number': 1,
+                'title': 'Pilot',
+            },
+            format='json',
+        )
+
+        self.assertEqual(episode_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(str(episode_response.data['content']), str(series.id))

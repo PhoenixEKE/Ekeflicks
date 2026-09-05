@@ -552,34 +552,11 @@ class _UploadPageState extends State<UploadPage> {
       final trailer = trailerFile;
 
       if (trailer != null) {
-        final trailerLength = await getBlobUrlSize(trailer.path);
-
-        final trailerSession = await service.createTrailerUploadSession(
+        await service.uploadContentMedia(
           contentId: contentId,
+          mediaType: 'trailer',
+          bytes: await trailer.readAsBytes(),
           filename: trailer.name,
-          sizeBytes: trailerLength,
-        );
-
-        final trailerUploadUrl = trailerSession['upload_url']?.toString();
-        final trailerCompletionToken = trailerSession['completion_token']
-            ?.toString();
-
-        if (trailerUploadUrl == null ||
-            trailerUploadUrl.isEmpty ||
-            trailerCompletionToken == null ||
-            trailerCompletionToken.isEmpty) {
-          throw StateError('La session d’upload du trailer est incomplète.');
-        }
-
-        await uploadBlobUrlToPresignedUrl(
-          blobUrl: trailer.path,
-          uploadUrl: trailerUploadUrl,
-          expectedSize: trailerLength,
-        );
-
-        await service.completeTrailerUpload(
-          contentId: contentId,
-          completionToken: trailerCompletionToken,
         );
       }
 
@@ -598,7 +575,7 @@ class _UploadPageState extends State<UploadPage> {
 
       final master = videoFile!;
 
-      final masterLength = await getBlobUrlSize(master.path);
+      final masterLength = await master.length();
 
       final uploadSession = await service.createSourceUploadSession(
         assetId: assetId,

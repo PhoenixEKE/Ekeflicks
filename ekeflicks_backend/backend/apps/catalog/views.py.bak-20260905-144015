@@ -109,12 +109,7 @@ class ContentViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in {'pending_submissions', 'approve_submission', 'reject_submission'}:
             return [permissions.IsAdminUser()]
-        if self.action in {
-            'mine',
-            'producer_dashboard',
-            'trailer_upload_session',
-            'trailer_upload_complete',
-        }:
+        if self.action in {'mine', 'producer_dashboard'}:
             return [permissions.IsAuthenticated()]
         return super().get_permissions()
 
@@ -725,10 +720,7 @@ class ContentViewSet(viewsets.ModelViewSet):
                 )
             })
 
-        producer_id = (
-            content.producer_id
-            or request.user.id
-        )
+        producer_id = request.user.id
 
         object_key = (
             f'uploads/producer_{producer_id}/'
@@ -755,7 +747,6 @@ class ContentViewSet(viewsets.ModelViewSet):
         completion_token = signing.dumps(
             {
                 'content_id': str(content.id),
-                'producer_id': str(producer_id),
                 'user_id': str(request.user.id),
                 'media_type': 'trailer',
                 'bucket': bucket,
@@ -835,20 +826,6 @@ class ContentViewSet(viewsets.ModelViewSet):
                 'un autre utilisateur.'
             )
 
-        producer_id = (
-            content.producer_id
-            or request.user.id
-        )
-
-        if (
-            str(payload.get('producer_id'))
-            != str(producer_id)
-        ):
-            raise exceptions.ValidationError({
-                'completion_token':
-                    'Producteur de stockage invalide.'
-            })
-
         if payload.get('media_type') != 'trailer':
             raise exceptions.ValidationError({
                 'completion_token':
@@ -880,7 +857,7 @@ class ContentViewSet(viewsets.ModelViewSet):
             })
 
         expected_prefix = (
-            f'uploads/producer_{producer_id}/'
+            f'uploads/producer_{request.user.id}/'
             f'content_{content.id}/'
             f'trailer_original'
         )

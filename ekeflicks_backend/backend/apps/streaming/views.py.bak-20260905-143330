@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.core import signing
+import boto3
+from botocore.config import Config
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.urls import reverse
@@ -9,10 +11,6 @@ from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
-from apps.common.minio_storage import (
-    minio_internal_client,
-    minio_public_upload_client,
-)
 from apps.common.permissions import IsStaffOrProducerAssetOwner, is_producer_user
 from apps.notifications.services import notify_new_publication, notify_user
 from apps.streaming.media_services import publish_subtitle_track
@@ -45,6 +43,30 @@ from apps.streaming.services import (
 )
 from apps.streaming.tasks import analyze_video_asset, transcode_video_asset_to_hls
 from core.models import MediaAnalysisReport, OfflineDownloadLicense, VideoAsset
+
+
+def _minio_client(endpoint_url):
+    return boto3.client(
+        's3',
+        endpoint_url=endpoint_url,
+        aws_access_key_id=settings.MINIO_ACCESS_KEY,
+        aws_secret_access_key=settings.MINIO_SECRET_KEY,
+        region_name=settings.MINIO_REGION,
+        use_ssl=endpoint_url.startswith('https://'),
+        verify=True,
+        config=Config(
+            signature_version='s3v4',
+            s3={'addressing_style': 'path'},
+        ),
+    )
+
+
+def _minio_internal_client():
+    return _minio_client(settings.MINIO_ENDPOINT.rstrip('/'))
+
+
+def _minio_public_upload_client():
+    return _minio_client(settings.MINIO_PUBLIC_ENDPOINT)
 
 
 class VideoAssetViewSet(viewsets.ModelViewSet):
@@ -241,7 +263,7 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
         bucket = settings.MINIO_BUCKET
         expires_in = 3600
 
-        upload_url = minio_public_upload_client().generate_presigned_url(
+        upload_url = _minio_public_upload_client().generate_presigned_url(
             ClientMethod='put_object',
             Params={
                 'Bucket': bucket,
@@ -320,7 +342,7 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
                 'completion_token': 'Référence de stockage invalide.'
             })
 
-        client = minio_internal_client()
+        client = _minio_internal_client()
 
         try:
             metadata = client.head_object(

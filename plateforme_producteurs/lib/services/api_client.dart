@@ -71,6 +71,63 @@ class ApiClient {
     );
   }
 
+  Future<http.Response> postMultipartStream(
+    String path, {
+    required Stream<List<int>> stream,
+    required int length,
+    required String filename,
+    String fieldName = 'file',
+    bool authenticated = false,
+    Map<String, String>? fields,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl$path'));
+
+    request.headers['Accept'] = 'application/json';
+
+    if (authenticated && hasAccessToken) {
+      request.headers['Authorization'] = 'Bearer $_accessToken';
+    }
+
+    if (fields != null) {
+      request.fields.addAll(fields);
+    }
+
+    request.files.add(
+      http.MultipartFile(fieldName, stream, length, filename: filename),
+    );
+
+    final streamedResponse = await _client.send(request);
+    return http.Response.fromStream(streamedResponse);
+  }
+
+  Future<http.Response> postMultipart(
+    String path, {
+    required List<int> bytes,
+    required String filename,
+    String fieldName = 'file',
+    bool authenticated = false,
+    Map<String, String>? fields,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl$path'));
+
+    request.headers['Accept'] = 'application/json';
+
+    if (authenticated && hasAccessToken) {
+      request.headers['Authorization'] = 'Bearer $_accessToken';
+    }
+
+    if (fields != null) {
+      request.fields.addAll(fields);
+    }
+
+    request.files.add(
+      http.MultipartFile.fromBytes(fieldName, bytes, filename: filename),
+    );
+
+    final streamedResponse = await _client.send(request);
+    return http.Response.fromStream(streamedResponse);
+  }
+
   Future<http.Response> patch(
     String path, {
     Map<String, dynamic>? body,
