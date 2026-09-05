@@ -588,15 +588,9 @@ class ProducerService {
     return data;
   }
 
-  Future<List<Map<String, dynamic>>> getMyVideoAssets({
-    String? contentId,
-  }) async {
-    final query = contentId == null || contentId.isEmpty
-        ? ''
-        : '?content=${Uri.encodeQueryComponent(contentId)}';
-
+  Future<List<Map<String, dynamic>>> getMyVideoAssets() async {
     final response = await _api.get(
-      '/api/v1/video-assets/mine/$query',
+      '/api/v1/video-assets/mine/',
       authenticated: true,
     );
 

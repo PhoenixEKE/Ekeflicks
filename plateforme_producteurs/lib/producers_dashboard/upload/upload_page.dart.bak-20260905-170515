@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:plateforme_producteurs/core/core.dart';
 
 import '../contents/contents_page.dart';
 import 'package:flutter/services.dart';
@@ -1189,52 +1188,29 @@ class _UploadPageState extends State<UploadPage> {
                 Expanded(
                   child: Text(
                     'Ajouter un contenu',
-                    style: AppTheme.textTitle.copyWith(fontSize: 24),
+                    style: AppTheme.textTitle.copyWith(
+                      fontSize: 24,
+                    ),
                   ),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _isSubmitting || _isSavingDraft || _isLoadingDraft
+                  onPressed: _isSubmitting ||
+                          _isSavingDraft ||
+                          _isLoadingDraft
                       ? null
                       : () async {
-                          final contentId = await showDialog<String>(
-                            context: context,
-                            barrierDismissible: true,
-                            builder: (dialogContext) {
-                              return Dialog(
-                                insetPadding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 24,
-                                ),
-                                backgroundColor: AppTheme.background,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    AppTheme.borderRadiusMedium,
-                                  ),
-                                ),
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 1000,
-                                    maxHeight: 760,
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(
-                                      AppTheme.borderRadiusMedium,
-                                    ),
-                                    child: const ContentsPage(
-                                      selectionMode: true,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+                          await Navigator.of(context).push<bool>(
+                            MaterialPageRoute(
+                              builder: (_) => const ContentsPage(),
+                            ),
                           );
 
                           if (!context.mounted) return;
 
-                          final selectedId = contentId?.trim();
-
-                          if (selectedId != null && selectedId.isNotEmpty) {
-                            await _loadDraft(selectedId);
+                          final contentId = widget.contentId?.trim();
+                          if (contentId != null &&
+                              contentId.isNotEmpty) {
+                            await _loadDraft(contentId);
                           }
                         },
                   icon: const Icon(Icons.folder_open_outlined),

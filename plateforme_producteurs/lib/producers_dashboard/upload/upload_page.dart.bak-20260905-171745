@@ -1196,43 +1196,17 @@ class _UploadPageState extends State<UploadPage> {
                   onPressed: _isSubmitting || _isSavingDraft || _isLoadingDraft
                       ? null
                       : () async {
-                          final contentId = await showDialog<String>(
-                            context: context,
-                            barrierDismissible: true,
-                            builder: (dialogContext) {
-                              return Dialog(
-                                insetPadding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 24,
-                                ),
-                                backgroundColor: AppTheme.background,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    AppTheme.borderRadiusMedium,
-                                  ),
-                                ),
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 1000,
-                                    maxHeight: 760,
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(
-                                      AppTheme.borderRadiusMedium,
-                                    ),
-                                    child: const ContentsPage(
-                                      selectionMode: true,
-                                    ),
-                                  ),
+                          final contentId = await Navigator.of(context)
+                              .push<String>(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const ContentsPage(selectionMode: true),
                                 ),
                               );
-                            },
-                          );
 
                           if (!context.mounted) return;
 
                           final selectedId = contentId?.trim();
-
                           if (selectedId != null && selectedId.isNotEmpty) {
                             await _loadDraft(selectedId);
                           }

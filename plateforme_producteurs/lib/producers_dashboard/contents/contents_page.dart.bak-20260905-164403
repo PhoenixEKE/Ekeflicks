@@ -1,0 +1,246 @@
+import 'package:flutter/material.dart';
+
+import 'package:plateforme_producteurs/core/core.dart';
+import 'package:plateforme_producteurs/services/producer_service.dart';
+
+import '../upload/upload_page.dart';
+
+class ContentsPage extends StatefulWidget {
+  const ContentsPage({super.key});
+
+  @override
+  State<ContentsPage> createState() => _ContentsPageState();
+}
+
+class _ContentsPageState extends State<ContentsPage> {
+  bool _isLoading = true;
+  String? _error;
+  List<Map<String, dynamic>> _drafts = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDrafts();
+  }
+
+  Future<void> _loadDrafts() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final drafts = await ProducerService.instance.getMyContents(
+        submissionStatus: 'draft',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _drafts = drafts;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _error = error.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _openNewContent() async {
+    await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const UploadPage()));
+
+    if (!mounted) return;
+    await _loadDrafts();
+  }
+
+  Future<void> _openDraft(String contentId) async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => UploadPage(contentId: contentId)),
+    );
+
+    if (!mounted) return;
+    await _loadDrafts();
+  }
+
+  String _contentTypeLabel(Map<String, dynamic> draft) {
+    switch (draft['type']?.toString()) {
+      case 'series':
+        return 'Série';
+      case 'movie':
+        return 'Film';
+      default:
+        return 'Contenu';
+    }
+  }
+
+  String _title(Map<String, dynamic> draft) {
+    final value = draft['title']?.toString().trim() ?? '';
+    return value.isEmpty ? 'Sans titre' : value;
+  }
+
+  String _updatedAt(Map<String, dynamic> draft) {
+    final raw = draft['updated_at']?.toString();
+    if (raw == null || raw.isEmpty) {
+      return '';
+    }
+
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) {
+      return '';
+    }
+
+    final local = parsed.toLocal();
+
+    String two(int value) => value.toString().padLeft(2, '0');
+
+    return '${two(local.day)}/${two(local.month)}/${local.year} '
+        'à ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  Widget _buildDraftCard(Map<String, dynamic> draft) {
+    final id = draft['id']?.toString() ?? '';
+    final updatedAt = _updatedAt(draft);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 10,
+        ),
+        leading: CircleAvatar(
+          backgroundColor: AppTheme.primary.withValues(alpha: 0.15),
+          child: Icon(
+            draft['type']?.toString() == 'series'
+                ? Icons.live_tv_rounded
+                : Icons.movie_rounded,
+            color: AppTheme.primary,
+          ),
+        ),
+        title: Text(_title(draft), style: AppTheme.textBodyBold),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Text(
+            updatedAt.isEmpty
+                ? '${_contentTypeLabel(draft)} • Brouillon'
+                : '${_contentTypeLabel(draft)} • Brouillon'
+                      ' • Modifié le $updatedAt',
+            style: AppTheme.textCaption,
+          ),
+        ),
+        trailing: FilledButton.tonalIcon(
+          onPressed: id.isEmpty ? null : () => _openDraft(id),
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Continuer'),
+        ),
+        onTap: id.isEmpty ? null : () => _openDraft(id),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: RefreshIndicator(
+        onRefresh: _loadDrafts,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Mes contenus', style: AppTheme.textTitle),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Créez un nouveau contenu ou reprenez '
+                        'un brouillon existant.',
+                        style: AppTheme.textCaption,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: _openNewContent,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Text('NOUVEAU CONTENU'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 28),
+            Row(
+              children: [
+                Text('Mes brouillons', style: AppTheme.textTitle),
+                const SizedBox(width: 10),
+                if (!_isLoading && _error == null)
+                  Chip(label: Text('${_drafts.length}')),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Column(
+                  children: [
+                    const Icon(Icons.error_outline, size: 42),
+                    const SizedBox(height: 12),
+                    const Text('Impossible de charger vos brouillons.'),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _loadDrafts,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Réessayer'),
+                    ),
+                  ],
+                ),
+              )
+            else if (_drafts.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Column(
+                  children: [
+                    const Icon(Icons.drafts_outlined, size: 48),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Aucun brouillon pour le moment.',
+                      style: AppTheme.textBody,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Commencez un nouveau contenu et '
+                      'enregistrez-le pour le retrouver ici.',
+                      textAlign: TextAlign.center,
+                      style: AppTheme.textCaption,
+                    ),
+                  ],
+                ),
+              )
+            else
+              ..._drafts.map(_buildDraftCard),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+}

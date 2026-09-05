@@ -216,23 +216,6 @@ class ContentViewSet(viewsets.ModelViewSet):
         if self.request.user.is_staff:
             serializer.save()
             return
-
-        content = self.get_object()
-
-        if content.producer_submission_status in {
-            'pending',
-            'approved',
-        }:
-            raise exceptions.ValidationError({
-                'producer_submission_status': (
-                    'Ce contenu ne peut pas être modifié pendant '
-                    'ou après sa validation.'
-                )
-            })
-
-        # Un brouillon reste un brouillon.
-        # Un contenu rejeté redevient un brouillon dès que
-        # le producteur commence à le corriger.
         serializer.save(
             producer_submission_status='draft',
             review_reason='',

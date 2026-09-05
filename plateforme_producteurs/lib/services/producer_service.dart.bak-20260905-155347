@@ -588,45 +588,6 @@ class ProducerService {
     return data;
   }
 
-  Future<List<Map<String, dynamic>>> getMyVideoAssets({
-    String? contentId,
-  }) async {
-    final query = contentId == null || contentId.isEmpty
-        ? ''
-        : '?content=${Uri.encodeQueryComponent(contentId)}';
-
-    final response = await _api.get(
-      '/api/v1/video-assets/mine/$query',
-      authenticated: true,
-    );
-
-    if (response.statusCode != 200) {
-      throw ApiException(
-        _api.errorMessage(
-          response,
-          fallback: 'Impossible de charger vos ressources vidéo.',
-        ),
-        statusCode: response.statusCode,
-      );
-    }
-
-    final data = _api.decode(response);
-
-    if (data is List) {
-      return data.whereType<Map<String, dynamic>>().toList();
-    }
-
-    if (data is Map<String, dynamic>) {
-      final results = data['results'];
-
-      if (results is List) {
-        return results.whereType<Map<String, dynamic>>().toList();
-      }
-    }
-
-    throw const ApiException('Réponse ressources vidéo invalide.');
-  }
-
   Future<Map<String, dynamic>> createVideoAsset({
     required String contentId,
     required String title,

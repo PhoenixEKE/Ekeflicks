@@ -1,8 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:plateforme_producteurs/core/core.dart';
-
-import '../contents/contents_page.dart';
 import 'package:flutter/services.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:image_picker/image_picker.dart';
@@ -496,46 +493,6 @@ class _UploadPageState extends State<UploadPage> {
     }
   }
 
-  Future<void> _saveDraftAndQuit() async {
-    if (_isSavingDraft || _isSubmitting || _isLoadingDraft) {
-      return;
-    }
-
-    try {
-      final draftId = await _saveDraft(showConfirmation: false);
-
-      if (draftId == null || draftId.isEmpty) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Choisissez le type et renseignez le titre '
-              'avant de quitter.',
-            ),
-          ),
-        );
-        return;
-      }
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Brouillon enregistré.')));
-
-      Navigator.of(context).pop(true);
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Impossible d’enregistrer le brouillon : $error'),
-        ),
-      );
-    }
-  }
-
   bool _videoAssetHasUploadedSource(Map<String, dynamic> asset) {
     final uploadedAt = asset['source_uploaded_at'];
 
@@ -852,7 +809,7 @@ class _UploadPageState extends State<UploadPage> {
     }
 
     if (_contentType != ContentType.serie) {
-      if (posterFile == null && !_serverHasPoster) {
+      if (posterFile == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(AppLocalizations.of(context)!.posterSelectionError),
@@ -860,7 +817,7 @@ class _UploadPageState extends State<UploadPage> {
         );
         return;
       }
-      if (bannerFile == null && !_serverHasBackdrop) {
+      if (bannerFile == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(AppLocalizations.of(context)!.bannerSelectionError),
@@ -868,7 +825,7 @@ class _UploadPageState extends State<UploadPage> {
         );
         return;
       }
-      if (videoFile == null && !_serverHasMaster) {
+      if (videoFile == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(AppLocalizations.of(context)!.videoSelectionError),
@@ -929,20 +886,8 @@ class _UploadPageState extends State<UploadPage> {
 
       var currentDraft = await _getCurrentDraft(contentId);
 
-      _serverHasPoster = _hasTemporaryMedia(currentDraft, 'poster_temp_path');
-      _serverHasBackdrop = _hasTemporaryMedia(
-        currentDraft,
-        'backdrop_temp_path',
-      );
-      _serverHasTrailer = _hasTemporaryMedia(currentDraft, 'trailer_temp_path');
-
       if (!_hasTemporaryMedia(currentDraft, 'poster_temp_path')) {
-        final poster = posterFile;
-
-        if (poster == null) {
-          throw StateError('Aucune affiche locale ou serveur disponible.');
-        }
-
+        final poster = posterFile!;
         await service.uploadContentMedia(
           contentId: contentId,
           mediaType: 'poster',
@@ -952,12 +897,7 @@ class _UploadPageState extends State<UploadPage> {
       }
 
       if (!_hasTemporaryMedia(currentDraft, 'backdrop_temp_path')) {
-        final banner = bannerFile;
-
-        if (banner == null) {
-          throw StateError('Aucune bannière locale ou serveur disponible.');
-        }
-
+        final banner = bannerFile!;
         await service.uploadContentMedia(
           contentId: contentId,
           mediaType: 'backdrop',
@@ -968,7 +908,7 @@ class _UploadPageState extends State<UploadPage> {
 
       currentDraft = await _getCurrentDraft(contentId);
 
-      if (!_serverHasTrailer) {
+      if (!_hasTemporaryMedia(currentDraft, 'trailer_temp_path')) {
         final trailer = trailerFile;
 
         if (trailer != null) {
@@ -1015,13 +955,7 @@ class _UploadPageState extends State<UploadPage> {
       }
 
       if (!_videoAssetHasUploadedSource(asset)) {
-        final master = videoFile;
-
-        if (master == null) {
-          throw StateError(
-            'Aucun fichier vidéo master local ou serveur disponible.',
-          );
-        }
+        final master = videoFile!;
 
         final masterLength = await getBlobUrlSize(master.path);
 
@@ -1079,8 +1013,6 @@ class _UploadPageState extends State<UploadPage> {
           ),
         ),
       );
-
-      Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
 
@@ -1184,66 +1116,6 @@ class _UploadPageState extends State<UploadPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Ajouter un contenu',
-                    style: AppTheme.textTitle.copyWith(fontSize: 24),
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _isSubmitting || _isSavingDraft || _isLoadingDraft
-                      ? null
-                      : () async {
-                          final contentId = await showDialog<String>(
-                            context: context,
-                            barrierDismissible: true,
-                            builder: (dialogContext) {
-                              return Dialog(
-                                insetPadding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 24,
-                                ),
-                                backgroundColor: AppTheme.background,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    AppTheme.borderRadiusMedium,
-                                  ),
-                                ),
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 1000,
-                                    maxHeight: 760,
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(
-                                      AppTheme.borderRadiusMedium,
-                                    ),
-                                    child: const ContentsPage(
-                                      selectionMode: true,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-
-                          if (!context.mounted) return;
-
-                          final selectedId = contentId?.trim();
-
-                          if (selectedId != null && selectedId.isNotEmpty) {
-                            await _loadDraft(selectedId);
-                          }
-                        },
-                  icon: const Icon(Icons.folder_open_outlined),
-                  label: const Text('MES BROUILLONS'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
             Text(
               l10n.contentTypeLabel,
               style: const TextStyle(fontWeight: FontWeight.bold),
@@ -1854,69 +1726,27 @@ class _UploadPageState extends State<UploadPage> {
               const SizedBox(height: 24),
             ],
 
-            // ACTIONS BROUILLON + SOUMISSION
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _isSavingDraft || _isSubmitting || _isLoadingDraft
-                      ? null
-                      : () async {
-                          try {
-                            await _saveDraft(showConfirmation: true);
-                          } catch (error) {
-                            if (!context.mounted) return;
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Impossible d’enregistrer le brouillon : '
-                                  '$error',
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-                    child: Text('ENREGISTRER LE BROUILLON'),
+            // BOUTON SUBMIT
+            Center(
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _saveForm,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
                   ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          l10n.submitButton.toUpperCase(),
+                          style: const TextStyle(fontSize: 18),
+                        ),
                 ),
-                OutlinedButton.icon(
-                  onPressed: _isSavingDraft || _isSubmitting || _isLoadingDraft
-                      ? null
-                      : _saveDraftAndQuit,
-                  icon: const Icon(Icons.exit_to_app),
-                  label: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-                    child: Text('ENREGISTRER ET QUITTER'),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: _isSubmitting || _isSavingDraft || _isLoadingDraft
-                      ? null
-                      : _saveForm,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(
-                            l10n.submitButton.toUpperCase(),
-                            style: const TextStyle(fontSize: 18),
-                          ),
-                  ),
-                ),
-              ],
+              ),
             ),
             const SizedBox(height: 40),
           ],

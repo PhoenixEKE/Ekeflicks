@@ -1,8 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:plateforme_producteurs/core/core.dart';
-
-import '../contents/contents_page.dart';
 import 'package:flutter/services.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:image_picker/image_picker.dart';
@@ -31,9 +28,7 @@ class PersonWithImage {
 }
 
 class UploadPage extends StatefulWidget {
-  const UploadPage({super.key, this.contentId});
-
-  final String? contentId;
+  const UploadPage({super.key});
 
   @override
   State<UploadPage> createState() => _UploadPageState();
@@ -90,24 +85,7 @@ class _UploadPageState extends State<UploadPage> {
 
   bool _isSubmitting = false;
   bool _isSavingDraft = false;
-  bool _isLoadingDraft = false;
   String? _draftContentId;
-
-  bool _serverHasPoster = false;
-  bool _serverHasBackdrop = false;
-  bool _serverHasTrailer = false;
-  bool _serverHasMaster = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    final contentId = widget.contentId?.trim();
-    if (contentId != null && contentId.isNotEmpty) {
-      _draftContentId = contentId;
-      _loadDraft(contentId);
-    }
-  }
 
   final List<SeasonWrapper> seasons = [];
   final ImagePicker _picker = ImagePicker();
@@ -496,278 +474,6 @@ class _UploadPageState extends State<UploadPage> {
     }
   }
 
-  Future<void> _saveDraftAndQuit() async {
-    if (_isSavingDraft || _isSubmitting || _isLoadingDraft) {
-      return;
-    }
-
-    try {
-      final draftId = await _saveDraft(showConfirmation: false);
-
-      if (draftId == null || draftId.isEmpty) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Choisissez le type et renseignez le titre '
-              'avant de quitter.',
-            ),
-          ),
-        );
-        return;
-      }
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Brouillon enregistré.')));
-
-      Navigator.of(context).pop(true);
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Impossible d’enregistrer le brouillon : $error'),
-        ),
-      );
-    }
-  }
-
-  bool _videoAssetHasUploadedSource(Map<String, dynamic> asset) {
-    final uploadedAt = asset['source_uploaded_at'];
-
-    if (uploadedAt is String && uploadedAt.trim().isNotEmpty) {
-      return true;
-    }
-
-    return false;
-  }
-
-  Future<void> _loadDraft(String contentId) async {
-    if (_isLoadingDraft) return;
-
-    setState(() => _isLoadingDraft = true);
-
-    try {
-      final service = ProducerService.instance;
-      final content = await service.getContent(contentId);
-
-      final type = content['type']?.toString().trim().toLowerCase();
-
-      final loadedType = switch (type) {
-        'series' => ContentType.serie,
-        'movie' => ContentType.film,
-        _ => null,
-      };
-
-      final loadedGenres = <String>{};
-      final rawGenres = content['genres'];
-
-      if (rawGenres is List) {
-        for (final item in rawGenres) {
-          if (item is Map) {
-            final name = item['name']?.toString().trim();
-
-            if (name != null && name.isNotEmpty) {
-              loadedGenres.add(name);
-            }
-          }
-        }
-      }
-
-      final language = content['language']?.toString().trim() ?? '';
-
-      LanguageOption? loadedLanguage;
-      var loadedOtherLanguage = '';
-
-      switch (language.toLowerCase()) {
-        case 'français':
-        case 'francais':
-          loadedLanguage = LanguageOption.francais;
-          break;
-
-        case 'anglais':
-        case 'english':
-          loadedLanguage = LanguageOption.anglais;
-          break;
-
-        case '':
-          loadedLanguage = null;
-          break;
-
-        default:
-          loadedLanguage = LanguageOption.autres;
-          loadedOtherLanguage = language;
-      }
-
-      final country = content['country']?.toString().trim() ?? '';
-
-      String? loadedCountry;
-      var loadedOtherCountry = '';
-
-      if (country.isEmpty) {
-        loadedCountry = null;
-      } else if (africanCountries.contains(country)) {
-        loadedCountry = country;
-      } else {
-        loadedCountry = 'Autres';
-        loadedOtherCountry = country;
-      }
-
-      final loadedProducers = <PersonWithImage>[];
-      final rawProducerTeam = content['producer_team'];
-
-      if (rawProducerTeam is List) {
-        for (final item in rawProducerTeam) {
-          if (item is Map) {
-            final name = item['name']?.toString().trim();
-
-            if (name != null && name.isNotEmpty) {
-              final imagePath = item['image_path']?.toString().trim();
-
-              final imageUrl = item['image_url']?.toString().trim();
-
-              loadedProducers.add(
-                PersonWithImage(
-                  name: name,
-                  imagePath: imagePath != null && imagePath.isNotEmpty
-                      ? imagePath
-                      : imageUrl,
-                ),
-              );
-            }
-          }
-        }
-      }
-
-      final loadedActors = <PersonWithImage>[];
-      final rawCastTeam = content['cast_team'];
-
-      if (rawCastTeam is List) {
-        for (final item in rawCastTeam) {
-          if (item is Map) {
-            final name = item['name']?.toString().trim();
-
-            if (name != null && name.isNotEmpty) {
-              final imagePath = item['image_path']?.toString().trim();
-
-              final imageUrl = item['image_url']?.toString().trim();
-
-              loadedActors.add(
-                PersonWithImage(
-                  name: name,
-                  imagePath: imagePath != null && imagePath.isNotEmpty
-                      ? imagePath
-                      : imageUrl,
-                ),
-              );
-            }
-          }
-        }
-      }
-
-      final assets = await service.getMyVideoAssets(contentId: contentId);
-
-      final hasMaster = assets.any(_videoAssetHasUploadedSource);
-
-      if (!mounted) return;
-
-      final description = content['description']?.toString().trim() ?? '';
-
-      final synopsis = content['synopsis']?.toString().trim() ?? '';
-
-      final rawYear = content['release_year'];
-
-      setState(() {
-        _draftContentId = contentId;
-        _contentType = loadedType;
-
-        titleController.text = content['title']?.toString() ?? '';
-
-        descriptionController.text = description.isNotEmpty
-            ? description
-            : synopsis;
-
-        selectedGenres
-          ..clear()
-          ..addAll(loadedGenres);
-
-        releaseYear = rawYear is int
-            ? rawYear
-            : int.tryParse(rawYear?.toString() ?? '');
-
-        selectedLanguage = loadedLanguage;
-        languageOtherController.text = loadedOtherLanguage;
-
-        selectedCountry = loadedCountry;
-        countryOtherController.text = loadedOtherCountry;
-
-        directorNameController.text =
-            content['director_name']?.toString() ?? '';
-
-        screenwriterNameController.text =
-            content['screenwriter_name']?.toString() ?? '';
-
-        producers
-          ..clear()
-          ..addAll(loadedProducers);
-
-        actors
-          ..clear()
-          ..addAll(loadedActors);
-
-        _serverHasPoster = _hasTemporaryMedia(content, 'poster_temp_path');
-
-        _serverHasBackdrop = _hasTemporaryMedia(content, 'backdrop_temp_path');
-
-        _serverHasTrailer = _hasTemporaryMedia(content, 'trailer_temp_path');
-
-        _serverHasMaster = hasMaster;
-      });
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Impossible de charger le brouillon : $error')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingDraft = false);
-      } else {
-        _isLoadingDraft = false;
-      }
-    }
-  }
-
-  Future<Map<String, dynamic>> _getCurrentDraft(String contentId) async {
-    return ProducerService.instance.getContent(contentId);
-  }
-
-  bool _hasTemporaryMedia(Map<String, dynamic> content, String field) {
-    final value = content[field];
-    return value is String && value.trim().isNotEmpty;
-  }
-
-  Future<Map<String, dynamic>> _getOrCreateVideoAsset({
-    required String contentId,
-  }) async {
-    final service = ProducerService.instance;
-
-    final existingAssets = await service.getMyVideoAssets(contentId: contentId);
-
-    if (existingAssets.isNotEmpty) {
-      return existingAssets.first;
-    }
-
-    return service.createVideoAsset(
-      contentId: contentId,
-      title: titleController.text.trim(),
-    );
-  }
-
   Future<void> _saveForm() async {
     if (_isSubmitting) return;
 
@@ -852,7 +558,7 @@ class _UploadPageState extends State<UploadPage> {
     }
 
     if (_contentType != ContentType.serie) {
-      if (posterFile == null && !_serverHasPoster) {
+      if (posterFile == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(AppLocalizations.of(context)!.posterSelectionError),
@@ -860,7 +566,7 @@ class _UploadPageState extends State<UploadPage> {
         );
         return;
       }
-      if (bannerFile == null && !_serverHasBackdrop) {
+      if (bannerFile == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(AppLocalizations.of(context)!.bannerSelectionError),
@@ -868,7 +574,7 @@ class _UploadPageState extends State<UploadPage> {
         );
         return;
       }
-      if (videoFile == null && !_serverHasMaster) {
+      if (videoFile == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(AppLocalizations.of(context)!.videoSelectionError),
@@ -927,84 +633,60 @@ class _UploadPageState extends State<UploadPage> {
 
       createdContentId = contentId;
 
-      var currentDraft = await _getCurrentDraft(contentId);
-
-      _serverHasPoster = _hasTemporaryMedia(currentDraft, 'poster_temp_path');
-      _serverHasBackdrop = _hasTemporaryMedia(
-        currentDraft,
-        'backdrop_temp_path',
+      final poster = posterFile!;
+      await service.uploadContentMedia(
+        contentId: contentId,
+        mediaType: 'poster',
+        bytes: await poster.readAsBytes(),
+        filename: poster.name,
       );
-      _serverHasTrailer = _hasTemporaryMedia(currentDraft, 'trailer_temp_path');
 
-      if (!_hasTemporaryMedia(currentDraft, 'poster_temp_path')) {
-        final poster = posterFile;
+      final banner = bannerFile!;
+      await service.uploadContentMedia(
+        contentId: contentId,
+        mediaType: 'backdrop',
+        bytes: await banner.readAsBytes(),
+        filename: banner.name,
+      );
 
-        if (poster == null) {
-          throw StateError('Aucune affiche locale ou serveur disponible.');
+      final trailer = trailerFile;
+
+      if (trailer != null) {
+        final trailerLength = await getBlobUrlSize(trailer.path);
+
+        final trailerSession = await service.createTrailerUploadSession(
+          contentId: contentId,
+          filename: trailer.name,
+          sizeBytes: trailerLength,
+        );
+
+        final trailerUploadUrl = trailerSession['upload_url']?.toString();
+        final trailerCompletionToken = trailerSession['completion_token']
+            ?.toString();
+
+        if (trailerUploadUrl == null ||
+            trailerUploadUrl.isEmpty ||
+            trailerCompletionToken == null ||
+            trailerCompletionToken.isEmpty) {
+          throw StateError('La session d’upload du trailer est incomplète.');
         }
 
-        await service.uploadContentMedia(
+        await uploadBlobUrlToPresignedUrl(
+          blobUrl: trailer.path,
+          uploadUrl: trailerUploadUrl,
+          expectedSize: trailerLength,
+        );
+
+        await service.completeTrailerUpload(
           contentId: contentId,
-          mediaType: 'poster',
-          bytes: await poster.readAsBytes(),
-          filename: poster.name,
+          completionToken: trailerCompletionToken,
         );
       }
 
-      if (!_hasTemporaryMedia(currentDraft, 'backdrop_temp_path')) {
-        final banner = bannerFile;
-
-        if (banner == null) {
-          throw StateError('Aucune bannière locale ou serveur disponible.');
-        }
-
-        await service.uploadContentMedia(
-          contentId: contentId,
-          mediaType: 'backdrop',
-          bytes: await banner.readAsBytes(),
-          filename: banner.name,
-        );
-      }
-
-      currentDraft = await _getCurrentDraft(contentId);
-
-      if (!_serverHasTrailer) {
-        final trailer = trailerFile;
-
-        if (trailer != null) {
-          final trailerLength = await getBlobUrlSize(trailer.path);
-
-          final trailerSession = await service.createTrailerUploadSession(
-            contentId: contentId,
-            filename: trailer.name,
-            sizeBytes: trailerLength,
-          );
-
-          final trailerUploadUrl = trailerSession['upload_url']?.toString();
-          final trailerCompletionToken = trailerSession['completion_token']
-              ?.toString();
-
-          if (trailerUploadUrl == null ||
-              trailerUploadUrl.isEmpty ||
-              trailerCompletionToken == null ||
-              trailerCompletionToken.isEmpty) {
-            throw StateError('La session d’upload du trailer est incomplète.');
-          }
-
-          await uploadBlobUrlToPresignedUrl(
-            blobUrl: trailer.path,
-            uploadUrl: trailerUploadUrl,
-            expectedSize: trailerLength,
-          );
-
-          await service.completeTrailerUpload(
-            contentId: contentId,
-            completionToken: trailerCompletionToken,
-          );
-        }
-      }
-
-      final asset = await _getOrCreateVideoAsset(contentId: contentId);
+      final asset = await service.createVideoAsset(
+        contentId: contentId,
+        title: titleController.text.trim(),
+      );
 
       final assetId = asset['id']?.toString();
 
@@ -1014,37 +696,29 @@ class _UploadPageState extends State<UploadPage> {
         );
       }
 
-      if (!_videoAssetHasUploadedSource(asset)) {
-        final master = videoFile;
+      final master = videoFile!;
 
-        if (master == null) {
-          throw StateError(
-            'Aucun fichier vidéo master local ou serveur disponible.',
-          );
-        }
+      final masterLength = await getBlobUrlSize(master.path);
 
-        final masterLength = await getBlobUrlSize(master.path);
+      final uploadSession = await service.createSourceUploadSession(
+        assetId: assetId,
+        filename: master.name,
+        sizeBytes: masterLength,
+      );
 
-        final uploadSession = await service.createSourceUploadSession(
-          assetId: assetId,
-          filename: master.name,
-          sizeBytes: masterLength,
-        );
+      final uploadUrl = uploadSession['upload_url'] as String;
+      final completionToken = uploadSession['completion_token'] as String;
 
-        final uploadUrl = uploadSession['upload_url'] as String;
-        final completionToken = uploadSession['completion_token'] as String;
+      await uploadBlobUrlToPresignedUrl(
+        blobUrl: master.path,
+        uploadUrl: uploadUrl,
+        expectedSize: masterLength,
+      );
 
-        await uploadBlobUrlToPresignedUrl(
-          blobUrl: master.path,
-          uploadUrl: uploadUrl,
-          expectedSize: masterLength,
-        );
-
-        await service.completeSourceUpload(
-          assetId: assetId,
-          completionToken: completionToken,
-        );
-      }
+      await service.completeSourceUpload(
+        assetId: assetId,
+        completionToken: completionToken,
+      );
 
       final selectedLanguageValue = switch (selectedLanguage!) {
         LanguageOption.francais => 'Français',
@@ -1079,8 +753,6 @@ class _UploadPageState extends State<UploadPage> {
           ),
         ),
       );
-
-      Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
 
@@ -1184,66 +856,6 @@ class _UploadPageState extends State<UploadPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Ajouter un contenu',
-                    style: AppTheme.textTitle.copyWith(fontSize: 24),
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _isSubmitting || _isSavingDraft || _isLoadingDraft
-                      ? null
-                      : () async {
-                          final contentId = await showDialog<String>(
-                            context: context,
-                            barrierDismissible: true,
-                            builder: (dialogContext) {
-                              return Dialog(
-                                insetPadding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 24,
-                                ),
-                                backgroundColor: AppTheme.background,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    AppTheme.borderRadiusMedium,
-                                  ),
-                                ),
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 1000,
-                                    maxHeight: 760,
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(
-                                      AppTheme.borderRadiusMedium,
-                                    ),
-                                    child: const ContentsPage(
-                                      selectionMode: true,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-
-                          if (!context.mounted) return;
-
-                          final selectedId = contentId?.trim();
-
-                          if (selectedId != null && selectedId.isNotEmpty) {
-                            await _loadDraft(selectedId);
-                          }
-                        },
-                  icon: const Icon(Icons.folder_open_outlined),
-                  label: const Text('MES BROUILLONS'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
             Text(
               l10n.contentTypeLabel,
               style: const TextStyle(fontWeight: FontWeight.bold),
@@ -1854,69 +1466,27 @@ class _UploadPageState extends State<UploadPage> {
               const SizedBox(height: 24),
             ],
 
-            // ACTIONS BROUILLON + SOUMISSION
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _isSavingDraft || _isSubmitting || _isLoadingDraft
-                      ? null
-                      : () async {
-                          try {
-                            await _saveDraft(showConfirmation: true);
-                          } catch (error) {
-                            if (!context.mounted) return;
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Impossible d’enregistrer le brouillon : '
-                                  '$error',
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-                    child: Text('ENREGISTRER LE BROUILLON'),
+            // BOUTON SUBMIT
+            Center(
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _saveForm,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
                   ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          l10n.submitButton.toUpperCase(),
+                          style: const TextStyle(fontSize: 18),
+                        ),
                 ),
-                OutlinedButton.icon(
-                  onPressed: _isSavingDraft || _isSubmitting || _isLoadingDraft
-                      ? null
-                      : _saveDraftAndQuit,
-                  icon: const Icon(Icons.exit_to_app),
-                  label: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-                    child: Text('ENREGISTRER ET QUITTER'),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: _isSubmitting || _isSavingDraft || _isLoadingDraft
-                      ? null
-                      : _saveForm,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(
-                            l10n.submitButton.toUpperCase(),
-                            style: const TextStyle(fontSize: 18),
-                          ),
-                  ),
-                ),
-              ],
+              ),
             ),
             const SizedBox(height: 40),
           ],

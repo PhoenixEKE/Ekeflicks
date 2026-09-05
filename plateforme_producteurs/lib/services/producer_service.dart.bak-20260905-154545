@@ -331,12 +331,6 @@ class ProducerService {
     String? type,
     int? releaseYear,
     List<int>? genreIds,
-    String? language,
-    String? country,
-    String? directorName,
-    String? screenwriterName,
-    List<Map<String, dynamic>>? producerTeam,
-    List<Map<String, dynamic>>? castTeam,
   }) async {
     final body = <String, dynamic>{};
 
@@ -362,30 +356,6 @@ class ProducerService {
 
     if (genreIds != null) {
       body['genre_ids'] = genreIds;
-    }
-
-    if (language != null) {
-      body['language'] = language.trim();
-    }
-
-    if (country != null) {
-      body['country'] = country.trim();
-    }
-
-    if (directorName != null) {
-      body['director_name'] = directorName.trim();
-    }
-
-    if (screenwriterName != null) {
-      body['screenwriter_name'] = screenwriterName.trim();
-    }
-
-    if (producerTeam != null) {
-      body['producer_team'] = producerTeam;
-    }
-
-    if (castTeam != null) {
-      body['cast_team'] = castTeam;
     }
 
     final response = await _api.patch(
@@ -586,45 +556,6 @@ class ProducerService {
     }
 
     return data;
-  }
-
-  Future<List<Map<String, dynamic>>> getMyVideoAssets({
-    String? contentId,
-  }) async {
-    final query = contentId == null || contentId.isEmpty
-        ? ''
-        : '?content=${Uri.encodeQueryComponent(contentId)}';
-
-    final response = await _api.get(
-      '/api/v1/video-assets/mine/$query',
-      authenticated: true,
-    );
-
-    if (response.statusCode != 200) {
-      throw ApiException(
-        _api.errorMessage(
-          response,
-          fallback: 'Impossible de charger vos ressources vidéo.',
-        ),
-        statusCode: response.statusCode,
-      );
-    }
-
-    final data = _api.decode(response);
-
-    if (data is List) {
-      return data.whereType<Map<String, dynamic>>().toList();
-    }
-
-    if (data is Map<String, dynamic>) {
-      final results = data['results'];
-
-      if (results is List) {
-        return results.whereType<Map<String, dynamic>>().toList();
-      }
-    }
-
-    throw const ApiException('Réponse ressources vidéo invalide.');
   }
 
   Future<Map<String, dynamic>> createVideoAsset({
