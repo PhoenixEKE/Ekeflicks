@@ -459,6 +459,17 @@ class ContentViewSet(viewsets.ModelViewSet):
         serializer = ContentSubmitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        if content.producer_submission_status != 'draft':
+            return Response(
+                {
+                    'detail': (
+                        'Seul un brouillon peut être soumis '
+                        'pour validation.'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
         if not content.producer_id and not request.user.is_staff:
             content.producer = request.user
         content.producer_notes = serializer.validated_data.get(

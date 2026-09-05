@@ -508,6 +508,238 @@ class CatalogApiTests(APITestCase):
         )
 
 
+    def test_producer_cannot_submit_non_draft_content(self):
+        producer = User.objects.create_user(
+            email='producer-submit-status@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        producer.is_verified = True
+        producer.save(update_fields=['is_verified'])
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            company_name='Submit Status Producer',
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0],
+            contract_title='EKEFLICKS Producer Agreement - Submit Test',
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        for submission_status in (
+            'pending',
+            'approved',
+            'rejected',
+        ):
+            with self.subTest(
+                submission_status=submission_status,
+            ):
+                content = Content.objects.create(
+                    title=f'{submission_status} Movie',
+                    type='movie',
+                    producer=producer,
+                    producer_submission_status=submission_status,
+                )
+
+                response = self.client.post(
+                    reverse(
+                        'content-submit',
+                        args=[content.id],
+                    ),
+                    {
+                        'producer_notes':
+                            'Tentative de resoumission.',
+                    },
+                    format='json',
+                )
+
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_409_CONFLICT,
+                )
+
+                content.refresh_from_db()
+
+                self.assertEqual(
+                    content.producer_submission_status,
+                    submission_status,
+                )
+
+
+    def test_producer_cannot_update_pending_content(self):
+        producer = User.objects.create_user(
+            email='producer-pending-update@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        producer.is_verified = True
+        producer.save(update_fields=['is_verified'])
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            company_name='Workflow Producer 1',
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0],
+            contract_title='EKEFLICKS Producer Agreement - Workflow Test',
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        content = Content.objects.create(
+            title='Pending Movie',
+            type='movie',
+            producer=producer,
+            producer_submission_status='pending',
+        )
+
+        response = self.client.patch(
+            reverse('content-detail', args=[content.id]),
+            {'title': 'Titre modifie'},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(content.title, 'Pending Movie')
+        self.assertEqual(
+            content.producer_submission_status,
+            'pending',
+        )
+
+    def test_producer_cannot_update_approved_content(self):
+        producer = User.objects.create_user(
+            email='producer-approved-update@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        producer.is_verified = True
+        producer.save(update_fields=['is_verified'])
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            company_name='Workflow Producer 2',
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0],
+            contract_title='EKEFLICKS Producer Agreement - Workflow Test',
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        content = Content.objects.create(
+            title='Approved Movie',
+            type='movie',
+            producer=producer,
+            producer_submission_status='approved',
+        )
+
+        response = self.client.patch(
+            reverse('content-detail', args=[content.id]),
+            {'title': 'Titre modifie'},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(content.title, 'Approved Movie')
+        self.assertEqual(
+            content.producer_submission_status,
+            'approved',
+        )
+
+    def test_producer_can_correct_rejected_content(self):
+        producer = User.objects.create_user(
+            email='producer-rejected-update@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        producer.is_verified = True
+        producer.save(update_fields=['is_verified'])
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            company_name='Workflow Producer 3',
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0],
+            contract_title='EKEFLICKS Producer Agreement - Workflow Test',
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        content = Content.objects.create(
+            title='Rejected Movie',
+            type='movie',
+            producer=producer,
+            producer_submission_status='rejected',
+            review_reason='Affiche a corriger.',
+        )
+
+        response = self.client.patch(
+            reverse('content-detail', args=[content.id]),
+            {'title': 'Rejected Movie Corrige'},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.title,
+            'Rejected Movie Corrige',
+        )
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+        self.assertEqual(content.review_reason, '')
+
+
     @patch(
         'apps.catalog.views.minio_public_upload_client'
     )
