@@ -10,7 +10,6 @@ class CustomLanguageDialog {
     required Widget languageSelector,
     String? title,
   }) {
-    final deviceInfo = Provider.of<DeviceInfoProvider>(context, listen: false);
     final loc = AppLocalizations.of(context);
 
     showDialog(
@@ -113,15 +112,14 @@ class CustomLanguageDialog {
     return AlertDialog(
       backgroundColor: isDark ? theme.colorScheme.surface : Colors.white,
       surfaceTintColor: isDark ? theme.colorScheme.surface : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       title: _buildDialogHeader(context, title, icon),
       content: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: screenHeight * 0.4, // 40% de la hauteur écran
         ),
-        child: SingleChildScrollView( // Ajout du scroll si nécessaire
+        child: SingleChildScrollView(
+          // Ajout du scroll si nécessaire
           child: content,
         ),
       ),
@@ -130,9 +128,14 @@ class CustomLanguageDialog {
   }
 
   // En-tête du dialogue (déjà bien dimensionné)
-  static Widget _buildDialogHeader(BuildContext context, String title, IconData icon, {bool isTV = false}) {
+  static Widget _buildDialogHeader(
+    BuildContext context,
+    String title,
+    IconData icon, {
+    bool isTV = false,
+  }) {
     final theme = Theme.of(context);
-    
+
     return Container(
       padding: EdgeInsets.symmetric(
         vertical: isTV ? 14 : 10, // Légère réduction
@@ -140,7 +143,9 @@ class CustomLanguageDialog {
       ),
       decoration: BoxDecoration(
         color: theme.colorScheme.primary,
-        borderRadius: BorderRadius.circular(isTV ? 14.0 : 10.0), // Coins légèrement moins arrondis
+        borderRadius: BorderRadius.circular(
+          isTV ? 14.0 : 10.0,
+        ), // Coins légèrement moins arrondis
       ),
       child: Row(
         children: [
@@ -150,7 +155,8 @@ class CustomLanguageDialog {
             size: isTV ? 26 : 22, // Légère réduction
           ),
           SizedBox(width: isTV ? 14 : 10), // Légère réduction
-          Expanded( // Ajout de Expanded pour les textes longs
+          Expanded(
+            // Ajout de Expanded pour les textes longs
             child: Text(
               title,
               style: theme.textTheme.titleLarge?.copyWith(
@@ -173,12 +179,15 @@ class CustomLanguageDialog {
     required VoidCallback onPressed,
   }) {
     final theme = Theme.of(context);
-    
+
     return TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(
         foregroundColor: theme.colorScheme.primary,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), // Légère réduction
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 6,
+        ), // Légère réduction
         textStyle: theme.textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.bold,
         ),
@@ -197,9 +206,6 @@ class CustomLanguageDialog {
 
   // Actions pour desktop (alignées à droite)
   static Widget _buildDesktopActions(List<Widget> actions) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: actions,
-    );
+    return Row(mainAxisAlignment: MainAxisAlignment.end, children: actions);
   }
 }

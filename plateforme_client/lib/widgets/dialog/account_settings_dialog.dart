@@ -64,7 +64,9 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
 
   Future<void> _save() async {
     final pin = _pinController.text.trim();
-    if (_adultProfilesLocked && !_hasPin && !RegExp(r'^\d{4,6}$').hasMatch(pin)) {
+    if (_adultProfilesLocked &&
+        !_hasPin &&
+        !RegExp(r'^\d{4,6}$').hasMatch(pin)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Le PIN doit contenir entre 4 et 6 chiffres.'),
@@ -73,7 +75,9 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
       );
       return;
     }
-    if (_hasPin && pin.isNotEmpty && !RegExp(r'^\d{4,6}$').hasMatch(_oldPinController.text)) {
+    if (_hasPin &&
+        pin.isNotEmpty &&
+        !RegExp(r'^\d{4,6}$').hasMatch(_oldPinController.text)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Saisissez votre ancien PIN pour le modifier.'),
@@ -114,7 +118,9 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Impossible d’enregistrer les paramètres. Veuillez réessayer.'),
+            content: Text(
+              'Impossible d’enregistrer les paramètres. Veuillez réessayer.',
+            ),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 8),
           ),
@@ -127,33 +133,43 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
 
   Future<void> _forgotPin() async {
     final userProvider = context.read<UserProvider>();
+    final profileProvider = context.read<ProfileProvider>();
     var email = userProvider.currentUser?.email ?? '';
     if (email.isEmpty) {
       final controller = TextEditingController();
-      email = await showDialog<String>(
+      email =
+          await showDialog<String>(
             context: context,
-            builder: (dialogContext) => AlertDialog(
-              title: const Text('Adresse e-mail obligatoire'),
-              content: TextField(
-                controller: controller,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Votre adresse e-mail'),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Annuler'),
+            builder:
+                (dialogContext) => AlertDialog(
+                  title: const Text('Adresse e-mail obligatoire'),
+                  content: TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Votre adresse e-mail',
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Annuler'),
+                    ),
+                    FilledButton(
+                      onPressed:
+                          () => Navigator.pop(
+                            dialogContext,
+                            controller.text.trim(),
+                          ),
+                      child: const Text('Continuer'),
+                    ),
+                  ],
                 ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
-                  child: const Text('Continuer'),
-                ),
-              ],
-            ),
           ) ??
           '';
       controller.dispose();
-      if (email.isEmpty || !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      if (email.isEmpty ||
+          !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -187,14 +203,16 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
       }
     }
     try {
-      await context.read<ProfileProvider>().apiClient.dio.post<Object>(
+      await profileProvider.apiClient.dio.post<Object>(
         '/profiles/${widget.profile.id}/request-pin-reset/',
         data: {'email': email},
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Un lien de modification du PIN a été envoyé à $email.'),
+            content: Text(
+              'Un lien de modification du PIN a été envoyé à $email.',
+            ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 7),
           ),
@@ -225,170 +243,191 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
 
   @override
   Widget build(BuildContext context) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 620, maxHeight: 720),
-          child: Scaffold(
-            appBar: AppBar(
-              title: const Text('Paramètres'),
-              automaticallyImplyLeading: false,
-              actions: [
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
-                )
-              ],
-            ),
-            body: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                _title('Contrôle parental', Icons.family_restroom),
-                TextField(
-                  controller: _oldPinController,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  enabled: _hasPin,
-                  decoration: const InputDecoration(
-                    labelText: 'Ancien PIN',
-                    prefixIcon: Icon(Icons.lock_outline),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _pinController,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Nouveau PIN (4 à 6 chiffres)',
-                    prefixIcon: Icon(Icons.pin),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                if (_hasPin)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _forgotPin,
-                      child: const Text('PIN oublié ? Recevoir un lien par e-mail'),
-                    ),
-                  ),
-                SwitchListTile(
-                  value: _adultProfilesLocked,
-                  onChanged: (value) => setState(() => _adultProfilesLocked = value),
-                  title: const Text('Verrouiller les profils adultes'),
-                  subtitle: const Text('Le PIN sera demandé pour quitter un espace enfant.'),
-                ),
-                DropdownButtonFormField<int>(
-                  value: [3, 7, 10, 13, 16, 18].contains(_maximumAge) ? _maximumAge : 13,
-                  decoration: const InputDecoration(
-                    labelText: 'Classification maximale',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [3, 7, 10, 13, 16, 18]
-                      .map((age) => DropdownMenuItem(
-                            value: age,
-                            child: Text('$age ans'),
-                          ))
-                      .toList(),
-                  onChanged: (value) => setState(() => _maximumAge = value ?? 13),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: ['FR', 'CI', 'SN', 'CM', 'US'].contains(_territory) ? _territory : 'FR',
-                  decoration: const InputDecoration(
-                    labelText: 'Territoire de classification',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const {
-                    'FR': 'France',
-                    'CI': 'Côte d’Ivoire',
-                    'SN': 'Sénégal',
-                    'CM': 'Cameroun',
-                    'US': 'États-Unis'
-                  }.entries
-                      .map((entry) => DropdownMenuItem(
-                            value: entry.key,
-                            child: Text(entry.value),
-                          ))
-                      .toList(),
-                  onChanged: (value) => setState(() => _territory = value ?? 'FR'),
-                ),
-                SwitchListTile(
-                  value: _childHistoryEnabled,
-                  onChanged: (v) => setState(() => _childHistoryEnabled = v),
-                  title: const Text('Historique enfant'),
-                ),
-                SwitchListTile(
-                  value: _safeSearchEnabled,
-                  onChanged: (v) => setState(() => _safeSearchEnabled = v),
-                  title: const Text('Recherche adaptée aux enfants'),
-                  subtitle: const Text('Masque les résultats dépassant la classification autorisée.'),
-                ),
-                const Divider(height: 32),
-                _title('Application', Icons.tune),
-                SwitchListTile(
-                  value: context.watch<ThemeProvider>().themeMode == ThemeMode.light,
-                  onChanged: (_) => context.read<ThemeProvider>().toggleTheme(),
-                  title: const Text('Thème clair'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.language),
-                  title: const Text('Langue'),
-                  subtitle: Text(
-                    Localizations.localeOf(context).languageCode == 'fr' ? 'Français' : 'English',
-                  ),
-                  trailing: const Icon(Icons.swap_horiz),
-                  onTap: () => context.read<LocaleProvider>().toggleLocale(),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.notifications_outlined),
-                  title: const Text('Notifications'),
-                  subtitle: const Text('Canaux, catégories et désabonnement'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const NotificationPreferencesPage()),
-                  ),
-                ),
-              ],
-            ),
-            bottomNavigationBar: Padding(
-              padding: const EdgeInsets.all(20),
-              child: FilledButton.icon(
-                onPressed: _saving ? null : _save,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.primaryOrange,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                icon: _saving
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.save),
-                label: const Text('Enregistrer les paramètres'),
-              ),
-            ),
-          ),
-        ),
-      );
-
-  Widget _title(String label, IconData icon) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          children: [
-            Icon(icon, color: AppTheme.primaryOrange),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.titleLarge,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 620, maxHeight: 720),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Paramètres'),
+          automaticallyImplyLeading: false,
+          actions: [
+            IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close),
             ),
           ],
         ),
-      );
+        body: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            _title('Contrôle parental', Icons.family_restroom),
+            TextField(
+              controller: _oldPinController,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              enabled: _hasPin,
+              decoration: const InputDecoration(
+                labelText: 'Ancien PIN',
+                prefixIcon: Icon(Icons.lock_outline),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _pinController,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: const InputDecoration(
+                labelText: 'Nouveau PIN (4 à 6 chiffres)',
+                prefixIcon: Icon(Icons.pin),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            if (_hasPin)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _forgotPin,
+                  child: const Text('PIN oublié ? Recevoir un lien par e-mail'),
+                ),
+              ),
+            SwitchListTile(
+              value: _adultProfilesLocked,
+              onChanged:
+                  (value) => setState(() => _adultProfilesLocked = value),
+              title: const Text('Verrouiller les profils adultes'),
+              subtitle: const Text(
+                'Le PIN sera demandé pour quitter un espace enfant.',
+              ),
+            ),
+            DropdownButtonFormField<int>(
+              value:
+                  [3, 7, 10, 13, 16, 18].contains(_maximumAge)
+                      ? _maximumAge
+                      : 13,
+              decoration: const InputDecoration(
+                labelText: 'Classification maximale',
+                border: OutlineInputBorder(),
+              ),
+              items:
+                  [3, 7, 10, 13, 16, 18]
+                      .map(
+                        (age) => DropdownMenuItem(
+                          value: age,
+                          child: Text('$age ans'),
+                        ),
+                      )
+                      .toList(),
+              onChanged: (value) => setState(() => _maximumAge = value ?? 13),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value:
+                  ['FR', 'CI', 'SN', 'CM', 'US'].contains(_territory)
+                      ? _territory
+                      : 'FR',
+              decoration: const InputDecoration(
+                labelText: 'Territoire de classification',
+                border: OutlineInputBorder(),
+              ),
+              items:
+                  const {
+                        'FR': 'France',
+                        'CI': 'Côte d’Ivoire',
+                        'SN': 'Sénégal',
+                        'CM': 'Cameroun',
+                        'US': 'États-Unis',
+                      }.entries
+                      .map(
+                        (entry) => DropdownMenuItem(
+                          value: entry.key,
+                          child: Text(entry.value),
+                        ),
+                      )
+                      .toList(),
+              onChanged: (value) => setState(() => _territory = value ?? 'FR'),
+            ),
+            SwitchListTile(
+              value: _childHistoryEnabled,
+              onChanged: (v) => setState(() => _childHistoryEnabled = v),
+              title: const Text('Historique enfant'),
+            ),
+            SwitchListTile(
+              value: _safeSearchEnabled,
+              onChanged: (v) => setState(() => _safeSearchEnabled = v),
+              title: const Text('Recherche adaptée aux enfants'),
+              subtitle: const Text(
+                'Masque les résultats dépassant la classification autorisée.',
+              ),
+            ),
+            const Divider(height: 32),
+            _title('Application', Icons.tune),
+            SwitchListTile(
+              value:
+                  context.watch<ThemeProvider>().themeMode == ThemeMode.light,
+              onChanged: (_) => context.read<ThemeProvider>().toggleTheme(),
+              title: const Text('Thème clair'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.language),
+              title: const Text('Langue'),
+              subtitle: Text(
+                Localizations.localeOf(context).languageCode == 'fr'
+                    ? 'Français'
+                    : 'English',
+              ),
+              trailing: const Icon(Icons.swap_horiz),
+              onTap: () => context.read<LocaleProvider>().toggleLocale(),
+            ),
+            ListTile(
+              leading: const Icon(Icons.notifications_outlined),
+              title: const Text('Notifications'),
+              subtitle: const Text('Canaux, catégories et désabonnement'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationPreferencesPage(),
+                    ),
+                  ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.all(20),
+          child: FilledButton.icon(
+            onPressed: _saving ? null : _save,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.primaryOrange,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            icon:
+                _saving
+                    ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                    : const Icon(Icons.save),
+            label: const Text('Enregistrer les paramètres'),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _title(String label, IconData icon) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Row(
+      children: [
+        Icon(icon, color: AppTheme.primaryOrange),
+        const SizedBox(width: 8),
+        Text(label, style: Theme.of(context).textTheme.titleLarge),
+      ],
+    ),
+  );
 }

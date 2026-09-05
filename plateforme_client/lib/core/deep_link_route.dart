@@ -20,8 +20,7 @@ String? deepLinkRoute(Uri uri) {
     case 'unsubscribe':
       return '/unsubscribe';
     case 'payment':
-      if (uri.pathSegments.length > 1 &&
-          uri.pathSegments[1] == 'return') {
+      if (uri.pathSegments.length > 1 && uri.pathSegments[1] == 'return') {
         return '/payment/return';
       }
       break;

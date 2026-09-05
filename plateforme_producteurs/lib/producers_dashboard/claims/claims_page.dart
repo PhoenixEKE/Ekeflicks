@@ -28,43 +28,46 @@ class ClaimsPage extends StatelessWidget {
       },
     ];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.my_claims, style: AppTheme.textTitle),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.add, color: AppTheme.textPrimary),
-            onPressed: () => _showNewClaimDialog(context),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppTheme.paddingMedium,
+            AppTheme.paddingMedium,
+            AppTheme.paddingMedium,
+            0,
           ),
-        ],
-        backgroundColor: AppTheme.cardBackground,
-        elevation: 1,
-      ),
-      backgroundColor: AppTheme.background,
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(AppTheme.paddingMedium),
-            child: TextField(
-              decoration: AppDecorations.inputDecoration.copyWith(
-                hintText: l10n.search_claims,
-                prefixIcon: Icon(Icons.search, color: AppTheme.primary),
+          child: Row(
+            children: [
+              Expanded(child: Text(l10n.my_claims, style: AppTheme.textTitle)),
+              IconButton(
+                icon: const Icon(Icons.add, color: AppTheme.primary),
+                tooltip: l10n.my_claims,
+                onPressed: () => _showNewClaimDialog(context),
               ),
-              style: AppTheme.textBody,
-            ),
+            ],
           ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: claims.length,
-              itemBuilder: (_, index) {
-                final claim = claims[index];
-                return _buildClaimCard(context, claim);
-              },
+        ),
+        Padding(
+          padding: const EdgeInsets.all(AppTheme.paddingMedium),
+          child: TextField(
+            decoration: AppDecorations.inputDecoration.copyWith(
+              hintText: l10n.search_claims,
+              prefixIcon: Icon(Icons.search, color: AppTheme.primary),
             ),
+            style: AppTheme.textBody,
           ),
-        ],
-      ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: claims.length,
+            itemBuilder: (_, index) {
+              final claim = claims[index];
+              return _buildClaimCard(context, claim);
+            },
+          ),
+        ),
+      ],
     );
   }
 

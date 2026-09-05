@@ -5,9 +5,9 @@ import 'package:flutter/services.dart';
 /// Service de gestion de la navigation par télécommande/clavier
 class KeyboardNavigationService {
   /// Vérifie si l'événement est une touche de navigation
-  static bool isNavigationKey(RawKeyEvent event) {
-    if (event is! RawKeyDownEvent) return false;
-    
+  static bool isNavigationKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+
     return [
       LogicalKeyboardKey.arrowRight,
       LogicalKeyboardKey.arrowLeft,
@@ -24,7 +24,7 @@ class KeyboardNavigationService {
 
   /// Gère les événements de navigation de base
   static KeyEventResult handleBasicNavigation(
-    RawKeyEvent event, {
+    KeyEvent event, {
     VoidCallback? onSelect,
     VoidCallback? onBack,
     VoidCallback? onUp,
@@ -33,39 +33,49 @@ class KeyboardNavigationService {
     VoidCallback? onRight,
     bool allowArrowNavigation = true,
   }) {
-    if (event is RawKeyDownEvent) {
+    if (event is KeyDownEvent) {
       switch (event.logicalKey) {
         case LogicalKeyboardKey.arrowRight:
           if (allowArrowNavigation) onRight?.call();
-          return onRight != null ? KeyEventResult.handled : KeyEventResult.ignored;
-        
+          return onRight != null
+              ? KeyEventResult.handled
+              : KeyEventResult.ignored;
+
         case LogicalKeyboardKey.arrowLeft:
           if (allowArrowNavigation) onLeft?.call();
-          return onLeft != null ? KeyEventResult.handled : KeyEventResult.ignored;
-        
+          return onLeft != null
+              ? KeyEventResult.handled
+              : KeyEventResult.ignored;
+
         case LogicalKeyboardKey.arrowUp:
           if (allowArrowNavigation) onUp?.call();
           return onUp != null ? KeyEventResult.handled : KeyEventResult.ignored;
-        
+
         case LogicalKeyboardKey.arrowDown:
           if (allowArrowNavigation) onDown?.call();
-          return onDown != null ? KeyEventResult.handled : KeyEventResult.ignored;
-        
+          return onDown != null
+              ? KeyEventResult.handled
+              : KeyEventResult.ignored;
+
         case LogicalKeyboardKey.select:
         case LogicalKeyboardKey.enter:
         case LogicalKeyboardKey.space:
           onSelect?.call();
-          return onSelect != null ? KeyEventResult.handled : KeyEventResult.ignored;
-        
+          return onSelect != null
+              ? KeyEventResult.handled
+              : KeyEventResult.ignored;
+
         case LogicalKeyboardKey.backspace:
         case LogicalKeyboardKey.escape:
           onBack?.call();
-          return onBack != null ? KeyEventResult.handled : KeyEventResult.ignored;
-        
+          return onBack != null
+              ? KeyEventResult.handled
+              : KeyEventResult.ignored;
+
         case LogicalKeyboardKey.tab:
           // Handle tab navigation if needed
           return KeyEventResult.ignored;
-        
+
         default:
           return KeyEventResult.ignored;
       }
@@ -75,7 +85,7 @@ class KeyboardNavigationService {
 
   /// Gère les événements de navigation pour les listes et grilles
   static KeyEventResult handleListNavigation(
-    RawKeyEvent event, {
+    KeyEvent event, {
     required int currentIndex,
     required int itemCount,
     required Function(int) onIndexChange,
@@ -83,21 +93,22 @@ class KeyboardNavigationService {
     VoidCallback? onSelect,
     VoidCallback? onBack,
   }) {
-    if (event is RawKeyDownEvent) {
+    if (event is KeyDownEvent) {
       int newIndex = currentIndex;
 
       switch (event.logicalKey) {
         case LogicalKeyboardKey.arrowRight:
           if (columns > 1) {
             // Navigation horizontale dans une grille
-            if ((currentIndex + 1) % columns != 0 && currentIndex < itemCount - 1) {
+            if ((currentIndex + 1) % columns != 0 &&
+                currentIndex < itemCount - 1) {
               newIndex = currentIndex + 1;
             }
           } else if (currentIndex < itemCount - 1) {
             newIndex = currentIndex + 1;
           }
           break;
-        
+
         case LogicalKeyboardKey.arrowLeft:
           if (columns > 1) {
             // Navigation horizontale dans une grille
@@ -108,7 +119,7 @@ class KeyboardNavigationService {
             newIndex = currentIndex - 1;
           }
           break;
-        
+
         case LogicalKeyboardKey.arrowDown:
           if (columns > 1) {
             // Navigation verticale dans une grille
@@ -117,7 +128,7 @@ class KeyboardNavigationService {
             newIndex = currentIndex + 1;
           }
           break;
-        
+
         case LogicalKeyboardKey.arrowUp:
           if (columns > 1) {
             // Navigation verticale dans une grille
@@ -126,18 +137,18 @@ class KeyboardNavigationService {
             newIndex = currentIndex - 1;
           }
           break;
-        
+
         case LogicalKeyboardKey.select:
         case LogicalKeyboardKey.enter:
         case LogicalKeyboardKey.space:
           onSelect?.call();
           return KeyEventResult.handled;
-        
+
         case LogicalKeyboardKey.backspace:
         case LogicalKeyboardKey.escape:
           onBack?.call();
           return KeyEventResult.handled;
-        
+
         default:
           return KeyEventResult.ignored;
       }
@@ -167,8 +178,8 @@ mixin KeyboardNavigationMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// Gère les événements clavier
-  KeyEventResult handleKeyEvent(FocusNode node, RawKeyEvent event) {
-    if (event is RawKeyDownEvent) {
+  KeyEventResult handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent) {
       final handler = _keyHandlers[event.logicalKey];
       if (handler != null) {
         handler();
@@ -235,8 +246,8 @@ class _KeyboardNavigatorState extends State<KeyboardNavigator> {
     return Focus(
       focusNode: _focusNode,
       autofocus: widget.autofocus,
-      onKey: (node, event) {
-        if (event is RawKeyDownEvent) {
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
           final handler = widget.keyHandlers[event.logicalKey];
           if (handler != null) {
             handler();

@@ -11,11 +11,7 @@ class AgeSelectorDialog extends StatefulWidget {
   final int? currentAge;
   final dynamic profileType;
 
-  const AgeSelectorDialog({
-    super.key,
-    this.currentAge,
-    this.profileType,
-  });
+  const AgeSelectorDialog({super.key, this.currentAge, this.profileType});
 
   @override
   State<AgeSelectorDialog> createState() => _AgeSelectorDialogState();
@@ -66,8 +62,8 @@ class _AgeSelectorDialogState extends State<AgeSelectorDialog> {
     );
   }
 
-  void _onKey(RawKeyEvent event) {
-    if (event is RawKeyDownEvent) {
+  void _onKey(KeyEvent event) {
+    if (event is KeyDownEvent) {
       switch (event.logicalKey) {
         case LogicalKeyboardKey.arrowLeft:
           setState(() {
@@ -112,7 +108,8 @@ class _AgeSelectorDialogState extends State<AgeSelectorDialog> {
     final isDesktop = deviceInfo.isDesktop;
 
     return Dialog(
-      backgroundColor: theme.dialogBackgroundColor,
+      backgroundColor:
+          theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       ),
@@ -141,7 +138,7 @@ class _AgeSelectorDialogState extends State<AgeSelectorDialog> {
             Container(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.1),
+                color: theme.colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -157,13 +154,14 @@ class _AgeSelectorDialogState extends State<AgeSelectorDialog> {
 
             // Sélecteur d'âge
             Expanded(
-              child: isTV || isDesktop
-                  ? RawKeyboardListener(
-                      focusNode: _focusNode,
-                      onKey: _onKey,
-                      child: _buildAgeSelector(theme, isTV),
-                    )
-                  : _buildAgeSelector(theme, false),
+              child:
+                  isTV || isDesktop
+                      ? KeyboardListener(
+                        focusNode: _focusNode,
+                        onKeyEvent: _onKey,
+                        child: _buildAgeSelector(theme, isTV),
+                      )
+                      : _buildAgeSelector(theme, false),
             ),
             const SizedBox(height: 16),
 
@@ -174,7 +172,7 @@ class _AgeSelectorDialogState extends State<AgeSelectorDialog> {
                 child: Text(
                   '← → pour naviguer • ENTRÉE pour valider',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -190,7 +188,10 @@ class _AgeSelectorDialogState extends State<AgeSelectorDialog> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.errorContainer,
                     foregroundColor: theme.colorScheme.onErrorContainer,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 12,
+                    ),
                   ),
                   child: Text(loc?.annuler ?? 'Annuler'),
                 ),
@@ -201,7 +202,10 @@ class _AgeSelectorDialogState extends State<AgeSelectorDialog> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryOrange,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 12,
+                    ),
                   ),
                   child: Text(loc?.valider ?? 'Valider'),
                 ),
@@ -225,7 +229,7 @@ class _AgeSelectorDialogState extends State<AgeSelectorDialog> {
             divisions: 14,
             label: _focusedAge.toString(),
             activeColor: AppTheme.primaryOrange,
-            inactiveColor: theme.colorScheme.surfaceVariant,
+            inactiveColor: theme.colorScheme.surfaceContainerHighest,
             thumbColor: AppTheme.primaryOrange,
             onChanged: (value) {
               setState(() {
@@ -274,33 +278,39 @@ class _AgeSelectorDialogState extends State<AgeSelectorDialog> {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppTheme.primaryOrange
-                      : theme.colorScheme.surfaceVariant,
+                  color:
+                      isSelected
+                          ? AppTheme.primaryOrange
+                          : theme.colorScheme.surfaceContainerHighest,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: isSelected
-                        ? AppTheme.primaryOrange
-                        : theme.colorScheme.outline.withOpacity(0.3),
+                    color:
+                        isSelected
+                            ? AppTheme.primaryOrange
+                            : theme.colorScheme.outline.withValues(alpha: 0.3),
                     width: 2,
                   ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: AppTheme.primaryOrange.withOpacity(0.4),
-                            blurRadius: 8,
-                            spreadRadius: 2,
-                          ),
-                        ]
-                      : null,
+                  boxShadow:
+                      isSelected
+                          ? [
+                            BoxShadow(
+                              color: AppTheme.primaryOrange.withValues(
+                                alpha: 0.4,
+                              ),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ]
+                          : null,
                 ),
                 child: Center(
                   child: Text(
                     age.toString(),
                     style: theme.textTheme.headlineSmall?.copyWith(
-                      color: isSelected
-                          ? Colors.white
-                          : theme.colorScheme.onSurface,
+                      color:
+                          isSelected
+                              ? Colors.white
+                              : theme.colorScheme.onSurface,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

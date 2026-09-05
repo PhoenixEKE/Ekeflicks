@@ -7,11 +7,10 @@ class LocaleProvider with ChangeNotifier {
   Locale _locale;
   final List<Locale> _supportedLocales;
 
-  LocaleProvider({
-    Locale? initialLocale,
-    List<Locale>? supportedLocales,
-  })  : _locale = initialLocale ?? const Locale('fr'),
-        _supportedLocales = supportedLocales ?? const [Locale('fr'), Locale('en')];
+  LocaleProvider({Locale? initialLocale, List<Locale>? supportedLocales})
+    : _locale = initialLocale ?? const Locale('fr'),
+      _supportedLocales =
+          supportedLocales ?? const [Locale('fr'), Locale('en')];
 
   Locale get locale => _locale;
   List<Locale> get supportedLocales => _supportedLocales;

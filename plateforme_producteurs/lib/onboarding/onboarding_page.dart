@@ -341,7 +341,15 @@ class _ProducerOnboardingPageState extends State<ProducerOnboardingPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const ProducerAuthShell(
+        showFaqButton: false,
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(48),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
     }
 
     if (_showVerification) {

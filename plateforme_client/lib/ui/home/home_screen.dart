@@ -28,7 +28,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const String _homeFallbackImage = 'assets/images/streaming.webp';
-  bool _popupShown = false;
   bool? _isMobile;
   String _priceWithCurrency = "5 €"; // valeur par défaut
   String? _popupText;
@@ -48,7 +47,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadContent() async {
     final loc = AppLocalizations.of(context)!;
     final provider = Provider.of<ContentProvider>(context, listen: false);
-    provider.profileId = Provider.of<ProfileProvider>(context, listen: false).currentProfile?.id;
+    provider.profileId =
+        Provider.of<ProfileProvider>(context, listen: false).currentProfile?.id;
     await provider.loadInitialContent(loc);
   }
 
@@ -56,12 +56,17 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final bestPriceData = await _loadBestPriceData();
 
+      if (!mounted) return;
+
       if (bestPriceData != null) {
         final price = bestPriceData['best_price'].toString();
         final currency = bestPriceData['currency'] ?? "€";
         final region = bestPriceData['region'];
 
-        final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
+        final localeProvider = Provider.of<LocaleProvider>(
+          context,
+          listen: false,
+        );
         if (region == 'Africa' || region == 'Europe') {
           await localeProvider.setLocale(const Locale('fr'));
         } else {
@@ -70,6 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         // Attendre la prochaine frame pour que la locale soit appliquée
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
           final loc = AppLocalizations.of(context)!;
           setState(() {
             _priceWithCurrency = "$price $currency";
@@ -91,7 +97,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // versions return 404 for them, which creates noisy browser-console XHR
     // errors. The public plans list is the stable endpoint, so derive the best
     // price from the active plans returned by that response.
-    final plansResponse = await http.get(ApiConfig.endpoint('subscription-plans'));
+    final plansResponse = await http.get(
+      ApiConfig.endpoint('subscription-plans'),
+    );
     if (plansResponse.statusCode != 200) {
       debugPrint(
         'Subscription plans endpoint failed with status ${plansResponse.statusCode}',
@@ -100,14 +108,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final decoded = json.decode(plansResponse.body);
-    final plans = decoded is Map<String, dynamic> && decoded['results'] is List
-        ? decoded['results'] as List<dynamic>
-        : decoded is List
+    final plans =
+        decoded is Map<String, dynamic> && decoded['results'] is List
+            ? decoded['results'] as List<dynamic>
+            : decoded is List
             ? decoded
             : const [];
     final activePlans = plans.whereType<Map<String, dynamic>>().where(
-          (plan) => plan['is_active'] != false && plan['price'] != null,
-        );
+      (plan) => plan['is_active'] != false && plan['price'] != null,
+    );
     Map<String, dynamic>? cheapestPlan;
     double? cheapestPrice;
     for (final plan in activePlans) {
@@ -146,13 +155,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showAnimatedWelcomeDialog() {
     final theme = Theme.of(context);
-
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
       barrierLabel: "WelcomePopup",
       transitionDuration: const Duration(milliseconds: 500),
-      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      pageBuilder: (_, _, _) => const SizedBox.shrink(),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         final curvedAnimation = CurvedAnimation(
           parent: animation,
@@ -223,7 +231,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildWelcomeButton(BuildContext context, AppLocalizations loc, ThemeData theme) {
+  Widget _buildWelcomeButton(
+    BuildContext context,
+    AppLocalizations loc,
+    ThemeData theme,
+  ) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -240,10 +252,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => InfoDialog(
-        content: content,
-        similarContent: similarContent,
-      ),
+      builder:
+          (context) =>
+              InfoDialog(content: content, similarContent: similarContent),
     );
   }
 
@@ -251,7 +262,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     final contentProvider = Provider.of<ContentProvider>(context);
-    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: const CustomAppBar(),
@@ -273,7 +283,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           onPlayPressed: (content) {
                             if (content.videoUrl.isEmpty) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Aucune URL vidéo disponible')),
+                                const SnackBar(
+                                  content: Text('Aucune URL vidéo disponible'),
+                                ),
                               );
                               return;
                             }
@@ -285,9 +297,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                 'title': content.title,
                                 'imageUrl': content.posterUrl,
                                 'contentId': content.id,
-                                'resumePosition': content.progress == null
-                                    ? null
-                                    : Duration(milliseconds: (content.duration.inMilliseconds * content.progress!).round()),
+                                'resumePosition':
+                                    content.progress == null
+                                        ? null
+                                        : Duration(
+                                          milliseconds:
+                                              (content.duration.inMilliseconds *
+                                                      content.progress!)
+                                                  .round(),
+                                        ),
                                 'nextEpisode': content.nextEpisode,
                               },
                             );
@@ -301,11 +319,23 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildSliderSection(loc.nouveautes, contentProvider.newReleases, context),
+                              _buildSliderSection(
+                                loc.nouveautes,
+                                contentProvider.newReleases,
+                                context,
+                              ),
                               const SizedBox(height: 20),
-                              _buildFeatureBlocks(_generateFeatures(loc), context, _isMobile ?? false),
+                              _buildFeatureBlocks(
+                                _generateFeatures(loc),
+                                context,
+                                _isMobile ?? false,
+                              ),
                               const SizedBox(height: 20),
-                              _buildSliderSection(loc.populaires, contentProvider.popularContent, context),
+                              _buildSliderSection(
+                                loc.populaires,
+                                contentProvider.popularContent,
+                                context,
+                              ),
                             ],
                           ),
                         ),
@@ -324,14 +354,34 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Map<String, String>> _generateFeatures(AppLocalizations loc) {
     return [
-      {'title': loc.featureTvTitle, 'desc': loc.featureTvDesc, 'image': 'assets/images/tv.webp'},
-      {'title': loc.featureAnywhereTitle, 'desc': loc.featureAnywhereDesc, 'image': 'assets/images/anywhere.webp'},
-      {'title': loc.featureOfflineTitle, 'desc': loc.featureOfflineDesc, 'image': 'assets/images/offline.webp'},
-      {'title': loc.featureStreamingTitle, 'desc': loc.featureStreamingDesc, 'image': 'assets/images/streaming.webp'},
+      {
+        'title': loc.featureTvTitle,
+        'desc': loc.featureTvDesc,
+        'image': 'assets/images/tv.webp',
+      },
+      {
+        'title': loc.featureAnywhereTitle,
+        'desc': loc.featureAnywhereDesc,
+        'image': 'assets/images/anywhere.webp',
+      },
+      {
+        'title': loc.featureOfflineTitle,
+        'desc': loc.featureOfflineDesc,
+        'image': 'assets/images/offline.webp',
+      },
+      {
+        'title': loc.featureStreamingTitle,
+        'desc': loc.featureStreamingDesc,
+        'image': 'assets/images/streaming.webp',
+      },
     ];
   }
 
-  Widget _buildSliderSection(String title, List<Content> items, BuildContext context) {
+  Widget _buildSliderSection(
+    String title,
+    List<Content> items,
+    BuildContext context,
+  ) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,10 +415,11 @@ class _HomeScreenState extends State<HomeScreen> {
               scrollDirection: Axis.horizontal,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: itemsPerView,
-              itemBuilder: (context, index) => SizedBox(
-                width: cardWidth,
-                child: _buildFallbackCarouselItem(context),
-              ),
+              itemBuilder:
+                  (context, index) => SizedBox(
+                    width: cardWidth,
+                    child: _buildFallbackCarouselItem(context),
+                  ),
             );
           },
         ),
@@ -390,7 +441,8 @@ class _HomeScreenState extends State<HomeScreen> {
             enableInfiniteScroll: false,
             enlargeCenterPage: false,
           ),
-          itemBuilder: (context, index, _) => _buildCarouselItem(items[index], context),
+          itemBuilder:
+              (context, index, _) => _buildCarouselItem(items[index], context),
         );
       },
     );
@@ -431,26 +483,32 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 180,
               width: double.infinity,
               fit: BoxFit.cover,
-              placeholder: (context, url) => Container(
-                height: 180,
-                decoration: AppDecorations.imagePlaceholderDecoration(context),
-              ),
-              errorWidget: (context, url, error) => Container(
-                height: 180,
-                decoration: AppDecorations.imagePlaceholderDecoration(context),
-                child: Icon(
-                  Icons.broken_image,
-                  color: Colors.grey[400],
-                  size: 40,
-                ),
-              ),
+              placeholder:
+                  (context, url) => Container(
+                    height: 180,
+                    decoration: AppDecorations.imagePlaceholderDecoration(
+                      context,
+                    ),
+                  ),
+              errorWidget:
+                  (context, url, error) => Container(
+                    height: 180,
+                    decoration: AppDecorations.imagePlaceholderDecoration(
+                      context,
+                    ),
+                    child: Icon(
+                      Icons.broken_image,
+                      color: Colors.grey[400],
+                      size: 40,
+                    ),
+                  ),
             ),
           ),
           const SizedBox(height: 6),
           Text(
             item.title,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -461,7 +519,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFeatureBlocks(List<Map<String, String>> features, BuildContext context, bool isMobile) {
+  Widget _buildFeatureBlocks(
+    List<Map<String, String>> features,
+    BuildContext context,
+    bool isMobile,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(top: 20, bottom: 40),
       child: Center(
@@ -469,13 +531,22 @@ class _HomeScreenState extends State<HomeScreen> {
           alignment: WrapAlignment.center,
           spacing: 24,
           runSpacing: 24,
-          children: features.map((feature) => _buildFeatureItem(feature, context, isMobile)).toList(),
+          children:
+              features
+                  .map(
+                    (feature) => _buildFeatureItem(feature, context, isMobile),
+                  )
+                  .toList(),
         ),
       ),
     );
   }
 
-  Widget _buildFeatureItem(Map<String, String> feature, BuildContext context, bool isMobile) {
+  Widget _buildFeatureItem(
+    Map<String, String> feature,
+    BuildContext context,
+    bool isMobile,
+  ) {
     final theme = Theme.of(context);
     return Container(
       width: isMobile ? (MediaQuery.of(context).size.width / 2) - 32 : 220,
@@ -487,7 +558,9 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           Text(
             feature['title']!,
-            style: theme.textTheme.titleSmall?.copyWith(color: AppTheme.primaryOrange),
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: AppTheme.primaryOrange,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 6),

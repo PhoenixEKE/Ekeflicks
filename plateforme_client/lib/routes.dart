@@ -32,7 +32,8 @@ Map<String, WidgetBuilder> getAppRoutes() {
     '/payment/return': (context) => const PaymentReturnPage(),
     '/profile-selection': (context) => const ProfileSelectionPage(),
     '/notifications': (context) => const NotificationsPage(),
-    '/unsubscribe': (context) => UnsubscribePage(token: Uri.base.queryParameters['token']), 
+    '/unsubscribe':
+        (context) => UnsubscribePage(token: Uri.base.queryParameters['token']),
   };
 }
 

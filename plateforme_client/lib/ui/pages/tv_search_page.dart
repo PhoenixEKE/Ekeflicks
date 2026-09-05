@@ -4,7 +4,6 @@ import 'package:app_ekeflicks/providers/device_info_provider.dart';
 import 'package:app_ekeflicks/providers/content_provider.dart';
 import 'package:app_ekeflicks/widgets/keyboards/tv_virtual_keyboard.dart';
 import 'package:app_ekeflicks/utils/keyboard_text_manager.dart';
-import 'package:app_ekeflicks/utils/focus_utils.dart';
 
 class TVSearchPage extends StatefulWidget {
   final String? initialQuery;
@@ -60,9 +59,10 @@ class _TVSearchPageState extends State<TVSearchPage> {
     if (query.isEmpty) {
       _searchSuggestions = _getPopularSearches();
     } else {
-      _searchSuggestions = _getAllSuggestions()
-          .where((suggestion) => suggestion.toLowerCase().contains(query))
-          .toList();
+      _searchSuggestions =
+          _getAllSuggestions()
+              .where((suggestion) => suggestion.toLowerCase().contains(query))
+              .toList();
     }
   }
 
@@ -77,7 +77,7 @@ class _TVSearchPageState extends State<TVSearchPage> {
       'Thriller',
       'Documentaire',
       'Animation',
-      'Aventure'
+      'Aventure',
     ];
   }
 
@@ -93,7 +93,7 @@ class _TVSearchPageState extends State<TVSearchPage> {
       'Biographie',
       'Sport',
       'Familial',
-      'Crime'
+      'Crime',
     ];
   }
 
@@ -109,12 +109,20 @@ class _TVSearchPageState extends State<TVSearchPage> {
         _searchResults = [];
       });
       try {
-        final results = await context.read<ContentProvider>().searchRemote(query);
-        if (mounted) setState(() => _searchResults = results.map((item) => item.title).toList());
+        final results = await context.read<ContentProvider>().searchRemote(
+          query,
+        );
+        if (mounted) {
+          setState(
+            () => _searchResults = results.map((item) => item.title).toList(),
+          );
+        }
       } catch (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('La recherche est momentanément indisponible.')),
+            const SnackBar(
+              content: Text('La recherche est momentanément indisponible.'),
+            ),
           );
         }
       }
@@ -181,7 +189,10 @@ class _TVSearchPageState extends State<TVSearchPage> {
 
             // Contenu principal
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 60.0, vertical: 40.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 60.0,
+                vertical: 40.0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -192,9 +203,10 @@ class _TVSearchPageState extends State<TVSearchPage> {
 
                   // Contenu selon l'état
                   Expanded(
-                    child: _showSuggestions && _searchController.text.isEmpty
-                        ? _buildPopularSearches(theme)
-                        : _showSuggestions
+                    child:
+                        _showSuggestions && _searchController.text.isEmpty
+                            ? _buildPopularSearches(theme)
+                            : _showSuggestions
                             ? _buildSearchSuggestions(theme)
                             : _buildSearchResults(theme, size),
                   ),
@@ -222,9 +234,9 @@ class _TVSearchPageState extends State<TVSearchPage> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.black.withOpacity(0.9),
-            Colors.black.withOpacity(0.7),
-            Colors.black.withOpacity(0.9),
+            Colors.black.withValues(alpha: 0.9),
+            Colors.black.withValues(alpha: 0.7),
+            Colors.black.withValues(alpha: 0.9),
           ],
         ),
       ),
@@ -249,14 +261,18 @@ class _TVSearchPageState extends State<TVSearchPage> {
         Container(
           height: 70,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.3)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
           ),
           child: Row(
             children: [
               const SizedBox(width: 20),
-              Icon(Icons.search, color: Colors.white.withOpacity(0.7), size: 32),
+              Icon(
+                Icons.search,
+                color: Colors.white.withValues(alpha: 0.7),
+                size: 32,
+              ),
               const SizedBox(width: 20),
               Expanded(
                 child: TextField(
@@ -269,7 +285,7 @@ class _TVSearchPageState extends State<TVSearchPage> {
                   decoration: InputDecoration(
                     hintText: 'Films, séries, genres...',
                     hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
+                      color: Colors.white.withValues(alpha: 0.5),
                       fontSize: 24,
                     ),
                     border: InputBorder.none,
@@ -279,7 +295,11 @@ class _TVSearchPageState extends State<TVSearchPage> {
               ),
               if (_searchController.text.isNotEmpty)
                 IconButton(
-                  icon: Icon(Icons.clear, color: Colors.white.withOpacity(0.7), size: 32),
+                  icon: Icon(
+                    Icons.clear,
+                    color: Colors.white.withValues(alpha: 0.7),
+                    size: 32,
+                  ),
                   onPressed: _clearSearch,
                 ),
               const SizedBox(width: 20),
@@ -307,23 +327,26 @@ class _TVSearchPageState extends State<TVSearchPage> {
         Wrap(
           spacing: 16,
           runSpacing: 16,
-          children: _searchSuggestions.map((suggestion) {
-            return Focus(
-              autofocus: suggestion == _searchSuggestions.first,
-              child: ActionChip(
-                backgroundColor: Colors.white.withOpacity(0.1),
-                side: BorderSide(color: Colors.white.withOpacity(0.3)),
-                label: Text(
-                  suggestion,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontSize: 20,
+          children:
+              _searchSuggestions.map((suggestion) {
+                return Focus(
+                  autofocus: suggestion == _searchSuggestions.first,
+                  child: ActionChip(
+                    backgroundColor: Colors.white.withValues(alpha: 0.1),
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.3),
+                    ),
+                    label: Text(
+                      suggestion,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontSize: 20,
+                      ),
+                    ),
+                    onPressed: () => _selectSuggestion(suggestion),
                   ),
-                ),
-                onPressed: () => _selectSuggestion(suggestion),
-              ),
-            );
-          }).toList(),
+                );
+              }).toList(),
         ),
       ],
     );
@@ -351,7 +374,10 @@ class _TVSearchPageState extends State<TVSearchPage> {
               return Focus(
                 autofocus: index == 0,
                 child: ListTile(
-                  leading: Icon(Icons.search, color: Colors.white.withOpacity(0.7)),
+                  leading: Icon(
+                    Icons.search,
+                    color: Colors.white.withValues(alpha: 0.7),
+                  ),
                   title: Text(
                     suggestion,
                     style: theme.textTheme.titleLarge?.copyWith(
@@ -398,17 +424,23 @@ class _TVSearchPageState extends State<TVSearchPage> {
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    color: Colors.white.withOpacity(0.1),
-                    border: Border.all(color: Colors.white.withOpacity(0.3)),
+                    color: Colors.white.withValues(alpha: 0.1),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Column(
                     children: [
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(12),
+                            ),
                             image: DecorationImage(
-                              image: NetworkImage('https://picsum.photos/300/400?random=$index'),
+                              image: NetworkImage(
+                                'https://picsum.photos/300/400?random=$index',
+                              ),
                               fit: BoxFit.cover,
                             ),
                           ),
@@ -445,9 +477,9 @@ class _TVSearchPageState extends State<TVSearchPage> {
       onEnter: _onEnter,
       focusNode: _keyboardFocusNode,
       selectedLanguage: 'fr',
-      backgroundColor: Colors.white.withOpacity(0.05),
-      keyColor: Colors.white.withOpacity(0.1),
-      selectedKeyColor: Colors.white.withOpacity(0.3),
+      backgroundColor: Colors.white.withValues(alpha: 0.05),
+      keyColor: Colors.white.withValues(alpha: 0.1),
+      selectedKeyColor: Colors.white.withValues(alpha: 0.3),
       maxWidth: MediaQuery.of(context).size.width * 0.8,
       textController: _searchController,
     );

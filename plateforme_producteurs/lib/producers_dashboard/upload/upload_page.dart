@@ -527,214 +527,494 @@ class _UploadPageState extends State<UploadPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.uploadFormTitle)),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.contentTypeLabel,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<ContentType>(
-                value: _contentType,
-                items: ContentType.values
-                    .map(
-                      (e) => DropdownMenuItem(
-                        value: e,
-                        child: Text(e.name.toUpperCase()),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _contentType = v),
-                validator: (v) => v == null ? l10n.requiredFieldError : null,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.contentTypeLabel,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<ContentType>(
+              value: _contentType,
+              items: ContentType.values
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: e,
+                      child: Text(e.name.toUpperCase()),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) => setState(() => _contentType = v),
+              validator: (v) => v == null ? l10n.requiredFieldError : null,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
                 ),
               ),
-              const SizedBox(height: 20),
+            ),
+            const SizedBox(height: 20),
 
-              // TITLE
-              TextFormField(
-                controller: titleController,
-                decoration: InputDecoration(
-                  labelText: l10n.titleLabel,
-                  border: const OutlineInputBorder(),
-                ),
-                validator: (v) =>
-                    v == null || v.isEmpty ? l10n.requiredFieldError : null,
+            // TITLE
+            TextFormField(
+              controller: titleController,
+              decoration: InputDecoration(
+                labelText: l10n.titleLabel,
+                border: const OutlineInputBorder(),
               ),
-              const SizedBox(height: 16),
+              validator: (v) =>
+                  v == null || v.isEmpty ? l10n.requiredFieldError : null,
+            ),
+            const SizedBox(height: 16),
 
-              // DESCRIPTION
-              TextFormField(
-                controller: descriptionController,
-                decoration: InputDecoration(
-                  labelText: l10n.descriptionLabel,
-                  border: const OutlineInputBorder(),
-                ),
-                maxLines: 4,
-                validator: (v) =>
-                    v == null || v.isEmpty ? l10n.requiredFieldError : null,
+            // DESCRIPTION
+            TextFormField(
+              controller: descriptionController,
+              decoration: InputDecoration(
+                labelText: l10n.descriptionLabel,
+                border: const OutlineInputBorder(),
               ),
-              const SizedBox(height: 16),
+              maxLines: 4,
+              validator: (v) =>
+                  v == null || v.isEmpty ? l10n.requiredFieldError : null,
+            ),
+            const SizedBox(height: 16),
 
-              // GENRES
-              Text(
-                l10n.genresLabel,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: allGenres.map((g) {
-                  final selected = selectedGenres.contains(g);
-                  return FilterChip(
-                    label: Text(g),
-                    selected: selected,
-                    onSelected: (sel) => setState(() {
-                      if (sel) {
-                        selectedGenres.add(g);
-                      } else {
-                        selectedGenres.remove(g);
-                      }
-                    }),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
-
-              // LANGUE
-              Text(
-                l10n.languageLabel,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<LanguageOption>(
-                value: selectedLanguage,
-                items: LanguageOption.values
-                    .map(
-                      (e) => DropdownMenuItem(
-                        value: e,
-                        child: Text(e.name.toUpperCase()),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => selectedLanguage = v),
-                validator: (v) => v == null ? l10n.requiredFieldError : null,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-              ),
-              if (selectedLanguage == LanguageOption.autres) ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: languageOtherController,
-                  decoration: InputDecoration(
-                    labelText: l10n.languageSpecifyLabel,
-                    border: const OutlineInputBorder(),
-                  ),
-                  validator: (v) {
-                    if (selectedLanguage == LanguageOption.autres &&
-                        (v == null || v.isEmpty)) {
-                      return l10n.requiredFieldError;
+            // GENRES
+            Text(
+              l10n.genresLabel,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: allGenres.map((g) {
+                final selected = selectedGenres.contains(g);
+                return FilterChip(
+                  label: Text(g),
+                  selected: selected,
+                  onSelected: (sel) => setState(() {
+                    if (sel) {
+                      selectedGenres.add(g);
+                    } else {
+                      selectedGenres.remove(g);
                     }
-                    return null;
-                  },
+                  }),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+
+            // LANGUE
+            Text(
+              l10n.languageLabel,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<LanguageOption>(
+              value: selectedLanguage,
+              items: LanguageOption.values
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: e,
+                      child: Text(e.name.toUpperCase()),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) => setState(() => selectedLanguage = v),
+              validator: (v) => v == null ? l10n.requiredFieldError : null,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+            ),
+            if (selectedLanguage == LanguageOption.autres) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: languageOtherController,
+                decoration: InputDecoration(
+                  labelText: l10n.languageSpecifyLabel,
+                  border: const OutlineInputBorder(),
+                ),
+                validator: (v) {
+                  if (selectedLanguage == LanguageOption.autres &&
+                      (v == null || v.isEmpty)) {
+                    return l10n.requiredFieldError;
+                  }
+                  return null;
+                },
+              ),
+            ],
+            const SizedBox(height: 20),
+
+            // PAYS
+            Text(
+              l10n.countryLabel,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: selectedCountry,
+              items: [
+                ...africanCountries.map(
+                  (c) => DropdownMenuItem(value: c, child: Text(c)),
+                ),
+                DropdownMenuItem(
+                  value: "Autres",
+                  child: Text(l10n.otherOption),
                 ),
               ],
-              const SizedBox(height: 20),
 
-              // PAYS
-              Text(
-                l10n.countryLabel,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              onChanged: (v) => setState(() => selectedCountry = v),
+              validator: (v) =>
+                  v == null || v.isEmpty ? l10n.requiredFieldError : null,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: selectedCountry,
-                items: [
-                  ...africanCountries.map(
-                    (c) => DropdownMenuItem(value: c, child: Text(c)),
+            ),
+            if (selectedCountry == "Autres") ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: countryOtherController,
+                decoration: InputDecoration(
+                  labelText: l10n.countrySpecifyLabel,
+                  border: const OutlineInputBorder(),
+                ),
+                validator: (v) {
+                  if (selectedCountry == "Autres" && (v == null || v.isEmpty)) {
+                    return l10n.requiredFieldError;
+                  }
+                  return null;
+                },
+              ),
+            ],
+            const SizedBox(height: 20),
+
+            // Année
+            Text(
+              l10n.releaseYearLabel,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<int>(
+              value: releaseYear,
+              items: years
+                  .map(
+                    (y) =>
+                        DropdownMenuItem(value: y, child: Text(y.toString())),
+                  )
+                  .toList(),
+              onChanged: (v) => setState(() => releaseYear = v),
+              validator: (v) => v == null ? l10n.requiredFieldError : null,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Équipe de production
+            Text(
+              l10n.productionTeamTitle,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+
+            // Réalisateur
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: directorNameController,
+                    decoration: InputDecoration(
+                      labelText: l10n.directorLabel,
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: (v) =>
+                        v == null || v.isEmpty ? l10n.requiredFieldError : null,
                   ),
-                  DropdownMenuItem(
-                    value: "Autres",
-                    child: Text(l10n.otherOption),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => _pickPersonImageFor('director'),
+                      icon: const Icon(Icons.add_a_photo),
+                      label: Text(l10n.addImageButton),
+                    ),
+                    if (directorImagePath != null) const SizedBox(height: 6),
+                    if (directorImagePath != null)
+                      SizedBox(
+                        width: 64,
+                        height: 64,
+                        child: Image.file(
+                          File(directorImagePath!),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Scénariste
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: screenwriterNameController,
+                    decoration: InputDecoration(
+                      labelText: l10n.screenwriterLabel,
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: (v) =>
+                        v == null || v.isEmpty ? l10n.requiredFieldError : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => _pickPersonImageFor('screenwriter'),
+                      icon: const Icon(Icons.add_a_photo),
+                      label: Text(l10n.addImageButton),
+                    ),
+                    if (screenwriterImagePath != null)
+                      const SizedBox(height: 6),
+                    if (screenwriterImagePath != null)
+                      SizedBox(
+                        width: 64,
+                        height: 64,
+                        child: Image.file(
+                          File(screenwriterImagePath!),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Producteurs
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  l10n.producersLabel,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: _addProducer,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: Text(l10n.addButton),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...producers.map(
+              (p) => Card(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  leading: p.imagePath != null
+                      ? CircleAvatar(
+                          backgroundImage: FileImage(File(p.imagePath!)),
+                          radius: 20,
+                        )
+                      : const CircleAvatar(child: Icon(Icons.person)),
+                  title: Text(p.name),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => _confirmRemovePerson(producers, p),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Acteurs
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  l10n.actorsLabel,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: _addActor,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: Text(l10n.addButton),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...actors.map(
+              (p) => Card(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  leading: p.imagePath != null
+                      ? CircleAvatar(
+                          backgroundImage: FileImage(File(p.imagePath!)),
+                          radius: 20,
+                        )
+                      : const CircleAvatar(child: Icon(Icons.person)),
+                  title: Text(p.name),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => _confirmRemovePerson(actors, p),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // --- Saisons (si série) ---
+            if (_contentType == ContentType.serie) ...[
+              Text(
+                l10n.seasonManagementTitle,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    l10n.seasonsLabel,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  ElevatedButton(
+                    onPressed: _addSeason,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: Text(l10n.addSeasonButton),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              ...seasons.map((w) => w.season),
+              const SizedBox(height: 16),
+            ],
 
-                onChanged: (v) => setState(() => selectedCountry = v),
-                validator: (v) =>
-                    v == null || v.isEmpty ? l10n.requiredFieldError : null,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
+            // Bande annonce
+            if (_contentType != ContentType.serie) ...[
+              Text(
+                l10n.trailerLabel,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              if (selectedCountry == "Autres") ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: countryOtherController,
-                  decoration: InputDecoration(
-                    labelText: l10n.countrySpecifyLabel,
-                    border: const OutlineInputBorder(),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: _pickTrailer,
+                    child: Text(l10n.addTrailerButton),
                   ),
-                  validator: (v) {
-                    if (selectedCountry == "Autres" &&
-                        (v == null || v.isEmpty)) {
-                      return l10n.requiredFieldError;
-                    }
-                    return null;
+                  const SizedBox(width: 16),
+                  if (trailerFile != null &&
+                      trailerPlayerController != null &&
+                      trailerPlayerController!.value.isInitialized)
+                    Container(
+                      width: 200,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: AspectRatio(
+                          aspectRatio:
+                              trailerPlayerController!.value.aspectRatio,
+                          child: VideoPlayer(trailerPlayerController!),
+                        ),
+                      ),
+                    ),
+                  if (trailerFile != null &&
+                      (trailerPlayerController == null ||
+                          !trailerPlayerController!.value.isInitialized))
+                    Text(trailerFile!.path.split('/').last),
+                ],
+              ),
+              if (trailerFile != null &&
+                  trailerPlayerController != null &&
+                  trailerPlayerController!.value.isInitialized) ...[
+                const SizedBox(height: 8),
+                VideoProgressIndicator(
+                  trailerPlayerController!,
+                  allowScrubbing: true,
+                  colors: const VideoProgressColors(
+                    playedColor: Colors.red,
+                    bufferedColor: Colors.grey,
+                    backgroundColor: Colors.grey,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    trailerPlayerController!.value.isPlaying
+                        ? Icons.pause
+                        : Icons.play_arrow,
+                    size: 36,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      if (trailerPlayerController!.value.isPlaying) {
+                        trailerPlayerController!.pause();
+                      } else {
+                        trailerPlayerController!.play();
+                      }
+                    });
                   },
                 ),
               ],
-              const SizedBox(height: 20),
-
-              // Année
-              Text(
-                l10n.releaseYearLabel,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<int>(
-                value: releaseYear,
-                items: years
-                    .map(
-                      (y) =>
-                          DropdownMenuItem(value: y, child: Text(y.toString())),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => releaseYear = v),
-                validator: (v) => v == null ? l10n.requiredFieldError : null,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-              ),
               const SizedBox(height: 24),
+            ],
 
-              // Équipe de production
+            if (_contentType != ContentType.serie) ...[
+              // Fichiers multimédias (pour film)
               Text(
-                l10n.productionTeamTitle,
+                l10n.mediaFilesTitle,
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -742,436 +1022,146 @@ class _UploadPageState extends State<UploadPage> {
               ),
               const SizedBox(height: 12),
 
-              // Réalisateur
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: directorNameController,
-                      decoration: InputDecoration(
-                        labelText: l10n.directorLabel,
-                        border: const OutlineInputBorder(),
-                      ),
-                      validator: (v) => v == null || v.isEmpty
-                          ? l10n.requiredFieldError
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () => _pickPersonImageFor('director'),
-                        icon: const Icon(Icons.add_a_photo),
-                        label: Text(l10n.addImageButton),
-                      ),
-                      if (directorImagePath != null) const SizedBox(height: 6),
-                      if (directorImagePath != null)
-                        SizedBox(
-                          width: 64,
-                          height: 64,
-                          child: Image.file(
-                            File(directorImagePath!),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
+              Text(
+                l10n.posterLabel,
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 12),
-
-              // Scénariste
+              const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: screenwriterNameController,
-                      decoration: InputDecoration(
-                        labelText: l10n.screenwriterLabel,
-                        border: const OutlineInputBorder(),
+                  ElevatedButton(
+                    onPressed: () => _pickGlobalPoster(true),
+                    child: Text(l10n.addPosterButton),
+                  ),
+                  const SizedBox(width: 16),
+                  if (posterFile != null)
+                    Container(
+                      width: 100,
+                      height: 150,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      validator: (v) => v == null || v.isEmpty
-                          ? l10n.requiredFieldError
-                          : null,
+                      child: Image.file(posterFile!, fit: BoxFit.cover),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () => _pickPersonImageFor('screenwriter'),
-                        icon: const Icon(Icons.add_a_photo),
-                        label: Text(l10n.addImageButton),
-                      ),
-                      if (screenwriterImagePath != null)
-                        const SizedBox(height: 6),
-                      if (screenwriterImagePath != null)
-                        SizedBox(
-                          width: 64,
-                          height: 64,
-                          child: Image.file(
-                            File(screenwriterImagePath!),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                    ],
-                  ),
                 ],
               ),
               const SizedBox(height: 20),
 
-              // Producteurs
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    l10n.producersLabel,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _addProducer,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: Text(l10n.addButton),
-                  ),
-                ],
+              Text(
+                l10n.bannerLabel,
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              ...producers.map(
-                (p) => Card(
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  child: ListTile(
-                    leading: p.imagePath != null
-                        ? CircleAvatar(
-                            backgroundImage: FileImage(File(p.imagePath!)),
-                            radius: 20,
-                          )
-                        : const CircleAvatar(child: Icon(Icons.person)),
-                    title: Text(p.name),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _confirmRemovePerson(producers, p),
-                    ),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: () => _pickGlobalPoster(false),
+                    child: Text(l10n.addBannerButton),
                   ),
-                ),
+                  const SizedBox(width: 16),
+                  if (bannerFile != null)
+                    Container(
+                      width: 200,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Image.file(bannerFile!, fit: BoxFit.cover),
+                    ),
+                ],
               ),
               const SizedBox(height: 20),
 
-              // Acteurs
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    l10n.actorsLabel,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _addActor,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: Text(l10n.addButton),
-                  ),
-                ],
+              Text(
+                l10n.mainVideoLabel,
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              ...actors.map(
-                (p) => Card(
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  child: ListTile(
-                    leading: p.imagePath != null
-                        ? CircleAvatar(
-                            backgroundImage: FileImage(File(p.imagePath!)),
-                            radius: 20,
-                          )
-                        : const CircleAvatar(child: Icon(Icons.person)),
-                    title: Text(p.name),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _confirmRemovePerson(actors, p),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: _pickGlobalVideo,
+                    child: Text(l10n.addVideoButton),
+                  ),
+                  const SizedBox(width: 16),
+                  if (videoFile != null &&
+                      videoPlayerController != null &&
+                      videoPlayerController!.value.isInitialized)
+                    Container(
+                      width: 200,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: AspectRatio(
+                          aspectRatio: videoPlayerController!.value.aspectRatio,
+                          child: VideoPlayer(videoPlayerController!),
+                        ),
+                      ),
                     ),
+                  if (videoFile != null &&
+                      (videoPlayerController == null ||
+                          !videoPlayerController!.value.isInitialized))
+                    Text(videoFile!.path.split('/').last),
+                ],
+              ),
+              if (videoFile != null &&
+                  videoPlayerController != null &&
+                  videoPlayerController!.value.isInitialized) ...[
+                const SizedBox(height: 8),
+                VideoProgressIndicator(
+                  videoPlayerController!,
+                  allowScrubbing: true,
+                  colors: const VideoProgressColors(
+                    playedColor: Colors.red,
+                    bufferedColor: Colors.grey,
+                    backgroundColor: Colors.grey,
                   ),
                 ),
-              ),
+                IconButton(
+                  icon: Icon(
+                    videoPlayerController!.value.isPlaying
+                        ? Icons.pause
+                        : Icons.play_arrow,
+                    size: 36,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      if (videoPlayerController!.value.isPlaying) {
+                        videoPlayerController!.pause();
+                      } else {
+                        videoPlayerController!.play();
+                      }
+                    });
+                  },
+                ),
+              ],
               const SizedBox(height: 24),
+            ],
 
-              // --- Saisons (si série) ---
-              if (_contentType == ContentType.serie) ...[
-                Text(
-                  l10n.seasonManagementTitle,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+            // BOUTON SUBMIT
+            Center(
+              child: ElevatedButton(
+                onPressed: _saveForm,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
                   ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      l10n.seasonsLabel,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    ElevatedButton(
-                      onPressed: _addSeason,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                      ),
-                      child: Text(l10n.addSeasonButton),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ...seasons.map((w) => w.season),
-                const SizedBox(height: 16),
-              ],
-
-              // Bande annonce
-              if (_contentType != ContentType.serie) ...[
-                Text(
-                  l10n.trailerLabel,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: _pickTrailer,
-                      child: Text(l10n.addTrailerButton),
-                    ),
-                    const SizedBox(width: 16),
-                    if (trailerFile != null &&
-                        trailerPlayerController != null &&
-                        trailerPlayerController!.value.isInitialized)
-                      Container(
-                        width: 200,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: AspectRatio(
-                            aspectRatio:
-                                trailerPlayerController!.value.aspectRatio,
-                            child: VideoPlayer(trailerPlayerController!),
-                          ),
-                        ),
-                      ),
-                    if (trailerFile != null &&
-                        (trailerPlayerController == null ||
-                            !trailerPlayerController!.value.isInitialized))
-                      Text(trailerFile!.path.split('/').last),
-                  ],
-                ),
-                if (trailerFile != null &&
-                    trailerPlayerController != null &&
-                    trailerPlayerController!.value.isInitialized) ...[
-                  const SizedBox(height: 8),
-                  VideoProgressIndicator(
-                    trailerPlayerController!,
-                    allowScrubbing: true,
-                    colors: const VideoProgressColors(
-                      playedColor: Colors.red,
-                      bufferedColor: Colors.grey,
-                      backgroundColor: Colors.grey,
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      trailerPlayerController!.value.isPlaying
-                          ? Icons.pause
-                          : Icons.play_arrow,
-                      size: 36,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        if (trailerPlayerController!.value.isPlaying) {
-                          trailerPlayerController!.pause();
-                        } else {
-                          trailerPlayerController!.play();
-                        }
-                      });
-                    },
-                  ),
-                ],
-                const SizedBox(height: 24),
-              ],
-
-              if (_contentType != ContentType.serie) ...[
-                // Fichiers multimédias (pour film)
-                Text(
-                  l10n.mediaFilesTitle,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                Text(
-                  l10n.posterLabel,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: () => _pickGlobalPoster(true),
-                      child: Text(l10n.addPosterButton),
-                    ),
-                    const SizedBox(width: 16),
-                    if (posterFile != null)
-                      Container(
-                        width: 100,
-                        height: 150,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Image.file(posterFile!, fit: BoxFit.cover),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                Text(
-                  l10n.bannerLabel,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: () => _pickGlobalPoster(false),
-                      child: Text(l10n.addBannerButton),
-                    ),
-                    const SizedBox(width: 16),
-                    if (bannerFile != null)
-                      Container(
-                        width: 200,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Image.file(bannerFile!, fit: BoxFit.cover),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                Text(
-                  l10n.mainVideoLabel,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: _pickGlobalVideo,
-                      child: Text(l10n.addVideoButton),
-                    ),
-                    const SizedBox(width: 16),
-                    if (videoFile != null &&
-                        videoPlayerController != null &&
-                        videoPlayerController!.value.isInitialized)
-                      Container(
-                        width: 200,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: AspectRatio(
-                            aspectRatio:
-                                videoPlayerController!.value.aspectRatio,
-                            child: VideoPlayer(videoPlayerController!),
-                          ),
-                        ),
-                      ),
-                    if (videoFile != null &&
-                        (videoPlayerController == null ||
-                            !videoPlayerController!.value.isInitialized))
-                      Text(videoFile!.path.split('/').last),
-                  ],
-                ),
-                if (videoFile != null &&
-                    videoPlayerController != null &&
-                    videoPlayerController!.value.isInitialized) ...[
-                  const SizedBox(height: 8),
-                  VideoProgressIndicator(
-                    videoPlayerController!,
-                    allowScrubbing: true,
-                    colors: const VideoProgressColors(
-                      playedColor: Colors.red,
-                      bufferedColor: Colors.grey,
-                      backgroundColor: Colors.grey,
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      videoPlayerController!.value.isPlaying
-                          ? Icons.pause
-                          : Icons.play_arrow,
-                      size: 36,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        if (videoPlayerController!.value.isPlaying) {
-                          videoPlayerController!.pause();
-                        } else {
-                          videoPlayerController!.play();
-                        }
-                      });
-                    },
-                  ),
-                ],
-                const SizedBox(height: 24),
-              ],
-
-              // BOUTON SUBMIT
-              Center(
-                child: ElevatedButton(
-                  onPressed: _saveForm,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                    child: Text(
-                      l10n.submitButton.toUpperCase(),
-                      style: const TextStyle(fontSize: 18),
-                    ),
+                  child: Text(
+                    l10n.submitButton.toUpperCase(),
+                    style: const TextStyle(fontSize: 18),
                   ),
                 ),
               ),
-              const SizedBox(height: 40),
-            ],
-          ),
+            ),
+            const SizedBox(height: 40),
+          ],
         ),
       ),
     );

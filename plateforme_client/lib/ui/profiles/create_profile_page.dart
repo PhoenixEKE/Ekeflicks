@@ -181,7 +181,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
       final countryCode = _mainProfileData?['country'];
       if (countryCode != null) {
         countryEnum = _parseCountryEnum(countryCode);
-        print('🌍 Pays: $countryEnum');
+        debugPrint('🌍 Pays: $countryEnum');
       }
 
       final profileTypeId = await _findProfileTypeId(
@@ -210,7 +210,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
       debugPrint('Profile creation failed: ${dioError.message}');
       _handleApiError(dioError);
     } catch (e) {
-      print('❌ Erreur générale: $e');
+      debugPrint('❌ Erreur générale: $e');
       _showError('Erreur : ${e.toString()}');
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -284,14 +284,11 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
 
     if (dioError.response?.data != null) {
       final data = dioError.response!.data;
-      print('📋 Données d\'erreur: $data');
+      debugPrint('📋 Données d\'erreur: $data');
 
       if (data is Map<String, dynamic>) {
         // Essayer différents formats de réponse d'erreur
-        message = data['detail'] ??
-                  data['message'] ??
-                  data['error'] ??
-                  message;
+        message = data['detail'] ?? data['message'] ?? data['error'] ?? message;
 
         // Gestion spécifique des erreurs de validation
         if (data.containsKey('name')) {
@@ -354,10 +351,11 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
 
     final selectedAvatar = await showDialog<String>(
       context: context,
-      builder: (ctx) => AvatarSelectorDialog(
-        onAvatarSelected: (avatarUrl) => Navigator.of(ctx).pop(avatarUrl),
-        selectedAvatar: _selectedAvatar,
-      ),
+      builder:
+          (ctx) => AvatarSelectorDialog(
+            onAvatarSelected: (avatarUrl) => Navigator.of(ctx).pop(avatarUrl),
+            selectedAvatar: _selectedAvatar,
+          ),
     );
 
     if (selectedAvatar != null && mounted) {
@@ -370,10 +368,11 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
   Future<void> _selectAge() async {
     final selectedAge = await showDialog<int>(
       context: context,
-      builder: (ctx) => AgeSelectorDialog(
-        currentAge: _selectedAge,
-        profileType: _selectedType,
-      ),
+      builder:
+          (ctx) => AgeSelectorDialog(
+            currentAge: _selectedAge,
+            profileType: _selectedType,
+          ),
     );
 
     if (selectedAge != null && mounted) {
@@ -403,9 +402,11 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
       child: Actions(
         actions: {
           NextFocusIntent: CallbackAction<NextFocusIntent>(
-              onInvoke: (_) => FocusScope.of(context).nextFocus()),
+            onInvoke: (_) => FocusScope.of(context).nextFocus(),
+          ),
           PreviousFocusIntent: CallbackAction<PreviousFocusIntent>(
-              onInvoke: (_) => FocusScope.of(context).previousFocus()),
+            onInvoke: (_) => FocusScope.of(context).previousFocus(),
+          ),
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (_) {
               if (_createFocus.hasFocus) _createProfile();
@@ -419,9 +420,10 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         child: FocusScope(
           child: Scaffold(
             appBar: SimpleAppBar(
-              logoPath: theme.brightness == Brightness.dark
-                  ? 'assets/images/logo_dark.png'
-                  : 'assets/images/logo_light.png',
+              logoPath:
+                  theme.brightness == Brightness.dark
+                      ? 'assets/images/logo_dark.png'
+                      : 'assets/images/logo_light.png',
               onLanguagePressed: () {
                 context.read<LocaleProvider>().toggleLocale();
               },
@@ -435,9 +437,10 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: theme.brightness == Brightness.dark
-                          ? [const Color(0xFF121212), Colors.black]
-                          : [Colors.grey[100]!, Colors.grey[300]!],
+                      colors:
+                          theme.brightness == Brightness.dark
+                              ? [const Color(0xFF121212), Colors.black]
+                              : [Colors.grey[100]!, Colors.grey[300]!],
                     ),
                   ),
                 ),
@@ -463,19 +466,26 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: (_capacityReached ? Colors.orange : Colors.blue)
-                              .withOpacity(0.1),
+                          color: (_capacityReached
+                                  ? Colors.orange
+                                  : Colors.blue)
+                              .withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: (_capacityReached ? Colors.orange : Colors.blue)
-                                .withOpacity(0.35),
+                            color: (_capacityReached
+                                    ? Colors.orange
+                                    : Colors.blue)
+                                .withValues(alpha: 0.35),
                           ),
                         ),
                         child: Row(
                           children: [
                             Icon(
                               Icons.devices,
-                              color: _capacityReached ? Colors.orange : Colors.blue,
+                              color:
+                                  _capacityReached
+                                      ? Colors.orange
+                                      : Colors.blue,
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -497,9 +507,11 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
+                            color: Colors.blue.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                            border: Border.all(
+                              color: Colors.blue.withValues(alpha: 0.3),
+                            ),
                           ),
                           child: Row(
                             children: [
@@ -537,7 +549,12 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                               const SizedBox(height: 20),
 
                               // Sélecteur de type de profil
-                              _buildTypeSelector(theme, deviceInfo, loc, hasMainProfile),
+                              _buildTypeSelector(
+                                theme,
+                                deviceInfo,
+                                loc,
+                                hasMainProfile,
+                              ),
                               const SizedBox(height: 16),
 
                               // Sélecteur d'âge (uniquement pour les enfants)
@@ -577,7 +594,10 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                         if (_focusedController != null &&
                             _focusedController!.text.isNotEmpty) {
                           _focusedController!.text = _focusedController!.text
-                              .substring(0, _focusedController!.text.length - 1);
+                              .substring(
+                                0,
+                                _focusedController!.text.length - 1,
+                              );
                         }
                       },
                       onEnter: _createProfile,
@@ -588,13 +608,15 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                 // Overlay de chargement
                 if (_isLoading)
                   Container(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withValues(alpha: 0.5),
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation(AppTheme.primaryOrange),
+                            valueColor: AlwaysStoppedAnimation(
+                              AppTheme.primaryOrange,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -662,37 +684,50 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: _avatarFocus.hasFocus ? AppTheme.primaryOrange : theme.colorScheme.outline,
+                      color:
+                          _avatarFocus.hasFocus
+                              ? AppTheme.primaryOrange
+                              : theme.colorScheme.outline,
                       width: _avatarFocus.hasFocus ? 3 : 2,
                     ),
-                    boxShadow: _avatarFocus.hasFocus
-                        ? [
-                            BoxShadow(
-                              color: AppTheme.primaryOrange.withOpacity(0.3),
-                              blurRadius: 10,
-                              spreadRadius: 2,
-                            ),
-                          ]
-                        : null,
+                    boxShadow:
+                        _avatarFocus.hasFocus
+                            ? [
+                              BoxShadow(
+                                color: AppTheme.primaryOrange.withValues(
+                                  alpha: 0.3,
+                                ),
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                            : null,
                   ),
                   child: ClipOval(
-                    child: _selectedAvatar != null
-                        ? Image.network(
-                            _selectedAvatar!,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation(AppTheme.primaryOrange),
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return _buildDefaultAvatar(theme);
-                            },
-                          )
-                        : _buildDefaultAvatar(theme),
+                    child:
+                        _selectedAvatar != null
+                            ? Image.network(
+                              _selectedAvatar!,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (
+                                context,
+                                child,
+                                loadingProgress,
+                              ) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation(
+                                      AppTheme.primaryOrange,
+                                    ),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return _buildDefaultAvatar(theme);
+                              },
+                            )
+                            : _buildDefaultAvatar(theme),
                   ),
                 ),
               ),
@@ -703,7 +738,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         Text(
           'Appuyez pour choisir un avatar',
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.7),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             fontStyle: FontStyle.italic,
           ),
         ),
@@ -713,16 +748,20 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
 
   Widget _buildDefaultAvatar(ThemeData theme) {
     return Container(
-      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
       child: Icon(
         _selectedType == 'child' ? Icons.child_care : Icons.person,
         size: 50,
-        color: theme.colorScheme.onSurface.withOpacity(0.5),
+        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
       ),
     );
   }
 
-  Widget _buildNameField(ThemeData theme, DeviceInfoProvider deviceInfo, AppLocalizations? loc) {
+  Widget _buildNameField(
+    ThemeData theme,
+    DeviceInfoProvider deviceInfo,
+    AppLocalizations? loc,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -735,21 +774,25 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         const SizedBox(height: 8),
         Focus(
           focusNode: _nameFocus,
-          child: deviceInfo.isTV
-              ? _buildTVNameField(theme)
-              : TextField(
-                  controller: _nameController,
-                  decoration: InputDecoration(
-                    hintText: loc?.nomProfil ?? 'Entrez le nom du profil',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: AppTheme.primaryOrange, width: 2),
+          child:
+              deviceInfo.isTV
+                  ? _buildTVNameField(theme)
+                  : TextField(
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      hintText: loc?.nomProfil ?? 'Entrez le nom du profil',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(
+                          color: AppTheme.primaryOrange,
+                          width: 2,
+                        ),
+                      ),
                     ),
                   ),
-                ),
         ),
       ],
     );
@@ -759,26 +802,28 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
         border: Border.all(
-          color: _nameFocus.hasFocus ? AppTheme.primaryOrange : theme.colorScheme.outline,
+          color:
+              _nameFocus.hasFocus
+                  ? AppTheme.primaryOrange
+                  : theme.colorScheme.outline,
           width: 2,
         ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        _nameController.text.isEmpty
-            ? 'Nom du profil'
-            : _nameController.text,
-        style: TextStyle(
-          color: theme.colorScheme.onSurface,
-          fontSize: 18,
-        ),
+        _nameController.text.isEmpty ? 'Nom du profil' : _nameController.text,
+        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 18),
       ),
     );
   }
 
-  Widget _buildPhoneField(ThemeData theme, DeviceInfoProvider deviceInfo, AppLocalizations? loc) {
+  Widget _buildPhoneField(
+    ThemeData theme,
+    DeviceInfoProvider deviceInfo,
+    AppLocalizations? loc,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -791,22 +836,26 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         const SizedBox(height: 8),
         Focus(
           focusNode: _phoneFocus,
-          child: deviceInfo.isTV
-              ? _buildTVPhoneField(theme)
-              : TextField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                    hintText: 'Optionnel, ex. +2250102030405',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: AppTheme.primaryOrange, width: 2),
+          child:
+              deviceInfo.isTV
+                  ? _buildTVPhoneField(theme)
+                  : TextField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      hintText: 'Optionnel, ex. +2250102030405',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(
+                          color: AppTheme.primaryOrange,
+                          width: 2,
+                        ),
+                      ),
                     ),
                   ),
-                ),
         ),
       ],
     );
@@ -816,9 +865,12 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
         border: Border.all(
-          color: _phoneFocus.hasFocus ? AppTheme.primaryOrange : theme.colorScheme.outline,
+          color:
+              _phoneFocus.hasFocus
+                  ? AppTheme.primaryOrange
+                  : theme.colorScheme.outline,
           width: 2,
         ),
         borderRadius: BorderRadius.circular(8),
@@ -827,16 +879,17 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         _phoneController.text.isEmpty
             ? 'Téléphone (optionnel, ex. +2250102030405)'
             : _phoneController.text,
-        style: TextStyle(
-          color: theme.colorScheme.onSurface,
-          fontSize: 18,
-        ),
+        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 18),
       ),
     );
   }
 
-  Widget _buildTypeSelector(ThemeData theme, DeviceInfoProvider deviceInfo,
-      AppLocalizations? loc, bool hasMainProfile) {
+  Widget _buildTypeSelector(
+    ThemeData theme,
+    DeviceInfoProvider deviceInfo,
+    AppLocalizations? loc,
+    bool hasMainProfile,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -851,14 +904,20 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
           focusNode: _typeFocus,
           child: Container(
             decoration: BoxDecoration(
-              color: deviceInfo.isTV && _typeFocus.hasFocus
-                  ? theme.colorScheme.surfaceVariant.withOpacity(0.6)
-                  : theme.colorScheme.surfaceVariant.withOpacity(0.3),
+              color:
+                  deviceInfo.isTV && _typeFocus.hasFocus
+                      ? theme.colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.6,
+                      )
+                      : theme.colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.3,
+                      ),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: deviceInfo.isTV && _typeFocus.hasFocus
-                    ? AppTheme.primaryOrange
-                    : Colors.transparent,
+                color:
+                    deviceInfo.isTV && _typeFocus.hasFocus
+                        ? AppTheme.primaryOrange
+                        : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -877,9 +936,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                     });
                   }
                 },
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                ),
+                decoration: const InputDecoration(border: InputBorder.none),
                 items: [
                   if (!hasMainProfile)
                     DropdownMenuItem(
@@ -921,9 +978,14 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.4,
+                ),
                 border: Border.all(
-                  color: _ageFocus.hasFocus ? AppTheme.primaryOrange : theme.colorScheme.outline,
+                  color:
+                      _ageFocus.hasFocus
+                          ? AppTheme.primaryOrange
+                          : theme.colorScheme.outline,
                   width: 2,
                 ),
                 borderRadius: BorderRadius.circular(8),
@@ -932,11 +994,16 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _selectedAge != null ? '$_selectedAge ans' : 'Sélectionner l\'âge',
+                    _selectedAge != null
+                        ? '$_selectedAge ans'
+                        : 'Sélectionner l\'âge',
                     style: TextStyle(
-                      color: _selectedAge != null
-                          ? theme.colorScheme.onSurface
-                          : theme.colorScheme.onSurface.withOpacity(0.5),
+                      color:
+                          _selectedAge != null
+                              ? theme.colorScheme.onSurface
+                              : theme.colorScheme.onSurface.withValues(
+                                alpha: 0.5,
+                              ),
                       fontSize: 16,
                     ),
                   ),
@@ -959,15 +1026,21 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
 
     switch (_selectedType) {
       case 'main':
-        description = loc?.descriptionProfilPrincipal ?? 'Accès complet à tous les contenus';
+        description =
+            loc?.descriptionProfilPrincipal ??
+            'Accès complet à tous les contenus';
         color = Colors.blue;
         break;
       case 'child':
-        description = loc?.descriptionProfilEnfant ?? 'Contenu adapté aux enfants avec restrictions d\'âge';
+        description =
+            loc?.descriptionProfilEnfant ??
+            'Contenu adapté aux enfants avec restrictions d\'âge';
         color = Colors.green;
         break;
       case 'guest':
-        description = loc?.descriptionProfilInvite ?? 'Accès limité temporaire avec restrictions de contenu';
+        description =
+            loc?.descriptionProfilInvite ??
+            'Accès limité temporaire avec restrictions de contenu';
         color = Colors.orange;
         break;
     }
@@ -975,9 +1048,9 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -986,10 +1059,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
           Expanded(
             child: Text(
               description,
-              style: TextStyle(
-                color: color,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: color, fontSize: 14),
             ),
           ),
         ],
@@ -997,56 +1067,72 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
     );
   }
 
-  Widget _buildActionButtons(ThemeData theme, DeviceInfoProvider deviceInfo, AppLocalizations? loc) {
+  Widget _buildActionButtons(
+    ThemeData theme,
+    DeviceInfoProvider deviceInfo,
+    AppLocalizations? loc,
+  ) {
     return Row(
       children: [
         Expanded(
           child: Focus(
             focusNode: _createFocus,
-            child: deviceInfo.isTV
-                ? ElevatedButton(
-                    onPressed: _isLoading || _capacityLoading || _capacityReached
-                        ? null
-                        : _createProfile,
-                    style: AppDecorations.tvButtonStyle(isFocused: _createFocus.hasFocus),
-                    child: _isLoading
-                        ? const CircularProgressIndicator()
-                        : Text(loc?.creer ?? 'Créer le profil'),
-                  )
-                : ElevatedButton(
-                    onPressed: _isLoading || _capacityLoading || _capacityReached
-                        ? null
-                        : _createProfile,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryOrange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+            child:
+                deviceInfo.isTV
+                    ? ElevatedButton(
+                      onPressed:
+                          _isLoading || _capacityLoading || _capacityReached
+                              ? null
+                              : _createProfile,
+                      style: AppDecorations.tvButtonStyle(
+                        isFocused: _createFocus.hasFocus,
+                      ),
+                      child:
+                          _isLoading
+                              ? const CircularProgressIndicator()
+                              : Text(loc?.creer ?? 'Créer le profil'),
+                    )
+                    : ElevatedButton(
+                      onPressed:
+                          _isLoading || _capacityLoading || _capacityReached
+                              ? null
+                              : _createProfile,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryOrange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child:
+                          _isLoading
+                              ? const CircularProgressIndicator()
+                              : Text(loc?.creer ?? 'Créer le profil'),
                     ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator()
-                        : Text(loc?.creer ?? 'Créer le profil'),
-                  ),
           ),
         ),
         const SizedBox(width: 16),
         Expanded(
           child: Focus(
             focusNode: _cancelFocus,
-            child: deviceInfo.isTV
-                ? OutlinedButton(
-                    onPressed: _isLoading ? null : () => Navigator.pop(context),
-                    style: AppDecorations.tvOutlinedButtonStyle(isFocused: _cancelFocus.hasFocus),
-                    child: Text(loc?.annuler ?? 'Annuler'),
-                  )
-                : OutlinedButton(
-                    onPressed: _isLoading ? null : () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: theme.colorScheme.onSurface,
-                      side: BorderSide(color: theme.colorScheme.outline),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+            child:
+                deviceInfo.isTV
+                    ? OutlinedButton(
+                      onPressed:
+                          _isLoading ? null : () => Navigator.pop(context),
+                      style: AppDecorations.tvOutlinedButtonStyle(
+                        isFocused: _cancelFocus.hasFocus,
+                      ),
+                      child: Text(loc?.annuler ?? 'Annuler'),
+                    )
+                    : OutlinedButton(
+                      onPressed:
+                          _isLoading ? null : () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.colorScheme.onSurface,
+                        side: BorderSide(color: theme.colorScheme.outline),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: Text(loc?.annuler ?? 'Annuler'),
                     ),
-                    child: Text(loc?.annuler ?? 'Annuler'),
-                  ),
           ),
         ),
       ],

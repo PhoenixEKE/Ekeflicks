@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:plateforme_producteurs/services/auth_service.dart';
 import 'package:plateforme_producteurs/services/producer_service.dart';
+import 'package:plateforme_producteurs/widgets/producer_page_shell.dart';
 
 import 'login/login.dart';
 import 'onboarding/agreement_page.dart';
@@ -126,16 +127,28 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/profile',
-      pageBuilder: (context, state) =>
-          MaterialPage(key: state.pageKey, child: const ProfilePage()),
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const ProducerPageShell(
+          showFaq: true,
+          showBack: true,
+          maxWidth: 1280,
+          child: ProfilePage(),
+        ),
+      ),
     ),
   ],
   errorPageBuilder: (context, state) => MaterialPage(
     key: state.pageKey,
-    child: Scaffold(
-      appBar: AppBar(title: Text(AppLocalizations.of(context)!.pageNotFound)),
-      body: Center(
-        child: Text(AppLocalizations.of(context)!.pageNotFoundMessage),
+    child: ProducerPageShell(
+      showFaq: true,
+      showBack: true,
+      maxWidth: 700,
+      child: Center(
+        child: Text(
+          AppLocalizations.of(context)!.pageNotFoundMessage,
+          textAlign: TextAlign.center,
+        ),
       ),
     ),
   ),

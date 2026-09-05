@@ -37,17 +37,25 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      
-      // Simulation - À adapter avec votre API réelle
-      await Future.delayed(const Duration(seconds: 2));
-      
+
+      await userProvider.changePassword(
+        currentPassword: _currentPasswordController.text,
+        newPassword: _newPasswordController.text,
+      );
+
+      if (!mounted) return;
+
       _showSuccessSnackbar('Mot de passe modifié avec succès');
-      
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      Navigator.pop(context);
     } catch (e) {
-      _showErrorSnackbar('Erreur lors de la modification: $e');
+      if (!mounted) return;
+
+      final message =
+          e is StateError
+              ? e.message
+              : 'Impossible de modifier le mot de passe pour le moment.';
+
+      _showErrorSnackbar(message);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -57,26 +65,19 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   void _showSuccessSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
     );
   }
 
   void _showErrorSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -99,7 +100,12 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         label: loc?.motDePasseActuel ?? 'Mot de passe actuel',
                         icon: Icons.lock,
                         isPassword: true,
-                        onToggleVisibility: () => setState(() => _obscureCurrentPassword = !_obscureCurrentPassword),
+                        onToggleVisibility:
+                            () => setState(
+                              () =>
+                                  _obscureCurrentPassword =
+                                      !_obscureCurrentPassword,
+                            ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -111,7 +117,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         label: loc?.nouveauMotDePasse ?? 'Nouveau mot de passe',
                         icon: Icons.lock_outline,
                         isPassword: true,
-                        onToggleVisibility: () => setState(() => _obscureNewPassword = !_obscureNewPassword),
+                        onToggleVisibility:
+                            () => setState(
+                              () => _obscureNewPassword = !_obscureNewPassword,
+                            ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -120,10 +129,17 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       obscureText: _obscureConfirmPassword,
                       decoration: AppDecorations.inputDecoration(
                         context,
-                        label: loc?.confirmerMotDePasse ?? 'Confirmer le mot de passe',
+                        label:
+                            loc?.confirmerMotDePasse ??
+                            'Confirmer le mot de passe',
                         icon: Icons.lock_reset,
                         isPassword: true,
-                        onToggleVisibility: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                        onToggleVisibility:
+                            () => setState(
+                              () =>
+                                  _obscureConfirmPassword =
+                                      !_obscureConfirmPassword,
+                            ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -136,9 +152,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        child: _isLoading
-                            ? CircularProgressIndicator(color: Colors.white)
-                            : Text(loc?.modifier ?? 'Modifier'),
+                        child:
+                            _isLoading
+                                ? CircularProgressIndicator(color: Colors.white)
+                                : Text(loc?.modifier ?? 'Modifier'),
                       ),
                     ),
                   ],

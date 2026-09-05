@@ -27,9 +27,10 @@ class FocusUtils {
             color: focusNode.hasFocus ? focusColor : unfocusedColor,
             width: borderWidth,
           ),
-          color: focusNode.hasFocus 
-            ? focusColor.withOpacity(0.1) 
-            : Colors.transparent,
+          color:
+              focusNode.hasFocus
+                  ? focusColor.withValues(alpha: 0.1)
+                  : Colors.transparent,
         ),
         child: child,
       ),
@@ -84,7 +85,7 @@ mixin FocusManagementMixin<T extends StatefulWidget> on State<T> {
   /// Passe au focus suivant
   void nextFocus() {
     if (_focusNodes.isEmpty) return;
-    
+
     _focusNodes[_currentFocusIndex].unfocus();
     _currentFocusIndex = (_currentFocusIndex + 1) % _focusNodes.length;
     _focusNodes[_currentFocusIndex].requestFocus();
@@ -93,7 +94,7 @@ mixin FocusManagementMixin<T extends StatefulWidget> on State<T> {
   /// Passe au focus précédent
   void previousFocus() {
     if (_focusNodes.isEmpty) return;
-    
+
     _focusNodes[_currentFocusIndex].unfocus();
     _currentFocusIndex = (_currentFocusIndex - 1) % _focusNodes.length;
     if (_currentFocusIndex < 0) _currentFocusIndex = _focusNodes.length - 1;
@@ -110,7 +111,7 @@ mixin FocusManagementMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// Obtient le nœud de focus actuel
-  FocusNode? get currentFocusNode => 
+  FocusNode? get currentFocusNode =>
       _focusNodes.isNotEmpty ? _focusNodes[_currentFocusIndex] : null;
 
   @override

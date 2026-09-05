@@ -10,7 +10,6 @@ import 'package:app_ekeflicks/providers/user_provider.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
-import 'package:app_ekeflicks/services/subscription_progress_service.dart';
 import 'package:dio/dio.dart';
 import 'package:app_ekeflicks/utils/api_error_message.dart';
 
@@ -58,7 +57,10 @@ class _SignupPageState extends State<SignupPage> {
 
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+      final profileProvider = Provider.of<ProfileProvider>(
+        context,
+        listen: false,
+      );
 
       // Création de l'utilisateur
       final registered = await userProvider.register(
@@ -68,6 +70,7 @@ class _SignupPageState extends State<SignupPage> {
         lastname: lastname,
       );
       if (!registered) {
+        if (!mounted) return;
         throw Exception(AppLocalizations.of(context)!.genericError);
       }
 
@@ -75,7 +78,9 @@ class _SignupPageState extends State<SignupPage> {
       await profileProvider.loadProfiles();
       if (profileProvider.hasProfiles) {
         profileProvider.selectProfile(
-            profileProvider.mainProfile ?? profileProvider.availableProfiles.first);
+          profileProvider.mainProfile ??
+              profileProvider.availableProfiles.first,
+        );
       }
 
       // Navigation vers la page d'abonnement
@@ -120,7 +125,10 @@ class _SignupPageState extends State<SignupPage> {
       builder: (context) {
         final theme = Theme.of(context);
         return AlertDialog(
-          title: Text(AppLocalizations.of(context)!.error, style: theme.textTheme.titleLarge),
+          title: Text(
+            AppLocalizations.of(context)!.error,
+            style: theme.textTheme.titleLarge,
+          ),
           content: Text(message, style: theme.textTheme.bodyMedium),
           actions: [
             TextButton(
@@ -142,15 +150,19 @@ class _SignupPageState extends State<SignupPage> {
 
     return Scaffold(
       appBar: SimpleAppBar(
-        logoPath: isDarkMode
-            ? 'assets/images/logo_dark.png'
-            : 'assets/images/logo_light.png',
+        logoPath:
+            isDarkMode
+                ? 'assets/images/logo_dark.png'
+                : 'assets/images/logo_light.png',
       ),
       body: Container(
         decoration: AppTheme.pageDecoration(context),
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: isWide ? 0 : 24, vertical: 32),
+            padding: EdgeInsets.symmetric(
+              horizontal: isWide ? 0 : 24,
+              vertical: 32,
+            ),
             child: Container(
               width: isWide ? 500 : double.infinity,
               margin: isWide ? const EdgeInsets.all(24) : EdgeInsets.zero,
@@ -161,16 +173,24 @@ class _SignupPageState extends State<SignupPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(loc.inscriptionTitre,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onSurface),
-                        textAlign: TextAlign.center),
+                    Text(
+                      loc.inscriptionTitre,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 8),
-                    Text(loc.inscriptionSousTitre,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.7)),
-                        textAlign: TextAlign.center),
+                    Text(
+                      loc.inscriptionSousTitre,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.7,
+                        ),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 24),
                     TextFormField(
                       controller: _prenomController,
@@ -180,7 +200,9 @@ class _SignupPageState extends State<SignupPage> {
                         icon: Icons.person_outline,
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return loc.prenomObligatoire;
+                        if (value == null || value.isEmpty) {
+                          return loc.prenomObligatoire;
+                        }
                         if (value.length < 2) return loc.prenomTropCourt;
                         return null;
                       },
@@ -194,7 +216,9 @@ class _SignupPageState extends State<SignupPage> {
                         icon: Icons.person_outline,
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return loc.nomObligatoire;
+                        if (value == null || value.isEmpty) {
+                          return loc.nomObligatoire;
+                        }
                         if (value.length < 2) return loc.nomTropCourt;
                         return null;
                       },
@@ -218,7 +242,9 @@ class _SignupPageState extends State<SignupPage> {
                           '',
                         );
                         if (!identifier.contains('@')) {
-                          if (!RegExp(r'^\+[1-9][0-9]{7,14}$').hasMatch(phone)) {
+                          if (!RegExp(
+                            r'^\+[1-9][0-9]{7,14}$',
+                          ).hasMatch(phone)) {
                             return 'Ajoutez l\'indicatif du pays, par exemple '
                                 '+2250102030405';
                           }
@@ -227,7 +253,9 @@ class _SignupPageState extends State<SignupPage> {
                         final emailRegex = RegExp(
                           r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$",
                         );
-                        if (!emailRegex.hasMatch(identifier)) return loc.emailInvalide;
+                        if (!emailRegex.hasMatch(identifier)) {
+                          return loc.emailInvalide;
+                        }
                         return null;
                       },
                     ),
@@ -240,11 +268,15 @@ class _SignupPageState extends State<SignupPage> {
                         label: loc.motDePasse,
                         icon: Icons.lock_outline,
                         isPassword: true,
-                        onToggleVisibility: () =>
-                            setState(() => _obscurePassword = !_obscurePassword),
+                        onToggleVisibility:
+                            () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return loc.motDePasseObligatoire;
+                        if (value == null || value.isEmpty) {
+                          return loc.motDePasseObligatoire;
+                        }
                         if (value.length < 8) return loc.motDePasseTropCourt;
                         return null;
                       },
@@ -255,11 +287,16 @@ class _SignupPageState extends State<SignupPage> {
                       children: [
                         Checkbox(
                           value: _acceptTerms,
-                          onChanged: (value) => setState(() => _acceptTerms = value ?? false),
-                          fillColor: MaterialStateProperty.resolveWith<Color>(
-                            (states) => states.contains(MaterialState.selected)
-                                ? AppTheme.primaryOrange
-                                : theme.colorScheme.onSurface.withOpacity(0.2),
+                          onChanged:
+                              (value) =>
+                                  setState(() => _acceptTerms = value ?? false),
+                          fillColor: WidgetStateProperty.resolveWith<Color>(
+                            (states) =>
+                                states.contains(WidgetState.selected)
+                                    ? AppTheme.primaryOrange
+                                    : theme.colorScheme.onSurface.withValues(
+                                      alpha: 0.2,
+                                    ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -268,32 +305,47 @@ class _SignupPageState extends State<SignupPage> {
                             text: TextSpan(
                               text: '${loc.acceptationTexte1} ',
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.8)),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.8,
+                                ),
+                              ),
                               children: [
                                 TextSpan(
                                   text: loc.conditionsUtilisation,
                                   style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: AppTheme.primaryOrange,
-                                      decoration: TextDecoration.underline),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () => Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (_) => const TermsOfUsePage()),
-                                        ),
+                                    color: AppTheme.primaryOrange,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                  recognizer:
+                                      TapGestureRecognizer()
+                                        ..onTap =
+                                            () => Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder:
+                                                    (_) =>
+                                                        const TermsOfUsePage(),
+                                              ),
+                                            ),
                                 ),
                                 TextSpan(text: ' ${loc.et} '),
                                 TextSpan(
                                   text: loc.politiqueConfidentialite,
                                   style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: AppTheme.primaryOrange,
-                                      decoration: TextDecoration.underline),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () => Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (_) => const PrivacyPolicyPage()),
-                                        ),
+                                    color: AppTheme.primaryOrange,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                  recognizer:
+                                      TapGestureRecognizer()
+                                        ..onTap =
+                                            () => Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder:
+                                                    (_) =>
+                                                        const PrivacyPolicyPage(),
+                                              ),
+                                            ),
                                 ),
                               ],
                             ),
@@ -305,26 +357,31 @@ class _SignupPageState extends State<SignupPage> {
                     ElevatedButton(
                       onPressed: _isLoading ? null : _submit,
                       style: AppDecorations.primaryButtonStyle(context),
-                      child: _isLoading
-                          ? SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: theme.colorScheme.onPrimary,
+                      child:
+                          _isLoading
+                              ? SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: theme.colorScheme.onPrimary,
+                                ),
+                              )
+                              : Text(
+                                loc.sinscrire,
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: theme.colorScheme.onPrimary,
+                                ),
                               ),
-                            )
-                          : Text(
-                              loc.sinscrire,
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: theme.colorScheme.onPrimary,
-                              ),
-                            ),
                     ),
                     const SizedBox(height: 16),
                     Center(
                       child: TextButton(
-                        onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                        onPressed:
+                            () => Navigator.pushReplacementNamed(
+                              context,
+                              '/login',
+                            ),
                         child: RichText(
                           text: TextSpan(
                             text: loc.dejaUnCompte,

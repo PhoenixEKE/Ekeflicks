@@ -23,6 +23,8 @@ void main() {
       email: 'user@example.com',
       offerTitle: 'Premium',
       offerPrice: '13.99',
+      offerCurrency: 'EUR',
+      offerPlanSlug: 'premium',
     );
 
     final progress = await service.load('USER@example.com');
@@ -30,6 +32,8 @@ void main() {
     expect(progress?.step, SubscriptionStep.payment);
     expect(progress?.offerTitle, 'Premium');
     expect(progress?.offerPrice, '13.99');
+    expect(progress?.offerCurrency, 'EUR');
+    expect(progress?.offerPlanSlug, 'premium');
   });
 
   test('completed subscriptions are no longer resumed', () async {

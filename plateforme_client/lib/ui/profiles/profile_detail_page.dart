@@ -26,7 +26,8 @@ class ProfileDetailPage extends StatefulWidget {
   State<ProfileDetailPage> createState() => _ProfileDetailPageState();
 }
 
-class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTickerProviderStateMixin {
+class _ProfileDetailPageState extends State<ProfileDetailPage>
+    with SingleTickerProviderStateMixin {
   late Profile _editingProfile;
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -188,8 +189,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
 
       await profileProvider.loadProfiles();
 
+      if (!mounted) return;
+
       final updatedProfiles = profileProvider.availableProfiles;
-      final updatedProfileData = updatedProfiles.firstWhere((p) => p.id == _editingProfile.id);
+      final updatedProfileData = updatedProfiles.firstWhere(
+        (p) => p.id == _editingProfile.id,
+      );
       setState(() {
         _isEditing = false;
         _editingProfile = updatedProfileData;
@@ -199,7 +204,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           content: const Text('✅ Profil mis à jour avec succès'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
         ),
       );
     } on DioException catch (dioError) {
@@ -226,7 +233,10 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
     final phoneError = validateInternationalPhone(_phoneController.text);
     if (phoneError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('⚠️ $phoneError'), backgroundColor: Colors.orange),
+        SnackBar(
+          content: Text('⚠️ $phoneError'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return false;
     }
@@ -235,7 +245,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
 
   void _handleApiError(DioException dioError) {
     String message = 'Erreur inattendue';
-    if (dioError.response?.data != null && dioError.response!.data is Map<String, dynamic>) {
+    if (dioError.response?.data != null &&
+        dioError.response!.data is Map<String, dynamic>) {
       final data = dioError.response!.data as Map<String, dynamic>;
       message = data['detail'] ?? data['message'] ?? message;
       if (data.containsKey('name')) message = data['name'][0] ?? message;
@@ -254,7 +265,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
 
   Future<void> _changeAvatar() async {
     debugPrint('🔴 Début de _changeAvatar');
-    debugPrint('🔴 Avatar actuel: ${_editingProfile.avatarUrl ?? _editingProfile.avatar}');
+    debugPrint(
+      '🔴 Avatar actuel: ${_editingProfile.avatarUrl ?? _editingProfile.avatar}',
+    );
 
     final userProvider = context.read<UserProvider>();
     final avatarProvider = context.read<AvatarProvider>();
@@ -280,20 +293,25 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
 
     final selectedAvatar = await showDialog<String>(
       context: context,
-      builder: (ctx) => AvatarSelectorDialog(
-        onAvatarSelected: (avatarUrl) => Navigator.of(ctx).pop(avatarUrl),
-        selectedAvatar: previousAvatar,
-      ),
+      builder:
+          (ctx) => AvatarSelectorDialog(
+            onAvatarSelected: (avatarUrl) => Navigator.of(ctx).pop(avatarUrl),
+            selectedAvatar: previousAvatar,
+          ),
     );
 
     debugPrint('🔴 Retour du dialogue, avatar sélectionné: $selectedAvatar');
     debugPrint('🔴 Ancien avatar: $previousAvatar');
-    debugPrint('🔴 Nouveau avatar différent: ${selectedAvatar != previousAvatar}');
+    debugPrint(
+      '🔴 Nouveau avatar différent: ${selectedAvatar != previousAvatar}',
+    );
 
     // Vérifier si un avatar a été sélectionné et s'il est différent
     if (selectedAvatar != null && selectedAvatar != previousAvatar && mounted) {
       await _updateAvatar(selectedAvatar);
-    } else if (selectedAvatar != null && selectedAvatar == previousAvatar && mounted) {
+    } else if (selectedAvatar != null &&
+        selectedAvatar == previousAvatar &&
+        mounted) {
       // Même avatar sélectionné, pas besoin de mise à jour
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -353,6 +371,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
       // Recharger les profils depuis l'API
       await profileProvider.loadProfiles();
 
+      if (!mounted) return;
+
       // Mettre à jour l'état local avec les nouvelles données
       final updatedProfiles = profileProvider.availableProfiles;
       final updatedProfileData = updatedProfiles.firstWhere(
@@ -374,15 +394,16 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           duration: const Duration(seconds: 3),
         ),
       );
-
     } on DioException catch (dioError) {
       if (!mounted) return;
 
       // Gestion spécifique des erreurs Dio
       String errorMessage = 'Erreur lors de la mise à jour';
-      if (dioError.response?.data != null && dioError.response!.data is Map<String, dynamic>) {
+      if (dioError.response?.data != null &&
+          dioError.response!.data is Map<String, dynamic>) {
         final errorData = dioError.response!.data as Map<String, dynamic>;
-        errorMessage = errorData['detail'] ?? errorData['message'] ?? errorMessage;
+        errorMessage =
+            errorData['detail'] ?? errorData['message'] ?? errorMessage;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -392,7 +413,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           duration: const Duration(seconds: 4),
         ),
       );
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -413,10 +433,11 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
   Future<void> _changeAge() async {
     final selectedAge = await showDialog<int>(
       context: context,
-      builder: (ctx) => AgeSelectorDialog(
-        currentAge: _editingProfile.age,
-        profileType: _editingProfile.type,
-      ),
+      builder:
+          (ctx) => AgeSelectorDialog(
+            currentAge: _editingProfile.age,
+            profileType: _editingProfile.type,
+          ),
     );
 
     if (selectedAge != null && mounted) {
@@ -470,15 +491,21 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
 
       await profileProvider.loadProfiles();
 
+      if (!mounted) return;
+
       final updatedProfiles = profileProvider.availableProfiles;
-      final updatedProfileData = updatedProfiles.firstWhere((p) => p.id == _editingProfile.id);
+      final updatedProfileData = updatedProfiles.firstWhere(
+        (p) => p.id == _editingProfile.id,
+      );
       setState(() => _editingProfile = updatedProfileData);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('✅ Âge modifié avec succès'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
         ),
       );
     } on DioException catch (dioError) {
@@ -489,10 +516,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
     }
   }
 
-  bool get _isChildProfile => _editingProfile.type?.toString().contains('child') ?? false;
+  bool get _isChildProfile =>
+      _editingProfile.type?.toString().contains('child') ?? false;
 
   Color _getProfileColor() {
-    final type = _editingProfile.type?.toString().split('.').last.toLowerCase() ?? '';
+    final type =
+        _editingProfile.type?.toString().split('.').last.toLowerCase() ?? '';
     switch (type) {
       case 'main':
         return const Color(0xFFFF6B6B);
@@ -521,10 +550,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
             scale: _scaleAnimation.value,
             child: Scaffold(
               appBar: SimpleAppBar(
-                logoPath: theme.brightness == Brightness.dark
-                    ? 'assets/images/logo_dark.png'
-                    : 'assets/images/logo_light.png',
-                onLanguagePressed: () => context.read<LocaleProvider>().toggleLocale(),
+                logoPath:
+                    theme.brightness == Brightness.dark
+                        ? 'assets/images/logo_dark.png'
+                        : 'assets/images/logo_light.png',
+                onLanguagePressed:
+                    () => context.read<LocaleProvider>().toggleLocale(),
                 languageFocusNode: _languageFocus,
               ),
               body: Stack(
@@ -535,8 +566,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
                         center: Alignment.topCenter,
                         radius: 1.2,
                         colors: [
-                          profileColor.withOpacity(0.05),
-                          theme.colorScheme.background,
+                          profileColor.withValues(alpha: 0.05),
+                          theme.colorScheme.surface,
                         ],
                       ),
                     ),
@@ -555,7 +586,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
                             _buildProfileCard(theme, isTV, profileColor),
                             const SizedBox(height: 32),
                             _buildActionButtons(isTV, profileColor),
-                            if (_showVirtualKeyboard && _focusedController != null)
+                            if (_showVirtualKeyboard &&
+                                _focusedController != null)
                               Padding(
                                 padding: const EdgeInsets.only(top: 24),
                                 child: TvVirtualKeyboard(
@@ -568,11 +600,17 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
                                   onBackspace: () {
                                     if (_focusedController != null &&
                                         _focusedController!.text.isNotEmpty) {
-                                      _focusedController!.text = _focusedController!.text
-                                          .substring(0, _focusedController!.text.length - 1);
+                                      _focusedController!.text =
+                                          _focusedController!.text.substring(
+                                            0,
+                                            _focusedController!.text.length - 1,
+                                          );
                                     }
                                   },
-                                  onEnter: () => setState(() => _showVirtualKeyboard = false),
+                                  onEnter:
+                                      () => setState(
+                                        () => _showVirtualKeyboard = false,
+                                      ),
                                 ),
                               ),
                           ],
@@ -582,7 +620,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
                   ),
                   if (_isLoading)
                     Container(
-                      color: Colors.black.withOpacity(0.4),
+                      color: Colors.black.withValues(alpha: 0.4),
                       child: Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -619,18 +657,28 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           canRequestFocus: _isEditing,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            padding: _avatarFocus.hasFocus ? const EdgeInsets.all(8) : EdgeInsets.zero,
+            padding:
+                _avatarFocus.hasFocus
+                    ? const EdgeInsets.all(8)
+                    : EdgeInsets.zero,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: _avatarFocus.hasFocus
-                  ? RadialGradient(
-                      colors: [profileColor.withOpacity(0.3), Colors.transparent],
-                    )
-                  : null,
+              gradient:
+                  _avatarFocus.hasFocus
+                      ? RadialGradient(
+                        colors: [
+                          profileColor.withValues(alpha: 0.3),
+                          Colors.transparent,
+                        ],
+                      )
+                      : null,
             ),
             child: MouseRegion(
               cursor: _isEditing ? SystemMouseCursors.click : MouseCursor.defer,
-              onEnter: _isEditing ? (_) => setState(() => _avatarHovered = true) : null,
+              onEnter:
+                  _isEditing
+                      ? (_) => setState(() => _avatarHovered = true)
+                      : null,
               onExit: (_) => setState(() => _avatarHovered = false),
               child: AnimatedScale(
                 scale: _avatarHovered ? 1.08 : 1,
@@ -649,15 +697,13 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
                           border: Border.all(color: profileColor, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: profileColor.withOpacity(0.4),
+                              color: profileColor.withValues(alpha: 0.4),
                               blurRadius: 15,
                               spreadRadius: 2,
                             ),
                           ],
                         ),
-                        child: ClipOval(
-                          child: _getAvatarImage(profileColor),
-                        ),
+                        child: ClipOval(child: _getAvatarImage(profileColor)),
                       ),
                       if (_isEditing)
                         Positioned(
@@ -670,7 +716,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.3),
+                                  color: Colors.black.withValues(alpha: 0.3),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
                                 ),
@@ -686,7 +732,10 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
                       Positioned(
                         top: 0,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: profileColor,
                             borderRadius: BorderRadius.circular(20),
@@ -715,12 +764,13 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
             color: theme.colorScheme.onSurface,
           ),
         ),
-        if (_editingProfile.phone != null && _editingProfile.phone!.isNotEmpty) ...[
+        if (_editingProfile.phone != null &&
+            _editingProfile.phone!.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(
             _editingProfile.phone!,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -742,17 +792,23 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
     // Priorité à avatarUrl, puis avatar
     String? imageUrl;
 
-    if (_editingProfile.avatarUrl != null && _editingProfile.avatarUrl!.isNotEmpty) {
+    if (_editingProfile.avatarUrl != null &&
+        _editingProfile.avatarUrl!.isNotEmpty) {
       imageUrl = _editingProfile.avatarUrl;
       debugPrint('🖼️ Utilisation avatarUrl: $imageUrl');
-    } else if (_editingProfile.avatar != null && _editingProfile.avatar!.isNotEmpty) {
+    } else if (_editingProfile.avatar != null &&
+        _editingProfile.avatar!.isNotEmpty) {
       // Si avatar est une URL complète, l'utiliser directement
       if (_editingProfile.avatar!.startsWith('http')) {
         imageUrl = _editingProfile.avatar;
         debugPrint('🖼️ Utilisation avatar (URL complète): $imageUrl');
       } else {
         // Si avatar est un nom de fichier, construire l'URL complète via ApiConfig
-        imageUrl = ApiConfig.cdnEndpoint('avatars', _editingProfile.avatar!).toString();
+        imageUrl =
+            ApiConfig.cdnEndpoint(
+              'avatars',
+              _editingProfile.avatar!,
+            ).toString();
         debugPrint('🖼️ Construction URL depuis nom de fichier: $imageUrl');
       }
     }
@@ -764,7 +820,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return Container(
-            color: profileColor.withOpacity(0.1),
+            color: profileColor.withValues(alpha: 0.1),
             child: Center(
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation(profileColor),
@@ -784,25 +840,28 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
   }
 
   Widget _buildDefaultAvatar(Color profileColor) {
-    final assetPath = _editingProfile.type?.name == 'child'
-        ? 'assets/avatars/child.png'
-        : 'assets/avatars/adult.png';
+    final assetPath =
+        _editingProfile.type?.name == 'child'
+            ? 'assets/avatars/child.png'
+            : 'assets/avatars/adult.png';
     return Image.asset(
       assetPath,
       fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => Container(
-        color: profileColor.withOpacity(0.1),
-        child: Icon(
-          Icons.person,
-          size: 50,
-          color: profileColor.withOpacity(0.6),
-        ),
-      ),
+      errorBuilder:
+          (context, error, stackTrace) => Container(
+            color: profileColor.withValues(alpha: 0.1),
+            child: Icon(
+              Icons.person,
+              size: 50,
+              color: profileColor.withValues(alpha: 0.6),
+            ),
+          ),
     );
   }
 
   String _getProfileTypeLabel() {
-    final type = _editingProfile.type?.toString().split('.').last.toLowerCase() ?? '';
+    final type =
+        _editingProfile.type?.toString().split('.').last.toLowerCase() ?? '';
     switch (type) {
       case 'main':
         return 'Principal';
@@ -825,20 +884,28 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           children: [
             _buildTextField('Nom', _nameController, _nameFocus, profileColor),
             const SizedBox(height: 16),
-            _buildTextField('Téléphone avec indicatif (+225…)', _phoneController, _phoneFocus, profileColor,
-                keyboardType: TextInputType.phone),
+            _buildTextField(
+              'Téléphone avec indicatif (+225…)',
+              _phoneController,
+              _phoneFocus,
+              profileColor,
+              keyboardType: TextInputType.phone,
+            ),
             const SizedBox(height: 16),
-            if (_isChildProfile)
-              _buildAgeSelector(profileColor),
+            if (_isChildProfile) _buildAgeSelector(profileColor),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, FocusNode focusNode,
-      Color profileColor,
-      {TextInputType keyboardType = TextInputType.text}) {
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller,
+    FocusNode focusNode,
+    Color profileColor, {
+    TextInputType keyboardType = TextInputType.text,
+  }) {
     return TextField(
       controller: controller,
       focusNode: focusNode,
@@ -847,7 +914,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
       style: TextStyle(color: profileColor),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: profileColor.withOpacity(0.7)),
+        labelStyle: TextStyle(color: profileColor.withValues(alpha: 0.7)),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -870,7 +937,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              _editingProfile.age != null ? '${_editingProfile.age} ans' : 'Sélectionner l\'âge',
+              _editingProfile.age != null
+                  ? '${_editingProfile.age} ans'
+                  : 'Sélectionner l\'âge',
               style: TextStyle(color: profileColor),
             ),
             Icon(Icons.cake, color: profileColor),
@@ -889,7 +958,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
             onPressed: _saveChanges,
             style: ElevatedButton.styleFrom(
               backgroundColor: profileColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: const Text('Enregistrer'),
           )
@@ -898,7 +969,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
             onPressed: _toggleEdit,
             style: ElevatedButton.styleFrom(
               backgroundColor: profileColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: const Text('Modifier'),
           ),
@@ -907,7 +980,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> with SingleTicker
           OutlinedButton(
             onPressed: _toggleEdit,
             style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               side: BorderSide(color: profileColor, width: 2),
             ),
             child: Text('Annuler', style: TextStyle(color: profileColor)),

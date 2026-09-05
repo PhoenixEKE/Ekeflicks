@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:app_ekeflicks/providers/locale_provider.dart';
 import 'contact_form_dialog.dart';
 
-
 Future<void> showCustomMenuDialog(BuildContext context, AppLocalizations loc) {
   final isMobile = MediaQuery.of(context).size.width < 900;
 
@@ -40,7 +39,9 @@ Future<void> showCustomMenuDialog(BuildContext context, AppLocalizations loc) {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor.withOpacity(0.4),
+                      color: Theme.of(
+                        context,
+                      ).primaryColor.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -49,10 +50,15 @@ Future<void> showCustomMenuDialog(BuildContext context, AppLocalizations loc) {
                 // 🔹 En-tête "Menu" avec bouton de fermeture
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 16,
+                  ),
                   decoration: BoxDecoration(
                     color: Theme.of(context).primaryColor,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
                   ),
                   child: Stack(
                     alignment: Alignment.center,
@@ -93,17 +99,24 @@ Future<void> showCustomMenuDialog(BuildContext context, AppLocalizations loc) {
                             leading: const Icon(Icons.language),
                             title: Text(updatedLoc.changerDeLangue),
                             onTap: () {
-                              Provider.of<LocaleProvider>(context, listen: false).toggleLocale();
+                              Provider.of<LocaleProvider>(
+                                context,
+                                listen: false,
+                              ).toggleLocale();
                               setState(() {});
                             },
                           ),
                         if (isMobile)
                           ListTile(
-                            leading: const Icon(Icons.help_outline), // 🔄 Icône changée
+                            leading: const Icon(
+                              Icons.help_outline,
+                            ), // 🔄 Icône changée
                             title: Text(updatedLoc.faq), // 🔄 Texte changé
                             onTap: () {
                               Navigator.of(context).pop();
-                              Navigator.of(context).pushNamed('/faq'); // 🔄 Route changée
+                              Navigator.of(
+                                context,
+                              ).pushNamed('/faq'); // 🔄 Route changée
                             },
                           ),
                         ListTile(
@@ -132,7 +145,10 @@ Future<void> showCustomMenuDialog(BuildContext context, AppLocalizations loc) {
                               builder: (context) => const ContactFormDialog(),
                             );
                           },
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 0,
+                          ),
                         ),
 
                         // 🔽 Espace après "Contact" (équivalent visuel au cadre titre)

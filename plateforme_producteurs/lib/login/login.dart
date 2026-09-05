@@ -6,6 +6,7 @@ import 'package:plateforme_producteurs/providers/locale_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:plateforme_producteurs/services/api_client.dart';
 import 'package:plateforme_producteurs/services/auth_service.dart';
+import 'package:plateforme_producteurs/widgets/producer_page_shell.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,24 +23,16 @@ class _LoginPageState extends State<LoginPage> {
   bool _loading = false;
   bool _obscurePassword = true;
   final ScrollController _scrollController = ScrollController();
-  double _offset = 0;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_handleScroll);
   }
 
   @override
   void dispose() {
-    _scrollController
-      ..removeListener(_handleScroll)
-      ..dispose();
+    _scrollController.dispose();
     super.dispose();
-  }
-
-  void _handleScroll() {
-    setState(() => _offset = _scrollController.offset);
   }
 
   Future<void> _login() async {
@@ -85,102 +78,37 @@ class _LoginPageState extends State<LoginPage> {
     final l10n = AppLocalizations.of(context)!;
     final localeProvider = context.watch<LocaleProvider>();
 
-    return Scaffold(
-      body: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          setState(() => _offset = notification.metrics.pixels);
-          return true;
-        },
-        child: Stack(
+    return ProducerPageShell(
+      maxWidth: 500,
+      scrollable: true,
+      contentDecoration: true,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.language),
+          tooltip: l10n.changeLanguage,
+          onPressed: localeProvider.toggleLocale,
+        ),
+      ],
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildAnimatedBackground(),
-            SingleChildScrollView(
-              controller: _scrollController,
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height,
-                child: Center(
-                  child: Container(
-                    margin: const EdgeInsets.all(24),
-                    child: Card(
-                      elevation: 16,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppDecorations.borderRadiusLarge,
-                        ),
-                      ),
-                      color: AppTheme.cardBackground.withValues(alpha: 0.8),
-                      shadowColor: AppTheme.primary.withValues(alpha: 0.3),
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildLanguageButton(localeProvider, l10n),
-                              _buildHeaderIcon(),
-                              const SizedBox(height: 16),
-                              _buildTitle(l10n),
-                              const SizedBox(height: 32),
-                              _buildEmailField(l10n),
-                              const SizedBox(height: 20),
-                              _buildPasswordField(l10n),
-                              const SizedBox(height: 24),
-                              _buildLoginButton(l10n),
-                              const SizedBox(height: 12),
-                              _buildRegisterButton(),
-                              const SizedBox(height: 16),
-                              _buildForgotPasswordButton(l10n),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            _buildHeaderIcon(),
+            const SizedBox(height: 16),
+            _buildTitle(l10n),
+            const SizedBox(height: 32),
+            _buildEmailField(l10n),
+            const SizedBox(height: 20),
+            _buildPasswordField(l10n),
+            const SizedBox(height: 24),
+            _buildLoginButton(l10n),
+            const SizedBox(height: 12),
+            _buildRegisterButton(),
+            const SizedBox(height: 16),
+            _buildForgotPasswordButton(l10n),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildAnimatedBackground() {
-    return Positioned(
-      top: -_offset * 0.4,
-      left: -_offset * 0.2,
-      right: _offset * 0.2,
-      child: Opacity(
-        opacity: 0.15,
-        child: Container(
-          height: MediaQuery.of(context).size.height * 1.5,
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.center,
-              radius: 1.5,
-              colors: [
-                AppTheme.primary.withValues(alpha: 0.8),
-                AppTheme.background.withValues(alpha: 0.1),
-              ],
-              stops: const [0.1, 1.0],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLanguageButton(
-    LocaleProvider localeProvider,
-    AppLocalizations l10n,
-  ) {
-    return Align(
-      alignment: Alignment.topRight,
-      child: IconButton(
-        icon: const Icon(Icons.language),
-        onPressed: localeProvider.toggleLocale,
-        tooltip: l10n.changeLanguage,
       ),
     );
   }

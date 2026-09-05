@@ -95,9 +95,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
     return Scaffold(
       appBar: SimpleAppBar(
-        logoPath: isDarkMode
-            ? 'assets/images/logo_dark.png'
-            : 'assets/images/logo_light.png',
+        logoPath:
+            isDarkMode
+                ? 'assets/images/logo_dark.png'
+                : 'assets/images/logo_light.png',
       ),
       body: Container(
         decoration: AppTheme.pageDecoration(context),
@@ -112,7 +113,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(Icons.lock_reset, size: 48, color: AppTheme.primaryOrange),
+                    Icon(
+                      Icons.lock_reset,
+                      size: 48,
+                      color: AppTheme.primaryOrange,
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       loc.motDePasseOublie,
@@ -127,7 +132,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       loc.entrerEmailRecuperation,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.7,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -156,26 +163,27 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     ElevatedButton(
                       onPressed: _isSubmitting ? null : _submit,
                       style: AppDecorations.primaryButtonStyle(context),
-                      child: _isSubmitting
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Text(loc.valider),
+                      child:
+                          _isSubmitting
+                              ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                              : Text(loc.valider),
                     ),
                     const SizedBox(height: 16),
                     TextButton(
-                      onPressed: () =>
-                          Navigator.of(context).pushReplacementNamed('/login'),
+                      onPressed:
+                          () => Navigator.of(
+                            context,
+                          ).pushReplacementNamed('/login'),
                       child: Text(
                         loc.retourConnexion,
-                        style: TextStyle(
-                          color: AppTheme.primaryOrange,
-                        ),
+                        style: TextStyle(color: AppTheme.primaryOrange),
                       ),
                     ),
                   ],

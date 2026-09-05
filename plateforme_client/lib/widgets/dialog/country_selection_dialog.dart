@@ -33,10 +33,11 @@ class _CountrySelectionDialogState extends State<CountrySelectionDialog> {
       if (query.isEmpty) {
         _filteredCountries = GeolocationService.popularCountries;
       } else {
-        _filteredCountries = GeolocationService.popularCountries.where((country) {
-          return country['name']!.toLowerCase().contains(query) ||
-                 country['code']!.toLowerCase().contains(query);
-        }).toList();
+        _filteredCountries =
+            GeolocationService.popularCountries.where((country) {
+              return country['name']!.toLowerCase().contains(query) ||
+                  country['code']!.toLowerCase().contains(query);
+            }).toList();
       }
     });
   }
@@ -54,12 +55,12 @@ class _CountrySelectionDialogState extends State<CountrySelectionDialog> {
           children: [
             Text(
               'Sélectionner un pays',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
+
             // Barre de recherche
             TextField(
               controller: _searchController,
@@ -73,42 +74,48 @@ class _CountrySelectionDialogState extends State<CountrySelectionDialog> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Liste des pays
             Expanded(
-              child: _filteredCountries.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Aucun pays trouvé',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              child:
+                  _filteredCountries.isEmpty
+                      ? Center(
+                        child: Text(
+                          'Aucun pays trouvé',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
                         ),
+                      )
+                      : ListView.builder(
+                        itemCount: _filteredCountries.length,
+                        itemBuilder: (context, index) {
+                          final country = _filteredCountries[index];
+                          return ListTile(
+                            leading: Text(
+                              country['flag']!,
+                              style: const TextStyle(fontSize: 20),
+                            ),
+                            title: Text(country['name']!),
+                            trailing:
+                                widget.currentCountry == country['code']
+                                    ? Icon(Icons.check, color: Colors.green)
+                                    : null,
+                            onTap: () {
+                              widget.onCountrySelected(country['code']!);
+                            },
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          );
+                        },
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: _filteredCountries.length,
-                      itemBuilder: (context, index) {
-                        final country = _filteredCountries[index];
-                        return ListTile(
-                          leading: Text(
-                            country['flag']!,
-                            style: const TextStyle(fontSize: 20),
-                          ),
-                          title: Text(country['name']!),
-                          trailing: widget.currentCountry == country['code']
-                              ? Icon(Icons.check, color: Colors.green)
-                              : null,
-                          onTap: () {
-                            widget.onCountrySelected(country['code']!);
-                          },
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        );
-                      },
-                    ),
             ),
-            
+
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,

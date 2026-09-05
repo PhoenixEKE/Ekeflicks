@@ -153,10 +153,23 @@ class ProducerService {
     return ProducerAgreement.fromJson(data);
   }
 
-  Future<List<int>> downloadAgreement({bool download = true}) async {
-    final path = download
-        ? '/api/v1/auth/producer/agreement/document/?download=1'
-        : '/api/v1/auth/producer/agreement/document/';
+  Future<List<int>> downloadAgreement({
+    bool download = true,
+    bool signed = false,
+  }) async {
+    final params = <String>[];
+
+    if (signed) {
+      params.add('signed=1');
+    }
+
+    if (download) {
+      params.add('download=1');
+    }
+
+    final query = params.isEmpty ? '' : '?${params.join('&')}';
+
+    final path = '/api/v1/auth/producer/agreement/document/$query';
 
     final response = await _api.getBytes(path, authenticated: true);
 

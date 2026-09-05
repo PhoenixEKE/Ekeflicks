@@ -45,11 +45,31 @@ class ReusableFooter extends StatelessWidget {
                 style: const TextStyle(color: Colors.white),
               ),
               const SizedBox(width: 8),
-              _baseFooter.socialIcon(context, 'assets/social/facebook.svg', 'https://facebook.com/ekeflicks'),
-              _baseFooter.socialIcon(context, 'assets/social/instagram.svg', 'https://instagram.com/ekeflicks'),
-              _baseFooter.socialIcon(context, 'assets/social/tiktok.svg', 'https://tiktok.com/@ekeflicks'),
-              _baseFooter.socialIcon(context, 'assets/social/whatsapp.svg', 'https://wa.me/2250716096940'),
-              _baseFooter.socialIcon(context, 'assets/social/youtube.svg', 'https://youtube.com/ekeflicks'),
+              _baseFooter.socialIcon(
+                context,
+                'assets/social/facebook.svg',
+                'https://facebook.com/ekeflicks',
+              ),
+              _baseFooter.socialIcon(
+                context,
+                'assets/social/instagram.svg',
+                'https://instagram.com/ekeflicks',
+              ),
+              _baseFooter.socialIcon(
+                context,
+                'assets/social/tiktok.svg',
+                'https://tiktok.com/@ekeflicks',
+              ),
+              _baseFooter.socialIcon(
+                context,
+                'assets/social/whatsapp.svg',
+                'https://wa.me/2250716096940',
+              ),
+              _baseFooter.socialIcon(
+                context,
+                'assets/social/youtube.svg',
+                'https://youtube.com/ekeflicks',
+              ),
             ],
           ),
         ],
@@ -84,19 +104,13 @@ class ReusableFooter extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             "${loc.footerPhone} : +225 07 16 09 69 40",
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 6),
           Text(
             "${loc.footerWhatsApp} : +225 07 16 09 69 40",
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
             textAlign: TextAlign.center,
           ),
         ],

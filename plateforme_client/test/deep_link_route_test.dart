@@ -21,7 +21,9 @@ void main() {
 
   test('continues to support reset routes encoded in the path', () {
     expect(
-      deepLinkRoute(Uri.parse('http://example.test/password-reset-confirm?token=x')),
+      deepLinkRoute(
+        Uri.parse('http://example.test/password-reset-confirm?token=x'),
+      ),
       '/reset-password',
     );
     expect(

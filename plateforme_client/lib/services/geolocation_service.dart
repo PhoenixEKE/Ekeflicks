@@ -1,5 +1,6 @@
 // lib/services/geolocation_service.dart
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class GeolocationService {
@@ -9,10 +10,12 @@ class GeolocationService {
   /// Détecte le pays basé sur l'adresse IP
   static Future<Map<String, dynamic>?> detectCountryByIP() async {
     try {
-      final response = await http.get(Uri.parse(_ipApiUrl)).timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => http.Response('Timeout', 408),
-      );
+      final response = await http
+          .get(Uri.parse(_ipApiUrl))
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: () => http.Response('Timeout', 408),
+          );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -26,7 +29,7 @@ class GeolocationService {
         };
       }
     } catch (e) {
-      print('Erreur détection IP principale: $e');
+      debugPrint('Erreur détection IP principale: $e');
       // Essayer le service de backup
       return await _tryBackupService();
     }
@@ -35,9 +38,9 @@ class GeolocationService {
 
   static Future<Map<String, dynamic>?> _tryBackupService() async {
     try {
-      final response = await http.get(Uri.parse(_ipApiUrlBackup)).timeout(
-        const Duration(seconds: 5),
-      );
+      final response = await http
+          .get(Uri.parse(_ipApiUrlBackup))
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -51,7 +54,7 @@ class GeolocationService {
         };
       }
     } catch (e) {
-      print('Erreur détection IP backup: $e');
+      debugPrint('Erreur détection IP backup: $e');
     }
     return null;
   }
@@ -65,7 +68,7 @@ class GeolocationService {
     {'code': 'IT', 'name': 'Italie', 'flag': '🇮🇹'},
     {'code': 'ES', 'name': 'Espagne', 'flag': '🇪🇸'},
     {'code': 'CA', 'name': 'Canada', 'flag': '🇨🇦'},
-    {'code': 'BE', 'name': 'Belgique','flag':'🇧🇪'},
+    {'code': 'BE', 'name': 'Belgique', 'flag': '🇧🇪'},
     {'code': 'CH', 'name': 'Suisse', 'flag': '🇨🇭'},
     {'code': 'CI', 'name': 'Côte d\'Ivoire', 'flag': '🇨🇮'},
     {'code': 'SN', 'name': 'Sénégal', 'flag': '🇸🇳'},

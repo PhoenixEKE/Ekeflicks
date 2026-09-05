@@ -16,8 +16,8 @@ class HeroBannerCubit extends Cubit<int> {
     this.contents, {
     this.interval = const Duration(seconds: 5),
     this.autoPlay = true,
-  })  : _isAutoPlayActive = autoPlay,
-        super(0) {
+  }) : _isAutoPlayActive = autoPlay,
+       super(0) {
     if (autoPlay) _startAutoPlay();
   }
 
@@ -34,6 +34,11 @@ class HeroBannerCubit extends Cubit<int> {
       );
       emit(nextPage);
     });
+  }
+
+  void onPageChanged(int index) {
+    if (index == state) return;
+    emit(index);
   }
 
   void pauseAutoPlay() {

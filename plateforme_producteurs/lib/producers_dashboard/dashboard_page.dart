@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/providers/locale_provider.dart';
 import 'package:plateforme_producteurs/services/auth_service.dart';
+import 'package:plateforme_producteurs/widgets/producer_page_shell.dart';
 
 import 'overview_page.dart';
 import 'my_videos/films_tab.dart';
@@ -112,66 +113,32 @@ class _DashboardPageState extends State<DashboardPage> {
     final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: _buildAppBar(context, l10n, localeProvider),
-      body: _buildPages(l10n)[_selectedIndex],
-      bottomNavigationBar: _buildBottomNavBar(l10n),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar(
-    BuildContext context,
-    AppLocalizations l10n,
-    LocaleProvider localeProvider,
-  ) {
-    return AppBar(
-      title: Image.asset(
-        'assets/images/logo_dark.png',
-        height: 40,
-        errorBuilder: (context, error, stackTrace) => const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.movie_filter, color: AppTheme.textPrimary, size: 32),
-            SizedBox(width: 8),
-            Text('EKEFLIX PRO', style: AppTheme.textTitle),
-          ],
-        ),
-      ),
-      centerTitle: true,
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      flexibleSpace: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppTheme.background.withValues(alpha: 0.9),
-              Colors.transparent,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-      ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.language),
-          onPressed: localeProvider.toggleLocale,
-          tooltip: l10n.changeLanguage,
-        ),
-        if (_selectedIndex == 0)
+      backgroundColor: const Color(0xFF121212),
+      body: ProducerPageShell(
+        padding: EdgeInsets.zero,
+        actions: [
           IconButton(
-            icon: Badge(
-              backgroundColor: AppTheme.primary,
-              child: const Icon(Icons.notifications_none_rounded),
-            ),
-            onPressed: () => _showNotifications(context, l10n),
+            icon: const Icon(Icons.language),
+            onPressed: localeProvider.toggleLocale,
+            tooltip: l10n.changeLanguage,
           ),
-        IconButton(
-          icon: const Icon(Icons.logout_rounded),
-          tooltip: l10n.logout,
-          onPressed: _logout,
-        ),
-      ],
+          if (_selectedIndex == 0)
+            IconButton(
+              icon: Badge(
+                backgroundColor: AppTheme.primary,
+                child: const Icon(Icons.notifications_none_rounded),
+              ),
+              onPressed: () => _showNotifications(context, l10n),
+            ),
+          IconButton(
+            icon: const Icon(Icons.logout_rounded),
+            tooltip: l10n.logout,
+            onPressed: _logout,
+          ),
+        ],
+        child: _buildPages(l10n)[_selectedIndex],
+      ),
+      bottomNavigationBar: _buildBottomNavBar(l10n),
     );
   }
 

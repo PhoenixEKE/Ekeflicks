@@ -35,7 +35,8 @@ class KeyboardTextManager {
     final currentText = controller.text;
     final safeCursorPosition = cursorPosition.clamp(0, currentText.length);
 
-    final newText = currentText.substring(0, safeCursorPosition) +
+    final newText =
+        currentText.substring(0, safeCursorPosition) +
         text +
         currentText.substring(safeCursorPosition);
 
@@ -54,7 +55,8 @@ class KeyboardTextManager {
       final safeCursorPosition = cursorPosition.clamp(0, currentText.length);
 
       if (safeCursorPosition > 0) {
-        final newText = currentText.substring(0, safeCursorPosition - 1) +
+        final newText =
+            currentText.substring(0, safeCursorPosition - 1) +
             currentText.substring(safeCursorPosition);
 
         controller.text = newText;
@@ -107,18 +109,18 @@ class KeyboardTextManager {
 
   // Méthodes supplémentaires pour la compatibilité
   String get currentText => controller.text;
-  
+
   set currentText(String value) {
     controller.text = value;
     cursorPosition = value.length;
     controller.selection = TextSelection.collapsed(offset: value.length);
     cursorNotifier.value = value.length;
   }
-  
+
   void addText(String text) {
     insertText(text);
   }
-  
+
   void removeLastCharacter() {
     backspace();
   }

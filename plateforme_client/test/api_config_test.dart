@@ -7,9 +7,6 @@ void main() {
       ApiConfig.endpoint('/contents//home/').path,
       '/api/v1/contents/home/',
     );
-    expect(
-      ApiConfig.endpoint('auth/register').path,
-      '/api/v1/auth/register/',
-    );
+    expect(ApiConfig.endpoint('auth/register').path, '/api/v1/auth/register/');
   });
 }

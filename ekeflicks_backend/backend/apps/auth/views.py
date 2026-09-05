@@ -37,6 +37,7 @@ from apps.auth.serializers import (
     EmailVerificationSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
+    PasswordChangeSerializer,
     PasswordResetRequestSerializer,
     UserPersonalInfoSerializer,
     UserCreateSerializer,
@@ -301,6 +302,35 @@ class ResendEmailVerificationView(generics.GenericAPIView):
             return Response({'status': 'already_verified'}, status=status.HTTP_200_OK)
         send_email_verification(request.user, request)
         return Response({'status': 'sent'}, status=status.HTTP_200_OK)
+
+
+class PasswordChangeView(generics.GenericAPIView):
+    serializer_class = PasswordChangeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        user.set_password(serializer.validated_data['new_password'])
+        user.save(update_fields=['password'])
+
+        notify_user(
+            user,
+            'password_changed',
+            title='Votre mot de passe EkeFlicks a ete modifie',
+            message=(
+                'La modification de votre mot de passe est effective. '
+                "Si vous n'etes pas a l'origine de cette action, "
+                'contactez immediatement le support.'
+            ),
+        )
+
+        return Response(
+            {'status': 'password_changed'},
+            status=status.HTTP_200_OK,
+        )
 
 
 class PasswordResetRequestView(generics.GenericAPIView):
@@ -701,25 +731,38 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
 
         version = settings.PRODUCER_AGREEMENT_CURRENT_VERSION
 
+        # Un contrat deja signe dans une version encore acceptee reste
+        # juridiquement valable. Sa simple consultation ne doit donc pas
+        # creer ni imposer automatiquement une nouvelle version.
         agreement = account.agreements.filter(
-            contract_version=version,
+            contract_version__in=settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS,
+            status=ProducerAgreement.STATUS_SIGNED,
+            signed_at__isnull=False,
+        ).order_by(
+            '-signed_at',
+            '-created_at',
         ).first()
 
         if agreement is None:
-            agreement = ProducerAgreement.objects.create(
-                producer_account=account,
+            agreement = account.agreements.filter(
                 contract_version=version,
-                contract_title=settings.PRODUCER_AGREEMENT_TITLE,
-                contract_document_url=_agreement_document_url(
-                    request,
-                    version=version,
-                ),
-                status=ProducerAgreement.STATUS_PENDING,
-                signature_method=ProducerAgreement.SIGNATURE_CLICKWRAP,
-                ekeflicks_signer_name=settings.EKEFLICKS_CONTRACT_SIGNER_NAME,
-                ekeflicks_signer_role=settings.EKEFLICKS_CONTRACT_SIGNER_ROLE,
-                ekeflicks_signed_at=timezone.now(),
-            )
+            ).first()
+
+            if agreement is None:
+                agreement = ProducerAgreement.objects.create(
+                    producer_account=account,
+                    contract_version=version,
+                    contract_title=settings.PRODUCER_AGREEMENT_TITLE,
+                    contract_document_url=_agreement_document_url(
+                        request,
+                        version=version,
+                    ),
+                    status=ProducerAgreement.STATUS_PENDING,
+                    signature_method=ProducerAgreement.SIGNATURE_CLICKWRAP,
+                    ekeflicks_signer_name=settings.EKEFLICKS_CONTRACT_SIGNER_NAME,
+                    ekeflicks_signer_role=settings.EKEFLICKS_CONTRACT_SIGNER_ROLE,
+                    ekeflicks_signed_at=timezone.now(),
+                )
 
         if agreement.status != ProducerAgreement.STATUS_SIGNED:
             try:
@@ -765,7 +808,7 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
 
         return Response(
             {
-                'contract_version': version,
+                'contract_version': agreement.contract_version,
                 'contract_title': agreement.contract_title,
                 'contract_document_url': agreement.contract_document_url,
                 'download_url': (

@@ -80,164 +80,147 @@ class _FinancePageState extends State<FinancePage> {
     final l10n = AppLocalizations.of(context)!;
 
     if (!_accessGranted) {
-      return Scaffold(
-        backgroundColor: AppTheme.background,
-        body: Center(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 400),
-            padding: const EdgeInsets.all(AppTheme.paddingLarge),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.lock_outline, size: 64, color: AppTheme.primary),
-                const SizedBox(height: 24),
-                Text(
-                  l10n.secure_access,
-                  style: AppTheme.textTitle.copyWith(
-                    fontWeight: FontWeight.bold,
+      return Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(AppTheme.paddingLarge),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.lock_outline, size: 64, color: AppTheme.primary),
+              const SizedBox(height: 24),
+              Text(
+                l10n.secure_access,
+                style: AppTheme.textTitle.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.enter_pin,
+                textAlign: TextAlign.center,
+                style: AppTheme.textCaption,
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _codeController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 24,
+                  letterSpacing: 4,
+                  color: AppTheme.textPrimary,
+                ),
+                decoration: AppDecorations.inputDecoration.copyWith(
+                  hintText: '••••',
+                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _verifyCode,
+                  style: AppDecorations.elevatedButtonStyle,
+                  child: Text(
+                    l10n.validate.toUpperCase(),
+                    style: AppTheme.textBodyBold,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  l10n.enter_pin,
-                  textAlign: TextAlign.center,
-                  style: AppTheme.textCaption,
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _codeController,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
-                    letterSpacing: 4,
-                    color: AppTheme.textPrimary,
-                  ),
-                  decoration: AppDecorations.inputDecoration.copyWith(
-                    hintText: '••••',
-                    contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _verifyCode,
-                    style: AppDecorations.elevatedButtonStyle,
-                    child: Text(
-                      l10n.validate.toUpperCase(),
-                      style: AppTheme.textBodyBold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.my_finances, style: AppTheme.textTitle),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: AppTheme.background,
-      ),
-      backgroundColor: AppTheme.background,
-      body: Padding(
-        padding: const EdgeInsets.all(AppTheme.paddingMedium),
-        child: Column(
-          children: [
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(
-                  AppDecorations.borderRadiusMedium,
-                ),
-              ),
-              color: AppTheme.cardBackground,
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.paddingLarge),
-                child: Column(
-                  children: [
-                    Text(
-                      l10n.available_balance.toUpperCase(),
-                      style: AppTheme.textCaption,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '$_availableBalance €',
-                      style: AppTheme.textTitle.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.success,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Divider(color: AppTheme.divider),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildInfoItem(l10n.last_withdrawal, '250 €'),
-                        _buildInfoItem(l10n.date, '01/08/2025'),
-                      ],
-                    ),
-                  ],
-                ),
+    return Padding(
+      padding: const EdgeInsets.all(AppTheme.paddingMedium),
+      child: Column(
+        children: [
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                AppDecorations.borderRadiusMedium,
               ),
             ),
-            const SizedBox(height: 24),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(
-                  AppDecorations.borderRadiusMedium,
-                ),
-              ),
-              color: AppTheme.cardBackground,
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.orange.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(
-                      AppDecorations.borderRadiusSmall,
+            color: AppTheme.cardBackground,
+            child: Padding(
+              padding: const EdgeInsets.all(AppTheme.paddingLarge),
+              child: Column(
+                children: [
+                  Text(
+                    l10n.available_balance.toUpperCase(),
+                    style: AppTheme.textCaption,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$_availableBalance €',
+                    style: AppTheme.textTitle.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.success,
                     ),
                   ),
-                  child: Icon(Icons.pending_actions, color: AppTheme.orange),
-                ),
-                title: Text(
-                  l10n.pending_payments,
-                  style: AppTheme.textBodyBold,
-                ),
-                subtitle: Text(
-                  l10n.available_in_48h,
-                  style: AppTheme.textCaption,
-                ),
-                trailing: Text('500 €', style: AppTheme.textBodyBold),
+                  const SizedBox(height: 16),
+                  const Divider(color: AppTheme.divider),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildInfoItem(l10n.last_withdrawal, '250 €'),
+                      _buildInfoItem(l10n.date, '01/08/2025'),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _showWithdrawalModal,
-                icon: Icon(Icons.monetization_on, color: AppTheme.textPrimary),
-                label: Text(
-                  l10n.request_withdrawal,
-                  style: AppTheme.textBodyBold,
-                ),
-                style: AppDecorations.elevatedButtonStyle,
+          ),
+          const SizedBox(height: 24),
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                AppDecorations.borderRadiusMedium,
               ),
             ),
-          ],
-        ),
+            color: AppTheme.cardBackground,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 16,
+              ),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.orange.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(
+                    AppDecorations.borderRadiusSmall,
+                  ),
+                ),
+                child: Icon(Icons.pending_actions, color: AppTheme.orange),
+              ),
+              title: Text(l10n.pending_payments, style: AppTheme.textBodyBold),
+              subtitle: Text(
+                l10n.available_in_48h,
+                style: AppTheme.textCaption,
+              ),
+              trailing: Text('500 €', style: AppTheme.textBodyBold),
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _showWithdrawalModal,
+              icon: Icon(Icons.monetization_on, color: AppTheme.textPrimary),
+              label: Text(
+                l10n.request_withdrawal,
+                style: AppTheme.textBodyBold,
+              ),
+              style: AppDecorations.elevatedButtonStyle,
+            ),
+          ),
+        ],
       ),
     );
   }

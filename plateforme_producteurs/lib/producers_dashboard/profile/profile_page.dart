@@ -4,6 +4,7 @@ import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/models/producer_onboarding.dart';
 import 'package:plateforme_producteurs/services/api_client.dart';
 import 'package:plateforme_producteurs/services/producer_service.dart';
+import 'package:plateforme_producteurs/core/web_helpers.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -102,6 +103,40 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _downloadSignedContract(ProducerAgreement agreement) async {
+    try {
+      final bytes = await ProducerService.instance.downloadAgreement(
+        signed: true,
+      );
+
+      final version = agreement.contractVersion.replaceAll(
+        RegExp(r'[^A-Za-z0-9._-]'),
+        '-',
+      );
+
+      downloadPdfBytes(
+        bytes,
+        'contrat-producteur-ekeflicks-$version-signe.pdf',
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+
+      final historicalUnavailable =
+          e.statusCode == 404 && agreement.contractVersion == '2026-09-v1';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            historicalUnavailable
+                ? 'Le contrat historique est bien enregistré comme signé, '
+                      'mais son PDF signé archivé n’est pas disponible.'
+                : e.message,
+          ),
+        ),
+      );
+    }
+  }
+
   Widget _contractCard(ProducerAgreement agreement) {
     return Card(
       margin: EdgeInsets.zero,
@@ -141,10 +176,24 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             const SizedBox(width: 14),
-            ElevatedButton.icon(
-              onPressed: () => context.go('/agreement'),
-              icon: const Icon(Icons.description_outlined),
-              label: const Text('Mon contrat'),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              alignment: WrapAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => context.go('/agreement'),
+                  icon: const Icon(Icons.description_outlined),
+                  label: const Text('Mon contrat'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: agreement.isSigned
+                      ? () => _downloadSignedContract(agreement)
+                      : null,
+                  icon: const Icon(Icons.download_outlined),
+                  label: const Text('Télécharger le contrat signé'),
+                ),
+              ],
             ),
           ],
         ),
@@ -155,224 +204,215 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppTheme.darkBackground,
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     final account = _account;
     final agreement = _agreement;
 
     if (account == null) {
-      return const Scaffold(
-        backgroundColor: AppTheme.darkBackground,
-        body: Center(child: Text('Profil Producteur indisponible.')),
-      );
+      return const Center(child: Text('Profil Producteur indisponible.'));
     }
 
-    return Scaffold(
-      backgroundColor: AppTheme.darkBackground,
-      appBar: AppBar(title: const Text('Mon profil Producteur')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1280),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 18,
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 32,
-                          backgroundColor: AppTheme.primaryOrange.withValues(
-                            alpha: 0.16,
-                          ),
-                          child: const Icon(
-                            Icons.business_center_outlined,
-                            color: AppTheme.primaryOrange,
-                            size: 31,
-                          ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1280),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 18,
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 32,
+                        backgroundColor: AppTheme.primaryOrange.withValues(
+                          alpha: 0.16,
                         ),
-                        const SizedBox(width: 18),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                account.companyName,
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(fontWeight: FontWeight.w700),
+                        child: const Icon(
+                          Icons.business_center_outlined,
+                          color: AppTheme.primaryOrange,
+                          size: 31,
+                        ),
+                      ),
+                      const SizedBox(width: 18),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              account.companyName,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              account.displayName,
+                              style: const TextStyle(
+                                color: AppTheme.textWhite70,
                               ),
-                              const SizedBox(height: 3),
-                              Text(
-                                account.displayName,
-                                style: const TextStyle(
-                                  color: AppTheme.textWhite70,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                        child: Text(
+                          account.status == 'active'
+                              ? 'Compte actif'
+                              : account.status,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              if (agreement?.isSigned == true) ...[
+                const SizedBox(height: 12),
+                _contractCard(agreement!),
+              ],
+
+              const SizedBox(height: 14),
+
+              Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Informations professionnelles',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final columns = constraints.maxWidth >= 1050
+                              ? 3
+                              : constraints.maxWidth >= 650
+                              ? 2
+                              : 1;
+
+                          const spacing = 12.0;
+
+                          final width =
+                              (constraints.maxWidth -
+                                  ((columns - 1) * spacing)) /
+                              columns;
+
+                          Widget cell(Widget child) =>
+                              SizedBox(width: width, child: child);
+
+                          return Wrap(
+                            spacing: spacing,
+                            runSpacing: spacing,
+                            children: [
+                              cell(
+                                _info(
+                                  'Email',
+                                  account.email,
+                                  icon: Icons.email_outlined,
+                                ),
+                              ),
+                              cell(
+                                _info(
+                                  'Raison sociale',
+                                  account.legalName,
+                                  icon: Icons.apartment_outlined,
+                                ),
+                              ),
+                              cell(
+                                _info(
+                                  'Forme juridique',
+                                  account.legalForm,
+                                  icon: Icons.account_balance_outlined,
+                                ),
+                              ),
+                              cell(
+                                _info(
+                                  'Immatriculation',
+                                  account.registrationNumber,
+                                  icon: Icons.badge_outlined,
+                                ),
+                              ),
+                              cell(
+                                _info(
+                                  'Numéro fiscal',
+                                  account.taxNumber,
+                                  icon: Icons.receipt_long_outlined,
+                                ),
+                              ),
+                              cell(
+                                _info(
+                                  'Adresse',
+                                  account.address,
+                                  icon: Icons.location_on_outlined,
+                                ),
+                              ),
+                              cell(
+                                _info(
+                                  'Ville',
+                                  account.city,
+                                  icon: Icons.location_city_outlined,
+                                ),
+                              ),
+                              cell(
+                                _info(
+                                  'Pays',
+                                  account.countryCode,
+                                  icon: Icons.public,
+                                ),
+                              ),
+                              cell(
+                                _info(
+                                  'Téléphone',
+                                  account.phone,
+                                  icon: Icons.phone_outlined,
+                                ),
+                              ),
+                              cell(
+                                _info(
+                                  'Représentant légal',
+                                  account.representativeName,
+                                  icon: Icons.person_outline,
+                                ),
+                              ),
+                              cell(
+                                _info(
+                                  'Fonction',
+                                  account.representativeRole,
+                                  icon: Icons.work_outline,
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 7,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(50),
-                          ),
-                          child: Text(
-                            account.status == 'active'
-                                ? 'Compte actif'
-                                : account.status,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
-
-                if (agreement?.isSigned == true) ...[
-                  const SizedBox(height: 12),
-                  _contractCard(agreement!),
-                ],
-
-                const SizedBox(height: 14),
-
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Informations professionnelles',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 14),
-
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final columns = constraints.maxWidth >= 1050
-                                ? 3
-                                : constraints.maxWidth >= 650
-                                ? 2
-                                : 1;
-
-                            const spacing = 12.0;
-
-                            final width =
-                                (constraints.maxWidth -
-                                    ((columns - 1) * spacing)) /
-                                columns;
-
-                            Widget cell(Widget child) =>
-                                SizedBox(width: width, child: child);
-
-                            return Wrap(
-                              spacing: spacing,
-                              runSpacing: spacing,
-                              children: [
-                                cell(
-                                  _info(
-                                    'Email',
-                                    account.email,
-                                    icon: Icons.email_outlined,
-                                  ),
-                                ),
-                                cell(
-                                  _info(
-                                    'Raison sociale',
-                                    account.legalName,
-                                    icon: Icons.apartment_outlined,
-                                  ),
-                                ),
-                                cell(
-                                  _info(
-                                    'Forme juridique',
-                                    account.legalForm,
-                                    icon: Icons.account_balance_outlined,
-                                  ),
-                                ),
-                                cell(
-                                  _info(
-                                    'Immatriculation',
-                                    account.registrationNumber,
-                                    icon: Icons.badge_outlined,
-                                  ),
-                                ),
-                                cell(
-                                  _info(
-                                    'Numéro fiscal',
-                                    account.taxNumber,
-                                    icon: Icons.receipt_long_outlined,
-                                  ),
-                                ),
-                                cell(
-                                  _info(
-                                    'Adresse',
-                                    account.address,
-                                    icon: Icons.location_on_outlined,
-                                  ),
-                                ),
-                                cell(
-                                  _info(
-                                    'Ville',
-                                    account.city,
-                                    icon: Icons.location_city_outlined,
-                                  ),
-                                ),
-                                cell(
-                                  _info(
-                                    'Pays',
-                                    account.countryCode,
-                                    icon: Icons.public,
-                                  ),
-                                ),
-                                cell(
-                                  _info(
-                                    'Téléphone',
-                                    account.phone,
-                                    icon: Icons.phone_outlined,
-                                  ),
-                                ),
-                                cell(
-                                  _info(
-                                    'Représentant légal',
-                                    account.representativeName,
-                                    icon: Icons.person_outline,
-                                  ),
-                                ),
-                                cell(
-                                  _info(
-                                    'Fonction',
-                                    account.representativeRole,
-                                    icon: Icons.work_outline,
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

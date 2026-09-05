@@ -7,8 +7,6 @@ import 'package:app_ekeflicks/models/content_model.dart';
 class IASearchDelegate extends SearchDelegate<String> {
   final bool isTV;
   final List<Content> _searchHistory = [];
-  final List<Content> _popularSearches = [];
-
   IASearchDelegate({bool? isTV}) : isTV = isTV ?? false;
 
   // Factory method pour détection auto
@@ -22,10 +20,10 @@ class IASearchDelegate extends SearchDelegate<String> {
 
   @override
   TextStyle get searchFieldStyle => const TextStyle(
-        color: Colors.white,
-        fontSize: 18,
-        fontWeight: FontWeight.w500,
-      );
+    color: Colors.white,
+    fontSize: 18,
+    fontWeight: FontWeight.w500,
+  );
 
   @override
   ThemeData appBarTheme(BuildContext context) {
@@ -33,7 +31,7 @@ class IASearchDelegate extends SearchDelegate<String> {
     return theme.copyWith(
       scaffoldBackgroundColor: Colors.black,
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.black.withOpacity(0.95),
+        backgroundColor: Colors.black.withValues(alpha: 0.95),
         elevation: 4,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -45,9 +43,7 @@ class IASearchDelegate extends SearchDelegate<String> {
         errorBorder: InputBorder.none,
         disabledBorder: InputBorder.none,
       ),
-      textTheme: const TextTheme(
-        titleLarge: TextStyle(color: Colors.white),
-      ),
+      textTheme: const TextTheme(titleLarge: TextStyle(color: Colors.white)),
     );
   }
 
@@ -138,7 +134,9 @@ class IASearchDelegate extends SearchDelegate<String> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(Colors.red)),
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation(Colors.red),
+            ),
             SizedBox(height: 20),
             Text(
               'Chargement...',
@@ -192,21 +190,26 @@ class IASearchDelegate extends SearchDelegate<String> {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _searchHistory.take(5).map((content) {
-        return ActionChip(
-          backgroundColor: Colors.white.withOpacity(0.1),
-          side: BorderSide(color: Colors.white.withOpacity(0.3)),
-          label: Text(
-            content.title,
-            style: const TextStyle(color: Colors.white),
-          ),
-          onPressed: () {
-            query = content.title;
-            showResults(context);
-          },
-          avatar: const Icon(Icons.history, size: 16, color: Colors.white70),
-        );
-      }).toList(),
+      children:
+          _searchHistory.take(5).map((content) {
+            return ActionChip(
+              backgroundColor: Colors.white.withValues(alpha: 0.1),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+              label: Text(
+                content.title,
+                style: const TextStyle(color: Colors.white),
+              ),
+              onPressed: () {
+                query = content.title;
+                showResults(context);
+              },
+              avatar: const Icon(
+                Icons.history,
+                size: 16,
+                color: Colors.white70,
+              ),
+            );
+          }).toList(),
     );
   }
 
@@ -232,9 +235,9 @@ class IASearchDelegate extends SearchDelegate<String> {
   Widget _buildTrendingItem(Content content, int index) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: ListTile(
         leading: Container(
@@ -267,32 +270,44 @@ class IASearchDelegate extends SearchDelegate<String> {
   }
 
   Widget _buildCategoriesGrid(BuildContext context) {
-    final categories = ['Action', 'Comédie', 'Drame', 'Science-fiction', 'Horreur', 'Romance'];
+    final categories = [
+      'Action',
+      'Comédie',
+      'Drame',
+      'Science-fiction',
+      'Horreur',
+      'Romance',
+    ];
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: categories.map((category) {
-        return ActionChip(
-          backgroundColor: Colors.red.withOpacity(0.2),
-          side: BorderSide(color: Colors.red.withOpacity(0.5)),
-          label: Text(
-            category,
-            style: const TextStyle(color: Colors.white),
-          ),
-          onPressed: () {
-            query = category;
-            showResults(context);
-          },
-          avatar: const Icon(Icons.category, size: 16, color: Colors.white),
-        );
-      }).toList(),
+      children:
+          categories.map((category) {
+            return ActionChip(
+              backgroundColor: Colors.red.withValues(alpha: 0.2),
+              side: BorderSide(color: Colors.red.withValues(alpha: 0.5)),
+              label: Text(
+                category,
+                style: const TextStyle(color: Colors.white),
+              ),
+              onPressed: () {
+                query = category;
+                showResults(context);
+              },
+              avatar: const Icon(Icons.category, size: 16, color: Colors.white),
+            );
+          }).toList(),
     );
   }
 
   Widget _buildSearchSuggestions(BuildContext context) {
-    final suggestions = _getAllSuggestions()
-        .where((suggestion) => suggestion.toLowerCase().contains(query.toLowerCase()))
-        .toList();
+    final suggestions =
+        _getAllSuggestions()
+            .where(
+              (suggestion) =>
+                  suggestion.toLowerCase().contains(query.toLowerCase()),
+            )
+            .toList();
 
     if (suggestions.isEmpty) {
       return _buildNoResults(context);
@@ -310,11 +325,15 @@ class IASearchDelegate extends SearchDelegate<String> {
     );
   }
 
-  Widget _buildSuggestionItem(BuildContext context, String suggestion, int index) {
+  Widget _buildSuggestionItem(
+    BuildContext context,
+    String suggestion,
+    int index,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
@@ -323,7 +342,11 @@ class IASearchDelegate extends SearchDelegate<String> {
           suggestion,
           style: const TextStyle(color: Colors.white, fontSize: 16),
         ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.white70),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Colors.white70,
+        ),
         onTap: () {
           query = suggestion;
           showResults(context);
@@ -373,7 +396,7 @@ class IASearchDelegate extends SearchDelegate<String> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -396,7 +419,7 @@ class IASearchDelegate extends SearchDelegate<String> {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(0.7),
+                    Colors.black.withValues(alpha: 0.7),
                   ],
                 ),
               ),
@@ -425,7 +448,10 @@ class IASearchDelegate extends SearchDelegate<String> {
                       const SizedBox(width: 4),
                       Text(
                         content.rating.toString(),
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -478,16 +504,17 @@ class IASearchDelegate extends SearchDelegate<String> {
     // Implémentation de la recherche vocale
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Recherche vocale'),
-        content: const Text('Fonctionnalité à venir...'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Recherche vocale'),
+            content: const Text('Fonctionnalité à venir...'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -512,7 +539,15 @@ class IASearchDelegate extends SearchDelegate<String> {
     return List.generate(6, (index) {
       return Content(
         id: 'trending_$index',
-        title: ['Avengers', 'Stranger Things', 'The Witcher', 'Dune', 'Squid Game', 'Lupin'][index],
+        title:
+            [
+              'Avengers',
+              'Stranger Things',
+              'The Witcher',
+              'Dune',
+              'Squid Game',
+              'Lupin',
+            ][index],
         description: 'Description trending $index',
         imageUrl: 'https://picsum.photos/200/300?random=trending$index',
         posterUrl: 'https://picsum.photos/200/300?random=trending$index',

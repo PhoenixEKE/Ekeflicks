@@ -33,12 +33,36 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
   bool _isProcessingPayment = false;
 
   final List<PaymentMethod> paymentMethods = [
-    PaymentMethod(key: 'visaMaster', label: 'Visa/Mastercard', iconPath: 'assets/payments/visamaster.png'),
-    PaymentMethod(key: 'wave', label: 'Wave', iconPath: 'assets/payments/wave.png'),
-    PaymentMethod(key: 'orangeMoney', label: 'Orange Money', iconPath: 'assets/payments/orange.png'),
-    PaymentMethod(key: 'mtnMoney', label: 'MTN Money', iconPath: 'assets/payments/mtn.png'),
-    PaymentMethod(key: 'moovMoney', label: 'Moov Money', iconPath: 'assets/payments/moov.png'),
-    PaymentMethod(key: 'paypal', label: 'PayPal', iconPath: 'assets/payments/paypal.png'),
+    PaymentMethod(
+      key: 'visaMaster',
+      label: 'Visa/Mastercard',
+      iconPath: 'assets/payments/visamaster.png',
+    ),
+    PaymentMethod(
+      key: 'wave',
+      label: 'Wave',
+      iconPath: 'assets/payments/wave.png',
+    ),
+    PaymentMethod(
+      key: 'orangeMoney',
+      label: 'Orange Money',
+      iconPath: 'assets/payments/orange.png',
+    ),
+    PaymentMethod(
+      key: 'mtnMoney',
+      label: 'MTN Money',
+      iconPath: 'assets/payments/mtn.png',
+    ),
+    PaymentMethod(
+      key: 'moovMoney',
+      label: 'Moov Money',
+      iconPath: 'assets/payments/moov.png',
+    ),
+    PaymentMethod(
+      key: 'paypal',
+      label: 'PayPal',
+      iconPath: 'assets/payments/paypal.png',
+    ),
   ];
 
   @override
@@ -77,17 +101,18 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
     if (methodKey != 'visaMaster') {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          content: Text(
-            AppLocalizations.of(context)!.paymentPageComingSoon,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+        builder:
+            (context) => AlertDialog(
+              content: Text(
+                AppLocalizations.of(context)!.paymentPageComingSoon,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
             ),
-          ],
-        ),
       );
       return;
     }
@@ -115,9 +140,7 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            error.toString().replaceFirst('Bad state: ', ''),
-          ),
+          content: Text(error.toString().replaceFirst('Bad state: ', '')),
           backgroundColor: Colors.red,
         ),
       );
@@ -129,8 +152,7 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
   }
 
   String get _formattedOfferPrice {
-    final parsed =
-        double.tryParse(widget.offerPrice.replaceAll(',', '.'));
+    final parsed = double.tryParse(widget.offerPrice.replaceAll(',', '.'));
 
     final price =
         parsed != null && parsed == parsed.truncateToDouble()
@@ -155,35 +177,37 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
-    final logoPath = isDarkMode
-        ? 'assets/images/logo_dark.png'
-        : 'assets/images/logo_light.png';
+    final logoPath =
+        isDarkMode
+            ? 'assets/images/logo_dark.png'
+            : 'assets/images/logo_light.png';
 
-    return WillPopScope(
-      onWillPop: () async => false, // Empêche le retour matériel
+    return PopScope(
+      canPop: false,
       child: Scaffold(
         // SUPPRIMÉ: l'AppBar
         body: Container(
           decoration: BoxDecoration(
-            gradient: isDarkMode
-                ? LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.grey.shade900,
-                      Colors.black,
-                      Colors.grey.shade900,
-                    ],
-                  )
-                : LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.grey.shade100,
-                      Colors.white,
-                      Colors.grey.shade100,
-                    ],
-                  ),
+            gradient:
+                isDarkMode
+                    ? LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.grey.shade900,
+                        Colors.black,
+                        Colors.grey.shade900,
+                      ],
+                    )
+                    : LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.grey.shade100,
+                        Colors.white,
+                        Colors.grey.shade100,
+                      ],
+                    ),
           ),
           child: Center(
             child: Container(
@@ -194,9 +218,10 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: isDarkMode
-                        ? Colors.black.withOpacity(0.8)
-                        : Colors.grey.withOpacity(0.3),
+                    color:
+                        isDarkMode
+                            ? Colors.black.withValues(alpha: 0.8)
+                            : Colors.grey.withValues(alpha: 0.3),
                     blurRadius: 15,
                     spreadRadius: 5,
                     offset: const Offset(0, 5),
@@ -209,7 +234,6 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 40), // Espacement accru en haut
-
                     // AJOUT: Logo centré
                     Image.asset(
                       logoPath,
@@ -229,9 +253,10 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
                               Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => SubscriptionStep1Page(
-                                    accountEmail: widget.accountEmail,
-                                  ),
+                                  builder:
+                                      (context) => SubscriptionStep1Page(
+                                        accountEmail: widget.accountEmail,
+                                      ),
                                 ),
                               );
                             },
@@ -251,9 +276,9 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Text(
                         loc.chooseYourPaymentMethodForOffer(
-                            widget.offerTitle,
-                            _formattedOfferPrice,
-                          ),
+                          widget.offerTitle,
+                          _formattedOfferPrice,
+                        ),
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -351,23 +376,25 @@ class _PaymentCardState extends State<_PaymentCard> {
           decoration: BoxDecoration(
             color: theme.cardColor,
             borderRadius: BorderRadius.circular(12),
-            boxShadow: _isHovered
-                ? [
-                    BoxShadow(
-                      color: primaryColor.withOpacity(0.4),
-                      blurRadius: 12,
-                      spreadRadius: 1,
-                    )
-                  ]
-                : [
-                    BoxShadow(
-                      color: isDarkMode
-                        ? Colors.black.withOpacity(0.6)
-                        : Colors.grey.withOpacity(0.3),
-                      blurRadius: 6,
-                      offset: const Offset(0, 3),
-                    )
-                  ],
+            boxShadow:
+                _isHovered
+                    ? [
+                      BoxShadow(
+                        color: primaryColor.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                    : [
+                      BoxShadow(
+                        color:
+                            isDarkMode
+                                ? Colors.black.withValues(alpha: 0.6)
+                                : Colors.grey.withValues(alpha: 0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
             border: Border.all(
               color: _isHovered ? primaryColor : Colors.transparent,
               width: 2,

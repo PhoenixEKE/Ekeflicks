@@ -62,7 +62,6 @@ class UserProvider with ChangeNotifier {
     notifyListeners();
   }
 
-
   /// Creates a paid subscription and initializes a Stripe Checkout session.
   ///
   /// The backend remains the source of truth for the plan price/currency.
@@ -91,13 +90,9 @@ class UserProvider with ChangeNotifier {
     }
 
     // 2. Create the pending paid subscription.
-    final subscriptionResponse =
-        await apiClient.dio.post<Map<String, dynamic>>(
+    final subscriptionResponse = await apiClient.dio.post<Map<String, dynamic>>(
       '/subscriptions/',
-      data: {
-        'plan_id': planId,
-        'auto_renew': true,
-      },
+      data: {'plan_id': planId, 'auto_renew': true},
     );
 
     final subscriptionId = subscriptionResponse.data?['id'];
@@ -107,13 +102,9 @@ class UserProvider with ChangeNotifier {
     }
 
     // 3. Ask the backend to create the Stripe Checkout session.
-    final paymentResponse =
-        await apiClient.dio.post<Map<String, dynamic>>(
+    final paymentResponse = await apiClient.dio.post<Map<String, dynamic>>(
       '/payments/',
-      data: {
-        'subscription_id': subscriptionId,
-        'provider': 'stripe',
-      },
+      data: {'subscription_id': subscriptionId, 'provider': 'stripe'},
     );
 
     final checkoutUrl = paymentResponse.data?['checkout_url'];
@@ -130,8 +121,7 @@ class UserProvider with ChangeNotifier {
     return checkoutUrl;
   }
 
-  static const String _refreshTokenStorageKey =
-      'ekeflicks_auth_refresh_token';
+  static const String _refreshTokenStorageKey = 'ekeflicks_auth_refresh_token';
 
   Future<void> _persistRefreshToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -223,9 +213,8 @@ class UserProvider with ChangeNotifier {
       // generated legacy `/users/` operation no longer matches this API.
       final normalizedIdentifier = _normalizeLoginIdentifier(identifier);
       final isEmail = normalizedIdentifier.contains('@');
-      final location = isEmail
-          ? await GeolocationService.detectCountryByIP()
-          : null;
+      final location =
+          isEmail ? await GeolocationService.detectCountryByIP() : null;
       final response = await apiClient.dio.post<Map<String, dynamic>>(
         kIsWeb ? '/auth/web/register/' : '/auth/register/',
         data: {
@@ -271,7 +260,10 @@ class UserProvider with ChangeNotifier {
   }
 
   /// Connexion utilisateur - Version modifiée pour retourner des informations détaillées
-  Future<Map<String, dynamic>> login({required String email, required String password}) async {
+  Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
     try {
       final response = await apiClient.dio.post(
         kIsWeb ? '/auth/web/login/' : '/auth/login/',
@@ -298,7 +290,10 @@ class UserProvider with ChangeNotifier {
           return {
             'success': profileLoaded,
             'statusCode': 200,
-            'message': profileLoaded ? 'Connexion réussie' : 'Erreur lors du chargement du profil'
+            'message':
+                profileLoaded
+                    ? 'Connexion réussie'
+                    : 'Erreur lors du chargement du profil',
           };
         }
       }
@@ -306,7 +301,7 @@ class UserProvider with ChangeNotifier {
       return {
         'success': false,
         'statusCode': response.statusCode ?? 500,
-        'message': _getErrorMessageFromStatusCode(response.statusCode)
+        'message': _getErrorMessageFromStatusCode(response.statusCode),
       };
     } on DioException catch (e) {
       // Avoid printing Dio's verbose exception (and browser internals) for an
@@ -317,7 +312,8 @@ class UserProvider with ChangeNotifier {
 
       // Gestion spécifique des erreurs Dio
       final statusCode = e.response?.statusCode;
-      final errorMessage = _apiErrorMessage(e.response?.data) ??
+      final errorMessage =
+          _apiErrorMessage(e.response?.data) ??
           _getErrorMessageFromStatusCode(statusCode);
 
       _currentUser = null;
@@ -330,7 +326,7 @@ class UserProvider with ChangeNotifier {
         'success': false,
         'statusCode': statusCode ?? 500,
         'message': errorMessage,
-        'dioError': e.message
+        'dioError': e.message,
       };
     } catch (e) {
       debugPrint('Unexpected login error: $e');
@@ -344,7 +340,7 @@ class UserProvider with ChangeNotifier {
       return {
         'success': false,
         'statusCode': 500,
-        'message': 'Erreur inattendue lors de la connexion'
+        'message': 'Erreur inattendue lors de la connexion',
       };
     }
   }
@@ -373,27 +369,67 @@ class UserProvider with ChangeNotifier {
     }
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      await apiClient.dio.post<Map<String, dynamic>>(
+        '/auth/password/change/',
+        data: {
+          'current_password': currentPassword,
+          'new_password': newPassword,
+        },
+        options: Options(headers: {'Content-Type': 'application/json'}),
+      );
+    } on DioException catch (e) {
+      final data = e.response?.data;
+
+      if (data is Map<String, dynamic>) {
+        final detail = data['detail'];
+        if (detail is String && detail.isNotEmpty) {
+          throw StateError(detail);
+        }
+
+        final errors = data['errors'];
+        if (errors is Map) {
+          for (final value in errors.values) {
+            if (value is List && value.isNotEmpty) {
+              throw StateError(value.first.toString());
+            }
+          }
+        }
+      }
+
+      throw StateError(
+        'Impossible de modifier le mot de passe pour le moment.',
+      );
+    }
+  }
+
   /// Charge le profil utilisateur connecté
   Future<bool> _loadUserProfile() async {
     if (_accessToken == null) return false;
 
     try {
-      final response = await apiClient.dio.get<Map<String, dynamic>>('/auth/me/');
+      final response = await apiClient.dio.get<Map<String, dynamic>>(
+        '/auth/me/',
+      );
       final data = response.data;
 
       if (data != null) {
         _accountPhone = data['phone']?.toString();
-        _hasActiveSubscription =
-            data['has_active_subscription'] == true;
+        _hasActiveSubscription = data['has_active_subscription'] == true;
 
         final userData = Map<String, dynamic>.from(data)
           ..remove('has_active_subscription');
 
-        _currentUser = apiClient.serializers.deserialize(
-          userData,
-          specifiedType: const FullType(User),
-        ) as User;
-
+        _currentUser =
+            apiClient.serializers.deserialize(
+                  userData,
+                  specifiedType: const FullType(User),
+                )
+                as User;
 
         notifyListeners();
         return true;
@@ -442,7 +478,7 @@ class UserProvider with ChangeNotifier {
         final access = response.data?['access'] as String?;
 
         if (response.statusCode == 200 && access != null && access.isNotEmpty) {
-            _accessToken = access;
+          _accessToken = access;
           _refreshToken = null;
           _setBearerToken(access);
           await _persistRefreshToken();

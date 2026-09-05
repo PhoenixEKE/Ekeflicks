@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_producteurs/widgets/producer_page_shell.dart';
 
 class HelpSupportPage extends StatefulWidget {
   const HelpSupportPage({super.key});
@@ -92,13 +93,11 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.helpSupportTitle),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: CustomScrollView(
+    return ProducerPageShell(
+      showBack: true,
+      maxWidth: 1280,
+      padding: EdgeInsets.zero,
+      child: CustomScrollView(
         slivers: [
           // Section Hero
           SliverToBoxAdapter(

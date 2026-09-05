@@ -7,7 +7,7 @@ class SubscriptionProgress {
     required this.step,
     this.offerTitle,
     this.offerPrice,
-      this.offerCurrency,
+    this.offerCurrency,
     this.offerPlanSlug,
   });
 
@@ -55,14 +55,8 @@ class SubscriptionProgressService {
       ),
       preferences.setString(_key(email, _offerTitleSuffix), offerTitle),
       preferences.setString(_key(email, _offerPriceSuffix), offerPrice),
-        preferences.setString(
-          _key(email, _offerCurrencySuffix),
-          offerCurrency,
-        ),
-      preferences.setString(
-        _key(email, _offerPlanSlugSuffix),
-        offerPlanSlug,
-      ),
+      preferences.setString(_key(email, _offerCurrencySuffix), offerCurrency),
+      preferences.setString(_key(email, _offerPlanSlugSuffix), offerPlanSlug),
     ]);
   }
 
@@ -77,22 +71,24 @@ class SubscriptionProgressService {
     if (savedStep == SubscriptionStep.payment.name) {
       final offerTitle = preferences.getString(_key(email, _offerTitleSuffix));
       final offerPrice = preferences.getString(_key(email, _offerPriceSuffix));
-        final offerCurrency =
-            preferences.getString(_key(email, _offerCurrencySuffix));
-      final offerPlanSlug =
-          preferences.getString(_key(email, _offerPlanSlugSuffix));
+      final offerCurrency = preferences.getString(
+        _key(email, _offerCurrencySuffix),
+      );
+      final offerPlanSlug = preferences.getString(
+        _key(email, _offerPlanSlugSuffix),
+      );
 
       if (offerTitle != null &&
           offerPrice != null &&
-            offerCurrency != null &&
-            offerCurrency.isNotEmpty &&
+          offerCurrency != null &&
+          offerCurrency.isNotEmpty &&
           offerPlanSlug != null &&
           offerPlanSlug.isNotEmpty) {
         return SubscriptionProgress(
           step: SubscriptionStep.payment,
           offerTitle: offerTitle,
           offerPrice: offerPrice,
-            offerCurrency: offerCurrency,
+          offerCurrency: offerCurrency,
           offerPlanSlug: offerPlanSlug,
         );
       }
@@ -110,7 +106,7 @@ class SubscriptionProgressService {
       preferences.remove(_key(email, _stepSuffix)),
       preferences.remove(_key(email, _offerTitleSuffix)),
       preferences.remove(_key(email, _offerPriceSuffix)),
-        preferences.remove(_key(email, _offerCurrencySuffix)),
+      preferences.remove(_key(email, _offerCurrencySuffix)),
       preferences.remove(_key(email, _offerPlanSlugSuffix)),
     ]);
   }

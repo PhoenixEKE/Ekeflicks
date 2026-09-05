@@ -33,16 +33,18 @@ class _ContactFormDialogState extends State<ContactFormDialog> {
           'subject=Contact EKEFlicks&body='
           'Nom: ${_nameController.text}\n'
           'Email: ${_emailController.text}\n\n'
-          '${_messageController.text}'
+          '${_messageController.text}',
         ),
       );
-      
+
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
         if (mounted) Navigator.of(context).pop();
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible d\'ouvrir l\'application email')),
+          const SnackBar(
+            content: Text('Impossible d\'ouvrir l\'application email'),
+          ),
         );
       }
     }
@@ -82,7 +84,11 @@ class _ContactFormDialogState extends State<ContactFormDialog> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, ThemeData theme, AppLocalizations loc) {
+  Widget _buildHeader(
+    BuildContext context,
+    ThemeData theme,
+    AppLocalizations loc,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: theme.primaryColor,
@@ -180,7 +186,7 @@ class _ContactFormDialogState extends State<ContactFormDialog> {
         height: 24,
         child: SvgPicture.asset(
           'assets/social/whatsapp.svg',
-          color: Colors.white,
+          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
         ),
       ),
       label: const Text('WhatsApp : +225 07 16 09 69 40'),
@@ -196,9 +202,7 @@ class _ContactFormDialogState extends State<ContactFormDialog> {
       onPressed: () => launchUrl(Uri.parse('tel:+2250716096940')),
       icon: const Icon(Icons.phone),
       label: const Text('Tel : +225 07 16 09 69 40'),
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size.fromHeight(50),
-      ),
+      style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
     );
   }
 }

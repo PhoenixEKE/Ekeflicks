@@ -20,12 +20,11 @@ class DeviceInfoProvider with ChangeNotifier {
     try {
       final isTVPlugin = IsTV();
       _isTV = await isTVPlugin.check() ?? false;
-      
+
       // Déterminer si c'est un desktop basé sur la taille d'écran
       // Cette logique sera complétée dans le build method
       _isMobile = !_isTV; // Pour l'instant, simple approximation
       _isDesktop = false; // Sera ajusté dynamiquement
-      
     } catch (e) {
       debugPrint('Error detecting TV: $e');
       _isTV = false;

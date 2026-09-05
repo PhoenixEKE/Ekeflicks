@@ -25,11 +25,9 @@ class ProfileConfig {
     this.gridSpacing = 12,
     this.gridChildAspectRatio = 0.75,
     Map<String, String>? profileTypes,
-  }) : profileTypes = profileTypes ?? {
-        'main': 'Adult',
-        'child': 'Child',
-        'guest': 'Guest',
-      };
+  }) : profileTypes =
+           profileTypes ??
+           {'main': 'Adult', 'child': 'Child', 'guest': 'Guest'};
 }
 
 class ProfileSwitcher extends StatefulWidget {
@@ -102,16 +100,19 @@ class _ProfileSwitcherState extends State<ProfileSwitcher> {
       itemBuilder: (context, index) {
         final profile = widget.profiles[index];
         final profileTypeKey = profile.type?.name ?? 'main';
-        final profileType = widget.config.profileTypes[profileTypeKey] ?? profileTypeKey;
+        final profileType =
+            widget.config.profileTypes[profileTypeKey] ?? profileTypeKey;
         final avatarUrl = profile.avatarUrl ?? '';
-        final hasCustomAvatar = avatarUrl.isNotEmpty &&
+        final hasCustomAvatar =
+            avatarUrl.isNotEmpty &&
             !avatarUrl.contains('/avatars/default-adult.png') &&
             !avatarUrl.contains('/avatars/default-child.png');
-        final imagePath = hasCustomAvatar
-            ? avatarUrl
-            : (profileTypeKey == 'child'
-                  ? widget.config.defaultChildAvatar
-                  : widget.config.defaultAdultAvatar);
+        final imagePath =
+            hasCustomAvatar
+                ? avatarUrl
+                : (profileTypeKey == 'child'
+                    ? widget.config.defaultChildAvatar
+                    : widget.config.defaultAdultAvatar);
 
         return _ProfileCard(
           profile: profile,
@@ -120,7 +121,10 @@ class _ProfileSwitcherState extends State<ProfileSwitcher> {
           onTap: () async {
             if (profile.id != null) {
               // Vérifier l'accès au profil (PIN parental si nécessaire)
-              if (!await ProfileAccessService.canOpen(context, profile) || !context.mounted) return;
+              if (!await ProfileAccessService.canOpen(context, profile) ||
+                  !context.mounted) {
+                return;
+              }
               await _switchProfile(profile);
               widget.onProfileSelected(profile);
             }
@@ -137,7 +141,10 @@ class _ProfileSwitcherState extends State<ProfileSwitcher> {
     });
 
     try {
-      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+      final profileProvider = Provider.of<ProfileProvider>(
+        context,
+        listen: false,
+      );
       await profileProvider.selectProfile(profile);
     } catch (e) {
       setState(() {
@@ -184,9 +191,7 @@ class _ProfileCardState extends State<_ProfileCard> {
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOutBack,
           child: Container(
-            constraints: const BoxConstraints(
-              maxHeight: 120,
-            ),
+            constraints: const BoxConstraints(maxHeight: 120),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -195,11 +200,13 @@ class _ProfileCardState extends State<_ProfileCard> {
                   children: [
                     CircleAvatar(
                       radius: 30,
-                      backgroundColor: theme.colorScheme.surfaceVariant,
+                      backgroundColor:
+                          theme.colorScheme.surfaceContainerHighest,
                       backgroundImage: _getImageProvider(widget.imagePath),
-                      child: widget.imagePath.isEmpty
-                          ? const Icon(Icons.person, size: 24)
-                          : null,
+                      child:
+                          widget.imagePath.isEmpty
+                              ? const Icon(Icons.person, size: 24)
+                              : null,
                     ),
                     if (widget.profile.type?.name == 'child')
                       Container(
@@ -219,7 +226,7 @@ class _ProfileCardState extends State<_ProfileCard> {
                 const SizedBox(height: 6),
                 Flexible(
                   child: Text(
-                    widget.profile.name ?? 'Unnamed',
+                    widget.profile.name,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface,
                       fontWeight: FontWeight.bold,
@@ -234,7 +241,7 @@ class _ProfileCardState extends State<_ProfileCard> {
                   child: Text(
                     widget.profileType,
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

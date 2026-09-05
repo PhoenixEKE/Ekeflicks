@@ -35,19 +35,20 @@ class PlayerPage extends StatefulWidget {
 
   static Route<void> route(RouteSettings settings) {
     final args = settings.arguments as Map<String, dynamic>? ?? {};
-    
+
     return MaterialPageRoute(
-      builder: (context) => PlayerPage(
-        videoUrl: args['videoUrl'] as String? ?? '',
-        title: args['title'] as String? ?? 'Video',
-        imageUrl: args['imageUrl'] as String?,
-        resumePosition: args['resumePosition'] as Duration?,
-        isTrailer: args['isTrailer'] as bool? ?? false,
-        episodeData: args['episodeData'],
-        isSeries: args['isSeries'] as bool? ?? false,
-        isWatched: args['isWatched'] as bool? ?? false,
-        seasons: args['seasons'] as List<dynamic>?,
-      ),
+      builder:
+          (context) => PlayerPage(
+            videoUrl: args['videoUrl'] as String? ?? '',
+            title: args['title'] as String? ?? 'Video',
+            imageUrl: args['imageUrl'] as String?,
+            resumePosition: args['resumePosition'] as Duration?,
+            isTrailer: args['isTrailer'] as bool? ?? false,
+            episodeData: args['episodeData'],
+            isSeries: args['isSeries'] as bool? ?? false,
+            isWatched: args['isWatched'] as bool? ?? false,
+            seasons: args['seasons'] as List<dynamic>?,
+          ),
     );
   }
 
@@ -92,7 +93,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   void _updateDeviceType() {
     final isMobile = AppResponsive.isMobile(context);
     final isTV = AppResponsive.isTVSize(context);
-    
+
     if (isMobile != _isMobile || isTV != _isTV) {
       setState(() {
         _isMobile = isMobile;
@@ -107,9 +108,10 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         throw Exception('URL vidéo vide');
       }
 
-      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
-        ..addListener(_videoListener)
-        ..setLooping(false);
+      _controller =
+          VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
+            ..addListener(_videoListener)
+            ..setLooping(false);
 
       _controller.addListener(() {
         if (!mounted) return;
@@ -119,13 +121,13 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       });
 
       await _controller.initialize();
-      
+
       if (widget.resumePosition != null) {
         await _controller.seekTo(widget.resumePosition!);
       }
-      
+
       await _controller.play();
-      
+
       setState(() {
         _isInitialized = true;
       });
@@ -140,7 +142,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
 
   void _videoListener() {
     if (!mounted) return;
-    
+
     if (_controller.value.hasError) {
       setState(() {
         _hasError = true;
@@ -151,7 +153,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     if (_controller.value.position >= _controller.value.duration) {
       _controller.pause();
     }
-    
+
     setState(() {});
   }
 
@@ -197,7 +199,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
 
   void _toggleFullscreen() {
     if (_isTV) return; // Désactive le plein écran pour TV
-    
+
     setState(() {
       _isFullscreen = !_isFullscreen;
       if (_isFullscreen) {
@@ -250,7 +252,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     return IconButton(
       icon: Icon(icon, size: size),
       color: Colors.white,
-      hoverColor: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+      hoverColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
       splashRadius: 20,
       tooltip: tooltip,
       onPressed: onPressed,
@@ -295,10 +297,13 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
               Row(
                 children: [
                   _buildIconButton(
-                    icon: _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                    icon:
+                        _controller.value.isPlaying
+                            ? Icons.pause
+                            : Icons.play_arrow,
                     onPressed: () {
-                      _controller.value.isPlaying 
-                          ? _controller.pause() 
+                      _controller.value.isPlaying
+                          ? _controller.pause()
                           : _controller.play();
                     },
                     tooltip: _controller.value.isPlaying ? loc.pause : loc.play,
@@ -311,9 +316,13 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                     size: _isTV ? 32 : null,
                   ),
                   _buildIconButton(
-                    icon: _subtitlesEnabled ? Icons.subtitles : Icons.subtitles_off,
+                    icon:
+                        _subtitlesEnabled
+                            ? Icons.subtitles
+                            : Icons.subtitles_off,
                     onPressed: _toggleSubtitles,
-                    tooltip: _subtitlesEnabled ? loc.subtitlesOn : loc.subtitlesOff,
+                    tooltip:
+                        _subtitlesEnabled ? loc.subtitlesOn : loc.subtitlesOff,
                     size: _isTV ? 32 : null,
                   ),
                   Text(
@@ -352,45 +361,35 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-    
-    return hours > 0 
-        ? '$hours:$minutes:$seconds' 
-        : '$minutes:$seconds';
+
+    return hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
   }
 
   Widget _buildErrorWidget(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
-    
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline, 
-            color: Colors.red, 
-            size: _isTV ? 80 : 50,
-          ),
+          Icon(Icons.error_outline, color: Colors.red, size: _isTV ? 80 : 50),
           SizedBox(height: _isTV ? 32 : 16),
           Text(
             loc.videoPlaybackError,
-            style: TextStyle(
-              color: Colors.white, 
-              fontSize: _isTV ? 28 : 18,
-            ),
+            style: TextStyle(color: Colors.white, fontSize: _isTV ? 28 : 18),
           ),
           SizedBox(height: _isTV ? 32 : 16),
           ElevatedButton(
             onPressed: _retryInitialization,
             style: ElevatedButton.styleFrom(
-              padding: _isTV 
-                  ? const EdgeInsets.symmetric(horizontal: 32, vertical: 16)
-                  : null,
+              padding:
+                  _isTV
+                      ? const EdgeInsets.symmetric(horizontal: 32, vertical: 16)
+                      : null,
             ),
             child: Text(
               loc.retry,
-              style: _isTV 
-                  ? const TextStyle(fontSize: 20) 
-                  : null,
+              style: _isTV ? const TextStyle(fontSize: 20) : null,
             ),
           ),
         ],
@@ -431,16 +430,13 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                         blurRadius: 4,
                         color: Colors.black,
                         offset: Offset(1, 1),
-                      )
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
-          if (_isBuffering)
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
+          if (_isBuffering) const Center(child: CircularProgressIndicator()),
         ],
       ),
     );
@@ -449,7 +445,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   PreferredSizeWidget? _buildAppBar() {
     final loc = AppLocalizations.of(context)!;
     final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
-    
+
     return AppBar(
       title: Text(
         widget.title,
@@ -457,16 +453,17 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       ),
       backgroundColor: Colors.black,
       foregroundColor: Colors.white,
-      leading: _isTV
-          ? _buildIconButton(
-              icon: Icons.arrow_back,
-              onPressed: () => Navigator.pop(context),
-              size: 32,
-            )
-          : IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context),
-            ),
+      leading:
+          _isTV
+              ? _buildIconButton(
+                icon: Icons.arrow_back,
+                onPressed: () => Navigator.pop(context),
+                size: 32,
+              )
+              : IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
       actions: [
         if (!_isMobile || !_isFullscreen) ...[
           _buildIconButton(
@@ -515,9 +512,12 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         child: Stack(
           children: [
             Center(
-              child: _hasError
-                  ? _buildErrorWidget(context)
-                  : (_isInitialized ? _buildVideoPlayer() : const CircularProgressIndicator()),
+              child:
+                  _hasError
+                      ? _buildErrorWidget(context)
+                      : (_isInitialized
+                          ? _buildVideoPlayer()
+                          : const CircularProgressIndicator()),
             ),
             if (_showControls) _buildControls(context),
           ],

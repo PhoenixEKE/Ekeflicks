@@ -51,10 +51,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       // Appel direct à l'API pour confirmer la réinitialisation
       await userProvider.apiClient.dio.post<Object>(
         '/auth/password-reset/confirm/',
-        data: {
-          'token': token,
-          'password': _passwordController.text.trim(),
-        },
+        data: {'token': token, 'password': _passwordController.text.trim()},
       );
 
       if (!mounted) return;
@@ -91,7 +88,9 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Impossible de modifier le mot de passe. Veuillez réessayer.'),
+          content: const Text(
+            'Impossible de modifier le mot de passe. Veuillez réessayer.',
+          ),
           duration: const Duration(seconds: 8),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
@@ -117,9 +116,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
     return Scaffold(
       appBar: SimpleAppBar(
-        logoPath: theme.brightness == Brightness.dark
-            ? 'assets/images/logo_dark.png'
-            : 'assets/images/logo_light.png',
+        logoPath:
+            theme.brightness == Brightness.dark
+                ? 'assets/images/logo_dark.png'
+                : 'assets/images/logo_light.png',
       ),
       body: Container(
         decoration: AppTheme.pageDecoration(context),
@@ -129,103 +129,113 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
             child: Container(
               padding: const EdgeInsets.all(32),
               decoration: AppDecorations.contentContainerDecoration(context),
-              child: token == null
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 16),
-                        Text(
-                          "Chargement du lien de réinitialisation...",
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodyLarge,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "Si cela prend trop de temps, vérifiez que vous avez cliqué sur le bon lien",
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
-                    )
-                  : Form(
-                      key: _formKey,
-                      child: Column(
+              child:
+                  token == null
+                      ? Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.lock_reset, size: 48, color: AppTheme.primaryOrange),
+                          const CircularProgressIndicator(),
                           const SizedBox(height: 16),
                           Text(
-                            loc.reinitialiserMotDePasse,
-                            style: theme.textTheme.headlineSmall,
+                            "Chargement du lien de réinitialisation...",
                             textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyLarge,
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 16),
                           Text(
-                            "Lien sécurisé prêt à être utilisé",
+                            "Si cela prend trop de temps, vérifiez que vous avez cliqué sur le bon lien",
+                            textAlign: TextAlign.center,
                             style: theme.textTheme.bodySmall,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 24),
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: true,
-                            decoration: AppDecorations.inputDecoration(
-                              context,
-                              label: loc.nouveauMotDePasse,
-                              icon: Icons.lock_outline,
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return loc.motDePasseObligatoire;
-                              }
-                              if (value.length < 8) return loc.motDePasseCourt;
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _confirmController,
-                            obscureText: true,
-                            decoration: AppDecorations.inputDecoration(
-                              context,
-                              label: loc.confirmerMotDePasse,
-                              icon: Icons.lock_reset,
-                            ),
-                            validator: (value) {
-                              if (value != _passwordController.text) {
-                                return loc.motsDePasseDifferents;
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 24),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _isSubmitting ? null : _submit,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.primaryOrange,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: _isSubmitting
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : Text(loc.valider),
-                            ),
                           ),
                         ],
+                      )
+                      : Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.lock_reset,
+                              size: 48,
+                              color: AppTheme.primaryOrange,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              loc.reinitialiserMotDePasse,
+                              style: theme.textTheme.headlineSmall,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Lien sécurisé prêt à être utilisé",
+                              style: theme.textTheme.bodySmall,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 24),
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: true,
+                              decoration: AppDecorations.inputDecoration(
+                                context,
+                                label: loc.nouveauMotDePasse,
+                                icon: Icons.lock_outline,
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return loc.motDePasseObligatoire;
+                                }
+                                if (value.length < 8) {
+                                  return loc.motDePasseCourt;
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _confirmController,
+                              obscureText: true,
+                              decoration: AppDecorations.inputDecoration(
+                                context,
+                                label: loc.confirmerMotDePasse,
+                                icon: Icons.lock_reset,
+                              ),
+                              validator: (value) {
+                                if (value != _passwordController.text) {
+                                  return loc.motsDePasseDifferents;
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _isSubmitting ? null : _submit,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryOrange,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child:
+                                    _isSubmitting
+                                        ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                        : Text(loc.valider),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
             ),
           ),
         ),

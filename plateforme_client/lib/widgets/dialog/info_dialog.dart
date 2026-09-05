@@ -8,7 +8,7 @@ import 'package:app_ekeflicks/models/content_model.dart';
 class InfoDialog extends StatefulWidget {
   final Content content;
   final List<Content> similarContent;
-  
+
   const InfoDialog({
     super.key,
     required this.content,
@@ -30,16 +30,21 @@ class _InfoDialogState extends State<InfoDialog> {
   @override
   void initState() {
     super.initState();
-    _trailerController = VideoPlayerController.network(
-      widget.content.videoUrl.isNotEmpty 
-          ? widget.content.videoUrl
-          : 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4',
-    )..initialize().then((_) {
-        if (mounted) setState(() {});
-      }).catchError((e) {
-        debugPrint('Error initializing video: $e');
-        if (mounted) setState(() {});
-      });
+    _trailerController = VideoPlayerController.networkUrl(
+        Uri.parse(
+          widget.content.videoUrl.isNotEmpty
+              ? widget.content.videoUrl
+              : 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4',
+        ),
+      )
+      ..initialize()
+          .then((_) {
+            if (mounted) setState(() {});
+          })
+          .catchError((e) {
+            debugPrint('Error initializing video: $e');
+            if (mounted) setState(() {});
+          });
   }
 
   @override
@@ -52,10 +57,12 @@ class _InfoDialogState extends State<InfoDialog> {
 
   void _toggleTrailerPlayback() {
     if (!_trailerController.value.isInitialized) return;
-    
+
     setState(() {
       _isPlayingTrailer = !_isPlayingTrailer;
-      _isPlayingTrailer ? _trailerController.play() : _trailerController.pause();
+      _isPlayingTrailer
+          ? _trailerController.play()
+          : _trailerController.pause();
     });
   }
 
@@ -64,11 +71,12 @@ class _InfoDialogState extends State<InfoDialog> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => PlayerPage(
-          videoUrl: widget.content.videoUrl,
-          title: widget.content.title,
-          imageUrl: widget.content.posterUrl,
-        ),
+        builder:
+            (context) => PlayerPage(
+              videoUrl: widget.content.videoUrl,
+              title: widget.content.title,
+              imageUrl: widget.content.posterUrl,
+            ),
       ),
     );
   }
@@ -79,12 +87,16 @@ class _InfoDialogState extends State<InfoDialog> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7)),
+          Icon(
+            icon,
+            size: 16,
+            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+          ),
           const SizedBox(width: 4),
           Text(
             text,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -96,14 +108,16 @@ class _InfoDialogState extends State<InfoDialog> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        border: Border.all(color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey),
+        border: Border.all(
+          color:
+              theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7) ??
+              Colors.grey,
+        ),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         'HD',
-        style: theme.textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.bold,
-        ),
+        style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -113,11 +127,16 @@ class _InfoDialogState extends State<InfoDialog> {
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(5, (index) => Icon(
-            index < (widget.content.rating?.round() ?? 0) ? Icons.star : Icons.star_border,
-            color: theme.colorScheme.primary,
-            size: 20,
-          )),
+          children: List.generate(
+            5,
+            (index) => Icon(
+              index < (widget.content.rating?.round() ?? 0)
+                  ? Icons.star
+                  : Icons.star_border,
+              color: theme.colorScheme.primary,
+              size: 20,
+            ),
+          ),
         ),
         const SizedBox(height: 4),
         Text(
@@ -135,8 +154,10 @@ class _InfoDialogState extends State<InfoDialog> {
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         ),
-        onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Action: $label'))),
+        onPressed:
+            () => ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Action: $label'))),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -149,7 +170,11 @@ class _InfoDialogState extends State<InfoDialog> {
     );
   }
 
-  Widget _buildSimilarContentCard(Content content, double width, ThemeData theme) {
+  Widget _buildSimilarContentCard(
+    Content content,
+    double width,
+    ThemeData theme,
+  ) {
     return SizedBox(
       width: width,
       child: Column(
@@ -161,13 +186,15 @@ class _InfoDialogState extends State<InfoDialog> {
               height: width * 1.5,
               width: width,
               fit: BoxFit.cover,
-              placeholder: (_, __) => Container(
-                color: theme.colorScheme.surfaceVariant,
-              ),
-              errorWidget: (_, __, ___) => Container(
-                color: theme.colorScheme.surfaceVariant,
-                child: const Icon(Icons.broken_image),
-              ),
+              placeholder:
+                  (_, _) => Container(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                  ),
+              errorWidget:
+                  (_, _, _) => Container(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    child: const Icon(Icons.broken_image),
+                  ),
             ),
           ),
           const SizedBox(height: 8),
@@ -183,19 +210,21 @@ class _InfoDialogState extends State<InfoDialog> {
     );
   }
 
-  Widget _buildCastMember(String name, String role, String? imageUrl, ThemeData theme) {
+  Widget _buildCastMember(
+    String name,
+    String role,
+    String? imageUrl,
+    ThemeData theme,
+  ) {
     return SizedBox(
       width: 100,
       child: Column(
         children: [
           CircleAvatar(
             radius: 40,
-            backgroundImage: imageUrl != null 
-                ? CachedNetworkImageProvider(imageUrl)
-                : null,
-            child: imageUrl == null 
-                ? const Icon(Icons.person, size: 40)
-                : null,
+            backgroundImage:
+                imageUrl != null ? CachedNetworkImageProvider(imageUrl) : null,
+            child: imageUrl == null ? const Icon(Icons.person, size: 40) : null,
           ),
           const SizedBox(height: 8),
           Text(
@@ -207,7 +236,7 @@ class _InfoDialogState extends State<InfoDialog> {
           Text(
             role,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+              color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -219,16 +248,20 @@ class _InfoDialogState extends State<InfoDialog> {
 
   Widget _buildDistributionSection(ThemeData theme) {
     final loc = AppLocalizations.of(context)!;
-    
-    final castList = widget.content.cast?.where((name) => name.isNotEmpty).toList() ?? [];
+
+    final castList =
+        widget.content.cast?.where((name) => name.isNotEmpty).toList() ?? [];
     final fullCast = [
       if (widget.content.director?.isNotEmpty ?? false)
         {'name': widget.content.director!, 'role': 'Director', 'image': null},
-      ...List.generate(castList.length, (index) => {
-        'name': castList[index],
-        'role': 'Actor ${index + 1}',
-        'image': 'https://picsum.photos/200/200?random=$index'
-      }),
+      ...List.generate(
+        castList.length,
+        (index) => {
+          'name': castList[index],
+          'role': 'Actor ${index + 1}',
+          'image': 'https://picsum.photos/200/200?random=$index',
+        },
+      ),
     ];
 
     if (fullCast.isEmpty) return const SizedBox();
@@ -242,7 +275,7 @@ class _InfoDialogState extends State<InfoDialog> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              loc.distribution ?? 'Cast & Crew',
+              loc.distribution,
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: theme.colorScheme.onSurface,
@@ -251,7 +284,7 @@ class _InfoDialogState extends State<InfoDialog> {
             if (fullCast.length > 5)
               TextButton(
                 onPressed: () => setState(() => _showFullCast = !_showFullCast),
-                child: Text(_showFullCast ? (loc.seeLess ?? 'See less') : (loc.seeMore ?? 'See more')),
+                child: Text(_showFullCast ? (loc.seeLess) : (loc.seeMore)),
               ),
           ],
         ),
@@ -262,15 +295,17 @@ class _InfoDialogState extends State<InfoDialog> {
           child: Row(
             children: [
               const SizedBox(width: 8),
-              ...visibleCast.map((person) => Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: _buildCastMember(
-                  person['name']!, 
-                  person['role']!, 
-                  person['image'],
-                  theme,
+              ...visibleCast.map(
+                (person) => Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: _buildCastMember(
+                    person['name']!,
+                    person['role']!,
+                    person['image'],
+                    theme,
+                  ),
                 ),
-              )),
+              ),
               const SizedBox(width: 8),
             ],
           ),
@@ -281,17 +316,20 @@ class _InfoDialogState extends State<InfoDialog> {
 
   Widget _buildSeasonsSection(ThemeData theme) {
     if (!widget.content.isSeries) return const SizedBox();
-    
+
     final loc = AppLocalizations.of(context)!;
-    final seasonsList = widget.content.seasons is List 
-        ? widget.content.seasons as List 
-        : [{'season': 1, 'episodes': widget.content.episodeCount ?? 10}];
+    final seasonsList =
+        widget.content.seasons is List
+            ? widget.content.seasons as List
+            : [
+              {'season': 1, 'episodes': widget.content.episodeCount ?? 10},
+            ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          loc.seasons ?? 'Seasons',
+          loc.seasons,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
             color: theme.colorScheme.onSurface,
@@ -308,46 +346,52 @@ class _InfoDialogState extends State<InfoDialog> {
             ),
             child: ExpansionTile(
               title: Text(
-                '${loc.season ?? 'Season'} ${season['season']}',
+                '${loc.season} ${season['season']}',
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: theme.colorScheme.onSurface,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               subtitle: Text(
-                '${season['episodes']} ${loc.episodes ?? 'episodes'}',
-                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.7), // Texte secondaire
+                '${season['episodes']} ${loc.episodes}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(
+                    alpha: 0.7,
+                  ), // Texte secondaire
                 ),
               ),
               children: [
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
-                    children: List.generate(3, (episodeIndex) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: CachedNetworkImage(
-                          imageUrl: 'https://picsum.photos/100/100?random=$episodeIndex',
-                          width: 60,
-                          height: 60,
-                          fit: BoxFit.cover,
+                    children: List.generate(
+                      3,
+                      (episodeIndex) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: CachedNetworkImage(
+                            imageUrl:
+                                'https://picsum.photos/100/100?random=$episodeIndex',
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        title: Text(
+                          '${loc.episode} ${episodeIndex + 1}',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        subtitle: Text(
+                          'Episode title ${episodeIndex + 1} • 45 min',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.play_arrow),
+                          onPressed: () => _playContent(context),
                         ),
                       ),
-                      title: Text(
-                        '${loc.episode ?? 'Episode'} ${episodeIndex + 1}',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      subtitle: Text(
-                        'Episode title ${episodeIndex + 1} • 45 min',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.play_arrow),
-                        onPressed: () => _playContent(context),
-                      ),
-                    )),
+                    ),
                   ),
                 ),
               ],
@@ -360,7 +404,7 @@ class _InfoDialogState extends State<InfoDialog> {
 
   Widget _buildSimilarContentSlider(ThemeData theme, bool isMobile) {
     if (widget.similarContent.isEmpty) return const SizedBox();
-    
+
     final loc = AppLocalizations.of(context)!;
     final itemWidth = isMobile ? 120.0 : 150.0;
     final itemCount = widget.similarContent.length;
@@ -369,7 +413,7 @@ class _InfoDialogState extends State<InfoDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          loc.similarContent ?? 'Similar Content',
+          loc.similarContent,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
             color: theme.colorScheme.onSurface,
@@ -387,13 +431,13 @@ class _InfoDialogState extends State<InfoDialog> {
                   scrollDirection: Axis.horizontal,
                   itemCount: itemCount,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  separatorBuilder: (_, __) => const SizedBox(width: 16),
+                  separatorBuilder: (_, _) => const SizedBox(width: 16),
                   itemBuilder: (context, index) {
                     if (index >= itemCount) return const SizedBox();
                     return _buildSimilarContentCard(
-                      widget.similarContent[index], 
-                      itemWidth, 
-                      theme
+                      widget.similarContent[index],
+                      itemWidth,
+                      theme,
                     );
                   },
                 ),
@@ -411,21 +455,27 @@ class _InfoDialogState extends State<InfoDialog> {
                         end: Alignment.centerLeft,
                         colors: [
                           theme.cardColor,
-                          theme.cardColor.withOpacity(0.1),
+                          theme.cardColor.withValues(alpha: 0.1),
                         ],
                       ),
                     ),
                     child: Center(
                       child: IconButton(
-                        icon: Icon(Icons.chevron_right, color: theme.primaryColor),
-                        onPressed: () => _similarContentController.animateTo(
-                          (_similarContentController.offset + 200).clamp(
-                            0.0,
-                            _similarContentController.position.maxScrollExtent,
-                          ),
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOut,
+                        icon: Icon(
+                          Icons.chevron_right,
+                          color: theme.primaryColor,
                         ),
+                        onPressed:
+                            () => _similarContentController.animateTo(
+                              (_similarContentController.offset + 200).clamp(
+                                0.0,
+                                _similarContentController
+                                    .position
+                                    .maxScrollExtent,
+                              ),
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                            ),
                       ),
                     ),
                   ),
@@ -447,9 +497,7 @@ class _InfoDialogState extends State<InfoDialog> {
     return Dialog(
       backgroundColor: theme.cardColor,
       insetPadding: EdgeInsets.all(isMobile ? 8 : 20),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: size.width * (isMobile ? 0.95 : 0.9),
@@ -463,23 +511,28 @@ class _InfoDialogState extends State<InfoDialog> {
               Stack(
                 alignment: Alignment.center,
                 children: [
-                  if (_isPlayingTrailer && _trailerController.value.isInitialized)
+                  if (_isPlayingTrailer &&
+                      _trailerController.value.isInitialized)
                     AspectRatio(
                       aspectRatio: _trailerController.value.aspectRatio,
                       child: VideoPlayer(_trailerController),
                     )
                   else
                     CachedNetworkImage(
-                      imageUrl: widget.content.backdropUrl ?? widget.content.posterUrl,
+                      imageUrl:
+                          widget.content.backdropUrl.isNotEmpty
+                              ? widget.content.backdropUrl
+                              : widget.content.posterUrl,
                       width: double.infinity,
                       height: isMobile ? 180 : 250,
                       fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => Container(
-                        color: theme.colorScheme.surfaceVariant,
-                        child: const Icon(Icons.broken_image, size: 50),
-                      ),
+                      errorWidget:
+                          (_, _, _) => Container(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            child: const Icon(Icons.broken_image, size: 50),
+                          ),
                     ),
-                  
+
                   if (_trailerController.value.isInitialized)
                     IconButton(
                       icon: Icon(
@@ -489,7 +542,7 @@ class _InfoDialogState extends State<InfoDialog> {
                       ),
                       onPressed: _toggleTrailerPlayback,
                     ),
-                  
+
                   Positioned(
                     top: 16,
                     right: 16,
@@ -525,13 +578,24 @@ class _InfoDialogState extends State<InfoDialog> {
                                 runSpacing: 8,
                                 children: [
                                   if (widget.content.releaseYear.isNotEmpty)
-                                    _buildMetadataItem(widget.content.releaseYear, Icons.calendar_today, theme),
+                                    _buildMetadataItem(
+                                      widget.content.releaseYear,
+                                      Icons.calendar_today,
+                                      theme,
+                                    ),
                                   if (widget.content.isSeries)
-                                    _buildMetadataItem(widget.content.seasonInfo ?? '', Icons.tv, theme)
-                                  else if (widget.content.duration != null)
-                                    _buildMetadataItem(widget.content.formattedDuration, Icons.timer, theme),
-                                  if (widget.content.isHd) 
-                                    _buildHdBadge(theme),
+                                    _buildMetadataItem(
+                                      widget.content.seasonInfo ?? '',
+                                      Icons.tv,
+                                      theme,
+                                    )
+                                  else
+                                    _buildMetadataItem(
+                                      widget.content.formattedDuration,
+                                      Icons.timer,
+                                      theme,
+                                    ),
+                                  if (widget.content.isHd) _buildHdBadge(theme),
                                 ],
                               ),
                             ],
@@ -555,28 +619,32 @@ class _InfoDialogState extends State<InfoDialog> {
                       children: [
                         ElevatedButton.icon(
                           icon: const Icon(Icons.play_arrow, size: 20),
-                          label: Text(loc.play ?? 'Play'),
+                          label: Text(loc.play),
                           onPressed: () => _playContent(context),
                           style: ElevatedButton.styleFrom(
                             padding: EdgeInsets.symmetric(
-                              horizontal: isMobile ? 16 : 24, 
+                              horizontal: isMobile ? 16 : 24,
                               vertical: isMobile ? 8 : 12,
                             ),
                           ),
                         ),
                         OutlinedButton.icon(
                           icon: Icon(
-                            _isPlayingTrailer ? Icons.pause : Icons.movie, 
-                            size: 20
+                            _isPlayingTrailer ? Icons.pause : Icons.movie,
+                            size: 20,
                           ),
-                          label: Text(_isPlayingTrailer 
-                            ? (loc.pause ?? 'Pause') 
-                            : (loc.trailer ?? 'Trailer')),
+                          label: Text(
+                            _isPlayingTrailer ? (loc.pause) : (loc.trailer),
+                          ),
                           onPressed: _toggleTrailerPlayback,
                         ),
-                        _buildActionButton(Icons.share, loc.share ?? 'Share', theme),
-                        _buildActionButton(Icons.download, loc.download ?? 'Download', theme),
-                        _buildActionButton(Icons.favorite_border, loc.favorites ?? 'Favorites', theme),
+                        _buildActionButton(Icons.share, loc.share, theme),
+                        _buildActionButton(Icons.download, loc.download, theme),
+                        _buildActionButton(
+                          Icons.favorite_border,
+                          loc.favorites,
+                          theme,
+                        ),
                       ],
                     ),
 
@@ -586,7 +654,7 @@ class _InfoDialogState extends State<InfoDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          loc.synopsis ?? 'Synopsis',
+                          loc.synopsis,
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.onSurface,
@@ -594,23 +662,29 @@ class _InfoDialogState extends State<InfoDialog> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          widget.content.description.isEmpty 
-                              ? loc.noDescriptionAvailable ?? 'No description available'
-                              : _isExpanded 
-                                  ? widget.content.description
-                                  : widget.content.description.length > (isMobile ? 100 : 150)
-                                      ? '${widget.content.description.substring(0, isMobile ? 100 : 150)}...'
-                                      : widget.content.description,
+                          widget.content.description.isEmpty
+                              ? loc.noDescriptionAvailable
+                              : _isExpanded
+                              ? widget.content.description
+                              : widget.content.description.length >
+                                  (isMobile ? 100 : 150)
+                              ? '${widget.content.description.substring(0, isMobile ? 100 : 150)}...'
+                              : widget.content.description,
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.9), // Texte légèrement transparent
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.9,
+                            ), // Texte légèrement transparent
                           ),
                         ),
-                        if (widget.content.description.length > (isMobile ? 100 : 150))
+                        if (widget.content.description.length >
+                            (isMobile ? 100 : 150))
                           TextButton(
-                            onPressed: () => setState(() => _isExpanded = !_isExpanded),
-                            child: Text(_isExpanded 
-                                ? (loc.seeLess ?? 'See less') 
-                                : (loc.seeMore ?? 'See more')),
+                            onPressed:
+                                () =>
+                                    setState(() => _isExpanded = !_isExpanded),
+                            child: Text(
+                              _isExpanded ? (loc.seeLess) : (loc.seeMore),
+                            ),
                           ),
                       ],
                     ),
@@ -620,9 +694,10 @@ class _InfoDialogState extends State<InfoDialog> {
                     if (widget.content.genres.isNotEmpty) ...[
                       Wrap(
                         spacing: 8,
-                        children: widget.content.genres
-                            .map((genre) => Chip(label: Text(genre)))
-                            .toList(),
+                        children:
+                            widget.content.genres
+                                .map((genre) => Chip(label: Text(genre)))
+                                .toList(),
                       ),
                       const SizedBox(height: 24),
                     ],

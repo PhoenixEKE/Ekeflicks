@@ -39,19 +39,19 @@ class TvVirtualKeyboard extends StatefulWidget {
 class _TvVirtualKeyboardState extends State<TvVirtualKeyboard>
     with KeyboardNavigationMixin {
   final List<List<String>> _englishKeys = [
-    ['1','2','3','4','5','6','7','8','9','0'],
-    ['q','w','e','r','t','y','u','i','o','p'],
-    ['a','s','d','f','g','h','j','k','l'],
-    ['z','x','c','v','b','n','m','@','.','-','_'],
-    ['space','backspace','enter']
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+    ['z', 'x', 'c', 'v', 'b', 'n', 'm', '@', '.', '-', '_'],
+    ['space', 'backspace', 'enter'],
   ];
 
   final List<List<String>> _frenchKeys = [
-    ['1','2','3','4','5','6','7','8','9','0'],
-    ['a','z','e','r','t','y','u','i','o','p'],
-    ['q','s','d','f','g','h','j','k','l','m'],
-    ['w','x','c','v','b','n',',','@','.','-','_'],
-    ['space','backspace','enter']
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+    ['a', 'z', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+    ['q', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm'],
+    ['w', 'x', 'c', 'v', 'b', 'n', ',', '@', '.', '-', '_'],
+    ['space', 'backspace', 'enter'],
   ];
 
   int _selectedRow = 0;
@@ -66,7 +66,8 @@ class _TvVirtualKeyboardState extends State<TvVirtualKeyboard>
 
   Color get _backgroundColor => widget.backgroundColor ?? Colors.grey[900]!;
   Color get _keyColor => widget.keyColor ?? Colors.grey[800]!;
-  Color get _selectedKeyColor => widget.selectedKeyColor ?? AppTheme.primaryOrange;
+  Color get _selectedKeyColor =>
+      widget.selectedKeyColor ?? AppTheme.primaryOrange;
 
   @override
   void initState() {
@@ -92,7 +93,7 @@ class _TvVirtualKeyboardState extends State<TvVirtualKeyboard>
     super.dispose();
   }
 
-  void _handleKeyEvent(RawKeyEvent event) {
+  void _handleKeyEvent(KeyEvent event) {
     final result = KeyboardNavigationService.handleListNavigation(
       event,
       currentIndex: _selectedRow * 10 + _selectedKey,
@@ -115,7 +116,7 @@ class _TvVirtualKeyboardState extends State<TvVirtualKeyboard>
       onBack: () {},
     );
 
-    if (result == KeyEventResult.ignored && event is RawKeyDownEvent) {
+    if (result == KeyEventResult.ignored && event is KeyDownEvent) {
       switch (event.logicalKey) {
         case LogicalKeyboardKey.shiftLeft:
         case LogicalKeyboardKey.shiftRight:
@@ -179,11 +180,19 @@ class _TvVirtualKeyboardState extends State<TvVirtualKeyboard>
     final loc = AppLocalizations.of(context);
     String displayText = key;
 
-    if (key == 'space') displayText = loc?.espaceClavier ?? 'Espace';
-    else if (key == 'backspace') {
-      return Icon(Icons.backspace, size: _getKeyFontSize(context) * 1.5, color: Colors.white);
-    } else if (key == 'enter') displayText = loc?.entreeClavier ?? 'Entrée';
-    else if (_isUpperCase && key.length == 1) displayText = displayText.toUpperCase();
+    if (key == 'space') {
+      displayText = loc?.espaceClavier ?? 'Espace';
+    } else if (key == 'backspace') {
+      return Icon(
+        Icons.backspace,
+        size: _getKeyFontSize(context) * 1.5,
+        color: Colors.white,
+      );
+    } else if (key == 'enter') {
+      displayText = loc?.entreeClavier ?? 'Entrée';
+    } else if (_isUpperCase && key.length == 1) {
+      displayText = displayText.toUpperCase();
+    }
 
     return Container(
       padding: _getKeyPadding(context, key),
@@ -221,7 +230,9 @@ class _TvVirtualKeyboardState extends State<TvVirtualKeyboard>
 
   EdgeInsets _getKeyPadding(BuildContext context, String key) {
     final base = _getKeySize(context) * 0.15;
-    if (key == 'space') return EdgeInsets.symmetric(horizontal: base * 2, vertical: base);
+    if (key == 'space') {
+      return EdgeInsets.symmetric(horizontal: base * 2, vertical: base);
+    }
     return EdgeInsets.symmetric(horizontal: base, vertical: base);
   }
 
@@ -235,10 +246,13 @@ class _TvVirtualKeyboardState extends State<TvVirtualKeyboard>
   double _getKeyboardMaxWidth(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     return widget.maxWidth ??
-        (width < 600 ? width * 0.95 :
-         width < 900 ? width * 0.85 :
-         width < 1200 ? width * 0.75 :
-         width * 0.6);
+        (width < 600
+            ? width * 0.95
+            : width < 900
+            ? width * 0.85
+            : width < 1200
+            ? width * 0.75
+            : width * 0.6);
   }
 
   @override
@@ -248,9 +262,9 @@ class _TvVirtualKeyboardState extends State<TvVirtualKeyboard>
 
     return FocusUtils.buildFocusIndicator(
       focusNode: _keyboardFocusNode,
-      child: RawKeyboardListener(
+      child: KeyboardListener(
         focusNode: _keyboardFocusNode,
-        onKey: (event) {
+        onKeyEvent: (event) {
           _handleKeyEvent(event);
           handleKeyEvent(_keyboardFocusNode, event);
         },
@@ -260,7 +274,13 @@ class _TvVirtualKeyboardState extends State<TvVirtualKeyboard>
           decoration: BoxDecoration(
             color: _backgroundColor,
             borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0,5))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -279,10 +299,16 @@ class _TvVirtualKeyboardState extends State<TvVirtualKeyboard>
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(_currentKeys[rowIndex].length, (keyIndex) {
+                    children: List.generate(_currentKeys[rowIndex].length, (
+                      keyIndex,
+                    ) {
                       final key = _currentKeys[rowIndex][keyIndex];
-                      final isSelected = rowIndex == _selectedRow && keyIndex == _selectedKey;
-                      final isSpecialKey = key == 'space' || key == 'backspace' || key == 'enter';
+                      final isSelected =
+                          rowIndex == _selectedRow && keyIndex == _selectedKey;
+                      final isSpecialKey =
+                          key == 'space' ||
+                          key == 'backspace' ||
+                          key == 'enter';
                       final flex = isSpecialKey ? (key == 'space' ? 4 : 2) : 1;
 
                       return Expanded(

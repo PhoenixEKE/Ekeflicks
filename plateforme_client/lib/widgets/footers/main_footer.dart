@@ -15,7 +15,8 @@ class MainFooter extends StatelessWidget {
 
     // Si isMobile == true, mobile = true (on considère mobile sans calcul)
     // Sinon, on calcule la largeur d'écran
-    final bool mobile = isMobile == true ? true : MediaQuery.of(context).size.width < 800;
+    final bool mobile =
+        isMobile == true ? true : MediaQuery.of(context).size.width < 800;
 
     return Container(
       color: Colors.black,
@@ -53,11 +54,31 @@ class MainFooter extends StatelessWidget {
                   style: const TextStyle(color: Colors.white),
                 ),
                 const SizedBox(width: 8),
-                _baseFooter.socialIcon(context, 'assets/social/facebook.svg', 'https://facebook.com/ekeflicks'),
-                _baseFooter.socialIcon(context, 'assets/social/instagram.svg', 'https://instagram.com/ekeflicks'),
-                _baseFooter.socialIcon(context, 'assets/social/tiktok.svg', 'https://tiktok.com/@ekeflicks'),
-                _baseFooter.socialIcon(context, 'assets/social/whatsapp.svg', 'https://wa.me/2250716096940'),
-                _baseFooter.socialIcon(context, 'assets/social/youtube.svg', 'https://youtube.com/ekeflicks'),
+                _baseFooter.socialIcon(
+                  context,
+                  'assets/social/facebook.svg',
+                  'https://facebook.com/ekeflicks',
+                ),
+                _baseFooter.socialIcon(
+                  context,
+                  'assets/social/instagram.svg',
+                  'https://instagram.com/ekeflicks',
+                ),
+                _baseFooter.socialIcon(
+                  context,
+                  'assets/social/tiktok.svg',
+                  'https://tiktok.com/@ekeflicks',
+                ),
+                _baseFooter.socialIcon(
+                  context,
+                  'assets/social/whatsapp.svg',
+                  'https://wa.me/2250716096940',
+                ),
+                _baseFooter.socialIcon(
+                  context,
+                  'assets/social/youtube.svg',
+                  'https://youtube.com/ekeflicks',
+                ),
               ],
             ),
           ),
@@ -126,53 +147,48 @@ class MainFooter extends StatelessWidget {
           const SizedBox(height: 6),
           isMobile
               ? MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: () => _baseFooter.openPhone(context, '+2250716096940'),
-                    child: Text(
-                      "${loc.footerPhone} : +225 07 16 09 69 40",
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        decoration: TextDecoration.underline,
-                        fontSize: 13,
-                      ),
-                      textAlign: TextAlign.center,
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => _baseFooter.openPhone(context, '+2250716096940'),
+                  child: Text(
+                    "${loc.footerPhone} : +225 07 16 09 69 40",
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      decoration: TextDecoration.underline,
+                      fontSize: 13,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                )
-              : Text(
-                  "${loc.footerPhone} : +225 07 16 09 69 40",
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                  ),
-                  textAlign: TextAlign.center,
                 ),
+              )
+              : Text(
+                "${loc.footerPhone} : +225 07 16 09 69 40",
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
           const SizedBox(height: 6),
           isMobile
               ? MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: () => _baseFooter.openWhatsApp(context, '+2250716096940'),
-                    child: Text(
-                      "${loc.footerWhatsApp} : +225 07 16 09 69 40",
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        decoration: TextDecoration.underline,
-                        fontSize: 13,
-                      ),
-                      textAlign: TextAlign.center,
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap:
+                      () => _baseFooter.openWhatsApp(context, '+2250716096940'),
+                  child: Text(
+                    "${loc.footerWhatsApp} : +225 07 16 09 69 40",
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      decoration: TextDecoration.underline,
+                      fontSize: 13,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                )
-              : Text(
-                  "${loc.footerWhatsApp} : +225 07 16 09 69 40",
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                  ),
-                  textAlign: TextAlign.center,
                 ),
+              )
+              : Text(
+                "${loc.footerWhatsApp} : +225 07 16 09 69 40",
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
         ],
       ),
       _baseFooter.footerSection(

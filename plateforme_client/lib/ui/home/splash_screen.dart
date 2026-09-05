@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:app_ekeflicks/ui/home/home_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:app_ekeflicks/providers/device_info_provider.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
-import 'package:app_ekeflicks/ui/users/login_screen.dart'; // Correction: LoginPage au lieu de LoginScreen
 import 'package:app_ekeflicks/ui/profiles/profile_selection_page.dart';
 import 'package:app_ekeflicks/ui/users/post_login_page.dart';
 
@@ -28,7 +28,10 @@ class _SplashScreenState extends State<SplashScreen> {
     _navigated = true;
 
     final deviceInfo = Provider.of<DeviceInfoProvider>(context, listen: false);
-    final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+    final profileProvider = Provider.of<ProfileProvider>(
+      context,
+      listen: false,
+    );
     final userProvider = Provider.of<UserProvider>(context, listen: false);
 
     // Attendre l'initialisation du device info
@@ -55,7 +58,7 @@ class _SplashScreenState extends State<SplashScreen> {
       try {
         // CORRECTION: Retirer le paramètre user_Id
         await profileProvider.loadProfiles();
-        
+
         if (profileProvider.availableProfiles.length > 1) {
           nextPage = const ProfileSelectionPage();
         } else {
@@ -68,8 +71,12 @@ class _SplashScreenState extends State<SplashScreen> {
         nextPage = const PostLoginPage();
       }
     } else {
-      nextPage = const LoginPage(); // Correction: LoginPage au lieu de LoginScreen
+      // Un visiteur non authentifié doit accéder à l'accueil public.
+      // La connexion et l'inscription restent des actions volontaires.
+      nextPage = const HomeScreen();
     }
+
+    if (!mounted) return;
 
     Navigator.pushReplacement(
       context,
@@ -82,7 +89,9 @@ class _SplashScreenState extends State<SplashScreen> {
     final deviceInfo = Provider.of<DeviceInfoProvider>(context);
     final mediaQuery = MediaQuery.of(context);
 
-    if (deviceInfo.isInitialized && !deviceInfo.isTV && mediaQuery.size.width >= 1000) {
+    if (deviceInfo.isInitialized &&
+        !deviceInfo.isTV &&
+        mediaQuery.size.width >= 1000) {
       return const SizedBox.shrink();
     }
 

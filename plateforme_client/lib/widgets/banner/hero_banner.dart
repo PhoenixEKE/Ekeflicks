@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:app_ekeflicks/models/content_model.dart';
 import 'hero_banner_bloc.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
-import 'package:app_ekeflicks/core/api_config.dart';
 
 const String _homeFallbackImage = 'assets/images/streaming.webp';
 
@@ -16,14 +15,14 @@ class HeroBanner extends StatelessWidget {
   final bool isMobile;
 
   const HeroBanner({
-    Key? key,
+    super.key,
     required this.contents,
     this.autoPlay = true,
     this.interval = const Duration(seconds: 5),
     this.onPlayPressed,
     this.onInfoPressed,
     this.isMobile = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -34,18 +33,15 @@ class HeroBanner extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset(
-              _homeFallbackImage,
-              fit: BoxFit.cover,
-            ),
+            Image.asset(_homeFallbackImage, fit: BoxFit.cover),
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    Colors.black.withOpacity(0.8),
-                    Colors.black.withOpacity(0.1),
+                    Colors.black.withValues(alpha: 0.8),
+                    Colors.black.withValues(alpha: 0.1),
                   ],
                 ),
               ),
@@ -60,28 +56,28 @@ class HeroBanner extends StatelessWidget {
                   Text(
                     'Bienvenue sur EkeFlicks',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          shadows: [
-                            Shadow(
-                              blurRadius: 6,
-                              color: Colors.black.withOpacity(0.5),
-                            ),
-                          ],
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      shadows: [
+                        Shadow(
+                          blurRadius: 6,
+                          color: Colors.black.withValues(alpha: 0.5),
                         ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Découvrez notre catalogue de films et séries',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(
-                              blurRadius: 4,
-                              color: Colors.black.withOpacity(0.5),
-                            ),
-                          ],
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          blurRadius: 4,
+                          color: Colors.black.withValues(alpha: 0.5),
                         ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -92,11 +88,9 @@ class HeroBanner extends StatelessWidget {
     }
 
     return BlocProvider(
-      create: (_) => HeroBannerCubit(
-        contents,
-        interval: interval,
-        autoPlay: autoPlay,
-      ),
+      create:
+          (_) =>
+              HeroBannerCubit(contents, interval: interval, autoPlay: autoPlay),
       child: _HeroBannerView(
         onPlayPressed: onPlayPressed,
         onInfoPressed: onInfoPressed,
@@ -134,16 +128,16 @@ class _HeroBannerView extends StatelessWidget {
                 child: PageView.builder(
                   controller: cubit.pageController,
                   itemCount: cubit.contents.length,
-                  onPageChanged: (index) => cubit.emit(index),
+                  onPageChanged: cubit.onPageChanged,
                   itemBuilder: (context, index) {
                     final content = cubit.contents[index];
                     return Stack(
                       fit: StackFit.expand,
                       children: [
                         // Image de fond
-                        if (content.backdropUrl != null && content.backdropUrl!.isNotEmpty)
+                        if (content.backdropUrl.isNotEmpty)
                           Image.network(
-                            content.backdropUrl!,
+                            content.backdropUrl,
                             fit: BoxFit.cover,
                             loadingBuilder: (context, child, progress) {
                               if (progress == null) return child;
@@ -151,19 +145,25 @@ class _HeroBannerView extends StatelessWidget {
                                 color: Colors.grey[800],
                                 child: Center(
                                   child: CircularProgressIndicator(
-                                    value: progress.expectedTotalBytes != null
-                                        ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
-                                        : null,
+                                    value:
+                                        progress.expectedTotalBytes != null
+                                            ? progress.cumulativeBytesLoaded /
+                                                progress.expectedTotalBytes!
+                                            : null,
                                   ),
                                 ),
                               );
                             },
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              color: Colors.grey[800],
-                              child: Center(
-                                child: Icon(Icons.error, color: Colors.white),
-                              ),
-                            ),
+                            errorBuilder:
+                                (context, error, stackTrace) => Container(
+                                  color: Colors.grey[800],
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.error,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
                           )
                         else
                           Container(color: Colors.grey[800]),
@@ -175,7 +175,7 @@ class _HeroBannerView extends StatelessWidget {
                               begin: Alignment.bottomCenter,
                               end: Alignment.topCenter,
                               colors: [
-                                Colors.black.withOpacity(0.8),
+                                Colors.black.withValues(alpha: 0.8),
                                 Colors.transparent,
                               ],
                             ),
@@ -198,14 +198,16 @@ class _HeroBannerView extends StatelessWidget {
                                   shadows: [
                                     Shadow(
                                       blurRadius: 6,
-                                      color: Colors.black.withOpacity(0.5),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.5,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                content.description ?? '',
+                                content.description,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodyLarge?.copyWith(
@@ -213,7 +215,9 @@ class _HeroBannerView extends StatelessWidget {
                                   shadows: [
                                     Shadow(
                                       blurRadius: 4,
-                                      color: Colors.black.withOpacity(0.5),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.5,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -232,7 +236,8 @@ class _HeroBannerView extends StatelessWidget {
                                         vertical: 12,
                                       ),
                                     ),
-                                    onPressed: () => onPlayPressed?.call(content),
+                                    onPressed:
+                                        () => onPlayPressed?.call(content),
                                   ),
                                   const SizedBox(width: 16),
                                   OutlinedButton.icon(
@@ -240,13 +245,16 @@ class _HeroBannerView extends StatelessWidget {
                                     label: const Text('Détails'),
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: Colors.white,
-                                      side: const BorderSide(color: Colors.white),
+                                      side: const BorderSide(
+                                        color: Colors.white,
+                                      ),
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 20,
                                         vertical: 12,
                                       ),
                                     ),
-                                    onPressed: () => onInfoPressed?.call(content),
+                                    onPressed:
+                                        () => onInfoPressed?.call(content),
                                   ),
                                 ],
                               ),
@@ -272,9 +280,12 @@ class _HeroBannerView extends StatelessWidget {
                         margin: const EdgeInsets.symmetric(horizontal: 4),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: currentPage == index
-                              ? AppTheme.primaryOrange
-                              : AppTheme.primaryOrange.withOpacity(0.5),
+                          color:
+                              currentPage == index
+                                  ? AppTheme.primaryOrange
+                                  : AppTheme.primaryOrange.withValues(
+                                    alpha: 0.5,
+                                  ),
                         ),
                       );
                     }),

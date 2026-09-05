@@ -14,9 +14,7 @@ import 'package:app_ekeflicks/ui/users/account_page.dart';
 import 'package:app_ekeflicks/ui/pages/notifications_page.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
 import 'base_app_bar.dart';
-import 'package:dio/dio.dart';
 import 'package:app_ekeflicks/src/models/profile.dart' as api_profile;
-import 'package:app_ekeflicks/ui/users/account_page.dart';
 
 class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
   final double scrollOffset;
@@ -33,43 +31,43 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
 
   // Configuration pour ProfileSwitcher
   ProfileConfig get _profileConfig => ProfileConfig(
-        adultAvatars: [
-          'assets/avatars/adult.png',
-        ],
-        childAvatars: [
-          'assets/avatars/child.png',
-        ],
-        defaultAdultAvatar: 'assets/avatars/adult.png',
-        defaultChildAvatar: 'assets/avatars/child.png',
-        gridColumns: 4,
-        gridSpacing: 12,
-        gridChildAspectRatio: 0.75,
-        profileTypes: {
-          'main': 'Adult',
-          'child': 'Child',
-          'guest': 'Guest',
-        },
-      );
+    adultAvatars: ['assets/avatars/adult.png'],
+    childAvatars: ['assets/avatars/child.png'],
+    defaultAdultAvatar: 'assets/avatars/adult.png',
+    defaultChildAvatar: 'assets/avatars/child.png',
+    gridColumns: 4,
+    gridSpacing: 12,
+    gridChildAspectRatio: 0.75,
+    profileTypes: {'main': 'Adult', 'child': 'Child', 'guest': 'Guest'},
+  );
 
-  bool isMobile(BuildContext context) => MediaQuery.of(context).size.width < 600;
+  @override
+  bool isMobile(BuildContext context) =>
+      MediaQuery.of(context).size.width < 600;
 
   // 🔄 REMPLACÉ : Tutoriels → FAQ
+  @override
   Widget buildFaqIcon(BuildContext context, AppLocalizations loc) {
     final theme = Theme.of(context);
     return IconButton(
       icon: Icon(Icons.help_outline, color: theme.iconTheme.color),
-      tooltip: loc.faq, // Assurez-vous d'ajouter cette clé dans vos fichiers ARB
+      tooltip:
+          loc.faq, // Assurez-vous d'ajouter cette clé dans vos fichiers ARB
       onPressed: () => Navigator.of(context).pushNamed('/faq'),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final deviceInfoProvider = Provider.of<DeviceInfoProvider>(context, listen: false);
+    final deviceInfoProvider = Provider.of<DeviceInfoProvider>(
+      context,
+      listen: false,
+    );
     final bool isTV = deviceInfoProvider.isTV;
     final theme = Theme.of(context);
-    final loc = AppLocalizations.of(context)!;
     final isMobileView = isMobile(context);
+
+    final loc = AppLocalizations.of(context)!;
 
     final double opacity = _calculateOpacity();
     final Color backgroundColor = _calculateBackgroundColor(theme, opacity);
@@ -96,10 +94,15 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
     );
   }
 
-  double _calculateOpacity() => (scrollOffset.clamp(0, scrollThreshold) / scrollThreshold);
+  double _calculateOpacity() =>
+      (scrollOffset.clamp(0, scrollThreshold) / scrollThreshold);
 
   Color _calculateBackgroundColor(ThemeData theme, double opacity) =>
-      Color.lerp(Colors.transparent, theme.appBarTheme.backgroundColor ?? AppTheme.primaryOrange, opacity)!;
+      Color.lerp(
+        Colors.transparent,
+        theme.appBarTheme.backgroundColor ?? AppTheme.primaryOrange,
+        opacity,
+      )!;
 
   double _calculateElevation() => scrollOffset > 10 ? 4.0 : 0.0;
 
@@ -107,37 +110,72 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
       scrollOffset > scrollThreshold
           ? 1.0
           : scrollOffset > scrollThreshold - 20
-              ? (scrollOffset - (scrollThreshold - 20)) / 20
-              : 0.0;
+          ? (scrollOffset - (scrollThreshold - 20)) / 20
+          : 0.0;
 
-  Widget _buildDesktopMenu(BuildContext context, AppLocalizations loc, ThemeData theme) {
+  Widget _buildDesktopMenu(
+    BuildContext context,
+    AppLocalizations loc,
+    ThemeData theme,
+  ) {
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            _buildMenuWithSubmenu(context, loc.films, ['Action', 'Comédie', 'Drame', 'Horreur', 'Science-fiction'], 'film-category'),
+            _buildMenuWithSubmenu(context, loc.films, [
+              'Action',
+              'Comédie',
+              'Drame',
+              'Horreur',
+              'Science-fiction',
+            ], 'film-category'),
             const SizedBox(width: 16),
-            _buildMenuWithSubmenu(context, loc.series, ['Crime', 'Science-fiction', 'Comédie', 'Drama', 'Animation'], 'series-category'),
+            _buildMenuWithSubmenu(context, loc.series, [
+              'Crime',
+              'Science-fiction',
+              'Comédie',
+              'Drama',
+              'Animation',
+            ], 'series-category'),
             const SizedBox(width: 16),
-            _buildMenuWithSubmenu(context, loc.plus, [loc.documentaires, loc.telerealites, loc.live, 'Sports', 'Kids'], 'plus-category'),
+            _buildMenuWithSubmenu(context, loc.plus, [
+              loc.documentaires,
+              loc.telerealites,
+              loc.live,
+              'Sports',
+              'Kids',
+            ], 'plus-category'),
             const SizedBox(width: 16),
-            _buildMenuWithSubmenu(context, loc.explorerParPays, ['France', 'USA', 'Japon', 'Corée', 'Inde'], 'country'),
+            _buildMenuWithSubmenu(context, loc.explorerParPays, [
+              'France',
+              'USA',
+              'Japon',
+              'Corée',
+              'Inde',
+            ], 'country'),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActionIcons(BuildContext context, bool isMobile, bool isTV, AppLocalizations loc, ThemeData theme) {
+  Widget _buildActionIcons(
+    BuildContext context,
+    bool isMobile,
+    bool isTV,
+    AppLocalizations loc,
+    ThemeData theme,
+  ) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (!isMobile) _buildCustomSearchField(context, loc, isTV),
         if (!isMobile) const SizedBox(width: 8),
         if (isMobile) _buildMobileSearchIcon(context, theme, isTV),
-        if (!isMobile && !isTV) buildFaqIcon(context, loc), // 🔄 REMPLACÉ : Tutoriels → FAQ
+        if (!isMobile && !isTV)
+          buildFaqIcon(context, loc), // 🔄 REMPLACÉ : Tutoriels → FAQ
         if (!isTV) _buildNotificationIcon(context, theme, loc),
         if (isMobile && !isTV) _buildMobileMenu(context, loc),
         _buildProfileMenu(context, loc, theme, isTV),
@@ -146,14 +184,24 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
     );
   }
 
-  Widget _buildCustomSearchField(BuildContext context, AppLocalizations loc, bool isTV) {
-    if (isTV) return IconButton(icon: Icon(Icons.search, size: 28), onPressed: () => _showSearch(context, true), tooltip: loc.search);
+  Widget _buildCustomSearchField(
+    BuildContext context,
+    AppLocalizations loc,
+    bool isTV,
+  ) {
+    if (isTV) {
+      return IconButton(
+        icon: Icon(Icons.search, size: 28),
+        onPressed: () => _showSearch(context, true),
+        tooltip: loc.search,
+      );
+    }
 
     return Container(
       width: 250,
       height: 36,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       ),
       child: TextField(
@@ -170,17 +218,38 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
     );
   }
 
-  Widget _buildMobileSearchIcon(BuildContext context, ThemeData theme, bool isTV) =>
-      IconButton(icon: Icon(Icons.search, color: theme.iconTheme.color, size: isTV ? 32 : 24), onPressed: () => _showSearch(context, isTV));
+  Widget _buildMobileSearchIcon(
+    BuildContext context,
+    ThemeData theme,
+    bool isTV,
+  ) => IconButton(
+    icon: Icon(
+      Icons.search,
+      color: theme.iconTheme.color,
+      size: isTV ? 32 : 24,
+    ),
+    onPressed: () => _showSearch(context, isTV),
+  );
 
-  Widget _buildTVSearchIcon(BuildContext context, ThemeData theme, AppLocalizations loc) =>
-      IconButton(icon: Icon(Icons.search, color: theme.iconTheme.color, size: 32), tooltip: loc.search, onPressed: () => _showSearch(context, true));
+  Widget _buildTVSearchIcon(
+    BuildContext context,
+    ThemeData theme,
+    AppLocalizations loc,
+  ) => IconButton(
+    icon: Icon(Icons.search, color: theme.iconTheme.color, size: 32),
+    tooltip: loc.search,
+    onPressed: () => _showSearch(context, true),
+  );
 
   void _showSearch(BuildContext context, bool isTV) {
     showSearch(context: context, delegate: IASearchDelegate(isTV: isTV));
   }
 
-  Widget _buildNotificationIcon(BuildContext context, ThemeData theme, AppLocalizations loc) {
+  Widget _buildNotificationIcon(
+    BuildContext context,
+    ThemeData theme,
+    AppLocalizations loc,
+  ) {
     return IconButton(
       icon: Icon(Icons.notifications_none, color: theme.iconTheme.color),
       tooltip: loc.notifications,
@@ -188,27 +257,47 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
     );
   }
 
-  Widget _buildProfileMenu(BuildContext context, AppLocalizations loc, ThemeData theme, bool isTV) {
+  Widget _buildProfileMenu(
+    BuildContext context,
+    AppLocalizations loc,
+    ThemeData theme,
+    bool isTV,
+  ) {
     return Consumer<ProfileProvider>(
-      builder: (BuildContext context, ProfileProvider profileProvider, Widget? _) {
+      builder: (
+        BuildContext context,
+        ProfileProvider profileProvider,
+        Widget? _,
+      ) {
         final currentProfile = profileProvider.currentProfile;
         final isMobileView = isMobile(context);
 
         return PopupMenuButton<String>(
           tooltip: loc.compte,
           iconSize: isTV ? 48 : 38,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+          ),
           itemBuilder: (BuildContext context) {
-            final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-            final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
+            final themeProvider = Provider.of<ThemeProvider>(
+              context,
+              listen: false,
+            );
             return [
               PopupMenuItem<String>(
                 value: 'changerProfil',
                 child: Row(
                   children: [
-                    Icon(Icons.switch_account, color: theme.iconTheme.color, size: isTV ? 28 : 24),
+                    Icon(
+                      Icons.switch_account,
+                      color: theme.iconTheme.color,
+                      size: isTV ? 28 : 24,
+                    ),
                     const SizedBox(width: 10),
-                    Text(loc.changerProfil, style: isTV ? theme.textTheme.titleMedium : null),
+                    Text(
+                      loc.changerProfil,
+                      style: isTV ? theme.textTheme.titleMedium : null,
+                    ),
                   ],
                 ),
               ),
@@ -216,9 +305,16 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                 value: 'compte',
                 child: Row(
                   children: [
-                    Icon(Icons.account_circle, color: theme.iconTheme.color, size: isTV ? 28 : 24),
+                    Icon(
+                      Icons.account_circle,
+                      color: theme.iconTheme.color,
+                      size: isTV ? 28 : 24,
+                    ),
                     const SizedBox(width: 10),
-                    Text(loc.compte, style: isTV ? theme.textTheme.titleMedium : null),
+                    Text(
+                      loc.compte,
+                      style: isTV ? theme.textTheme.titleMedium : null,
+                    ),
                   ],
                 ),
               ),
@@ -226,9 +322,18 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                 value: 'changerTheme',
                 child: Row(
                   children: [
-                    Icon(themeProvider.isLightTheme ? Icons.dark_mode : Icons.light_mode, color: theme.iconTheme.color, size: isTV ? 28 : 24),
+                    Icon(
+                      themeProvider.isLightTheme
+                          ? Icons.dark_mode
+                          : Icons.light_mode,
+                      color: theme.iconTheme.color,
+                      size: isTV ? 28 : 24,
+                    ),
                     const SizedBox(width: 10),
-                    Text(themeProvider.isLightTheme ? loc.darkMode : loc.lightMode, style: isTV ? theme.textTheme.titleMedium : null),
+                    Text(
+                      themeProvider.isLightTheme ? loc.darkMode : loc.lightMode,
+                      style: isTV ? theme.textTheme.titleMedium : null,
+                    ),
                   ],
                 ),
               ),
@@ -236,9 +341,16 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                 value: 'changerLangue',
                 child: Row(
                   children: [
-                    Icon(Icons.language, color: theme.iconTheme.color, size: isTV ? 28 : 24),
+                    Icon(
+                      Icons.language,
+                      color: theme.iconTheme.color,
+                      size: isTV ? 28 : 24,
+                    ),
                     const SizedBox(width: 10),
-                    Text(loc.changerLangue, style: isTV ? theme.textTheme.titleMedium : null),
+                    Text(
+                      loc.changerLangue,
+                      style: isTV ? theme.textTheme.titleMedium : null,
+                    ),
                   ],
                 ),
               ),
@@ -247,9 +359,16 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                   value: 'faq', // 🔄 REMPLACÉ : tutoriel → faq
                   child: Row(
                     children: [
-                      Icon(Icons.help_outline, color: theme.iconTheme.color, size: isTV ? 28 : 24), // 🔄 Icône changée
+                      Icon(
+                        Icons.help_outline,
+                        color: theme.iconTheme.color,
+                        size: isTV ? 28 : 24,
+                      ), // 🔄 Icône changée
                       const SizedBox(width: 10),
-                      Text(loc.faq, style: isTV ? theme.textTheme.titleMedium : null), // 🔄 Texte changé
+                      Text(
+                        loc.faq,
+                        style: isTV ? theme.textTheme.titleMedium : null,
+                      ), // 🔄 Texte changé
                     ],
                   ),
                 ),
@@ -257,15 +376,23 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                 value: 'deconnexion',
                 child: Row(
                   children: [
-                    Icon(Icons.logout, color: theme.iconTheme.color, size: isTV ? 28 : 24),
+                    Icon(
+                      Icons.logout,
+                      color: theme.iconTheme.color,
+                      size: isTV ? 28 : 24,
+                    ),
                     const SizedBox(width: 10),
-                    Text(loc.deconnexion, style: isTV ? theme.textTheme.titleMedium : null),
+                    Text(
+                      loc.deconnexion,
+                      style: isTV ? theme.textTheme.titleMedium : null,
+                    ),
                   ],
                 ),
               ),
             ];
           },
-          onSelected: (String value) => _handleProfileMenuSelection(context, value),
+          onSelected:
+              (String value) => _handleProfileMenuSelection(context, value),
           child: _buildProfileAvatar(currentProfile, isTV),
         );
       },
@@ -274,15 +401,20 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
 
   Widget _buildProfileAvatar(api_profile.Profile? currentProfile, bool isTV) {
     // Si le profil a un avatar URL, l'utiliser
-    if (currentProfile?.avatarUrl != null && currentProfile!.avatarUrl!.isNotEmpty) {
+    if (currentProfile?.avatarUrl != null &&
+        currentProfile!.avatarUrl!.isNotEmpty) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(isTV ? AppTheme.tvBorderRadius : AppTheme.borderRadius),
+        borderRadius: BorderRadius.circular(
+          isTV ? AppTheme.tvBorderRadius : AppTheme.borderRadius,
+        ),
         child: Image.network(
           currentProfile.avatarUrl!,
           width: isTV ? 48 : 38,
           height: isTV ? 48 : 38,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(currentProfile, isTV),
+          errorBuilder:
+              (context, error, stackTrace) =>
+                  _buildDefaultAvatar(currentProfile, isTV),
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) return child;
             return Container(
@@ -290,13 +422,17 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
               height: isTV ? 48 : 38,
               decoration: BoxDecoration(
                 color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(isTV ? AppTheme.tvBorderRadius : AppTheme.borderRadius),
+                borderRadius: BorderRadius.circular(
+                  isTV ? AppTheme.tvBorderRadius : AppTheme.borderRadius,
+                ),
               ),
               child: Center(
                 child: CircularProgressIndicator(
-                  value: loadingProgress.expectedTotalBytes != null
-                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                      : null,
+                  value:
+                      loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                          : null,
                 ),
               ),
             );
@@ -304,45 +440,51 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
         ),
       );
     }
-    
+
     // Sinon utiliser l'avatar par défaut selon le type de profil
     return _buildDefaultAvatar(currentProfile, isTV);
   }
 
   Widget _buildDefaultAvatar(api_profile.Profile? currentProfile, bool isTV) {
-    final defaultAvatarPath = currentProfile?.type?.name == 'child' 
-        ? 'assets/avatars/child.png' 
-        : 'assets/avatars/adult.png';
-    
+    final defaultAvatarPath =
+        currentProfile?.type?.name == 'child'
+            ? 'assets/avatars/child.png'
+            : 'assets/avatars/adult.png';
+
     return ClipRRect(
-      borderRadius: BorderRadius.circular(isTV ? AppTheme.tvBorderRadius : AppTheme.borderRadius),
+      borderRadius: BorderRadius.circular(
+        isTV ? AppTheme.tvBorderRadius : AppTheme.borderRadius,
+      ),
       child: Image.asset(
         defaultAvatarPath,
         width: isTV ? 48 : 38,
         height: isTV ? 48 : 38,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          width: isTV ? 48 : 38,
-          height: isTV ? 48 : 38,
-          decoration: BoxDecoration(
-            color: AppTheme.primaryOrange,
-            borderRadius: BorderRadius.circular(isTV ? AppTheme.tvBorderRadius : AppTheme.borderRadius),
-          ),
-          child: Icon(
-            Icons.person,
-            color: Colors.white,
-            size: isTV ? 32 : 24,
-          ),
-        ),
+        errorBuilder:
+            (context, error, stackTrace) => Container(
+              width: isTV ? 48 : 38,
+              height: isTV ? 48 : 38,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryOrange,
+                borderRadius: BorderRadius.circular(
+                  isTV ? AppTheme.tvBorderRadius : AppTheme.borderRadius,
+                ),
+              ),
+              child: Icon(
+                Icons.person,
+                color: Colors.white,
+                size: isTV ? 32 : 24,
+              ),
+            ),
       ),
     );
   }
 
   void _handleProfileMenuSelection(BuildContext context, String value) {
-    final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final loc = AppLocalizations.of(context)!;
-
+    final profileProvider = Provider.of<ProfileProvider>(
+      context,
+      listen: false,
+    );
     switch (value) {
       case 'faq': // 🔄 REMPLACÉ : tutoriel → faq
         Navigator.of(context).pushNamed('/faq'); // 🔄 Route changée
@@ -352,7 +494,15 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
         break;
       case 'compte':
         if (profileProvider.currentProfile != null) {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => AccountPage(currentProfile: profileProvider.currentProfile!)));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) => AccountPage(
+                    currentProfile: profileProvider.currentProfile!,
+                  ),
+            ),
+          );
         }
         break;
       case 'changerTheme':
@@ -368,60 +518,109 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
   }
 
   void _showProfileSwitcher(BuildContext context) {
-    final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+    final profileProvider = Provider.of<ProfileProvider>(
+      context,
+      listen: false,
+    );
     final loc = AppLocalizations.of(context)!;
-    final deviceInfoProvider = Provider.of<DeviceInfoProvider>(context, listen: false);
+    final deviceInfoProvider = Provider.of<DeviceInfoProvider>(
+      context,
+      listen: false,
+    );
     final bool isTV = deviceInfoProvider.isTV;
 
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Theme.of(context).dialogBackgroundColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: isTV ? 600 : 400, maxHeight: MediaQuery.of(context).size.height * 0.8),
-          child: ProfileSwitcher(
-            profiles: profileProvider.availableProfiles,
-            onProfileSelected: (api_profile.Profile profile) {
-              profileProvider.selectProfile(profile);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${loc.profileChangedTo} ${profile.name}'),
-                  behavior: SnackBarBehavior.floating,
-                  backgroundColor: AppTheme.primaryOrange,
-                ),
-              );
-            },
-            config: _profileConfig,
+      builder:
+          (context) => Dialog(
+            backgroundColor:
+                Theme.of(context).dialogTheme.backgroundColor ??
+                Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: isTV ? 600 : 400,
+                maxHeight: MediaQuery.of(context).size.height * 0.8,
+              ),
+              child: ProfileSwitcher(
+                profiles: profileProvider.availableProfiles,
+                onProfileSelected: (api_profile.Profile profile) {
+                  profileProvider.selectProfile(profile);
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${loc.profileChangedTo} ${profile.name}'),
+                      behavior: SnackBarBehavior.floating,
+                      backgroundColor: AppTheme.primaryOrange,
+                    ),
+                  );
+                },
+                config: _profileConfig,
+              ),
+            ),
           ),
-        ),
-      ),
     );
   }
 
   void _handleNotificationPress(BuildContext context) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage()));
-
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const NotificationsPage()),
+    );
   }
 
-  Widget _buildMenuWithSubmenu(BuildContext context, String label, List<String> subItems, String type) {
+  Widget _buildMenuWithSubmenu(
+    BuildContext context,
+    String label,
+    List<String> subItems,
+    String type,
+  ) {
     final theme = Theme.of(context);
-    final deviceInfoProvider = Provider.of<DeviceInfoProvider>(context, listen: false);
+    final deviceInfoProvider = Provider.of<DeviceInfoProvider>(
+      context,
+      listen: false,
+    );
     final bool isTV = deviceInfoProvider.isTV;
 
     return _HoverMenuWrapper(
       child: PopupMenuButton<String>(
         tooltip: label,
-        child: Text(label, style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurface, fontSize: isTV ? 20 : null)),
+        child: Text(
+          label,
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: theme.colorScheme.onSurface,
+            fontSize: isTV ? 20 : null,
+          ),
+        ),
         onSelected: (value) => _navigateToGenrePage(context, value),
-        itemBuilder: (context) => subItems.map((sub) => PopupMenuItem<String>(value: sub, child: Text(sub, style: isTV ? theme.textTheme.titleMedium : null))).toList(),
+        itemBuilder:
+            (context) =>
+                subItems
+                    .map(
+                      (sub) => PopupMenuItem<String>(
+                        value: sub,
+                        child: Text(
+                          sub,
+                          style: isTV ? theme.textTheme.titleMedium : null,
+                        ),
+                      ),
+                    )
+                    .toList(),
       ),
     );
   }
 
   void _navigateToGenrePage(BuildContext context, String genre) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => GenrePage(genre: genre, contents: _getContentsForGenre(genre))));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) =>
+                GenrePage(genre: genre, contents: _getContentsForGenre(genre)),
+      ),
+    );
   }
 
   List<Content> _getContentsForGenre(String genre) {
@@ -433,7 +632,8 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
         description: 'A great $genre movie',
         imageUrl: 'https://picsum.photos/200/300?random=$genre$index',
         posterUrl: 'https://picsum.photos/200/300?random=$genre$index',
-        videoUrl: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4',
+        videoUrl:
+            'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4',
         type: ContentType.movie,
         genres: [genre],
         releaseYear: '202${index % 3}',
@@ -446,82 +646,110 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
   void _confirmLogout(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         bool isLoading = false;
-        
+
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              backgroundColor: theme.dialogBackgroundColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
+              backgroundColor:
+                  theme.dialogTheme.backgroundColor ??
+                  theme.colorScheme.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+              ),
               title: Text(
                 loc.deconnexion,
-                style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.onSurface),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: theme.colorScheme.onSurface,
+                ),
               ),
-              content: isLoading
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('Déconnexion en cours...'),
-                      ],
-                    )
-                  : Text(
-                      loc.logoutConfirmation,
-                      style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.8)),
-                    ),
-              actions: isLoading
-                  ? []
-                  : [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          loc.cancel,
-                          style: theme.textTheme.titleMedium?.copyWith(color: AppTheme.primaryOrange),
+              content:
+                  isLoading
+                      ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('Déconnexion en cours...'),
+                        ],
+                      )
+                      : Text(
+                        loc.logoutConfirmation,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.8,
+                          ),
                         ),
                       ),
-                      ElevatedButton(
-                        onPressed: () async {
-                          setState(() => isLoading = true);
-                          
-                          try {
-                            final userProvider = Provider.of<UserProvider>(context, listen: false);
-                            final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
-                            
-                            // Réinitialiser le profile provider
-                            await profileProvider.reset();
-                            
-                            // Déconnecter l'utilisateur
-                            await userProvider.logout();
-                            
-                            if (context.mounted) {
-                              Navigator.of(context).pop(); // Ferme le dialogue
-                              Navigator.of(context).pushNamedAndRemoveUntil(
-                                '/login', 
-                                (Route<dynamic> route) => false
+              actions:
+                  isLoading
+                      ? []
+                      : [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: Text(
+                            loc.cancel,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: AppTheme.primaryOrange,
+                            ),
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: () async {
+                            setState(() => isLoading = true);
+
+                            try {
+                              final userProvider = Provider.of<UserProvider>(
+                                context,
+                                listen: false,
                               );
+                              final profileProvider =
+                                  Provider.of<ProfileProvider>(
+                                    context,
+                                    listen: false,
+                                  );
+
+                              // Réinitialiser le profile provider
+                              await profileProvider.reset();
+
+                              // Déconnecter l'utilisateur
+                              await userProvider.logout();
+
+                              if (context.mounted) {
+                                Navigator.of(
+                                  context,
+                                ).pop(); // Ferme le dialogue
+                                Navigator.of(context).pushNamedAndRemoveUntil(
+                                  '/login',
+                                  (Route<dynamic> route) => false,
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                setState(() => isLoading = false);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Erreur lors de la déconnexion: $e',
+                                    ),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
                             }
-                          } catch (e) {
-                            if (context.mounted) {
-                              setState(() => isLoading = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Erreur lors de la déconnexion: $e'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed, foregroundColor: Colors.white),
-                        child: Text(loc.logout),
-                      ),
-                    ],
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.errorRed,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: Text(loc.logout),
+                        ),
+                      ],
             );
           },
         );
@@ -531,23 +759,39 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
 
   Widget _buildMobileMenu(BuildContext context, AppLocalizations loc) {
     final theme = Theme.of(context);
-    
+
     return IconButton(
       icon: Icon(Icons.more_vert, color: theme.iconTheme.color, size: 28),
       onPressed: () => _showMobileMainMenu(context, loc, theme),
     );
   }
 
-  void _showMobileMainMenu(BuildContext context, AppLocalizations loc, ThemeData theme) {
+  void _showMobileMainMenu(
+    BuildContext context,
+    AppLocalizations loc,
+    ThemeData theme,
+  ) {
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.borderRadius))),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppTheme.borderRadius),
+        ),
+      ),
       isScrollControlled: true,
-      backgroundColor: theme.bottomSheetTheme.backgroundColor ?? theme.cardColor,
+      backgroundColor:
+          theme.bottomSheetTheme.backgroundColor ?? theme.cardColor,
       builder: (context) {
         return Container(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, top: 16, left: 16, right: 16),
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            top: 16,
+            left: 16,
+            right: 16,
+          ),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -558,17 +802,24 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.4),
+                    color: Theme.of(
+                      context,
+                    ).primaryColor.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
                 decoration: BoxDecoration(
                   color: theme.primaryColor,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.borderRadius)),
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(AppTheme.borderRadius),
+                  ),
                 ),
                 child: Stack(
                   alignment: Alignment.center,
@@ -577,7 +828,9 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                       child: Text(
                         loc.menu,
                         style: TextStyle(
-                          color: theme.primaryTextTheme.titleLarge?.color ?? Colors.white,
+                          color:
+                              theme.primaryTextTheme.titleLarge?.color ??
+                              Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                         ),
@@ -587,7 +840,12 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                       right: 0,
                       top: 0,
                       child: IconButton(
-                        icon: Icon(Icons.close, color: theme.primaryTextTheme.titleLarge?.color ?? Colors.white),
+                        icon: Icon(
+                          Icons.close,
+                          color:
+                              theme.primaryTextTheme.titleLarge?.color ??
+                              Colors.white,
+                        ),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                     ),
@@ -601,35 +859,87 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       ListTile(
-                        leading: Icon(Icons.movie, color: theme.iconTheme.color, size: 28),
-                        title: Text(loc.films, style: theme.textTheme.titleMedium),
+                        leading: Icon(
+                          Icons.movie,
+                          color: theme.iconTheme.color,
+                          size: 28,
+                        ),
+                        title: Text(
+                          loc.films,
+                          style: theme.textTheme.titleMedium,
+                        ),
                         onTap: () {
                           Navigator.pop(context);
-                          _showSubmenuModal(context, loc.films, ['Action', 'Comédie', 'Drame', 'Horreur', 'Science-fiction'], 'film-category');
+                          _showSubmenuModal(context, loc.films, [
+                            'Action',
+                            'Comédie',
+                            'Drame',
+                            'Horreur',
+                            'Science-fiction',
+                          ], 'film-category');
                         },
                       ),
                       ListTile(
-                        leading: Icon(Icons.tv, color: theme.iconTheme.color, size: 28),
-                        title: Text(loc.series, style: theme.textTheme.titleMedium),
+                        leading: Icon(
+                          Icons.tv,
+                          color: theme.iconTheme.color,
+                          size: 28,
+                        ),
+                        title: Text(
+                          loc.series,
+                          style: theme.textTheme.titleMedium,
+                        ),
                         onTap: () {
                           Navigator.pop(context);
-                          _showSubmenuModal(context, loc.series, ['Crime', 'Science-fiction', 'Comédie', 'Drama', 'Animation'], 'series-category');
+                          _showSubmenuModal(context, loc.series, [
+                            'Crime',
+                            'Science-fiction',
+                            'Comédie',
+                            'Drama',
+                            'Animation',
+                          ], 'series-category');
                         },
                       ),
                       ListTile(
-                        leading: Icon(Icons.add, color: theme.iconTheme.color, size: 28),
-                        title: Text(loc.plus, style: theme.textTheme.titleMedium),
+                        leading: Icon(
+                          Icons.add,
+                          color: theme.iconTheme.color,
+                          size: 28,
+                        ),
+                        title: Text(
+                          loc.plus,
+                          style: theme.textTheme.titleMedium,
+                        ),
                         onTap: () {
                           Navigator.pop(context);
-                          _showSubmenuModal(context, loc.plus, [loc.documentaires, loc.telerealites, loc.live, 'Sports', 'Kids'], 'plus-category');
+                          _showSubmenuModal(context, loc.plus, [
+                            loc.documentaires,
+                            loc.telerealites,
+                            loc.live,
+                            'Sports',
+                            'Kids',
+                          ], 'plus-category');
                         },
                       ),
                       ListTile(
-                        leading: Icon(Icons.public, color: theme.iconTheme.color, size: 28),
-                        title: Text(loc.explorerParPays, style: theme.textTheme.titleMedium),
+                        leading: Icon(
+                          Icons.public,
+                          color: theme.iconTheme.color,
+                          size: 28,
+                        ),
+                        title: Text(
+                          loc.explorerParPays,
+                          style: theme.textTheme.titleMedium,
+                        ),
                         onTap: () {
                           Navigator.pop(context);
-                          _showSubmenuModal(context, loc.explorerParPays, ['France', 'USA', 'Japon', 'Corée', 'Inde'], 'country');
+                          _showSubmenuModal(context, loc.explorerParPays, [
+                            'France',
+                            'USA',
+                            'Japon',
+                            'Corée',
+                            'Inde',
+                          ], 'country');
                         },
                       ),
                     ],
@@ -643,20 +953,40 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
     );
   }
 
-  void _showSubmenuModal(BuildContext context, String title, List<String> subItems, String type) {
+  void _showSubmenuModal(
+    BuildContext context,
+    String title,
+    List<String> subItems,
+    String type,
+  ) {
     final theme = Theme.of(context);
-    final deviceInfoProvider = Provider.of<DeviceInfoProvider>(context, listen: false);
+    final deviceInfoProvider = Provider.of<DeviceInfoProvider>(
+      context,
+      listen: false,
+    );
     final bool isTV = deviceInfoProvider.isTV;
-    
+
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.borderRadius))),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppTheme.borderRadius),
+        ),
+      ),
       isScrollControlled: true,
-      backgroundColor: theme.bottomSheetTheme.backgroundColor ?? theme.cardColor,
+      backgroundColor:
+          theme.bottomSheetTheme.backgroundColor ?? theme.cardColor,
       builder: (context) {
         return Container(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, top: 16, left: 16, right: 16),
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            top: 16,
+            left: 16,
+            right: 16,
+          ),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -667,17 +997,24 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.4),
+                    color: Theme.of(
+                      context,
+                    ).primaryColor.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
                 decoration: BoxDecoration(
                   color: theme.primaryColor,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.borderRadius)),
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(AppTheme.borderRadius),
+                  ),
                 ),
                 child: Stack(
                   alignment: Alignment.center,
@@ -686,7 +1023,9 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                       child: Text(
                         title,
                         style: TextStyle(
-                          color: theme.primaryTextTheme.titleLarge?.color ?? Colors.white,
+                          color:
+                              theme.primaryTextTheme.titleLarge?.color ??
+                              Colors.white,
                           fontSize: isTV ? 26 : 22,
                           fontWeight: FontWeight.bold,
                         ),
@@ -696,7 +1035,13 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                       right: 0,
                       top: 0,
                       child: IconButton(
-                        icon: Icon(Icons.close, color: theme.primaryTextTheme.titleLarge?.color ?? Colors.white, size: isTV ? 32 : 24),
+                        icon: Icon(
+                          Icons.close,
+                          color:
+                              theme.primaryTextTheme.titleLarge?.color ??
+                              Colors.white,
+                          size: isTV ? 32 : 24,
+                        ),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                     ),
@@ -708,22 +1053,31 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: subItems.length,
-                  itemBuilder: (BuildContext context, int index) => Container(
-                    decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: theme.dividerColor, width: 0.5)),
-                    ),
-                    child: ListTile(
-                      title: Text(
-                        subItems[index],
-                        style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurface, fontSize: isTV ? 20 : null),
+                  itemBuilder:
+                      (BuildContext context, int index) => Container(
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: theme.dividerColor,
+                              width: 0.5,
+                            ),
+                          ),
+                        ),
+                        child: ListTile(
+                          title: Text(
+                            subItems[index],
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: theme.colorScheme.onSurface,
+                              fontSize: isTV ? 20 : null,
+                            ),
+                          ),
+                          tileColor: theme.cardColor,
+                          onTap: () {
+                            Navigator.pop(context);
+                            _navigateToGenrePage(context, subItems[index]);
+                          },
+                        ),
                       ),
-                      tileColor: theme.cardColor,
-                      onTap: () {
-                        Navigator.pop(context);
-                        _navigateToGenrePage(context, subItems[index]);
-                      },
-                    ),
-                  ),
                 ),
               ),
             ],
@@ -747,7 +1101,10 @@ class _HoverMenuWrapperState extends State<_HoverMenuWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    final deviceInfoProvider = Provider.of<DeviceInfoProvider>(context, listen: false);
+    final deviceInfoProvider = Provider.of<DeviceInfoProvider>(
+      context,
+      listen: false,
+    );
     final bool isTV = deviceInfoProvider.isTV;
 
     if (isTV) return widget.child;
@@ -757,7 +1114,10 @@ class _HoverMenuWrapperState extends State<_HoverMenuWrapper> {
       onExit: (_) => setState(() => _isHovering = false),
       child: Container(
         decoration: BoxDecoration(
-          color: _isHovering ? AppTheme.primaryOrange.withOpacity(0.1) : Colors.transparent,
+          color:
+              _isHovering
+                  ? AppTheme.primaryOrange.withValues(alpha: 0.1)
+                  : Colors.transparent,
           borderRadius: BorderRadius.circular(AppTheme.borderRadius),
         ),
         child: widget.child,

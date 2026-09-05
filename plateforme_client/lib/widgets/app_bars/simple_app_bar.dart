@@ -36,32 +36,38 @@ class SimpleAppBar extends BaseAppBar {
   }
 
   /// AppBar standard (mobile / desktop)
-  Widget _buildStandardAppBar(BuildContext context, ThemeData theme, AppLocalizations loc) {
+  Widget _buildStandardAppBar(
+    BuildContext context,
+    ThemeData theme,
+    AppLocalizations loc,
+  ) {
     final isLoginScreen = ModalRoute.of(context)?.settings.name == '/login';
 
     return AppBar(
       backgroundColor: theme.scaffoldBackgroundColor,
       elevation: 0,
-      leading: Navigator.of(context).canPop()
-          ? Tooltip(
-              message: loc.retour,
-              child: IconButton(
-                icon: Icon(Icons.arrow_back, color: theme.iconTheme.color),
-                onPressed: () => Navigator.of(context).maybePop(),
-              ),
-            )
-          : null,
-      title: Image.asset(
-        logoPath,
-        height: 36,
-      ),
+      leading:
+          Navigator.of(context).canPop()
+              ? Tooltip(
+                message: loc.retour,
+                child: IconButton(
+                  icon: Icon(Icons.arrow_back, color: theme.iconTheme.color),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              )
+              : null,
+      title: Image.asset(logoPath, height: 36),
       centerTitle: false,
       actions: [
         // 🔄 AJOUT : Bouton FAQ dans l'AppBar standard
         if (!isLoginScreen) // Ne pas afficher FAQ sur l'écran de login
           IconButton(
-            icon: Icon(Icons.help_outline, color: theme.iconTheme.color), // 🔄 Icône FAQ
-            onPressed: () => Navigator.of(context).pushNamed('/faq'), // 🔄 Route FAQ
+            icon: Icon(
+              Icons.help_outline,
+              color: theme.iconTheme.color,
+            ), // 🔄 Icône FAQ
+            onPressed:
+                () => Navigator.of(context).pushNamed('/faq'), // 🔄 Route FAQ
             tooltip: loc.faq, // 🔄 Tooltip FAQ
           ),
         if (onLanguagePressed != null && isLoginScreen)
@@ -75,7 +81,11 @@ class SimpleAppBar extends BaseAppBar {
   }
 
   /// AppBar TV avec support télécommande et focus
-  Widget _buildTvAppBar(BuildContext context, ThemeData theme, AppLocalizations loc) {
+  Widget _buildTvAppBar(
+    BuildContext context,
+    ThemeData theme,
+    AppLocalizations loc,
+  ) {
     final isLoginScreen = ModalRoute.of(context)?.settings.name == '/login';
 
     return AppBar(
@@ -94,7 +104,9 @@ class SimpleAppBar extends BaseAppBar {
           ),
           if (!isLoginScreen) // 🔄 AJOUT : Bouton FAQ pour TV
             _buildTvFaqButton(context, theme, loc),
-          if (onLanguagePressed != null && languageFocusNode != null && isLoginScreen)
+          if (onLanguagePressed != null &&
+              languageFocusNode != null &&
+              isLoginScreen)
             _buildTvLanguageButton(context, theme, loc),
         ],
       ),
@@ -102,13 +114,18 @@ class SimpleAppBar extends BaseAppBar {
   }
 
   // 🔄 AJOUT : Bouton FAQ optimisé pour TV
-  Widget _buildTvFaqButton(BuildContext context, ThemeData theme, AppLocalizations loc) {
+  Widget _buildTvFaqButton(
+    BuildContext context,
+    ThemeData theme,
+    AppLocalizations loc,
+  ) {
     final faqFocusNode = FocusNode();
 
     return KeyboardNavigator(
       focusNode: faqFocusNode,
       keyHandlers: {
-        LogicalKeyboardKey.select: () => Navigator.of(context).pushNamed('/faq'),
+        LogicalKeyboardKey.select:
+            () => Navigator.of(context).pushNamed('/faq'),
         LogicalKeyboardKey.enter: () => Navigator.of(context).pushNamed('/faq'),
         LogicalKeyboardKey.space: () => Navigator.of(context).pushNamed('/faq'),
       },
@@ -118,12 +135,14 @@ class SimpleAppBar extends BaseAppBar {
         child: IconButton(
           icon: Icon(
             Icons.help_outline, // 🔄 Icône FAQ
-            color: faqFocusNode.hasFocus
-                ? AppTheme.primaryOrange
-                : theme.iconTheme.color,
+            color:
+                faqFocusNode.hasFocus
+                    ? AppTheme.primaryOrange
+                    : theme.iconTheme.color,
             size: 32,
           ),
-          onPressed: () => Navigator.of(context).pushNamed('/faq'), // 🔄 Route FAQ
+          onPressed:
+              () => Navigator.of(context).pushNamed('/faq'), // 🔄 Route FAQ
           tooltip: loc.faq, // 🔄 Tooltip FAQ
           style: IconButton.styleFrom(
             padding: const EdgeInsets.all(12),
@@ -135,7 +154,11 @@ class SimpleAppBar extends BaseAppBar {
   }
 
   /// Bouton langue optimisé pour TV
-  Widget _buildTvLanguageButton(BuildContext context, ThemeData theme, AppLocalizations loc) {
+  Widget _buildTvLanguageButton(
+    BuildContext context,
+    ThemeData theme,
+    AppLocalizations loc,
+  ) {
     return KeyboardNavigator(
       focusNode: languageFocusNode,
       keyHandlers: {
@@ -149,9 +172,10 @@ class SimpleAppBar extends BaseAppBar {
         child: IconButton(
           icon: Icon(
             Icons.language,
-            color: languageFocusNode!.hasFocus
-                ? AppTheme.primaryOrange
-                : theme.iconTheme.color,
+            color:
+                languageFocusNode!.hasFocus
+                    ? AppTheme.primaryOrange
+                    : theme.iconTheme.color,
             size: 32,
           ),
           onPressed: onLanguagePressed,
@@ -166,7 +190,7 @@ class SimpleAppBar extends BaseAppBar {
   }
 
   /// Gestion clavier / télécommande
-  void handleKeyEvent(RawKeyEvent event, BuildContext context) {
+  void handleKeyEvent(KeyEvent event, BuildContext context) {
     KeyboardNavigationService.handleBasicNavigation(
       event,
       onSelect: () {

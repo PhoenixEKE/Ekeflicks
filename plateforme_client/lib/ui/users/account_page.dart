@@ -28,14 +28,14 @@ class AccountPage extends StatefulWidget {
   State<AccountPage> createState() => _AccountPageState();
 }
 
-class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin {
+class _AccountPageState extends State<AccountPage>
+    with TickerProviderStateMixin {
   late Profile _currentProfile;
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
 
   late TabController _tabController;
-  int _currentTabIndex = 0;
 
   List<Map<String, dynamic>>? _billingHistory;
   List<Map<String, dynamic>>? _favoriteContents;
@@ -61,10 +61,11 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     super.initState();
     _currentProfile = widget.currentProfile;
 
-    _nameController.text = _currentProfile.name ?? '';
+    _nameController.text = _currentProfile.name;
     _phoneController.text = _currentProfile.phone ?? '';
     final currentUser = context.read<UserProvider>().currentUser;
-    _isPhoneOnlyAccount = currentUser?.email == null || currentUser!.email!.isEmpty;
+    _isPhoneOnlyAccount =
+        currentUser?.email == null || currentUser!.email!.isEmpty;
     _emailController.text = currentUser?.email ?? '';
     const supportedAges = [3, 7, 10, 13, 16, 18];
     final profileAge = _currentProfile.age ?? 13;
@@ -84,7 +85,10 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       vsync: this,
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeAnimationController, curve: Curves.easeInOut),
+      CurvedAnimation(
+        parent: _fadeAnimationController,
+        curve: Curves.easeInOut,
+      ),
     );
 
     _loadInitialData();
@@ -96,9 +100,6 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       _fadeAnimationController.reset();
       _fadeAnimationController.forward();
     }
-    setState(() {
-      _currentTabIndex = _tabController.index;
-    });
   }
 
   Future<void> _loadInitialData() async {
@@ -153,20 +154,21 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   }
 
   Map<String, dynamic> _contentCard(Content content) => {
-        'id': content.id,
-        'title': content.title,
-        'description': content.description,
-        'image': content.posterUrl.isNotEmpty ? content.posterUrl : content.imageUrl,
-        'rating': content.rating,
-      };
+    'id': content.id,
+    'title': content.title,
+    'description': content.description,
+    'image':
+        content.posterUrl.isNotEmpty ? content.posterUrl : content.imageUrl,
+    'rating': content.rating,
+  };
 
   /// Charge les favoris du profil actif.
   Future<void> _loadFavorites() async {
     try {
       final dio = context.read<ProfileProvider>().apiClient.dio;
-      final contents = await ContentApiService(dio).favorites(
-        profileId: _currentProfile.id,
-      );
+      final contents = await ContentApiService(
+        dio,
+      ).favorites(profileId: _currentProfile.id);
       if (mounted) {
         setState(() => _favoriteContents = contents.map(_contentCard).toList());
       }
@@ -184,22 +186,29 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         '/offline-licenses/',
         queryParameters: {'profile': _currentProfile.id},
       );
-      final downloads = _records(response.data).map((record) {
-        final content = record['content'] is Map
-            ? Map<String, dynamic>.from(record['content'] as Map)
-            : const <String, dynamic>{};
-        final asset = record['asset'] is Map
-            ? Map<String, dynamic>.from(record['asset'] as Map)
-            : const <String, dynamic>{};
-        return <String, dynamic>{
-          'id': record['id'],
-          'title': content['title'] ?? 'Contenu téléchargé',
-          'image': content['poster_url'] ?? content['image_url'] ?? '',
-          'size': asset['file_size'] == null ? null : '${asset['file_size']} octets',
-          'status': record['status'],
-          'progress': record['status'] == 'active' ? 100 : 0,
-        };
-      }).toList(growable: false);
+      final downloads = _records(response.data)
+          .map((record) {
+            final content =
+                record['content'] is Map
+                    ? Map<String, dynamic>.from(record['content'] as Map)
+                    : const <String, dynamic>{};
+            final asset =
+                record['asset'] is Map
+                    ? Map<String, dynamic>.from(record['asset'] as Map)
+                    : const <String, dynamic>{};
+            return <String, dynamic>{
+              'id': record['id'],
+              'title': content['title'] ?? 'Contenu téléchargé',
+              'image': content['poster_url'] ?? content['image_url'] ?? '',
+              'size':
+                  asset['file_size'] == null
+                      ? null
+                      : '${asset['file_size']} octets',
+              'status': record['status'],
+              'progress': record['status'] == 'active' ? 100 : 0,
+            };
+          })
+          .toList(growable: false);
       if (mounted) setState(() => _downloadedContents = downloads);
     } catch (error) {
       debugPrint('Account downloads API error: $error');
@@ -213,9 +222,10 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       _showErrorSnackbar('Veuillez saisir un nom');
       return;
     }
-    final phoneError = _isMainProfile
-        ? validateInternationalPhone(_phoneController.text)
-        : null;
+    final phoneError =
+        _isMainProfile
+            ? validateInternationalPhone(_phoneController.text)
+            : null;
     if (phoneError != null) {
       _showErrorSnackbar(phoneError);
       return;
@@ -232,15 +242,24 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         );
         if (parentalPin == null || parentalPin.isEmpty) return;
       }
-      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+
+      if (!mounted) return;
+
+      final profileProvider = Provider.of<ProfileProvider>(
+        context,
+        listen: false,
+      );
       final userProvider = context.read<UserProvider>();
       final apiClient = profileProvider.apiClient;
 
       if (_isMainProfile && _isPhoneOnlyAccount) {
         if (_emailController.text.trim().isEmpty ||
-            !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                .hasMatch(_emailController.text.trim())) {
-          throw const FormatException('Veuillez saisir une adresse e-mail valide.');
+            !RegExp(
+              r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+            ).hasMatch(_emailController.text.trim())) {
+          throw const FormatException(
+            'Veuillez saisir une adresse e-mail valide.',
+          );
         }
         await userProvider.updatePersonalInfo(
           email: _emailController.text,
@@ -256,7 +275,8 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
           'name': _nameController.text.trim(),
           'phone': normalizeInternationalPhone(_phoneController.text),
           if (_isChildProfile) 'age': _selectedAge,
-          if (_isChildProfile) 'allowed_min_age': _allowedAgeRange.start.round(),
+          if (_isChildProfile)
+            'allowed_min_age': _allowedAgeRange.start.round(),
           if (_isChildProfile) 'allowed_max_age': _allowedAgeRange.end.round(),
           if (_isChildProfile) 'parental_pin': parentalPin,
           if (_selectedCountry != null) 'country_code': _selectedCountry,
@@ -272,7 +292,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
             'Impossible d’enregistrer le profil. Vérifiez les informations saisies.',
       );
     } catch (_) {
-      _showErrorSnackbar('Impossible d’enregistrer le profil. Veuillez réessayer.');
+      _showErrorSnackbar(
+        'Impossible d’enregistrer le profil. Veuillez réessayer.',
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -284,20 +306,21 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     if (profile.id == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Supprimer ce profil ?'),
-        content: Text('Le profil « ${profile.name} » sera supprimé.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Annuler'),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Supprimer ce profil ?'),
+            content: Text('Le profil « ${profile.name} » sera supprimé.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Supprimer'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
     );
     if (confirmed != true || !mounted) return;
     final pin = await ProfileAccessService.askForParentalPin(
@@ -323,7 +346,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         );
       }
     } catch (_) {
-      if (mounted) _showErrorSnackbar('Suppression impossible. Veuillez réessayer.');
+      if (mounted) {
+        _showErrorSnackbar('Suppression impossible. Veuillez réessayer.');
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -338,7 +363,8 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
 
       if (locationData != null && mounted) {
         setState(() {
-          _detectedCountry = '${locationData['country']} (${locationData['countryCode']})';
+          _detectedCountry =
+              '${locationData['country']} (${locationData['countryCode']})';
           _selectedCountry = locationData['countryCode'];
         });
 
@@ -361,23 +387,15 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   void _showCountrySelectionDialog() {
     showDialog(
       context: context,
-      builder: (context) => CountrySelectionDialog(
-        currentCountry: _selectedCountry,
-        onCountrySelected: (countryCode) {
-          setState(() => _selectedCountry = countryCode);
-          Navigator.pop(context);
-        },
-      ),
+      builder:
+          (context) => CountrySelectionDialog(
+            currentCountry: _selectedCountry,
+            onCountrySelected: (countryCode) {
+              setState(() => _selectedCountry = countryCode);
+              Navigator.pop(context);
+            },
+          ),
     );
-  }
-
-  ProfileCountryEnum? _getCountryEnum(String? countryCode) {
-    if (countryCode == null) return null;
-    try {
-      return ProfileCountryEnum.valueOf(countryCode);
-    } catch (e) {
-      return ProfileCountryEnum.FR;
-    }
   }
 
   void _showSuccessSnackbar(String message) {
@@ -424,12 +442,15 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     if (!mounted || avatarProvider.error != null) return;
     final selected = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AvatarSelectorDialog(
-        selectedAvatar: _currentProfile.avatarUrl,
-        onAvatarSelected: (url) => Navigator.pop(dialogContext, url),
-      ),
+      builder:
+          (dialogContext) => AvatarSelectorDialog(
+            selectedAvatar: _currentProfile.avatarUrl,
+            onAvatarSelected: (url) => Navigator.pop(dialogContext, url),
+          ),
     );
-    if (selected == null || selected == _currentProfile.avatarUrl || !mounted) return;
+    if (selected == null || selected == _currentProfile.avatarUrl || !mounted) {
+      return;
+    }
     String? parentalPin;
     if (_isChildProfile) {
       parentalPin = await ProfileAccessService.askForParentalPin(
@@ -450,7 +471,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       );
       await provider.loadProfiles();
       final refreshed = provider.getProfileById(_currentProfile.id!);
-      if (mounted && refreshed != null) setState(() => _currentProfile = refreshed);
+      if (mounted && refreshed != null) {
+        setState(() => _currentProfile = refreshed);
+      }
       _showSuccessSnackbar('Avatar modifié avec succès');
     } catch (error) {
       _showErrorSnackbar('Impossible de modifier l\'avatar : $error');
@@ -471,8 +494,8 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppTheme.primaryOrange.withOpacity(0.1),
-            AppTheme.primaryOrange.withOpacity(0.05),
+            AppTheme.primaryOrange.withValues(alpha: 0.1),
+            AppTheme.primaryOrange.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
@@ -493,15 +516,16 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                   customBorder: const CircleBorder(),
                   onTap: _changeAvatar,
                   child: ClipOval(
-                    child: _currentProfile.avatarUrl?.isNotEmpty == true
-                    ? Image.network(
-                        _currentProfile.avatarUrl!,
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
-                      )
-                    : _buildDefaultAvatar(),
+                    child:
+                        _currentProfile.avatarUrl?.isNotEmpty == true
+                            ? Image.network(
+                              _currentProfile.avatarUrl!,
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => _buildDefaultAvatar(),
+                            )
+                            : _buildDefaultAvatar(),
                   ),
                 ),
               ),
@@ -513,7 +537,7 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _currentProfile.name ?? 'Sans nom',
+                  _currentProfile.name,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface,
@@ -523,7 +547,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                 Text(
                   _getProfileTypeDisplayName(_currentProfile.type?.name),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
                 // Afficher l'email UNIQUEMENT pour le profil principal
@@ -532,7 +558,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                   Text(
                     userEmail,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -543,7 +571,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                   Text(
                     'Âge: ${_currentProfile.age} ans',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],
@@ -569,24 +599,25 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
   }
 
   Widget _buildDefaultAvatar() => Image.asset(
-        _isChildProfile
-            ? 'assets/avatars/child.png'
-            : 'assets/avatars/adult.png',
-        width: 80,
-        height: 80,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
+    _isChildProfile ? 'assets/avatars/child.png' : 'assets/avatars/adult.png',
+    width: 80,
+    height: 80,
+    fit: BoxFit.cover,
+    errorBuilder:
+        (_, _, _) => Container(
           width: 80,
           height: 80,
           color: AppTheme.primaryOrange,
           child: const Icon(Icons.person, size: 40, color: Colors.white),
         ),
-      );
+  );
 
   Widget _buildTabBar(BuildContext context, AppLocalizations? loc) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
       ),
       child: TabBar(
@@ -598,7 +629,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
           color: AppTheme.primaryOrange,
         ),
         labelColor: Colors.white,
-        unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+        unselectedLabelColor: Theme.of(
+          context,
+        ).colorScheme.onSurface.withValues(alpha: 0.6),
         tabs: [
           const Tab(icon: Icon(Icons.person), text: 'Profil'),
           const Tab(icon: Icon(Icons.history), text: 'Facturation'),
@@ -628,12 +661,20 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                   if (_isMainProfile) ...[
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest
+                            .withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.outline.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Column(
@@ -641,14 +682,22 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                         children: [
                           Text(
                             'Email',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.6),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.email_outlined, size: 20, color: Colors.grey),
+                              Icon(
+                                Icons.email_outlined,
+                                size: 20,
+                                color: Colors.grey,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -656,7 +705,11 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                               ),
-                              Icon(Icons.lock_outline, size: 16, color: Colors.grey),
+                              Icon(
+                                Icons.lock_outline,
+                                size: 16,
+                                color: Colors.grey,
+                              ),
                             ],
                           ),
                         ],
@@ -727,7 +780,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  tileColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                  tileColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 ),
               ),
             ],
@@ -749,12 +804,15 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                         context,
                         label: 'Âge maximal',
                       ),
-                      items: [3, 7, 10, 13, 16, 18]
-                          .map((age) => DropdownMenuItem(
-                                value: age,
-                                child: Text("$age ans"),
-                              ))
-                          .toList(),
+                      items:
+                          [3, 7, 10, 13, 16, 18]
+                              .map(
+                                (age) => DropdownMenuItem(
+                                  value: age,
+                                  child: Text("$age ans"),
+                                ),
+                              )
+                              .toList(),
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -769,8 +827,8 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                         '${_allowedAgeRange.start.round()} ans',
                         '${_allowedAgeRange.end.round()} ans',
                       ),
-                      onChanged: (values) =>
-                          setState(() => _allowedAgeRange = values),
+                      onChanged:
+                          (values) => setState(() => _allowedAgeRange = values),
                     ),
                   ],
                 ),
@@ -783,29 +841,36 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                 title: 'Profils du compte',
                 icon: Icons.manage_accounts,
                 child: Consumer<ProfileProvider>(
-                  builder: (context, provider, _) => Column(
-                    children: provider.availableProfiles
-                        .where((profile) => profile.type?.name != 'main')
-                        .map(
-                          (profile) => ListTile(
-                            leading: const Icon(Icons.person_outline),
-                            title: Text(profile.name),
-                            subtitle: Text(
-                              profile.type?.name == 'child'
-                                  ? 'Profil enfant'
-                                  : 'Profil créé',
-                            ),
-                            trailing: IconButton(
-                              tooltip: 'Supprimer le profil',
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: _isLoading
-                                  ? null
-                                  : () => _deleteManagedProfile(profile),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
+                  builder:
+                      (context, provider, _) => Column(
+                        children:
+                            provider.availableProfiles
+                                .where(
+                                  (profile) => profile.type?.name != 'main',
+                                )
+                                .map(
+                                  (profile) => ListTile(
+                                    leading: const Icon(Icons.person_outline),
+                                    title: Text(profile.name),
+                                    subtitle: Text(
+                                      profile.type?.name == 'child'
+                                          ? 'Profil enfant'
+                                          : 'Profil créé',
+                                    ),
+                                    trailing: IconButton(
+                                      tooltip: 'Supprimer le profil',
+                                      icon: const Icon(Icons.delete_outline),
+                                      onPressed:
+                                          _isLoading
+                                              ? null
+                                              : () => _deleteManagedProfile(
+                                                profile,
+                                              ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                      ),
                 ),
               ),
             ],
@@ -825,16 +890,17 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: _isLoading
-                        ? SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text('Sauvegarder'),
+                    child:
+                        _isLoading
+                            ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                            : Text('Sauvegarder'),
                   ),
                 ),
               ],
@@ -856,10 +922,14 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.2),
             ),
           ),
           child: Row(
@@ -873,7 +943,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                     Text(
                       'Pays',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -907,14 +979,19 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: _detectingLocation ? null : _detectCountryByIP,
-                icon: _detectingLocation
-                    ? SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(Icons.my_location, size: 18),
-                label: Text(_detectingLocation ? 'Détection...' : 'Détecter automatiquement'),
+                icon:
+                    _detectingLocation
+                        ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : Icon(Icons.my_location, size: 18),
+                label: Text(
+                  _detectingLocation
+                      ? 'Détection...'
+                      : 'Détecter automatiquement',
+                ),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -957,16 +1034,20 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         child: _buildSection(
           title: loc?.facturation ?? 'Historique de facturation',
           icon: Icons.receipt_long,
-          child: _billingHistory == null
-              ? _buildLoadingState()
-              : _billingHistory!.isEmpty
+          child:
+              _billingHistory == null
+                  ? _buildLoadingState()
+                  : _billingHistory!.isEmpty
                   ? _buildEmptyState(
-                      icon: Icons.receipt,
-                      message: loc?.aucuneFacture ?? 'Aucune facture disponible',
-                    )
+                    icon: Icons.receipt,
+                    message: loc?.aucuneFacture ?? 'Aucune facture disponible',
+                  )
                   : Column(
-                      children: _billingHistory!.map((item) => _buildBillingItem(item)).toList(),
-                    ),
+                    children:
+                        _billingHistory!
+                            .map((item) => _buildBillingItem(item))
+                            .toList(),
+                  ),
         ),
       ),
     );
@@ -979,25 +1060,29 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         child: _buildSection(
           title: loc?.favoris ?? 'Contenus favoris',
           icon: Icons.favorite_border,
-          child: _favoriteContents == null
-              ? _buildLoadingState()
-              : _favoriteContents!.isEmpty
+          child:
+              _favoriteContents == null
+                  ? _buildLoadingState()
+                  : _favoriteContents!.isEmpty
                   ? _buildEmptyState(
-                      icon: Icons.favorite,
-                      message: loc?.aucunFavori ?? 'Aucun favori pour le moment',
-                    )
+                    icon: Icons.favorite,
+                    message: loc?.aucunFavori ?? 'Aucun favori pour le moment',
+                  )
                   : GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 0.7,
-                      ),
-                      itemCount: _favoriteContents!.length,
-                      itemBuilder: (context, index) => _buildContentCard(_favoriteContents![index]),
-                    ),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 0.7,
+                        ),
+                    itemCount: _favoriteContents!.length,
+                    itemBuilder:
+                        (context, index) =>
+                            _buildContentCard(_favoriteContents![index]),
+                  ),
         ),
       ),
     );
@@ -1010,31 +1095,39 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         child: _buildSection(
           title: loc?.telechargements ?? 'Contenus téléchargés',
           icon: Icons.download_for_offline,
-          child: _downloadedContents == null
-              ? _buildLoadingState()
-              : _downloadedContents!.isEmpty
+          child:
+              _downloadedContents == null
+                  ? _buildLoadingState()
+                  : _downloadedContents!.isEmpty
                   ? _buildEmptyState(
-                      icon: Icons.download,
-                      message: loc?.aucunTelechargement ?? 'Aucun téléchargement',
-                    )
+                    icon: Icons.download,
+                    message: loc?.aucunTelechargement ?? 'Aucun téléchargement',
+                  )
                   : GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 0.7,
-                      ),
-                      itemCount: _downloadedContents!.length,
-                      itemBuilder: (context, index) => _buildDownloadCard(_downloadedContents![index]),
-                    ),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 0.7,
+                        ),
+                    itemCount: _downloadedContents!.length,
+                    itemBuilder:
+                        (context, index) =>
+                            _buildDownloadCard(_downloadedContents![index]),
+                  ),
         ),
       ),
     );
   }
 
-  Widget _buildSection({required String title, required IconData icon, required Widget child}) {
+  Widget _buildSection({
+    required String title,
+    required IconData icon,
+    required Widget child,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1061,11 +1154,13 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
     final status = item['status']?.toString() ?? 'pending';
     final isPaid = status == 'succeeded' || status == 'paid';
     final rawDate = item['paid_at'] ?? item['created_at'];
-    final parsedDate = rawDate == null ? null : DateTime.tryParse(rawDate.toString());
-    final date = parsedDate == null
-        ? 'Date indisponible'
-        : '${parsedDate.day.toString().padLeft(2, '0')}/'
-            '${parsedDate.month.toString().padLeft(2, '0')}/${parsedDate.year}';
+    final parsedDate =
+        rawDate == null ? null : DateTime.tryParse(rawDate.toString());
+    final date =
+        parsedDate == null
+            ? 'Date indisponible'
+            : '${parsedDate.day.toString().padLeft(2, '0')}/'
+                '${parsedDate.month.toString().padLeft(2, '0')}/${parsedDate.year}';
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -1090,15 +1185,18 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
         children: [
           Expanded(
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(8),
+              ),
               child: Image.network(
                 content['image'].toString(),
                 fit: BoxFit.cover,
                 width: double.infinity,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: Colors.grey[300],
-                  child: Icon(Icons.movie, color: Colors.grey[600]),
-                ),
+                errorBuilder:
+                    (context, error, stackTrace) => Container(
+                      color: Colors.grey[300],
+                      child: Icon(Icons.movie, color: Colors.grey[600]),
+                    ),
               ),
             ),
           ),
@@ -1109,9 +1207,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
               children: [
                 Text(
                   content['title'].toString(),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1145,15 +1243,18 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
             children: [
               Expanded(
                 child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(8),
+                  ),
                   child: Image.network(
                     content['image'].toString(),
                     fit: BoxFit.cover,
                     width: double.infinity,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: Colors.grey[300],
-                      child: Icon(Icons.movie, color: Colors.grey[600]),
-                    ),
+                    errorBuilder:
+                        (context, error, stackTrace) => Container(
+                          color: Colors.grey[300],
+                          child: Icon(Icons.movie, color: Colors.grey[600]),
+                        ),
                   ),
                 ),
               ),
@@ -1175,7 +1276,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
                       Text(
                         content['size'].toString(),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
                     ],
@@ -1217,7 +1320,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
             Text(
               'Chargement...',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -1238,7 +1343,9 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
             Text(
               message,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.5),
               ),
               textAlign: TextAlign.center,
             ),
@@ -1266,60 +1373,70 @@ class _AccountPageState extends State<AccountPage> with TickerProviderStateMixin
       appBar: AppBar(
         title: Text(loc?.compte ?? "Compte"),
         actions: [
-          if (_isMainProfile) IconButton(
-            icon: Icon(Icons.settings),
-            tooltip: loc?.parametres ?? 'Paramètres',
-            onPressed: () async {
-              final saved = await showDialog<bool>(
-                context: context,
-                builder: (_) => AccountSettingsDialog(profile: _currentProfile),
-              );
-              if (saved == true && mounted) {
-                await context.read<ProfileProvider>().loadProfiles();
+          if (_isMainProfile)
+            IconButton(
+              icon: Icon(Icons.settings),
+              tooltip: loc?.parametres ?? 'Paramètres',
+              onPressed: () async {
+                final saved = await showDialog<bool>(
+                  context: context,
+                  builder:
+                      (_) => AccountSettingsDialog(profile: _currentProfile),
+                );
+                if (saved != true || !mounted) return;
+
+                final profileProvider = this.context.read<ProfileProvider>();
+
+                await profileProvider.loadProfiles();
+
+                if (!mounted) return;
+
                 _showSuccessSnackbar('Paramètres enregistrés');
-              }
-            },
-          ),
+              },
+            ),
         ],
       ),
-      body: _isLoading && _billingHistory == null
-          ? Center(child: CircularProgressIndicator(color: AppTheme.primaryOrange))
-          : SafeArea(
-              child: Column(
-                children: [
-                  // Header du profil
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: _buildProfileHeader(context, loc),
-                  ),
-
-                  // Barre d'onglets
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: _buildTabBar(context, loc),
-                    ),
-                  ),
-
-                  // Contenu des onglets
-                  Expanded(
-                    child: Padding(
+      body:
+          _isLoading && _billingHistory == null
+              ? Center(
+                child: CircularProgressIndicator(color: AppTheme.primaryOrange),
+              )
+              : SafeArea(
+                child: Column(
+                  children: [
+                    // Header du profil
+                    Padding(
                       padding: const EdgeInsets.all(16),
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildProfileTab(context, loc),
-                          _buildBillingTab(context, loc),
-                          _buildFavoritesTab(context, loc),
-                          _buildDownloadsTab(context, loc),
-                        ],
+                      child: _buildProfileHeader(context, loc),
+                    ),
+
+                    // Barre d'onglets
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: _buildTabBar(context, loc),
                       ),
                     ),
-                  ),
-                ],
+
+                    // Contenu des onglets
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildProfileTab(context, loc),
+                            _buildBillingTab(context, loc),
+                            _buildFavoritesTab(context, loc),
+                            _buildDownloadsTab(context, loc),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
     );
   }
 }

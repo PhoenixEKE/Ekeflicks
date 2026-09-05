@@ -17,7 +17,9 @@ abstract final class ApiConfig {
 
   /// Retourne l'origine de l'API (production par défaut)
   static String get origin {
-    final normalizedConfiguredOrigin = _withoutTrailingSlash(configuredOrigin.trim());
+    final normalizedConfiguredOrigin = _withoutTrailingSlash(
+      configuredOrigin.trim(),
+    );
     if (normalizedConfiguredOrigin.isNotEmpty &&
         !blockedProductionOrigins.contains(normalizedConfiguredOrigin)) {
       return normalizedConfiguredOrigin;

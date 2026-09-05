@@ -3,8 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/widgets/app_bars/simple_app_bar.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
-import 'package:app_ekeflicks/core/app_decorations.dart';
-import 'package:app_ekeflicks/providers/locale_provider.dart';
 import 'package:app_ekeflicks/providers/device_info_provider.dart';
 
 class FaqItem {
@@ -142,7 +140,8 @@ class _FaqPageState extends State<FaqPage> {
   }
 
   List<String> get categories {
-    final allCategories = faqItems.map((item) => item.category).toSet().toList();
+    final allCategories =
+        faqItems.map((item) => item.category).toSet().toList();
     allCategories.insert(0, 'Toutes');
     return allCategories;
   }
@@ -151,7 +150,9 @@ class _FaqPageState extends State<FaqPage> {
     if (_selectedCategory == 'Toutes') {
       return faqItems;
     }
-    return faqItems.where((item) => item.category == _selectedCategory).toList();
+    return faqItems
+        .where((item) => item.category == _selectedCategory)
+        .toList();
   }
 
   void _toggleExpansion(String question) {
@@ -168,31 +169,34 @@ class _FaqPageState extends State<FaqPage> {
 
     return Scaffold(
       appBar: SimpleAppBar(
-        logoPath: theme.brightness == Brightness.dark
-            ? 'assets/images/logo_dark.png'
-            : 'assets/images/logo_light.png',
+        logoPath:
+            theme.brightness == Brightness.dark
+                ? 'assets/images/logo_dark.png'
+                : 'assets/images/logo_light.png',
       ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: theme.brightness == Brightness.dark
-                ? [const Color(0xFF121212), Colors.black]
-                : [Colors.grey[100]!, Colors.grey[300]!],
+            colors:
+                theme.brightness == Brightness.dark
+                    ? [const Color(0xFF121212), Colors.black]
+                    : [Colors.grey[100]!, Colors.grey[300]!],
           ),
         ),
         child: Center(
           child: Container(
             constraints: const BoxConstraints(maxWidth: 1200),
             margin: const EdgeInsets.symmetric(vertical: 16),
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : deviceInfo.isTV
+            child:
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : deviceInfo.isTV
                     ? _buildTVLayout(theme)
                     : isLargeScreen
-                        ? _buildDesktopLayout(theme)
-                        : _buildMobileLayout(theme),
+                    ? _buildDesktopLayout(theme)
+                    : _buildMobileLayout(theme),
           ),
         ),
       ),
@@ -225,14 +229,21 @@ class _FaqPageState extends State<FaqPage> {
                 final isExpanded = _expandedState[faq.question] ?? false;
 
                 return Container(
-                  margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  margin: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 16,
+                  ),
                   child: Card(
                     elevation: 4,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: ExpansionTile(
-                      leading: Icon(faq.icon, size: 32, color: AppTheme.primaryOrange),
+                      leading: Icon(
+                        faq.icon,
+                        size: 32,
+                        color: AppTheme.primaryOrange,
+                      ),
                       title: Text(
                         faq.question,
                         style: theme.textTheme.titleLarge?.copyWith(
@@ -240,6 +251,9 @@ class _FaqPageState extends State<FaqPage> {
                           color: theme.colorScheme.onSurface,
                         ),
                       ),
+                      initiallyExpanded: isExpanded,
+                      onExpansionChanged:
+                          (expanded) => _toggleExpansion(faq.question),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(24),
@@ -247,13 +261,13 @@ class _FaqPageState extends State<FaqPage> {
                             faq.answer,
                             style: theme.textTheme.bodyLarge?.copyWith(
                               height: 1.6,
-                              color: theme.colorScheme.onSurface.withOpacity(0.8),
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.8,
+                              ),
                             ),
                           ),
                         ),
                       ],
-                      initiallyExpanded: isExpanded,
-                      onExpansionChanged: (expanded) => _toggleExpansion(faq.question),
                     ),
                   ),
                 );
@@ -280,7 +294,9 @@ class _FaqPageState extends State<FaqPage> {
             width: 280, // Largeur augmentée pour les catégories verticales
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceVariant.withOpacity(0.05),
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.05,
+              ),
               borderRadius: const BorderRadius.horizontal(
                 left: Radius.circular(AppTheme.borderRadius),
               ),
@@ -300,13 +316,11 @@ class _FaqPageState extends State<FaqPage> {
                   'Catégories',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface.withOpacity(0.8),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                   ),
                 ),
                 const SizedBox(height: 16),
-                Expanded(
-                  child: _buildCategoryFilter(theme, false),
-                ),
+                Expanded(child: _buildCategoryFilter(theme, false)),
               ],
             ),
           ),
@@ -321,7 +335,7 @@ class _FaqPageState extends State<FaqPage> {
                   Text(
                     '${filteredFaqItems.length} questions',
                     style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -332,19 +346,23 @@ class _FaqPageState extends State<FaqPage> {
                       itemCount: filteredFaqItems.length,
                       itemBuilder: (context, index) {
                         final faq = filteredFaqItems[index];
-                        final isExpanded = _expandedState[faq.question] ?? false;
+                        final isExpanded =
+                            _expandedState[faq.question] ?? false;
 
                         return Card(
                           margin: const EdgeInsets.only(bottom: 16),
                           color: theme.cardColor,
                           elevation: 2,
-                          shadowColor: theme.shadowColor.withOpacity(0.1),
+                          shadowColor: theme.shadowColor.withValues(alpha: 0.1),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                           clipBehavior: Clip.antiAlias,
                           child: ExpansionTile(
-                            leading: Icon(faq.icon, color: AppTheme.primaryOrange),
+                            leading: Icon(
+                              faq.icon,
+                              color: AppTheme.primaryOrange,
+                            ),
                             title: Text(
                               faq.question,
                               style: theme.textTheme.titleMedium?.copyWith(
@@ -355,9 +373,14 @@ class _FaqPageState extends State<FaqPage> {
                             subtitle: Text(
                               faq.category,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.6,
+                                ),
                               ),
                             ),
+                            initiallyExpanded: isExpanded,
+                            onExpansionChanged:
+                                (expanded) => _toggleExpansion(faq.question),
                             children: [
                               Padding(
                                 padding: const EdgeInsets.all(20),
@@ -365,13 +388,12 @@ class _FaqPageState extends State<FaqPage> {
                                   faq.answer,
                                   style: theme.textTheme.bodyLarge?.copyWith(
                                     height: 1.6,
-                                    color: theme.colorScheme.onSurface.withOpacity(0.8),
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.8),
                                   ),
                                 ),
                               ),
                             ],
-                            initiallyExpanded: isExpanded,
-                            onExpansionChanged: (expanded) => _toggleExpansion(faq.question),
                           ),
                         );
                       },
@@ -405,12 +427,12 @@ class _FaqPageState extends State<FaqPage> {
                 'Catégories',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface.withOpacity(0.8),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                 ),
               ),
               const SizedBox(height: 12),
               // Sur mobile, on garde un conteneur de hauteur fixe pour les catégories
-              Container(
+              SizedBox(
                 height: 200, // Hauteur fixe avec défilement
                 child: _buildCategoryFilter(theme, false),
               ),
@@ -444,9 +466,14 @@ class _FaqPageState extends State<FaqPage> {
                     subtitle: Text(
                       faq.category,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
                       ),
                     ),
+                    initiallyExpanded: isExpanded,
+                    onExpansionChanged:
+                        (expanded) => _toggleExpansion(faq.question),
                     children: [
                       Padding(
                         padding: const EdgeInsets.all(16),
@@ -454,13 +481,13 @@ class _FaqPageState extends State<FaqPage> {
                           faq.answer,
                           style: theme.textTheme.bodyLarge?.copyWith(
                             height: 1.6,
-                            color: theme.colorScheme.onSurface.withOpacity(0.8),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.8,
+                            ),
                           ),
                         ),
                       ),
                     ],
-                    initiallyExpanded: isExpanded,
-                    onExpansionChanged: (expanded) => _toggleExpansion(faq.question),
                   ),
                 ),
               );
@@ -477,93 +504,111 @@ class _FaqPageState extends State<FaqPage> {
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
-          children: categories.map((category) {
-            final isSelected = category == _selectedCategory;
+          children:
+              categories.map((category) {
+                final isSelected = category == _selectedCategory;
 
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              child: FilterChip(
-                label: Text(
-                  category,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: isSelected ? Colors.white : theme.colorScheme.onSurface,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FilterChip(
+                    label: Text(
+                      category,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color:
+                            isSelected
+                                ? Colors.white
+                                : theme.colorScheme.onSurface,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedCategory = category;
+                      });
+                    },
+                    backgroundColor: theme.cardColor,
+                    selectedColor: AppTheme.primaryOrange,
+                    checkmarkColor: Colors.white,
+                    shape: StadiumBorder(
+                      side: BorderSide(
+                        color:
+                            isSelected
+                                ? AppTheme.primaryOrange
+                                : theme.dividerColor,
+                        width: 1,
+                      ),
+                    ),
                   ),
-                ),
-                selected: isSelected,
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedCategory = category;
-                  });
-                },
-                backgroundColor: theme.cardColor,
-                selectedColor: AppTheme.primaryOrange,
-                checkmarkColor: Colors.white,
-                shape: StadiumBorder(
-                  side: BorderSide(
-                    color: isSelected ? AppTheme.primaryOrange : theme.dividerColor,
-                    width: 1,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
+                );
+              }).toList(),
         ),
       );
     } else {
       // Version Desktop/Mobile - catégories verticales
-      return Container(
+      return SizedBox(
         width: isTV ? null : double.infinity,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: categories.map((category) {
-            final isSelected = category == _selectedCategory;
+          children:
+              categories.map((category) {
+                final isSelected = category == _selectedCategory;
 
-            return Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 8),
-              child: Material(
-                color: isSelected ? AppTheme.primaryOrange : theme.cardColor,
-                borderRadius: BorderRadius.circular(8),
-                child: InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedCategory = category;
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _getCategoryIcon(category),
-                          size: 20,
-                          color: isSelected ? Colors.white : AppTheme.primaryOrange,
+                return Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Material(
+                    color:
+                        isSelected ? AppTheme.primaryOrange : theme.cardColor,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      onTap: () {
+                        setState(() {
+                          _selectedCategory = category;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            category,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: isSelected ? Colors.white : theme.colorScheme.onSurface,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        child: Row(
+                          children: [
+                            Icon(
+                              _getCategoryIcon(category),
+                              size: 20,
+                              color:
+                                  isSelected
+                                      ? Colors.white
+                                      : AppTheme.primaryOrange,
                             ),
-                          ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                category,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color:
+                                      isSelected
+                                          ? Colors.white
+                                          : theme.colorScheme.onSurface,
+                                  fontWeight:
+                                      isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              Icon(Icons.check, size: 16, color: Colors.white),
+                          ],
                         ),
-                        if (isSelected)
-                          Icon(
-                            Icons.check,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ),
-            );
-          }).toList(),
+                );
+              }).toList(),
         ),
       );
     }

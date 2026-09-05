@@ -1,14 +1,16 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class NativeScreenRetainer {
-  static const MethodChannel _channel = 
-      MethodChannel('com.ekeflicks/native_screen');
+  static const MethodChannel _channel = MethodChannel(
+    'com.ekeflicks/native_screen',
+  );
 
   static Future<void> retainOn() async {
     try {
       await _channel.invokeMethod('retainOn');
     } on PlatformException catch (e) {
-      print("Failed to retain screen: ${e.message}");
+      debugPrint("Failed to retain screen: ${e.message}");
     }
   }
 
@@ -16,7 +18,7 @@ class NativeScreenRetainer {
     try {
       await _channel.invokeMethod('release');
     } on PlatformException catch (e) {
-      print("Failed to release screen: ${e.message}");
+      debugPrint("Failed to release screen: ${e.message}");
     }
   }
 }

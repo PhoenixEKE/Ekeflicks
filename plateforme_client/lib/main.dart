@@ -40,9 +40,7 @@ void main() async {
   // Openapi reads ApiConfig, including the API_ORIGIN build-time override.
   // Keeping the deployment URL out of this file prevents web builds from
   // silently sending authentication requests to a stale Apache host.
-  final openapi = Openapi(
-    basePathOverride: '${ApiConfig.origin}/api/v1/',
-  );
+  final openapi = Openapi(basePathOverride: '${ApiConfig.origin}/api/v1/');
 
   // Restore the HttpOnly-cookie session before rendering the application.
   final userProvider = UserProvider(openapi);
@@ -92,7 +90,10 @@ class _MyAppState extends State<MyApp> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+      final profileProvider = Provider.of<ProfileProvider>(
+        context,
+        listen: false,
+      );
 
       final isLoggedIn = userProvider.isLoggedIn;
       if (isLoggedIn) {
@@ -107,9 +108,11 @@ class _MyAppState extends State<MyApp> {
             }
           }
 
-          if (profileProvider.currentProfile == null && profileProvider.hasProfiles) {
+          if (profileProvider.currentProfile == null &&
+              profileProvider.hasProfiles) {
             await profileProvider.selectProfile(
-              profileProvider.mainProfile ?? profileProvider.availableProfiles.first,
+              profileProvider.mainProfile ??
+                  profileProvider.availableProfiles.first,
             );
           }
         } catch (e) {
@@ -147,20 +150,28 @@ class _MyAppState extends State<MyApp> {
     if (navigator == null || route == null) return;
 
     if (route == '/reset-password') {
-      navigator.push(MaterialPageRoute(
-        builder: (_) => ResetPasswordPage(token: uri.queryParameters['token']),
-      ));
-    } else if (route == '/reset-parental-pin') {
-      navigator.push(MaterialPageRoute(
-        builder: (_) => ResetParentalPinPage(
-          token: uri.queryParameters['token'],
-          profileId: uri.queryParameters['profile'],
+      navigator.push(
+        MaterialPageRoute(
+          builder:
+              (_) => ResetPasswordPage(token: uri.queryParameters['token']),
         ),
-      ));
+      );
+    } else if (route == '/reset-parental-pin') {
+      navigator.push(
+        MaterialPageRoute(
+          builder:
+              (_) => ResetParentalPinPage(
+                token: uri.queryParameters['token'],
+                profileId: uri.queryParameters['profile'],
+              ),
+        ),
+      );
     } else if (route == '/unsubscribe') {
-      navigator.push(MaterialPageRoute(
-        builder: (_) => UnsubscribePage(token: uri.queryParameters['token']),
-      ));
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => UnsubscribePage(token: uri.queryParameters['token']),
+        ),
+      );
     }
   }
 
@@ -197,7 +208,8 @@ class _MyAppState extends State<MyApp> {
       // the requested initial route so authentication bootstrapping cannot
       // replace a deep-link page.
       onGenerateInitialRoutes: (routeName) {
-        final builder = app_routes.getAppRoutes()[routeName] ??
+        final builder =
+            app_routes.getAppRoutes()[routeName] ??
             app_routes.getAppRoutes()['/']!;
         return [
           MaterialPageRoute(

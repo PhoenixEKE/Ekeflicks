@@ -9,7 +9,11 @@ class HomeFeed {
     required this.newReleases,
     required this.popular,
   });
-  final List<Content> featured, continueWatching, recommended, newReleases, popular;
+  final List<Content> featured,
+      continueWatching,
+      recommended,
+      newReleases,
+      popular;
 }
 
 /// Client for the authenticated catalogue and viewing APIs.
@@ -24,6 +28,7 @@ class ContentApiService {
       final match = rows.where((item) => item['key'] == key);
       return match.isEmpty ? const [] : _contents(match.first['items']);
     }
+
     return HomeFeed(
       featured: row('hero'),
       continueWatching: row('continue_watching'),
@@ -37,23 +42,24 @@ class ContentApiService {
       Content.fromJson(await _getMap('/contents/$id/', profileId: profileId));
 
   Future<List<Content>> search(String query, {String? profileId}) async =>
-      _contents((await _dio.get(
-        _url('/contents/search/'),
-        queryParameters: {'q': query},
-        options: _options(profileId),
-      )).data);
+      _contents(
+        (await _dio.get(
+          _url('/contents/search/'),
+          queryParameters: {'q': query},
+          options: _options(profileId),
+        )).data,
+      );
 
-  Future<List<Content>> favorites({String? profileId}) async =>
-      _nestedContents((await _dio.get(
-        _url('/favorites/'),
-        options: _options(profileId),
-      )).data);
+  Future<List<Content>> favorites({String? profileId}) async => _nestedContents(
+    (await _dio.get(_url('/favorites/'), options: _options(profileId))).data,
+  );
 
-  Future<List<Content>> history({String? profileId}) async =>
-      _nestedContents((await _dio.get(
-        _url('/watch-history/'),
-        options: _options(profileId),
-      )).data);
+  Future<List<Content>> history({String? profileId}) async => _nestedContents(
+    (await _dio.get(
+      _url('/watch-history/'),
+      options: _options(profileId),
+    )).data,
+  );
 
   Future<void> setFavorite(String id, bool value, {String? profileId}) async {
     if (value) {
@@ -79,11 +85,7 @@ class ContentApiService {
   Future<void> rate(String id, double rating, {String? profileId}) async {
     await _dio.post(
       _url('/ratings/'),
-      data: {
-        'content_id': id,
-        'profile_id': profileId,
-        'rating': rating,
-      },
+      data: {'content_id': id, 'profile_id': profileId, 'rating': rating},
       options: _options(profileId),
     );
   }
@@ -96,9 +98,10 @@ class ContentApiService {
     required String deviceId,
     String? profileId,
   }) async {
-    final progress = duration.inSeconds <= 0
-        ? 0
-        : position.inSeconds * 100 / duration.inSeconds;
+    final progress =
+        duration.inSeconds <= 0
+            ? 0
+            : position.inSeconds * 100 / duration.inSeconds;
     await _dio.post(
       _url('/watch-history/'),
       data: {
@@ -113,16 +116,22 @@ class ContentApiService {
     );
   }
 
-  Future<List<Content>> listContents(String listId, {String? profileId}) async =>
-      _nestedContents(
-        (await _dio.get(
-          _url('/lists/$listId/'),
-          options: _options(profileId),
-        )).data,
-        key: 'items',
-      );
+  Future<List<Content>> listContents(
+    String listId, {
+    String? profileId,
+  }) async => _nestedContents(
+    (await _dio.get(
+      _url('/lists/$listId/'),
+      options: _options(profileId),
+    )).data,
+    key: 'items',
+  );
 
-  Future<void> addToList(String listId, String contentId, {String? profileId}) async {
+  Future<void> addToList(
+    String listId,
+    String contentId, {
+    String? profileId,
+  }) async {
     await _dio.post(
       _url('/list-items/'),
       data: {'list_id': listId, 'content_id': contentId},
@@ -130,22 +139,19 @@ class ContentApiService {
     );
   }
 
-  Options _options(String? profileId) => Options(
-    headers: profileId == null ? null : {'X-Profile-Id': profileId},
-  );
+  Options _options(String? profileId) =>
+      Options(headers: profileId == null ? null : {'X-Profile-Id': profileId});
 
   Future<Map<String, dynamic>> _getMap(String path, {String? profileId}) async {
-    final response = await _dio.get(
-      _url(path),
-      options: _options(profileId),
-    );
+    final response = await _dio.get(_url(path), options: _options(profileId));
     return Map<String, dynamic>.from(response.data as Map);
   }
 
   List<Content> _contents(dynamic payload) {
-    final raw = payload is Map
-        ? (payload['results'] ?? payload['items'] ?? const [])
-        : payload;
+    final raw =
+        payload is Map
+            ? (payload['results'] ?? payload['items'] ?? const [])
+            : payload;
     return (raw as List? ?? const [])
         .whereType<Map>()
         .map((e) => Content.fromJson(Map<String, dynamic>.from(e)))
@@ -165,11 +171,11 @@ class ContentApiService {
         .toList();
   }
 
-  Future<List<Map<String, dynamic>>> _records(String path, String? profileId) async {
-    final response = await _dio.get(
-      _url(path),
-      options: _options(profileId),
-    );
+  Future<List<Map<String, dynamic>>> _records(
+    String path,
+    String? profileId,
+  ) async {
+    final response = await _dio.get(_url(path), options: _options(profileId));
     final data = response.data;
     final raw = data is Map ? (data['results'] ?? const []) : data;
     return (raw as List? ?? const [])

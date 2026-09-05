@@ -14,7 +14,6 @@ import 'package:app_ekeflicks/widgets/dialog/language_selector_dialog.dart';
 import 'package:app_ekeflicks/utils/keyboard_text_manager.dart';
 import 'package:app_ekeflicks/utils/keyboard_navigation_utils.dart';
 import 'package:app_ekeflicks/widgets/dialog/custom_error_dialog.dart';
-import 'package:app_ekeflicks/widgets/dialog/custom_language_dialog.dart';
 import 'package:app_ekeflicks/ui/users/post_login_page.dart';
 import 'package:app_ekeflicks/services/subscription_progress_service.dart';
 import 'package:app_ekeflicks/ui/subscription/subscription_step1_page.dart';
@@ -35,7 +34,6 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
   bool _obscurePassword = true;
   bool _isLoading = false;
   bool _showVirtualKeyboard = false;
-  TextEditingController? _focusedController;
 
   late KeyboardTextManager _emailManager;
   late KeyboardTextManager _passwordManager;
@@ -69,22 +67,14 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
     if (deviceInfo.isTV) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         FocusScope.of(context).requestFocus(_emailFocus);
-        _focusedController = _emailController;
         _emailManager.updateCursorPosition();
       });
     }
   }
 
-  KeyboardTextManager? get _currentManager {
-    if (_focusedController == _emailController) return _emailManager;
-    if (_focusedController == _passwordController) return _passwordManager;
-    return null;
-  }
-
   void _onEmailFocusChange() {
     if (_emailFocus.hasFocus) {
       setState(() {
-        _focusedController = _emailController;
         _emailManager.updateCursorPosition();
         _showVirtualKeyboard = true;
       });
@@ -94,7 +84,6 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
   void _onPasswordFocusChange() {
     if (_passwordFocus.hasFocus) {
       setState(() {
-        _focusedController = _passwordController;
         _passwordManager.updateCursorPosition();
         _showVirtualKeyboard = true;
       });
@@ -144,7 +133,10 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
 
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+      final profileProvider = Provider.of<ProfileProvider>(
+        context,
+        listen: false,
+      );
 
       // Tentative de connexion avec la nouvelle version
       final loginResult = await userProvider.login(
@@ -174,7 +166,8 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
   Future<void> _handleSuccessfulLogin(ProfileProvider profileProvider) async {
     try {
       final userProvider = context.read<UserProvider>();
-      final email = userProvider.currentUser?.email ?? _emailController.text.trim();
+      final email =
+          userProvider.currentUser?.email ?? _emailController.text.trim();
       // Le backend est la source de vérité.
       // Un abonnement actif doit toujours prendre la priorité sur une
       // progression locale d'abonnement devenue obsolète.
@@ -188,16 +181,16 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
               : await SubscriptionProgressService().load(email);
 
       if (subscriptionProgress != null && mounted) {
-        final destination = subscriptionProgress.step ==
-                SubscriptionStep.payment
-            ? SubscriptionStep2Page(
-                offerTitle: subscriptionProgress.offerTitle!,
-                offerPrice: subscriptionProgress.offerPrice!,
-                offerCurrency: subscriptionProgress.offerCurrency!,
-                planSlug: subscriptionProgress.offerPlanSlug!,
-                accountEmail: email,
-              )
-            : SubscriptionStep1Page(accountEmail: email);
+        final destination =
+            subscriptionProgress.step == SubscriptionStep.payment
+                ? SubscriptionStep2Page(
+                  offerTitle: subscriptionProgress.offerTitle!,
+                  offerPrice: subscriptionProgress.offerPrice!,
+                  offerCurrency: subscriptionProgress.offerCurrency!,
+                  planSlug: subscriptionProgress.offerPlanSlug!,
+                  accountEmail: email,
+                )
+                : SubscriptionStep1Page(accountEmail: email);
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => destination),
@@ -209,7 +202,9 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
       if (!userProvider.hasActiveSubscription && mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => SubscriptionStep1Page(accountEmail: email)),
+          MaterialPageRoute(
+            builder: (_) => SubscriptionStep1Page(accountEmail: email),
+          ),
           (route) => false,
         );
         return;
@@ -217,19 +212,28 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
 
       await profileProvider.loadProfiles();
 
+      if (!mounted) return;
+
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) =>
-          profileProvider.availableProfiles.length > 1
-            ? ProfileSelectionPage() // Sans const
-            : PostLoginPage() // Sans const
+        MaterialPageRoute(
+          builder:
+              (_) =>
+                  profileProvider.availableProfiles.length > 1
+                      ? ProfileSelectionPage() // Sans const
+                      : PostLoginPage(), // Sans const
         ),
         (route) => false,
       );
     } catch (e) {
+      if (!mounted) return;
+
+      final loc = AppLocalizations.of(context);
+
       CustomErrorDialog.show(
         context: context,
-        message: AppLocalizations.of(context)?.genericError ??
+        message:
+            loc?.genericError ??
             'Une erreur est survenue lors du chargement des profils.',
       );
     }
@@ -240,29 +244,25 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
     if (message.contains('network') || message.contains('SocketException')) {
       CustomErrorDialog.show(
         context: context,
-        message: AppLocalizations.of(context)?.networkError ??
+        message:
+            AppLocalizations.of(context)?.networkError ??
             'Erreur de connexion. Vérifiez votre accès internet',
       );
     } else if (message.contains('timeout')) {
       CustomErrorDialog.show(
         context: context,
-        message: AppLocalizations.of(context)?.timeoutError ??
+        message:
+            AppLocalizations.of(context)?.timeoutError ??
             'La connexion a expiré. Veuillez réessayer',
       );
     } else {
       CustomErrorDialog.show(
         context: context,
-        message: AppLocalizations.of(context)?.genericError ??
+        message:
+            AppLocalizations.of(context)?.genericError ??
             'Une erreur est survenue, veuillez réessayer plus tard.',
       );
     }
-  }
-
-  void _showErrorDialog(String message) {
-    CustomErrorDialog.show(
-      context: context,
-      message: message,
-    );
   }
 
   void _showLanguageDialog() {
@@ -274,16 +274,16 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
     );
   }
 
-  void _handleKeyboardInput(String text) => _currentManager?.insertText(text);
-  void _handleKeyboardBackspace() => _currentManager?.backspace();
-  void _handleKeyboardEnter() => _submit();
-
   void _toggleVirtualKeyboard() {
     setState(() {
       _showVirtualKeyboard = !_showVirtualKeyboard;
       if (!_showVirtualKeyboard) {
-        if (_emailFocus.hasFocus) FocusScope.of(context).requestFocus(_emailFocus);
-        if (_passwordFocus.hasFocus) FocusScope.of(context).requestFocus(_passwordFocus);
+        if (_emailFocus.hasFocus) {
+          FocusScope.of(context).requestFocus(_emailFocus);
+        }
+        if (_passwordFocus.hasFocus) {
+          FocusScope.of(context).requestFocus(_passwordFocus);
+        }
       } else {
         FocusScope.of(context).requestFocus(_keyboardFocus);
       }
@@ -360,8 +360,9 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
                   label: loc.motDePasse,
                   icon: Icons.lock_outline,
                   isPassword: true,
-                  onToggleVisibility: () =>
-                      setState(() => _obscurePassword = !_obscurePassword),
+                  onToggleVisibility:
+                      () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -377,8 +378,8 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () =>
-                      Navigator.pushNamed(context, '/forgot-password'),
+                  onPressed:
+                      () => Navigator.pushNamed(context, '/forgot-password'),
                   style: TextButton.styleFrom(
                     foregroundColor: theme.textTheme.bodyMedium?.color,
                   ),
@@ -392,15 +393,16 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
               ElevatedButton(
                 onPressed: _isLoading ? null : _submit,
                 style: AppTheme.lightTheme.elevatedButtonTheme.style,
-                child: _isLoading
-                    ? AppDecorations.loadingIndicator(context)
-                    : Text(
-                        loc.seConnecter,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                child:
+                    _isLoading
+                        ? AppDecorations.loadingIndicator(context)
+                        : Text(
+                          loc.seConnecter,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
               ),
               const SizedBox(height: 24),
               const Divider(),
@@ -446,9 +448,10 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
 
     return Scaffold(
       appBar: SimpleAppBar(
-        logoPath: theme.brightness == Brightness.dark
-            ? 'assets/images/logo_dark.png'
-            : 'assets/images/logo_light.png',
+        logoPath:
+            theme.brightness == Brightness.dark
+                ? 'assets/images/logo_dark.png'
+                : 'assets/images/logo_light.png',
         onLanguagePressed: deviceInfo.isTV ? _showLanguageDialog : null,
         languageFocusNode: deviceInfo.isTV ? _languageFocus : null,
       ),

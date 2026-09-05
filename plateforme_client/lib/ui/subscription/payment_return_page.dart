@@ -25,8 +25,7 @@ class _PaymentReturnPageState extends State<PaymentReturnPage> {
 
   String _message = 'Vérification de votre paiement...';
 
-  String get _status =>
-      Uri.base.queryParameters['status']?.toLowerCase() ?? '';
+  String get _status => Uri.base.queryParameters['status']?.toLowerCase() ?? '';
 
   @override
   void initState() {
@@ -120,8 +119,7 @@ class _PaymentReturnPageState extends State<PaymentReturnPage> {
         setState(() {
           _checking = false;
           _success = true;
-          _message =
-              'Paiement confirmé. Votre abonnement EKEFLICKS est actif.';
+          _message = 'Paiement confirmé. Votre abonnement EKEFLICKS est actif.';
         });
 
         //
@@ -134,9 +132,11 @@ class _PaymentReturnPageState extends State<PaymentReturnPage> {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (_) => profileProvider.availableProfiles.length > 1
-                ? const ProfileSelectionPage()
-                : const PostLoginPage(),
+            builder:
+                (_) =>
+                    profileProvider.availableProfiles.length > 1
+                        ? const ProfileSelectionPage()
+                        : const PostLoginPage(),
           ),
           (route) => false,
         );
@@ -172,9 +172,7 @@ class _PaymentReturnPageState extends State<PaymentReturnPage> {
   void _goToSubscriptions() {
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(
-        builder: (_) => const SubscriptionStep1Page(),
-      ),
+      MaterialPageRoute(builder: (_) => const SubscriptionStep1Page()),
       (route) => false,
     );
   }
@@ -182,22 +180,21 @@ class _PaymentReturnPageState extends State<PaymentReturnPage> {
   void _goToLogin() {
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(
-        builder: (_) => const LoginPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const LoginPage()),
       (route) => false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final icon = _checking
-        ? null
-        : _success
+    final icon =
+        _checking
+            ? null
+            : _success
             ? Icons.check_circle
             : _cancelled
-                ? Icons.info
-                : Icons.error;
+            ? Icons.info
+            : Icons.error;
 
     return Scaffold(
       body: Center(
@@ -211,25 +208,19 @@ class _PaymentReturnPageState extends State<PaymentReturnPage> {
                 if (_checking)
                   const CircularProgressIndicator()
                 else if (icon != null)
-                  Icon(
-                    icon,
-                    size: 72,
-                  ),
+                  Icon(icon, size: 72),
                 const SizedBox(height: 24),
                 Text(
                   _success
                       ? 'Paiement réussi'
                       : _cancelled
-                          ? 'Paiement annulé'
-                          : 'Paiement échoué',
+                      ? 'Paiement annulé'
+                      : 'Paiement échoué',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  _message,
-                  textAlign: TextAlign.center,
-                ),
+                Text(_message, textAlign: TextAlign.center),
                 if (!_checking) ...[
                   const SizedBox(height: 28),
 

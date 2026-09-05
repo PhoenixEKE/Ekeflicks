@@ -39,18 +39,18 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
       try {
         // Activer l'abonnement gratuit avec le slug du plan
         await userProvider.activateFreeSubscription(offer.planSlug);
-        
+
         // Marquer l'étape comme complétée
         if (email != null) {
           await SubscriptionProgressService().complete(email);
         }
-        
+
         if (!mounted) return;
-        
+
         // Recharger les profils
         await context.read<ProfileProvider>().loadProfiles();
         if (!mounted) return;
-        
+
         // Rediriger vers la sélection des profils
         Navigator.pushAndRemoveUntil(
           context,
@@ -62,7 +62,7 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Erreur lors de l\'activation: ${error.toString().replaceFirst('Bad state: ', '')}'
+              'Erreur lors de l\'activation: ${error.toString().replaceFirst('Bad state: ', '')}',
             ),
             backgroundColor: Colors.red,
           ),
@@ -79,7 +79,7 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
         email: email,
         offerTitle: offer.title,
         offerPrice: offer.price ?? '',
-          offerCurrency: offer.currency,
+        offerCurrency: offer.currency,
         offerPlanSlug: offer.planSlug,
       );
     }
@@ -87,13 +87,14 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => SubscriptionStep2Page(
-          offerTitle: offer.title,
-          offerPrice: offer.price ?? '',
-            offerCurrency: offer.currency,
-          planSlug: offer.planSlug,
-          accountEmail: email,
-        ),
+        builder:
+            (context) => SubscriptionStep2Page(
+              offerTitle: offer.title,
+              offerPrice: offer.price ?? '',
+              offerCurrency: offer.currency,
+              planSlug: offer.planSlug,
+              accountEmail: email,
+            ),
       ),
     );
   }
@@ -103,34 +104,36 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
-    final logoPath = isDarkMode
-        ? 'assets/images/logo_dark.png'
-        : 'assets/images/logo_light.png';
+    final logoPath =
+        isDarkMode
+            ? 'assets/images/logo_dark.png'
+            : 'assets/images/logo_light.png';
 
-    return WillPopScope(
-      onWillPop: () async => false,
+    return PopScope(
+      canPop: false,
       child: Scaffold(
         body: Container(
           decoration: BoxDecoration(
-            gradient: isDarkMode
-                ? LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.grey.shade900,
-                      Colors.black,
-                      Colors.grey.shade900,
-                    ],
-                  )
-                : LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.grey.shade100,
-                      Colors.white,
-                      Colors.grey.shade100,
-                    ],
-                  ),
+            gradient:
+                isDarkMode
+                    ? LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.grey.shade900,
+                        Colors.black,
+                        Colors.grey.shade900,
+                      ],
+                    )
+                    : LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.grey.shade100,
+                        Colors.white,
+                        Colors.grey.shade100,
+                      ],
+                    ),
           ),
           child: Center(
             child: Container(
@@ -141,9 +144,10 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: isDarkMode
-                        ? Colors.black.withOpacity(0.8)
-                        : Colors.grey.withOpacity(0.3),
+                    color:
+                        isDarkMode
+                            ? Colors.black.withValues(alpha: 0.8)
+                            : Colors.grey.withValues(alpha: 0.3),
                     blurRadius: 15,
                     spreadRadius: 5,
                     offset: const Offset(0, 5),
@@ -157,11 +161,7 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
                   children: [
                     const SizedBox(height: 40),
 
-                    Image.asset(
-                      logoPath,
-                      height: 60,
-                      fit: BoxFit.contain,
-                    ),
+                    Image.asset(logoPath, height: 60, fit: BoxFit.contain),
 
                     const SizedBox(height: 30),
                     Padding(
@@ -206,31 +206,45 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
                             width: double.infinity,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                              onPressed: _selectedOffer == null || _isSubmitting
-                                  ? null
-                                  : _continueSubscription,
+                              onPressed:
+                                  _selectedOffer == null || _isSubmitting
+                                      ? null
+                                      : _continueSubscription,
                               child: Text(
                                 _selectedOffer?.isFree == true
-                                    ? (_isSubmitting ? 'Activation...' : 'Activer l\'essai gratuit')
-                                    : (_isSubmitting ? 'Chargement...' : loc.suivant),
+                                    ? (_isSubmitting
+                                        ? 'Activation...'
+                                        : 'Activer l\'essai gratuit')
+                                    : (_isSubmitting
+                                        ? 'Chargement...'
+                                        : loc.suivant),
                                 style: const TextStyle(fontSize: 16),
                               ),
                             ),
                           ),
                           // Message informatif pour l'offre gratuite
-                          if (_selectedOffer?.isFree == true && !_isSubmitting) ...[
+                          if (_selectedOffer?.isFree == true &&
+                              !_isSubmitting) ...[
                             const SizedBox(height: 12),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
+                                color: Colors.green.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.green, width: 1),
+                                border: Border.all(
+                                  color: Colors.green,
+                                  width: 1,
+                                ),
                               ),
                               child: Text(
                                 '🔓 Aucun paiement requis - Profitez de 30 jours gratuits !',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_producteurs/widgets/producer_page_shell.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PrivacyPolicyPage extends StatelessWidget {
@@ -48,9 +49,10 @@ class PrivacyPolicyPage extends StatelessWidget {
       messenger.showSnackBar(SnackBar(content: Text(l10n.emailLaunchError)));
     }
 
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.privacyPolicy)),
-      body: SingleChildScrollView(
+    return ProducerPageShell(
+      showBack: true,
+      maxWidth: 1100,
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppTheme.paddingLarge),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

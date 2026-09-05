@@ -4,7 +4,6 @@ import 'package:app_ekeflicks/widgets/dialog/home_menu_dialog.dart';
 import 'base_app_bar.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:provider/provider.dart';
-import 'package:app_ekeflicks/providers/locale_provider.dart';
 import 'package:app_ekeflicks/providers/theme_provider.dart';
 import 'package:app_ekeflicks/widgets/dialog/custom_language_dialog.dart';
 import 'package:app_ekeflicks/widgets/dialog/language_selector_dialog.dart';
@@ -13,10 +12,7 @@ import 'package:app_ekeflicks/widgets/dialog/language_selector_dialog.dart';
 class CustomAppBar extends BaseAppBar {
   final VoidCallback? onLanguageChanged;
 
-  const CustomAppBar({
-    super.key,
-    this.onLanguageChanged,
-  });
+  const CustomAppBar({super.key, this.onLanguageChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +39,7 @@ class CustomAppBar extends BaseAppBar {
     );
   }
 
+  @override
   bool isMobile(BuildContext context) =>
       MediaQuery.of(context).size.width < 900; // seuil responsive
 }
@@ -76,9 +73,13 @@ class _FaqButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     return IconButton(
-      icon: Icon(Icons.help_outline, color: Theme.of(context).iconTheme.color), // 🔄 Icône changée
+      icon: Icon(
+        Icons.help_outline,
+        color: Theme.of(context).iconTheme.color,
+      ), // 🔄 Icône changée
       tooltip: loc.faq, // 🔄 Tooltip changé
-      onPressed: () => Navigator.of(context).pushNamed('/faq'), // 🔄 Route changée
+      onPressed:
+          () => Navigator.of(context).pushNamed('/faq'), // 🔄 Route changée
     );
   }
 }
@@ -105,7 +106,7 @@ class _LanguageSelector extends StatelessWidget {
       languageSelector: const LanguageSelectorDialog(),
       title: AppLocalizations.of(context)?.selectLanguage,
     );
-    
+
     // Le callback onLanguageChanged sera géré par le LanguageSelectorDialog lui-même
     // lorsqu'une langue est sélectionnée
   }
@@ -154,13 +155,11 @@ class _AuthActions extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
             ),
-            child: Text(
-              loc.connexion,
-              style: theme.textTheme.labelLarge,
-            ),
+            child: Text(loc.connexion, style: theme.textTheme.labelLarge),
           ),
           IconButton(
-            icon: Icon(Icons.more_vert, 
+            icon: Icon(
+              Icons.more_vert,
               size: 20,
               color: Theme.of(context).iconTheme.color,
             ),
@@ -176,8 +175,8 @@ class _AuthActions extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: () => Navigator.of(context).pushNamed('/signup'),
             icon: Icon(
-              Icons.person_add, 
-              size: 18, 
+              Icons.person_add,
+              size: 18,
               color: isDark ? Colors.white70 : theme.colorScheme.secondary,
             ),
             label: Text(
@@ -187,7 +186,8 @@ class _AuthActions extends StatelessWidget {
               ),
             ),
             style: OutlinedButton.styleFrom(
-              foregroundColor: isDark ? Colors.white70 : theme.colorScheme.secondary,
+              foregroundColor:
+                  isDark ? Colors.white70 : theme.colorScheme.secondary,
               side: BorderSide(
                 color: isDark ? Colors.white70 : theme.colorScheme.secondary,
                 width: 1.5,

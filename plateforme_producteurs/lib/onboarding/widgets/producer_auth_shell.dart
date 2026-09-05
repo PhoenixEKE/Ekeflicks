@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:plateforme_producteurs/widgets/producer_page_shell.dart';
 
 class ProducerAuthShell extends StatelessWidget {
   const ProducerAuthShell({
@@ -15,103 +15,12 @@ class ProducerAuthShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.topCenter,
-            radius: 1.5,
-            colors: [Color(0xFF121212), Color(0xFF1E1E1E), Color(0xFF2D2D2D)],
-          ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final horizontalPadding = constraints.maxWidth >= 900
-                  ? 32.0
-                  : 16.0;
-
-              return SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPadding,
-                  14,
-                  horizontalPadding,
-                  24,
-                ),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: maxWidth),
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          height: 64,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Image.asset(
-                                'assets/images/logo_dark.png',
-                                height: 52,
-                                fit: BoxFit.contain,
-                              ),
-                              if (showFaqButton)
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Tooltip(
-                                    message: 'Questions fréquentes',
-                                    child: Material(
-                                      color: const Color(
-                                        0xFF242424,
-                                      ).withValues(alpha: 0.95),
-                                      borderRadius: BorderRadius.circular(50),
-                                      child: IconButton(
-                                        onPressed: () => context.push('/faq'),
-                                        icon: const Icon(
-                                          Icons.help_outline,
-                                          color: Color(0xFFF67F00),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.all(
-                            constraints.maxWidth >= 900 ? 24 : 18,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF242424,
-                            ).withValues(alpha: 0.94),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.08),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                blurRadius: 28,
-                                offset: const Offset(0, 14),
-                                color: Colors.black.withValues(alpha: 0.24),
-                              ),
-                            ],
-                          ),
-                          child: child,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
+    return ProducerPageShell(
+      maxWidth: maxWidth,
+      showFaq: showFaqButton,
+      scrollable: true,
+      contentDecoration: true,
+      child: child,
     );
   }
 }

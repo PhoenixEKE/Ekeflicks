@@ -33,7 +33,10 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
 
     // Charger les avatars au démarrage
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final avatarProvider = Provider.of<AvatarProvider>(context, listen: false);
+      final avatarProvider = Provider.of<AvatarProvider>(
+        context,
+        listen: false,
+      );
       final userProvider = Provider.of<UserProvider>(context, listen: false);
 
       if (!avatarProvider.isLoading && avatarProvider.avatars.isEmpty) {
@@ -43,7 +46,7 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
       // Initialiser le focus sur l'avatar sélectionné
       if (widget.selectedAvatar != null && avatarProvider.avatars.isNotEmpty) {
         final idx = avatarProvider.avatars.indexWhere(
-          (avatar) => avatar['url'] == widget.selectedAvatar
+          (avatar) => avatar['url'] == widget.selectedAvatar,
         );
         if (idx >= 0) {
           setState(() {
@@ -67,9 +70,12 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
   }
 
   /// Gestion navigation TV
-  void _onKey(RawKeyEvent event) {
-    if (event is RawKeyDownEvent) {
-      final avatarProvider = Provider.of<AvatarProvider>(context, listen: false);
+  void _onKey(KeyEvent event) {
+    if (event is KeyDownEvent) {
+      final avatarProvider = Provider.of<AvatarProvider>(
+        context,
+        listen: false,
+      );
 
       setState(() {
         switch (event.logicalKey) {
@@ -79,7 +85,8 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
             }
             break;
           case LogicalKeyboardKey.arrowDown:
-            if (_focusedIndex + _crossAxisCount < avatarProvider.avatars.length) {
+            if (_focusedIndex + _crossAxisCount <
+                avatarProvider.avatars.length) {
               _focusedIndex += _crossAxisCount;
             }
             break;
@@ -110,13 +117,13 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
 
     if (index >= 0 && index < avatarProvider.avatars.length) {
       final avatarUrl = avatarProvider.avatars[index]['url']!;
-      print('🟢 Avatar sélectionné: index=$index, url=$avatarUrl');
+      debugPrint('🟢 Avatar sélectionné: index=$index, url=$avatarUrl');
 
       // Appeler le callback avec l'URL sélectionnée
       widget.onAvatarSelected(avatarUrl);
     } else {
       // Si index invalide, fermer sans retourner de valeur
-      print('🔴 Index invalide: $index');
+      debugPrint('🔴 Index invalide: $index');
       Navigator.of(context).pop();
     }
   }
@@ -128,7 +135,8 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
     final theme = Theme.of(context);
 
     return Dialog(
-      backgroundColor: theme.dialogBackgroundColor,
+      backgroundColor:
+          theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       ),
@@ -155,9 +163,7 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      CircularProgressIndicator(
-                        color: AppTheme.primaryOrange,
-                      ),
+                      CircularProgressIndicator(color: AppTheme.primaryOrange),
                       const SizedBox(height: 16),
                       Text(
                         'Chargement des avatars...',
@@ -173,11 +179,7 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.error_outline,
-                        color: Colors.red,
-                        size: 48,
-                      ),
+                      Icon(Icons.error_outline, color: Colors.red, size: 48),
                       const SizedBox(height: 16),
                       Text(
                         'Erreur de chargement',
@@ -221,7 +223,9 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
                       Icon(
                         Icons.people_outline,
                         size: 48,
-                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -234,23 +238,29 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
               )
             else
               Expanded(
-                child: deviceInfo.isTV
-                    ? RawKeyboardListener(
-                        focusNode: _focusNode,
-                        onKey: _onKey,
-                        child: _buildAvatarGrid(deviceInfo.isTV, avatarProvider.avatars),
-                      )
-                    : _buildAvatarGrid(false, avatarProvider.avatars),
+                child:
+                    deviceInfo.isTV
+                        ? KeyboardListener(
+                          focusNode: _focusNode,
+                          onKeyEvent: _onKey,
+                          child: _buildAvatarGrid(
+                            deviceInfo.isTV,
+                            avatarProvider.avatars,
+                          ),
+                        )
+                        : _buildAvatarGrid(false, avatarProvider.avatars),
               ),
 
             const SizedBox(height: 16),
-            if (!deviceInfo.isTV && !avatarProvider.isLoading && avatarProvider.error == null)
+            if (!deviceInfo.isTV &&
+                !avatarProvider.isLoading &&
+                avatarProvider.error == null)
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text(
                   'Annuler',
                   style: TextStyle(
-                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
               ),
@@ -292,23 +302,27 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
                   duration: const Duration(milliseconds: 180),
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: isFocused || isHovered
-                          ? AppTheme.primaryOrange
-                          : (isSelected
+                      color:
+                          isFocused || isHovered
                               ? AppTheme.primaryOrange
-                              : Colors.transparent),
+                              : (isSelected
+                                  ? AppTheme.primaryOrange
+                                  : Colors.transparent),
                       width: isFocused || isSelected ? 3 : 1,
                     ),
                     borderRadius: BorderRadius.circular(60),
-                    boxShadow: isFocused || isHovered
-                        ? [
-                            BoxShadow(
-                              color: AppTheme.primaryOrange.withOpacity(0.5),
-                              blurRadius: 12,
-                              spreadRadius: 2,
-                            ),
-                          ]
-                        : null,
+                    boxShadow:
+                        isFocused || isHovered
+                            ? [
+                              BoxShadow(
+                                color: AppTheme.primaryOrange.withValues(
+                                  alpha: 0.5,
+                                ),
+                                blurRadius: 12,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                            : null,
                   ),
                   child: ClipOval(
                     child: Stack(
@@ -326,10 +340,13 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
                               color: Colors.grey[300],
                               child: Center(
                                 child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
-                                      : null,
+                                  value:
+                                      loadingProgress.expectedTotalBytes != null
+                                          ? loadingProgress
+                                                  .cumulativeBytesLoaded /
+                                              loadingProgress
+                                                  .expectedTotalBytes!
+                                          : null,
                                 ),
                               ),
                             );
@@ -349,7 +366,7 @@ class _AvatarSelectorDialogState extends State<AvatarSelectorDialog> {
                         ),
                         if (isSelected)
                           Container(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             child: Center(
                               child: Icon(
                                 Icons.check_circle,

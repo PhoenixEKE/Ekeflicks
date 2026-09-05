@@ -16,6 +16,8 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # Client API généré : ne pas corriger manuellement.
+    - lib/src/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

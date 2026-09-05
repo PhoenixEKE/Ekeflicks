@@ -80,6 +80,8 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
       try {
         await provider.loadProfiles();
       } catch (e) {
+        if (!mounted) return;
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erreur lors du chargement des profils: $e'),
@@ -95,12 +97,16 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
 
   void _initializeFocusNodes() {
     final profiles = context.read<ProfileProvider>().availableProfiles;
-    _profileFocusNodes =
-        List.generate(profiles.length, (index) => FocusNode(debugLabel: "Profile $index"));
+    _profileFocusNodes = List.generate(
+      profiles.length,
+      (index) => FocusNode(debugLabel: "Profile $index"),
+    );
 
     final deviceInfo = context.read<DeviceInfoProvider>();
     if (deviceInfo.isTV) {
-      for (var node in _profileFocusNodes) node.skipTraversal = false;
+      for (var node in _profileFocusNodes) {
+        node.skipTraversal = false;
+      }
       _addProfileFocusNode.skipTraversal = false;
       _languageFocusNode.skipTraversal = false;
     }
@@ -115,7 +121,9 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
 
   @override
   void dispose() {
-    for (var node in _profileFocusNodes) node.dispose();
+    for (var node in _profileFocusNodes) {
+      node.dispose();
+    }
     _addProfileFocusNode.dispose();
     _languageFocusNode.dispose();
     _scrollController.dispose();
@@ -125,18 +133,17 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
 
   Future<void> _handleProfileSelect(Profile profile) async {
     // Vérifier l'accès au profil (PIN parental si nécessaire)
-    if (!await ProfileAccessService.canOpen(context, profile) || !mounted) return;
-    
+    if (!await ProfileAccessService.canOpen(context, profile) || !mounted) {
+      return;
+    }
+
     context.read<ProfileProvider>().selectProfile(profile);
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const PostLoginPage(),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: child,
-          );
+        pageBuilder: (_, _, _) => const PostLoginPage(),
+        transitionsBuilder: (_, animation, _, child) {
+          return FadeTransition(opacity: animation, child: child);
         },
       ),
     );
@@ -146,12 +153,9 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => ProfileDetailPage(profile: profile),
-        transitionsBuilder: (_, animation, __, child) {
-          return ScaleTransition(
-            scale: animation,
-            child: child,
-          );
+        pageBuilder: (_, _, _) => ProfileDetailPage(profile: profile),
+        transitionsBuilder: (_, animation, _, child) {
+          return ScaleTransition(scale: animation, child: child);
         },
       ),
     ).then((_) => _initializeFocusNodes());
@@ -161,8 +165,8 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const CreateProfilePage(),
-        transitionsBuilder: (_, animation, __, child) {
+        pageBuilder: (_, _, _) => const CreateProfilePage(),
+        transitionsBuilder: (_, animation, _, child) {
           return SlideTransition(
             position: Tween<Offset>(
               begin: const Offset(0.0, 1.0),
@@ -187,7 +191,10 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     if (profileProvider.availableProfiles.length <= 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(loc?.impossibleSupprimerDernierProfil ?? 'Impossible de supprimer le dernier profil'),
+          content: Text(
+            loc?.impossibleSupprimerDernierProfil ??
+                'Impossible de supprimer le dernier profil',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -223,21 +230,33 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     if (confirm == true) {
       try {
         await profileProvider.deleteProfile(profile.id!);
+
+        if (!mounted) return;
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${loc?.profilSupprime ?? 'Profil supprimé'} : ${profile.name}'),
+            content: Text(
+              '${loc?.profilSupprime ?? 'Profil supprimé'} : ${profile.name}',
+            ),
             backgroundColor: Colors.green,
           ),
         );
 
         // Recharger les profils et mettre à jour l'interface
         await _loadProfiles();
+
+        if (!mounted) return;
+
         _initializeFocusNodes();
         setState(() {});
       } catch (e) {
+        if (!mounted) return;
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${loc?.erreurSuppressionProfil ?? 'Erreur lors de la suppression'} : $e'),
+            content: Text(
+              '${loc?.erreurSuppressionProfil ?? 'Erreur lors de la suppression'} : $e',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -263,11 +282,14 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     if (deviceInfo.isTV || _isDesktop) {
       shortcuts.addAll({
         LogicalKeySet(LogicalKeyboardKey.arrowRight): const NextFocusIntent(),
-        LogicalKeySet(LogicalKeyboardKey.arrowLeft): const PreviousFocusIntent(),
-        LogicalKeySet(LogicalKeyboardKey.arrowDown):
-            const DirectionalFocusIntent(TraversalDirection.down),
-        LogicalKeySet(LogicalKeyboardKey.arrowUp):
-            const DirectionalFocusIntent(TraversalDirection.up),
+        LogicalKeySet(LogicalKeyboardKey.arrowLeft):
+            const PreviousFocusIntent(),
+        LogicalKeySet(
+          LogicalKeyboardKey.arrowDown,
+        ): const DirectionalFocusIntent(TraversalDirection.down),
+        LogicalKeySet(LogicalKeyboardKey.arrowUp): const DirectionalFocusIntent(
+          TraversalDirection.up,
+        ),
       });
     }
 
@@ -276,7 +298,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
         LogicalKeySet(LogicalKeyboardKey.tab): const NextFocusIntent(),
         LogicalKeySet(LogicalKeyboardKey.shift, LogicalKeyboardKey.tab):
             const PreviousFocusIntent(),
-     });
+      });
     }
 
     return shortcuts;
@@ -284,69 +306,89 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
 
   Map<Type, Action<Intent>> _getPlatformActions() {
     return {
-      NextFocusIntent: CallbackAction<NextFocusIntent>(onInvoke: (_) {
-        final profiles = context.read<ProfileProvider>().availableProfiles;
-        final total = profiles.length + 1;
-        _currentIndex = (_currentIndex + 1) % total;
+      NextFocusIntent: CallbackAction<NextFocusIntent>(
+        onInvoke: (_) {
+          final profiles = context.read<ProfileProvider>().availableProfiles;
+          final total = profiles.length + 1;
+          _currentIndex = (_currentIndex + 1) % total;
 
-        if (_currentIndex < profiles.length) {
-          FocusScope.of(context).requestFocus(_profileFocusNodes[_currentIndex]);
-          _scrollToItem(_currentIndex);
-        } else {
-          FocusScope.of(context).requestFocus(_addProfileFocusNode);
-          _scrollToEnd();
-        }
-        return null;
-      }),
-      PreviousFocusIntent: CallbackAction<PreviousFocusIntent>(onInvoke: (_) {
-        final profiles = context.read<ProfileProvider>().availableProfiles;
-        final total = profiles.length + 1;
-        _currentIndex = (_currentIndex - 1 + total) % total;
-
-        if (_currentIndex < profiles.length) {
-          FocusScope.of(context).requestFocus(_profileFocusNodes[_currentIndex]);
-          _scrollToItem(_currentIndex);
-        } else {
-          FocusScope.of(context).requestFocus(_addProfileFocusNode);
-          _scrollToEnd();
-        }
-        return null;
-      }),
-      DirectionalFocusIntent: CallbackAction<DirectionalFocusIntent>(onInvoke: (intent) {
-        final profiles = context.read<ProfileProvider>().availableProfiles;
-        final crossAxisCount = _getCrossAxisCount(MediaQuery.of(context).size.width);
-
-        if (intent.direction == TraversalDirection.down) {
-          if (_currentIndex + crossAxisCount < profiles.length) {
-            _currentIndex += crossAxisCount;
-            FocusScope.of(context).requestFocus(_profileFocusNodes[_currentIndex]);
+          if (_currentIndex < profiles.length) {
+            FocusScope.of(
+              context,
+            ).requestFocus(_profileFocusNodes[_currentIndex]);
             _scrollToItem(_currentIndex);
+          } else {
+            FocusScope.of(context).requestFocus(_addProfileFocusNode);
+            _scrollToEnd();
           }
-        } else if (intent.direction == TraversalDirection.up) {
-          if (_currentIndex - crossAxisCount >= 0) {
-            _currentIndex -= crossAxisCount;
-            FocusScope.of(context).requestFocus(_profileFocusNodes[_currentIndex]);
+          return null;
+        },
+      ),
+      PreviousFocusIntent: CallbackAction<PreviousFocusIntent>(
+        onInvoke: (_) {
+          final profiles = context.read<ProfileProvider>().availableProfiles;
+          final total = profiles.length + 1;
+          _currentIndex = (_currentIndex - 1 + total) % total;
+
+          if (_currentIndex < profiles.length) {
+            FocusScope.of(
+              context,
+            ).requestFocus(_profileFocusNodes[_currentIndex]);
             _scrollToItem(_currentIndex);
+          } else {
+            FocusScope.of(context).requestFocus(_addProfileFocusNode);
+            _scrollToEnd();
           }
-        }
-        return null;
-      }),
-      ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) {
-        final profiles = context.read<ProfileProvider>().availableProfiles;
+          return null;
+        },
+      ),
+      DirectionalFocusIntent: CallbackAction<DirectionalFocusIntent>(
+        onInvoke: (intent) {
+          final profiles = context.read<ProfileProvider>().availableProfiles;
+          final crossAxisCount = _getCrossAxisCount(
+            MediaQuery.of(context).size.width,
+          );
 
-        for (int i = 0; i < _profileFocusNodes.length; i++) {
-          if (_profileFocusNodes[i].hasFocus) _handleProfileSelect(profiles[i]);
-        }
-        if (_addProfileFocusNode.hasFocus) _handleAddProfile();
-        if (_languageFocusNode.hasFocus) _handleLanguageChange();
+          if (intent.direction == TraversalDirection.down) {
+            if (_currentIndex + crossAxisCount < profiles.length) {
+              _currentIndex += crossAxisCount;
+              FocusScope.of(
+                context,
+              ).requestFocus(_profileFocusNodes[_currentIndex]);
+              _scrollToItem(_currentIndex);
+            }
+          } else if (intent.direction == TraversalDirection.up) {
+            if (_currentIndex - crossAxisCount >= 0) {
+              _currentIndex -= crossAxisCount;
+              FocusScope.of(
+                context,
+              ).requestFocus(_profileFocusNodes[_currentIndex]);
+              _scrollToItem(_currentIndex);
+            }
+          }
+          return null;
+        },
+      ),
+      ActivateIntent: CallbackAction<ActivateIntent>(
+        onInvoke: (_) {
+          final profiles = context.read<ProfileProvider>().availableProfiles;
 
-        final keysPressed = RawKeyboard.instance.keysPressed;
-        if (keysPressed.contains(LogicalKeyboardKey.escape) ||
-            keysPressed.contains(LogicalKeyboardKey.goBack)) {
-          _handleBack();
-        }
-        return null;
-      }),
+          for (int i = 0; i < _profileFocusNodes.length; i++) {
+            if (_profileFocusNodes[i].hasFocus) {
+              _handleProfileSelect(profiles[i]);
+            }
+          }
+          if (_addProfileFocusNode.hasFocus) _handleAddProfile();
+          if (_languageFocusNode.hasFocus) _handleLanguageChange();
+
+          final keysPressed = HardwareKeyboard.instance.logicalKeysPressed;
+          if (keysPressed.contains(LogicalKeyboardKey.escape) ||
+              keysPressed.contains(LogicalKeyboardKey.goBack)) {
+            _handleBack();
+          }
+          return null;
+        },
+      ),
     };
   }
 
@@ -354,7 +396,9 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     final deviceInfo = context.read<DeviceInfoProvider>();
     if (!deviceInfo.isTV && !_isDesktop) return;
 
-    final crossAxisCount = _getCrossAxisCount(MediaQuery.of(context).size.width);
+    final crossAxisCount = _getCrossAxisCount(
+      MediaQuery.of(context).size.width,
+    );
     final row = index ~/ crossAxisCount;
     const itemHeight = 220.0;
     final scrollPosition = row * itemHeight;
@@ -432,46 +476,48 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     required Profile profile,
   }) {
     final resolvedAvatarUrl = avatarUrl ?? '';
-    final hasRemoteAvatar = resolvedAvatarUrl.isNotEmpty &&
+    final hasRemoteAvatar =
+        resolvedAvatarUrl.isNotEmpty &&
         !resolvedAvatarUrl.contains('/avatars/default-adult.png') &&
         !resolvedAvatarUrl.contains('/avatars/default-child.png');
-    final defaultAvatar = profile.type?.name == 'child'
-        ? 'assets/avatars/child.png'
-        : 'assets/avatars/adult.png';
+    final defaultAvatar =
+        profile.type?.name == 'child'
+            ? 'assets/avatars/child.png'
+            : 'assets/avatars/adult.png';
 
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: profileColor,
-          width: 2,
-        ),
-        boxShadow: isFocused || isHovered
-            ? [
-                BoxShadow(
-                  color: profileColor.withOpacity(0.4),
-                  blurRadius: 10,
-                  spreadRadius: 2,
-                )
-              ]
-            : null,
+        border: Border.all(color: profileColor, width: 2),
+        boxShadow:
+            isFocused || isHovered
+                ? [
+                  BoxShadow(
+                    color: profileColor.withValues(alpha: 0.4),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ]
+                : null,
       ),
       child: CircleAvatar(
         radius: isSmallScreen ? 30 : 40,
-        backgroundColor: profileColor.withOpacity(0.1),
-        backgroundImage: hasRemoteAvatar
-            ? NetworkImage(resolvedAvatarUrl)
-            : AssetImage(defaultAvatar),
-        onBackgroundImageError: hasRemoteAvatar
-            ? (exception, stackTrace) {
-                debugPrint('Erreur de chargement de l\'avatar: $exception');
-              }
-            : null,
+        backgroundColor: profileColor.withValues(alpha: 0.1),
+        backgroundImage:
+            hasRemoteAvatar
+                ? NetworkImage(resolvedAvatarUrl)
+                : AssetImage(defaultAvatar),
+        onBackgroundImageError:
+            hasRemoteAvatar
+                ? (exception, stackTrace) {
+                  debugPrint('Erreur de chargement de l\'avatar: $exception');
+                }
+                : null,
       ),
     );
   }
 
-  Widget _ProfileCard({
+  Widget _profileCard({
     required Profile profile,
     required FocusNode focusNode,
     required bool isCurrent,
@@ -489,14 +535,15 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     final isHovered = _hoverStates[index] ?? false;
     final profileProvider = context.read<ProfileProvider>();
     // Un seul canDelete pour vérifier si le profil peut être supprimé
-    final canDelete = profileProvider.availableProfiles.length > 1 &&
-                      profile.name != 'Ajouter' &&
-                      profile.type?.toString().split('.').last.toLowerCase() != 'main';
+    final canDelete =
+        profileProvider.availableProfiles.length > 1 &&
+        profile.name != 'Ajouter' &&
+        profile.type?.toString().split('.').last.toLowerCase() != 'main';
 
     return Focus(
       focusNode: focusNode,
-      onKey: (node, event) {
-        if (event is RawKeyDownEvent &&
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.enter ||
                 event.logicalKey == LogicalKeyboardKey.select)) {
           onSelect();
@@ -519,12 +566,18 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutBack,
               child: Card(
-                elevation: isFocused ? 16 : isCurrent ? 8 : 4,
+                elevation:
+                    isFocused
+                        ? 16
+                        : isCurrent
+                        ? 8
+                        : 4,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
-                  side: isCurrent
-                      ? BorderSide(color: AppTheme.primaryOrange, width: 3)
-                      : BorderSide.none,
+                  side:
+                      isCurrent
+                          ? BorderSide(color: AppTheme.primaryOrange, width: 3)
+                          : BorderSide.none,
                 ),
                 color: theme.cardColor,
                 child: Container(
@@ -535,9 +588,13 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: isFocused || isHovered
-                          ? [profileColor.withOpacity(0.2), profileColor.withOpacity(0.05)]
-                          : [theme.cardColor, theme.cardColor],
+                      colors:
+                          isFocused || isHovered
+                              ? [
+                                profileColor.withValues(alpha: 0.2),
+                                profileColor.withValues(alpha: 0.05),
+                              ]
+                              : [theme.cardColor, theme.cardColor],
                     ),
                   ),
                   child: Stack(
@@ -567,11 +624,12 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                                     const SizedBox(height: 16),
                                     Text(
                                       profile.name,
-                                      style: theme.textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: isSmallScreen ? 14 : 16,
-                                        color: theme.colorScheme.onSurface,
-                                      ),
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: isSmallScreen ? 14 : 16,
+                                            color: theme.colorScheme.onSurface,
+                                          ),
                                       textAlign: TextAlign.center,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -579,17 +637,24 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                                     if (isCurrent) ...[
                                       const SizedBox(height: 6),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: AppTheme.primaryOrange.withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(12),
+                                          color: AppTheme.primaryOrange
+                                              .withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                         ),
                                         child: Text(
                                           loc?.actuel ?? 'Actuel',
-                                          style: theme.textTheme.bodySmall?.copyWith(
-                                            color: AppTheme.primaryOrange,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: AppTheme.primaryOrange,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                         ),
                                       ),
                                     ],
@@ -608,12 +673,13 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                           child: Material(
                             color: Colors.transparent,
                             child: Tooltip(
-                              message: loc?.supprimerProfil ?? 'Supprimer le profil',
+                              message:
+                                  loc?.supprimerProfil ?? 'Supprimer le profil',
                               child: IconButton(
                                 icon: Icon(
                                   Icons.delete,
                                   size: isSmallScreen ? 16 : 20,
-                                  color: Colors.red.withOpacity(0.7),
+                                  color: Colors.red.withValues(alpha: 0.7),
                                 ),
                                 onPressed: () => _handleProfileDelete(profile),
                                 padding: EdgeInsets.zero,
@@ -629,12 +695,15 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                         child: Material(
                           color: Colors.transparent,
                           child: Tooltip(
-                            message: loc?.modifierProfil ?? 'Modifier le profil',
+                            message:
+                                loc?.modifierProfil ?? 'Modifier le profil',
                             child: IconButton(
                               icon: Icon(
                                 Icons.edit,
                                 size: isSmallScreen ? 16 : 20,
-                                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.7,
+                                ),
                               ),
                               onPressed: onEdit,
                               padding: EdgeInsets.zero,
@@ -654,8 +723,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
     );
   }
 
-
-  Widget _AddProfileCard({
+  Widget _addProfileCard({
     required FocusNode focusNode,
     required VoidCallback onAdd,
     required bool isTV,
@@ -671,8 +739,8 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
 
     return Focus(
       focusNode: focusNode,
-      onKey: (node, event) {
-        if (event is RawKeyDownEvent &&
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.enter ||
                 event.logicalKey == LogicalKeyboardKey.select)) {
           if (!isDisabled) onAdd();
@@ -681,7 +749,10 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
         return KeyEventResult.ignored;
       },
       child: MouseRegion(
-        cursor: isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
+        cursor:
+            isDisabled
+                ? SystemMouseCursors.forbidden
+                : SystemMouseCursors.click,
         onEnter: (_) {
           if (!isDisabled) {
             setState(() => _hoverStates[-1] = true);
@@ -703,28 +774,42 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
-                color: isDisabled ? Colors.grey.withOpacity(0.3) : theme.cardColor,
+                color:
+                    isDisabled
+                        ? Colors.grey.withValues(alpha: 0.3)
+                        : theme.cardColor,
                 child: Container(
                   width: double.infinity,
                   height: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    gradient: isDisabled
-                        ? null
-                        : LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: isFocused || isHovered
-                                ? [const Color(0xFF6A11CB).withOpacity(0.2), const Color(0xFF2575FC).withOpacity(0.1)]
-                                : [theme.cardColor, theme.cardColor],
-                          ),
+                    gradient:
+                        isDisabled
+                            ? null
+                            : LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors:
+                                  isFocused || isHovered
+                                      ? [
+                                        const Color(
+                                          0xFF6A11CB,
+                                        ).withValues(alpha: 0.2),
+                                        const Color(
+                                          0xFF2575FC,
+                                        ).withValues(alpha: 0.1),
+                                      ]
+                                      : [theme.cardColor, theme.cardColor],
+                            ),
                   ),
                   child: Material(
                     color: Colors.transparent,
                     child: Tooltip(
-                      message: isDisabled
-                          ? loc?.maximumProfilsAtteint ?? 'Maximum de 4 profils atteint'
-                          : loc?.ajouterProfil ?? 'Ajouter un profil',
+                      message:
+                          isDisabled
+                              ? loc?.maximumProfilsAtteint ??
+                                  'Maximum de 4 profils atteint'
+                              : loc?.ajouterProfil ?? 'Ajouter un profil',
                       child: InkWell(
                         onTap: isDisabled ? null : onAdd,
                         borderRadius: BorderRadius.circular(20),
@@ -736,36 +821,50 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                               Container(
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: isDisabled
-                                      ? Colors.grey.withOpacity(0.3)
-                                      : const Color(0xFF6A11CB).withOpacity(0.1),
+                                  color:
+                                      isDisabled
+                                          ? Colors.grey.withValues(alpha: 0.3)
+                                          : const Color(
+                                            0xFF6A11CB,
+                                          ).withValues(alpha: 0.1),
                                   border: Border.all(
-                                    color: isDisabled ? Colors.grey : const Color(0xFF6A11CB),
+                                    color:
+                                        isDisabled
+                                            ? Colors.grey
+                                            : const Color(0xFF6A11CB),
                                     width: 2,
                                   ),
-                                  boxShadow: (isFocused || isHovered) && !isDisabled
-                                      ? [
-                                          BoxShadow(
-                                            color: const Color(0xFF6A11CB).withOpacity(0.4),
-                                            blurRadius: 10,
-                                            spreadRadius: 2,
-                                          )
-                                        ]
-                                      : null,
+                                  boxShadow:
+                                      (isFocused || isHovered) && !isDisabled
+                                          ? [
+                                            BoxShadow(
+                                              color: const Color(
+                                                0xFF6A11CB,
+                                              ).withValues(alpha: 0.4),
+                                              blurRadius: 10,
+                                              spreadRadius: 2,
+                                            ),
+                                          ]
+                                          : null,
                                 ),
                                 child: Icon(
                                   Icons.add,
                                   size: isSmallScreen ? 40 : 50,
-                                  color: isDisabled ? Colors.grey : const Color(0xFF6A11CB),
+                                  color:
+                                      isDisabled
+                                          ? Colors.grey
+                                          : const Color(0xFF6A11CB),
                                 ),
                               ),
                               const SizedBox(height: 16),
                               Text(
                                 loc?.ajouterProfil ?? 'Ajouter un profil',
                                 style: theme.textTheme.titleMedium?.copyWith(
-                                  color: isDisabled
-                                      ? Colors.grey
-                                      : theme.colorScheme.onSurface.withOpacity(0.8),
+                                  color:
+                                      isDisabled
+                                          ? Colors.grey
+                                          : theme.colorScheme.onSurface
+                                              .withValues(alpha: 0.8),
                                   fontSize: isSmallScreen ? 14 : 16,
                                 ),
                                 textAlign: TextAlign.center,
@@ -856,16 +955,20 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                 child: FocusScope(
                   child: Scaffold(
                     body: Container(
-                      decoration: AppTheme.pageDecoration(context, useGradient: true),
+                      decoration: AppTheme.pageDecoration(
+                        context,
+                        useGradient: true,
+                      ),
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          final paddingValue = deviceInfo.isTV
-                              ? 48.0
-                              : constraints.maxWidth > 700
+                          final paddingValue =
+                              deviceInfo.isTV
+                                  ? 48.0
+                                  : constraints.maxWidth > 700
                                   ? 32.0
                                   : constraints.maxWidth > 500
-                                      ? 24.0
-                                      : 16.0;
+                                  ? 24.0
+                                  : 16.0;
                           return Padding(
                             padding: EdgeInsets.all(paddingValue),
                             child: Column(
@@ -889,22 +992,33 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                                 FadeTransition(
                                   opacity: _fadeAnimation,
                                   child: Text(
-                                    loc?.quiRegarde?.toUpperCase() ?? 'QUI REGARDE ?',
-                                    style: theme.textTheme.headlineLarge?.copyWith(
+                                    loc?.quiRegarde.toUpperCase() ??
+                                        'QUI REGARDE ?',
+                                    style: theme.textTheme.headlineLarge
+                                        ?.copyWith(
                                           fontWeight: FontWeight.w900,
-                                          color: theme.brightness == Brightness.dark
-                                              ? Colors.white
-                                              : Colors.black,
-                                          fontSize: deviceInfo.isTV
-                                              ? 42
-                                              : (isSmallScreen ? 24 : 32),
+                                          color:
+                                              theme.brightness ==
+                                                      Brightness.dark
+                                                  ? Colors.white
+                                                  : Colors.black,
+                                          fontSize:
+                                              deviceInfo.isTV
+                                                  ? 42
+                                                  : (isSmallScreen ? 24 : 32),
                                           letterSpacing: 2.0,
                                           shadows: [
                                             Shadow(
                                               blurRadius: 4.0,
-                                              color: theme.brightness == Brightness.dark
-                                                  ? Colors.black.withOpacity(0.5)
-                                                  : Colors.grey.withOpacity(0.5),
+                                              color:
+                                                  theme.brightness ==
+                                                          Brightness.dark
+                                                      ? Colors.black.withValues(
+                                                        alpha: 0.5,
+                                                      )
+                                                      : Colors.grey.withValues(
+                                                        alpha: 0.5,
+                                                      ),
                                               offset: const Offset(2.0, 2.0),
                                             ),
                                           ],
@@ -918,24 +1032,33 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                                     controller: _scrollController,
                                     gridDelegate:
                                         SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: crossAxisCount,
-                                      crossAxisSpacing:
-                                          deviceInfo.isTV ? 40 : (isSmallScreen ? 16 : 24),
-                                      mainAxisSpacing:
-                                          deviceInfo.isTV ? 40 : (isSmallScreen ? 16 : 24),
-                                      childAspectRatio: _getChildAspectRatio(screenWidth),
-                                    ),
+                                          crossAxisCount: crossAxisCount,
+                                          crossAxisSpacing:
+                                              deviceInfo.isTV
+                                                  ? 40
+                                                  : (isSmallScreen ? 16 : 24),
+                                          mainAxisSpacing:
+                                              deviceInfo.isTV
+                                                  ? 40
+                                                  : (isSmallScreen ? 16 : 24),
+                                          childAspectRatio:
+                                              _getChildAspectRatio(screenWidth),
+                                        ),
                                     itemCount: sortedProfiles.length + 1,
                                     itemBuilder: (context, index) {
                                       if (index < sortedProfiles.length) {
                                         final profile = sortedProfiles[index];
-                                        final isCurrentProfile = currentProfile?.id == profile.id;
-                                        return _ProfileCard(
+                                        final isCurrentProfile =
+                                            currentProfile?.id == profile.id;
+                                        return _profileCard(
                                           profile: profile,
                                           focusNode: _profileFocusNodes[index],
                                           isCurrent: isCurrentProfile,
-                                          onSelect: () => _handleProfileSelect(profile),
-                                          onEdit: () => _handleProfileEdit(profile),
+                                          onSelect:
+                                              () =>
+                                                  _handleProfileSelect(profile),
+                                          onEdit:
+                                              () => _handleProfileEdit(profile),
                                           isTV: deviceInfo.isTV,
                                           isDesktop: _isDesktop,
                                           isSmallScreen: isSmallScreen,
@@ -943,7 +1066,7 @@ class _ProfileSelectionPageState extends State<ProfileSelectionPage>
                                           index: index,
                                         );
                                       } else {
-                                        return _AddProfileCard(
+                                        return _addProfileCard(
                                           focusNode: _addProfileFocusNode,
                                           onAdd: _handleAddProfile,
                                           isTV: deviceInfo.isTV,

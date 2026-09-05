@@ -10,7 +10,6 @@ class CustomErrorDialog {
     required String message,
     String? title,
   }) {
-    final deviceInfo = Provider.of<DeviceInfoProvider>(context, listen: false);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final loc = AppLocalizations.of(context);
@@ -24,7 +23,10 @@ class CustomErrorDialog {
           content: Text(
             message,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: isDark ? theme.colorScheme.onSurface : theme.colorScheme.onSurface,
+              color:
+                  isDark
+                      ? theme.colorScheme.onSurface
+                      : theme.colorScheme.onSurface,
               height: 1.4,
             ),
             textAlign: TextAlign.start,
@@ -112,9 +114,7 @@ class CustomErrorDialog {
     return AlertDialog(
       backgroundColor: isDark ? theme.colorScheme.surface : Colors.white,
       surfaceTintColor: isDark ? theme.colorScheme.surface : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -129,9 +129,14 @@ class CustomErrorDialog {
   }
 
   // En-tête du dialogue
-  static Widget _buildDialogHeader(BuildContext context, String title, IconData icon, {bool isTV = false}) {
+  static Widget _buildDialogHeader(
+    BuildContext context,
+    String title,
+    IconData icon, {
+    bool isTV = false,
+  }) {
     final theme = Theme.of(context);
-    
+
     return Container(
       padding: EdgeInsets.symmetric(
         vertical: isTV ? 16 : 12,
@@ -143,11 +148,7 @@ class CustomErrorDialog {
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: theme.colorScheme.onPrimary,
-            size: isTV ? 28 : 24,
-          ),
+          Icon(icon, color: theme.colorScheme.onPrimary, size: isTV ? 28 : 24),
           SizedBox(width: isTV ? 16 : 12),
           Text(
             title,
@@ -169,7 +170,7 @@ class CustomErrorDialog {
     required VoidCallback onPressed,
   }) {
     final theme = Theme.of(context);
-    
+
     return TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(
@@ -193,9 +194,6 @@ class CustomErrorDialog {
 
   // Actions pour desktop (alignées à droite)
   static Widget _buildDesktopActions(List<Widget> actions) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: actions,
-    );
+    return Row(mainAxisAlignment: MainAxisAlignment.end, children: actions);
   }
 }

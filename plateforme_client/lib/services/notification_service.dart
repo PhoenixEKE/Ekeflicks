@@ -36,7 +36,8 @@ class AppNotification {
   final bool isRead;
   final DateTime? createdAt;
 
-  factory AppNotification.fromJson(Map<String, dynamic> json) => AppNotification(
+  factory AppNotification.fromJson(Map<String, dynamic> json) =>
+      AppNotification(
         id: json['id'].toString(),
         title: json['title']?.toString() ?? '',
         message: json['message']?.toString() ?? '',
@@ -55,20 +56,35 @@ class NotificationService {
     final body = response.data;
     final items = body is Map ? body['results'] : body;
     return items is List
-        ? items.whereType<Map>().map((item) => AppNotification.fromJson(Map<String, dynamic>.from(item))).toList()
+        ? items
+            .whereType<Map>()
+            .map(
+              (item) =>
+                  AppNotification.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList()
         : const [];
   }
 
-  Future<void> markRead(String id) => _dio.post<void>('/notifications/$id/mark-read/');
-  Future<void> markAllRead() => _dio.post<void>('/notifications/mark-all-read/');
+  Future<void> markRead(String id) =>
+      _dio.post<void>('/notifications/$id/mark-read/');
+  Future<void> markAllRead() =>
+      _dio.post<void>('/notifications/mark-all-read/');
 
   Future<NotificationPreferences> preferences() async {
-    final response = await _dio.get<Map<String, dynamic>>('/notifications/preferences/');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/notifications/preferences/',
+    );
     return NotificationPreferences.fromJson(response.data ?? const {});
   }
 
-  Future<NotificationPreferences> updatePreferences(Map<String, dynamic> data) async {
-    final response = await _dio.patch<Map<String, dynamic>>('/notifications/preferences/', data: data);
+  Future<NotificationPreferences> updatePreferences(
+    Map<String, dynamic> data,
+  ) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/notifications/preferences/',
+      data: data,
+    );
     return NotificationPreferences.fromJson(response.data ?? const {});
   }
 

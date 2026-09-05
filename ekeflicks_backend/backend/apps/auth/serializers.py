@@ -124,6 +124,38 @@ class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
 
 
+class PasswordChangeSerializer(serializers.Serializer):
+    current_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+    new_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+
+    def validate_current_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError(
+                'Le mot de passe actuel est incorrect.'
+            )
+        return value
+
+    def validate_new_password(self, value):
+        from django.contrib.auth.password_validation import validate_password
+
+        user = self.context['request'].user
+
+        if user.check_password(value):
+            raise serializers.ValidationError(
+                'Le nouveau mot de passe doit être différent du mot de passe actuel.'
+            )
+
+        validate_password(value, user=user)
+        return value
+
+
 class PasswordResetConfirmSerializer(serializers.Serializer):
     token = serializers.UUIDField(required=True)
     password = serializers.CharField(required=True, write_only=True, min_length=8)

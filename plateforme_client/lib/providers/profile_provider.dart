@@ -40,25 +40,25 @@ class ProfileProvider extends ChangeNotifier {
       // a nested object, while the generated client still expects an enum.
       final response = await apiClient.dio.get<Object>('/profiles/');
       final body = response.data;
-      final rawProfiles = body is Map<String, dynamic>
-          ? body['results']
-          : body;
-      _availableProfiles = rawProfiles is List
-          ? rawProfiles
-              .whereType<Map<String, dynamic>>()
-              .map(_profileFromJson)
-              .toList(growable: false)
-          : [];
+      final rawProfiles = body is Map<String, dynamic> ? body['results'] : body;
+      _availableProfiles =
+          rawProfiles is List
+              ? rawProfiles
+                  .whereType<Map<String, dynamic>>()
+                  .map(_profileFromJson)
+                  .toList(growable: false)
+              : [];
 
       // Restaurer dernier profil sélectionné ou définir le profil "main"
       if (_availableProfiles.isNotEmpty) {
         final lastProfileId = _prefs?.getString('last_profile_id');
-        _currentProfile = lastProfileId != null
-            ? getProfileById(lastProfileId)
-            : _availableProfiles.firstWhere(
-                (profile) => profile.type?.name == 'main',
-                orElse: () => _availableProfiles.first,
-              );
+        _currentProfile =
+            lastProfileId != null
+                ? getProfileById(lastProfileId)
+                : _availableProfiles.firstWhere(
+                  (profile) => profile.type?.name == 'main',
+                  orElse: () => _availableProfiles.first,
+                );
       } else {
         _currentProfile = null;
       }
@@ -74,27 +74,31 @@ class ProfileProvider extends ChangeNotifier {
 
   Profile _profileFromJson(Map<String, dynamic> json) {
     final rawType = json['type'];
-    final typeName = rawType is Map<String, dynamic>
-        ? rawType['name']?.toString()
-        : rawType?.toString();
+    final typeName =
+        rawType is Map<String, dynamic>
+            ? rawType['name']?.toString()
+            : rawType?.toString();
     final country = (json['country_code'] ?? json['country'])?.toString();
 
     return Profile(
-      (builder) => builder
-        ..id = json['id']?.toString()
-        ..user = json['user']?.toString()
-        ..name = json['name']?.toString() ?? ''
-        ..type = typeName == null || typeName.isEmpty
-            ? null
-            : ProfileTypeEnum.valueOf(typeName)
-        ..avatar = json['avatar']?.toString()
-        ..avatarUrl = json['avatar_url']?.toString()
-        ..country = country == null || country.isEmpty
-            ? null
-            : ProfileCountryEnum.valueOf(country)
-        ..age = json['age'] as int?
-        ..phone = json['phone']?.toString()
-        ..isActive = json['is_active'] as bool? ?? true,
+      (builder) =>
+          builder
+            ..id = json['id']?.toString()
+            ..user = json['user']?.toString()
+            ..name = json['name']?.toString() ?? ''
+            ..type =
+                typeName == null || typeName.isEmpty
+                    ? null
+                    : ProfileTypeEnum.valueOf(typeName)
+            ..avatar = json['avatar']?.toString()
+            ..avatarUrl = json['avatar_url']?.toString()
+            ..country =
+                country == null || country.isEmpty
+                    ? null
+                    : ProfileCountryEnum.valueOf(country)
+            ..age = json['age'] as int?
+            ..phone = json['phone']?.toString()
+            ..isActive = json['is_active'] as bool? ?? true,
     );
   }
 
@@ -102,7 +106,9 @@ class ProfileProvider extends ChangeNotifier {
     _currentProfile = profile;
     notifyListeners();
     await _initPrefs();
-    if (profile.id != null) await _prefs?.setString('last_profile_id', profile.id!);
+    if (profile.id != null) {
+      await _prefs?.setString('last_profile_id', profile.id!);
+    }
   }
 
   Future<Profile> createProfile({
@@ -118,13 +124,17 @@ class ProfileProvider extends ChangeNotifier {
 
     try {
       final profileData = ProfileCreate(
-        (b) => b
-          ..name = name
-          ..type = ProfileCreateTypeEnum.valueOf(type)
-          ..avatar = avatar
-          ..country = country != null ? ProfileCreateCountryEnum.valueOf(country) : null
-          ..age = age
-          ..phone = phone,
+        (b) =>
+            b
+              ..name = name
+              ..type = ProfileCreateTypeEnum.valueOf(type)
+              ..avatar = avatar
+              ..country =
+                  country != null
+                      ? ProfileCreateCountryEnum.valueOf(country)
+                      : null
+              ..age = age
+              ..phone = phone,
       );
 
       await apiClient.getProfilesApi().profilesCreate(data: profileData);
@@ -135,7 +145,7 @@ class ProfileProvider extends ChangeNotifier {
         orElse: () => _availableProfiles.last,
       );
 
-      if (_currentProfile == null) _currentProfile = newProfile;
+      _currentProfile ??= newProfile;
       notifyListeners();
       return newProfile;
     } catch (e) {
@@ -147,31 +157,39 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
-  Future<Profile?> updateProfile(String profileId, ProfileCreate profileData) async {
+  Future<Profile?> updateProfile(
+    String profileId,
+    ProfileCreate profileData,
+  ) async {
     try {
       final existingProfile = getProfileById(profileId);
       if (existingProfile == null) throw Exception('Profil non trouvé');
 
       final updatedProfile = Profile(
-        (b) => b
-          ..id = profileId
-          ..user = existingProfile.user
-          ..name = profileData.name
-          ..type = profileData.type != null
-              ? ProfileTypeEnum.valueOf(profileData.type!.name)
-              : existingProfile.type
-          ..avatar = profileData.avatar ?? existingProfile.avatar
-          ..avatarUrl = existingProfile.avatarUrl
-          ..country = profileData.country != null
-              ? ProfileCountryEnum.valueOf(profileData.country!.name)
-              : existingProfile.country
-          ..age = profileData.age ?? existingProfile.age
-          ..phone = profileData.phone ?? existingProfile.phone
-          ..isActive = existingProfile.isActive,
+        (b) =>
+            b
+              ..id = profileId
+              ..user = existingProfile.user
+              ..name = profileData.name
+              ..type =
+                  profileData.type != null
+                      ? ProfileTypeEnum.valueOf(profileData.type!.name)
+                      : existingProfile.type
+              ..avatar = profileData.avatar ?? existingProfile.avatar
+              ..avatarUrl = existingProfile.avatarUrl
+              ..country =
+                  profileData.country != null
+                      ? ProfileCountryEnum.valueOf(profileData.country!.name)
+                      : existingProfile.country
+              ..age = profileData.age ?? existingProfile.age
+              ..phone = profileData.phone ?? existingProfile.phone
+              ..isActive = existingProfile.isActive,
       );
 
-      final response =
-          await apiClient.getProfilesApi().profilesUpdate(id: profileId, data: updatedProfile);
+      final response = await apiClient.getProfilesApi().profilesUpdate(
+        id: profileId,
+        data: updatedProfile,
+      );
       return _handleProfileUpdate(response.data, profileId);
     } catch (e) {
       debugPrint('Error updating profile: $e');
@@ -184,7 +202,8 @@ class ProfileProvider extends ChangeNotifier {
       await apiClient.getProfilesApi().profilesDelete(id: profileId);
       _availableProfiles.removeWhere((profile) => profile.id == profileId);
       if (_currentProfile?.id == profileId) {
-        _currentProfile = _availableProfiles.isNotEmpty ? _availableProfiles.first : null;
+        _currentProfile =
+            _availableProfiles.isNotEmpty ? _availableProfiles.first : null;
       }
       notifyListeners();
     } catch (e) {
@@ -220,13 +239,15 @@ class ProfileProvider extends ChangeNotifier {
   }
 
   bool get hasProfiles => _availableProfiles.isNotEmpty;
-  bool get hasMainProfile => _availableProfiles.any((profile) => profile.type?.name == 'main');
+  bool get hasMainProfile =>
+      _availableProfiles.any((profile) => profile.type?.name == 'main');
 
   Profile? get mainProfile =>
       _availableProfiles.isNotEmpty
           ? _availableProfiles.firstWhere(
-              (profile) => profile.type?.name == 'main',
-              orElse: () => _availableProfiles.first)
+            (profile) => profile.type?.name == 'main',
+            orElse: () => _availableProfiles.first,
+          )
           : null;
 
   bool isChildProfile(Profile profile) => profile.type?.name == 'child';

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_producteurs/widgets/producer_page_shell.dart';
 import 'privacy_policy_page.dart';
 
 class PrivacySettingsPage extends StatefulWidget {
@@ -21,10 +22,10 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(title: Text(l10n.privacySettings)),
-      body: SingleChildScrollView(
+    return ProducerPageShell(
+      showBack: true,
+      maxWidth: 1000,
+      child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

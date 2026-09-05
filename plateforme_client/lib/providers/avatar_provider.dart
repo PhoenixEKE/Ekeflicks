@@ -30,10 +30,12 @@ class AvatarProvider with ChangeNotifier {
 
       _avatars = avatarData
           .whereType<Map<String, dynamic>>()
-          .map((avatar) => {
-                'name': avatar['name']?.toString() ?? '',
-                'url': avatar['url']?.toString() ?? '',
-              })
+          .map(
+            (avatar) => {
+              'name': avatar['name']?.toString() ?? '',
+              'url': avatar['url']?.toString() ?? '',
+            },
+          )
           .where((avatar) => avatar['url']!.isNotEmpty)
           .toList(growable: false);
     } catch (error) {

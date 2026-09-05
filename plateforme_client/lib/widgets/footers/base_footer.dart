@@ -7,7 +7,11 @@ class BaseFooter {
   const BaseFooter();
 
   /// Méthode pour ouvrir une URL
-  Future<void> openUrl(BuildContext context, String url, {LaunchMode mode = LaunchMode.externalApplication}) async {
+  Future<void> openUrl(
+    BuildContext context,
+    String url, {
+    LaunchMode mode = LaunchMode.externalApplication,
+  }) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: mode);
@@ -23,7 +27,11 @@ class BaseFooter {
   /// Méthode pour lancer un appel téléphonique
   Future<void> openPhone(BuildContext context, String phoneNumber) async {
     final Uri uri = Uri(scheme: 'tel', path: phoneNumber);
-    await openUrl(context, uri.toString(), mode: LaunchMode.externalApplication);
+    await openUrl(
+      context,
+      uri.toString(),
+      mode: LaunchMode.externalApplication,
+    );
   }
 
   /// Méthode pour lancer WhatsApp
@@ -44,15 +52,13 @@ class BaseFooter {
         border: Border.all(color: Colors.white24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Center(
-        child: _assetIcon(assetPath, size: 42),
-      ),
+      child: Center(child: _assetIcon(assetPath, size: 42)),
     );
   }
 
@@ -75,15 +81,13 @@ class BaseFooter {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 2,
                   offset: const Offset(0, 1),
                 ),
               ],
             ),
-            child: Center(
-              child: _assetIcon(assetPath, size: 20),
-            ),
+            child: Center(child: _assetIcon(assetPath, size: 20)),
           ),
         ),
       ),
@@ -94,7 +98,9 @@ class BaseFooter {
   Widget _assetIcon(String assetPath, {required double size}) {
     final isSvg = assetPath.toLowerCase().endsWith('.svg');
     final isPng = assetPath.toLowerCase().endsWith('.png');
-    final isJpg = assetPath.toLowerCase().endsWith('.jpg') || assetPath.toLowerCase().endsWith('.jpeg');
+    final isJpg =
+        assetPath.toLowerCase().endsWith('.jpg') ||
+        assetPath.toLowerCase().endsWith('.jpeg');
 
     if (isSvg) {
       return SvgPicture.asset(
@@ -117,7 +123,7 @@ class BaseFooter {
             width: size,
             height: size,
             decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.2),
+              color: Colors.grey.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Icon(
@@ -135,22 +141,15 @@ class BaseFooter {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.2),
+        color: Colors.grey.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Icon(
-        Icons.image,
-        color: Colors.grey[400],
-        size: size * 0.6,
-      ),
+      child: Icon(Icons.image, color: Colors.grey[400], size: size * 0.6),
     );
   }
 
   /// Section générique de footer
-  Widget footerSection({
-    required String title,
-    List<Widget>? childrenWidget,
-  }) {
+  Widget footerSection({required String title, List<Widget>? childrenWidget}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [

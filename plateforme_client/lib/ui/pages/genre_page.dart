@@ -5,18 +5,13 @@ import 'package:app_ekeflicks/models/content_model.dart';
 import 'package:app_ekeflicks/ui/player/player_page.dart';
 import 'package:app_ekeflicks/widgets/dialog/info_dialog.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
-import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:app_ekeflicks/providers/device_info_provider.dart';
 
 class GenrePage extends StatefulWidget {
   final String genre;
   final List<Content> contents;
 
-  const GenrePage({
-    super.key,
-    required this.genre,
-    required this.contents,
-  });
+  const GenrePage({super.key, required this.genre, required this.contents});
 
   @override
   State<GenrePage> createState() => _GenrePageState();
@@ -25,7 +20,7 @@ class GenrePage extends StatefulWidget {
 class _GenrePageState extends State<GenrePage> {
   final ScrollController _scrollController = ScrollController();
   AppLocalizations? get loc => AppLocalizations.of(context);
-  
+
   bool _showAllMovies = false;
   bool _showAllSeries = false;
 
@@ -40,57 +35,59 @@ class _GenrePageState extends State<GenrePage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => PlayerPage(
-            videoUrl: content.videoUrl,
-            title: content.title,
-            imageUrl: content.posterUrl,
-            startPosition: content.duration.inSeconds * content.progress!,
-          ),
+          builder:
+              (context) => PlayerPage(
+                videoUrl: content.videoUrl,
+                title: content.title,
+                imageUrl: content.posterUrl,
+                startPosition: content.duration.inSeconds * content.progress!,
+              ),
         ),
       );
     } else {
       showDialog(
         context: context,
-        builder: (context) => InfoDialog(
-          content: content,
-          similarContent: [],
-        ),
+        builder: (context) => InfoDialog(content: content, similarContent: []),
       );
     }
   }
 
   int _calculateMaxItemsPerRow(double screenWidth, int itemCount) {
     final deviceInfo = Provider.of<DeviceInfoProvider>(context, listen: false);
-    
+
     if (deviceInfo.isTV) {
       // Pour TV, on montre plus d'éléments
       const itemWidth = 200.0;
       const spacing = 24.0;
       const seeAllButtonWidth = 120.0;
-      
+
       final availableWidth = screenWidth - 48 - seeAllButtonWidth;
       final maxPossible = (availableWidth / (itemWidth + spacing)).floor();
-      
+
       return maxPossible.clamp(4, itemCount);
     } else {
       // Pour mobile/desktop
       const itemWidth = 150.0;
       const spacing = 16.0;
       const seeAllButtonWidth = 100.0;
-      
+
       final availableWidth = screenWidth - 32 - seeAllButtonWidth;
       final maxPossible = (availableWidth / (itemWidth + spacing)).floor();
-      
+
       return maxPossible.clamp(1, itemCount);
     }
   }
 
-  Widget _buildContentItem(Content content, BuildContext context, {double? width}) {
+  Widget _buildContentItem(
+    Content content,
+    BuildContext context, {
+    double? width,
+  }) {
     final deviceInfo = Provider.of<DeviceInfoProvider>(context);
     final theme = Theme.of(context);
-    
+
     final itemWidth = width ?? (deviceInfo.isTV ? 200 : 150);
-    
+
     return SizedBox(
       width: itemWidth,
       child: GestureDetector(
@@ -104,16 +101,18 @@ class _GenrePageState extends State<GenrePage> {
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: double.infinity,
-                placeholder: (_, __) => Container(
-                  color: theme.colorScheme.surfaceVariant,
-                ),
-                errorWidget: (_, __, ___) => Container(
-                  color: theme.colorScheme.surfaceVariant,
-                  child: Icon(
-                    Icons.broken_image,
-                    size: deviceInfo.isTV ? 30 : 24,
-                  ),
-                ),
+                placeholder:
+                    (_, _) => Container(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                    ),
+                errorWidget:
+                    (_, _, _) => Container(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      child: Icon(
+                        Icons.broken_image,
+                        size: deviceInfo.isTV ? 30 : 24,
+                      ),
+                    ),
               ),
               if (content.hasProgress)
                 Positioned(
@@ -137,7 +136,7 @@ class _GenrePageState extends State<GenrePage> {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
+                    color: Colors.black.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -164,11 +163,14 @@ class _GenrePageState extends State<GenrePage> {
     required BuildContext context,
   }) {
     if (contents.isEmpty) return const SizedBox.shrink();
-    
+
     final deviceInfo = Provider.of<DeviceInfoProvider>(context);
     final theme = Theme.of(context);
     final size = MediaQuery.of(context).size;
-    final maxItemsPerRow = _calculateMaxItemsPerRow(size.width, contents.length);
+    final maxItemsPerRow = _calculateMaxItemsPerRow(
+      size.width,
+      contents.length,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,7 +192,9 @@ class _GenrePageState extends State<GenrePage> {
                 TextButton(
                   onPressed: onSeeAllPressed,
                   child: Text(
-                    showAll ? loc?.seeLess ?? 'Voir moins' : loc?.seeAll ?? 'Voir tout',
+                    showAll
+                        ? loc?.seeLess ?? 'Voir moins'
+                        : loc?.seeAll ?? 'Voir tout',
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.primary,
                       fontSize: deviceInfo.isTV ? 18 : 16,
@@ -205,11 +209,14 @@ class _GenrePageState extends State<GenrePage> {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.symmetric(horizontal: deviceInfo.isTV ? 24 : 16),
+            padding: EdgeInsets.symmetric(
+              horizontal: deviceInfo.isTV ? 24 : 16,
+            ),
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: deviceInfo.isTV 
-                ? (size.width > 1200 ? 250 : 200)
-                : (size.width > 600 ? 200 : 150),
+              maxCrossAxisExtent:
+                  deviceInfo.isTV
+                      ? (size.width > 1200 ? 250 : 200)
+                      : (size.width > 600 ? 200 : 150),
               crossAxisSpacing: deviceInfo.isTV ? 24 : 16,
               mainAxisSpacing: deviceInfo.isTV ? 24 : 16,
               childAspectRatio: deviceInfo.isTV ? 0.65 : 0.7,
@@ -224,7 +231,9 @@ class _GenrePageState extends State<GenrePage> {
             height: deviceInfo.isTV ? 280 : 220,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(horizontal: deviceInfo.isTV ? 24 : 16),
+              padding: EdgeInsets.symmetric(
+                horizontal: deviceInfo.isTV ? 24 : 16,
+              ),
               itemCount: maxItemsPerRow,
               itemBuilder: (context, index) {
                 return Padding(
@@ -264,16 +273,18 @@ class _GenrePageState extends State<GenrePage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: theme.brightness == Brightness.dark
-                ? [const Color(0xFF121212), Colors.black]
-                : [Colors.grey[100]!, Colors.grey[300]!],
+            colors:
+                theme.brightness == Brightness.dark
+                    ? [const Color(0xFF121212), Colors.black]
+                    : [Colors.grey[100]!, Colors.grey[300]!],
           ),
         ),
         child: CustomScrollView(
           controller: _scrollController,
-          physics: deviceInfo.isTV 
-            ? const NeverScrollableScrollPhysics()
-            : const BouncingScrollPhysics(),
+          physics:
+              deviceInfo.isTV
+                  ? const NeverScrollableScrollPhysics()
+                  : const BouncingScrollPhysics(),
           slivers: [
             SliverToBoxAdapter(
               child: Column(
@@ -291,19 +302,28 @@ class _GenrePageState extends State<GenrePage> {
                               imageUrl: _getGenreBannerUrl(widget.genre),
                               width: double.infinity,
                               fit: BoxFit.cover,
-                              placeholder: (_, __) => Container(
-                                color: theme.colorScheme.surfaceVariant,
-                              ),
-                              errorWidget: (_, __, ___) => Container(
-                                color: theme.colorScheme.surfaceVariant,
-                                child: Center(
-                                  child: Icon(
-                                    Icons.theaters,
-                                    size: deviceInfo.isTV ? 60 : 50,
-                                    color: theme.colorScheme.onSurfaceVariant,
+                              placeholder:
+                                  (_, _) => Container(
+                                    color:
+                                        theme
+                                            .colorScheme
+                                            .surfaceContainerHighest,
                                   ),
-                                ),
-                              ),
+                              errorWidget:
+                                  (_, _, _) => Container(
+                                    color:
+                                        theme
+                                            .colorScheme
+                                            .surfaceContainerHighest,
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.theaters,
+                                        size: deviceInfo.isTV ? 60 : 50,
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
                             ),
                             Container(
                               decoration: BoxDecoration(
@@ -311,7 +331,7 @@ class _GenrePageState extends State<GenrePage> {
                                   begin: Alignment.bottomCenter,
                                   end: Alignment.topCenter,
                                   colors: [
-                                    Colors.black.withOpacity(0.8),
+                                    Colors.black.withValues(alpha: 0.8),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -320,7 +340,9 @@ class _GenrePageState extends State<GenrePage> {
                             Align(
                               alignment: Alignment.bottomLeft,
                               child: Padding(
-                                padding: EdgeInsets.all(deviceInfo.isTV ? 24 : 16),
+                                padding: EdgeInsets.all(
+                                  deviceInfo.isTV ? 24 : 16,
+                                ),
                                 child: Text(
                                   widget.genre,
                                   style: theme.textTheme.displaySmall?.copyWith(
@@ -342,7 +364,8 @@ class _GenrePageState extends State<GenrePage> {
                     title: loc?.movies ?? 'Films',
                     contents: movies,
                     showAll: _showAllMovies,
-                    onSeeAllPressed: () => setState(() => _showAllMovies = !_showAllMovies),
+                    onSeeAllPressed:
+                        () => setState(() => _showAllMovies = !_showAllMovies),
                     context: context,
                   ),
 
@@ -351,14 +374,17 @@ class _GenrePageState extends State<GenrePage> {
                     title: loc?.series ?? 'Séries',
                     contents: series,
                     showAll: _showAllSeries,
-                    onSeeAllPressed: () => setState(() => _showAllSeries = !_showAllSeries),
+                    onSeeAllPressed:
+                        () => setState(() => _showAllSeries = !_showAllSeries),
                     context: context,
                   ),
 
                   // Tous les contenus
                   if (widget.contents.isNotEmpty)
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: deviceInfo.isTV ? 24 : 16),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: deviceInfo.isTV ? 24 : 16,
+                      ),
                       child: Text(
                         '${loc?.allContents ?? 'Tous les contenus'} (${widget.contents.length})',
                         style: theme.textTheme.headlineSmall?.copyWith(
@@ -374,22 +400,24 @@ class _GenrePageState extends State<GenrePage> {
             ),
             if (widget.contents.isNotEmpty)
               SliverPadding(
-                padding: EdgeInsets.symmetric(horizontal: deviceInfo.isTV ? 24 : 16),
+                padding: EdgeInsets.symmetric(
+                  horizontal: deviceInfo.isTV ? 24 : 16,
+                ),
                 sliver: SliverGrid(
                   gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: deviceInfo.isTV 
-                      ? (MediaQuery.of(context).size.width > 1200 ? 250 : 200)
-                      : 150,
+                    maxCrossAxisExtent:
+                        deviceInfo.isTV
+                            ? (MediaQuery.of(context).size.width > 1200
+                                ? 250
+                                : 200)
+                            : 150,
                     crossAxisSpacing: deviceInfo.isTV ? 24 : 16,
                     mainAxisSpacing: deviceInfo.isTV ? 24 : 16,
                     childAspectRatio: deviceInfo.isTV ? 0.65 : 0.7,
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      return _buildContentItem(widget.contents[index], context);
-                    },
-                    childCount: widget.contents.length,
-                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    return _buildContentItem(widget.contents[index], context);
+                  }, childCount: widget.contents.length),
                 ),
               ),
             SliverToBoxAdapter(

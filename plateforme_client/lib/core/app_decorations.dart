@@ -19,29 +19,24 @@ class AppDecorations {
       labelText: label,
       hintText: hint,
       isDense: isDense,
-      prefixIcon: icon != null
-          ? Icon(icon, color: AppTheme.primaryOrange)
-          : prefix,
-      suffixIcon: isPassword
-          ? IconButton(
-              icon: Icon(
-                onToggleVisibility != null
-                    ? Icons.visibility
-                    : Icons.lock,
-                color: AppTheme.primaryOrange.withOpacity(0.7),
-              ),
-              onPressed: onToggleVisibility,
-            )
-          : null,
+      prefixIcon:
+          icon != null ? Icon(icon, color: AppTheme.primaryOrange) : prefix,
+      suffixIcon:
+          isPassword
+              ? IconButton(
+                icon: Icon(
+                  onToggleVisibility != null ? Icons.visibility : Icons.lock,
+                  color: AppTheme.primaryOrange.withValues(alpha: 0.7),
+                ),
+                onPressed: onToggleVisibility,
+              )
+              : null,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       ),
       filled: true,
       fillColor: theme.inputDecorationTheme.fillColor,
-      contentPadding: const EdgeInsets.symmetric(
-        vertical: 12,
-        horizontal: 16,
-      ),
+      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       errorStyle: TextStyle(
         color: AppTheme.errorRed,
         fontSize: theme.textTheme.bodySmall?.fontSize,
@@ -68,10 +63,7 @@ class AppDecorations {
     ).copyWith(
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-        borderSide: const BorderSide(
-          color: AppTheme.primaryOrange,
-          width: 3.0,
-        ),
+        borderSide: const BorderSide(color: AppTheme.primaryOrange, width: 3.0),
       ),
     );
   }
@@ -92,7 +84,7 @@ class AppDecorations {
     return LinearProgressIndicator(
       minHeight: 4,
       color: AppTheme.primaryOrange,
-      backgroundColor: AppTheme.primaryOrange.withOpacity(0.2),
+      backgroundColor: AppTheme.primaryOrange.withValues(alpha: 0.2),
     );
   }
 
@@ -105,9 +97,9 @@ class AppDecorations {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       ),
-      textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+      textStyle: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
     );
   }
 
@@ -119,28 +111,26 @@ class AppDecorations {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       ),
-      textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+      textStyle: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
     );
   }
 
   /// Bouton optimisé pour TV (gère l’état focus)
   static ButtonStyle tvButtonStyle({bool isFocused = false}) {
     return ElevatedButton.styleFrom(
-      backgroundColor: isFocused
-          ? AppTheme.primaryOrange.withOpacity(0.9)
-          : AppTheme.primaryOrange,
+      backgroundColor:
+          isFocused
+              ? AppTheme.primaryOrange.withValues(alpha: 0.9)
+              : AppTheme.primaryOrange,
       foregroundColor: Colors.white,
       elevation: isFocused ? 8.0 : 4.0,
       padding: const EdgeInsets.symmetric(vertical: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       ),
-      textStyle: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.bold,
-      ),
+      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
     );
   }
 
@@ -167,7 +157,7 @@ class AppDecorations {
       borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.1),
+          color: Colors.black.withValues(alpha: 0.1),
           blurRadius: 10,
           spreadRadius: 2,
         ),
@@ -175,14 +165,16 @@ class AppDecorations {
     );
   }
 
-  static BoxDecoration cardDecoration(BuildContext context,
-      {double elevation = 2}) {
+  static BoxDecoration cardDecoration(
+    BuildContext context, {
+    double elevation = 2,
+  }) {
     return BoxDecoration(
       color: Theme.of(context).cardColor,
       borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.1 * elevation),
+          color: Colors.black.withValues(alpha: 0.1 * elevation),
           blurRadius: 6 * elevation,
           spreadRadius: 1 * elevation,
           offset: Offset(0, 2 * elevation),
@@ -197,7 +189,7 @@ class AppDecorations {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          AppTheme.primaryOrange.withOpacity(0.8),
+          AppTheme.primaryOrange.withValues(alpha: 0.8),
           AppTheme.primaryOrange,
         ],
       ),
@@ -214,7 +206,7 @@ class AppDecorations {
       borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.05),
+          color: Colors.black.withValues(alpha: 0.05),
           blurRadius: 6,
           offset: const Offset(0, 2),
         ),
@@ -225,7 +217,7 @@ class AppDecorations {
   /// Décoration pour les images en chargement
   static BoxDecoration imagePlaceholderDecoration(BuildContext context) {
     return BoxDecoration(
-      color: Theme.of(context).colorScheme.background,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(AppTheme.borderRadius),
     );
   }
@@ -237,7 +229,7 @@ class AppDecorations {
       borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       boxShadow: [
         BoxShadow(
-          color: AppTheme.primaryOrange.withOpacity(0.3),
+          color: AppTheme.primaryOrange.withValues(alpha: 0.3),
           blurRadius: 8,
           spreadRadius: 2,
         ),
@@ -264,5 +256,4 @@ class AppDecorations {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     );
   }
-
 }

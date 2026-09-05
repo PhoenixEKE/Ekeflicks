@@ -28,15 +28,18 @@ class AppTheme {
   static const Color disabledColor = Color(0xFF9E9E9E);
 
   // ============== GESTION DU THÈME INCHANGÉE ==============
-  static final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
+  static final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(
+    ThemeMode.system,
+  );
 
   static Future<void> init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedTheme = prefs.getString(_themeKey);
-      themeNotifier.value = savedTheme == lightThemeValue
-          ? ThemeMode.light
-          : savedTheme == darkThemeValue
+      themeNotifier.value =
+          savedTheme == lightThemeValue
+              ? ThemeMode.light
+              : savedTheme == darkThemeValue
               ? ThemeMode.dark
               : ThemeMode.system;
     } catch (e) {
@@ -54,8 +57,8 @@ class AppTheme {
         newTheme == ThemeMode.light
             ? lightThemeValue
             : newTheme == ThemeMode.dark
-                ? darkThemeValue
-                : '',
+            ? darkThemeValue
+            : '',
       );
     } catch (e) {
       debugPrint('Error saving theme: $e');
@@ -78,8 +81,8 @@ class AppTheme {
       brightness: brightness,
       colorScheme: baseColorScheme,
       primaryColor: primaryOrange,
-      scaffoldBackgroundColor: baseColorScheme.background,
-      
+      scaffoldBackgroundColor: baseColorScheme.surface,
+
       // CORRECTION: Utilisation de CardTheme au lieu de CardThemeData
       cardTheme: CardThemeData(
         elevation: 2,
@@ -96,9 +99,15 @@ class AppTheme {
       textTheme: _buildTextTheme(brightness),
       iconTheme: IconThemeData(color: isLight ? Colors.black87 : Colors.white),
       inputDecorationTheme: _buildInputDecorationTheme(brightness),
-      elevatedButtonTheme: ElevatedButtonThemeData(style: _buildButtonStyle(brightness)),
-      textButtonTheme: TextButtonThemeData(style: _buildTextButtonStyle(brightness)),
-      outlinedButtonTheme: OutlinedButtonThemeData(style: _buildOutlinedButtonStyle(brightness)),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: _buildButtonStyle(brightness),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: _buildTextButtonStyle(brightness),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: _buildOutlinedButtonStyle(brightness),
+      ),
       dividerTheme: DividerThemeData(
         color: isLight ? Colors.grey[300] : Colors.grey[700],
         thickness: 1,
@@ -114,10 +123,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(borderRadius),
         ),
-        contentTextStyle: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
+        contentTextStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         shape: RoundedRectangleBorder(
@@ -129,7 +135,7 @@ class AppTheme {
       chipTheme: _buildChipTheme(brightness),
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: primaryOrange,
-        linearTrackColor: primaryOrange.withOpacity(0.2),
+        linearTrackColor: primaryOrange.withValues(alpha: 0.2),
       ),
     );
   }
@@ -139,13 +145,13 @@ class AppTheme {
       textTheme: _buildTVTextTheme(baseTheme.brightness),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: baseTheme.elevatedButtonTheme.style?.copyWith(
-          minimumSize: MaterialStateProperty.all(
+          minimumSize: WidgetStateProperty.all(
             Size(tvButtonMinWidth, tvButtonHeight),
           ),
-          padding: MaterialStateProperty.all(
+          padding: WidgetStateProperty.all(
             EdgeInsets.symmetric(vertical: 24, horizontal: 32),
           ),
-          textStyle: MaterialStateProperty.all(
+          textStyle: WidgetStateProperty.all(
             TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
         ),
@@ -184,49 +190,98 @@ class AppTheme {
   static ColorScheme _buildColorScheme(Brightness brightness) {
     return brightness == Brightness.light
         ? ColorScheme.light(
-            primary: primaryOrange,
-            onPrimary: Colors.white,
-            secondary: Colors.amber.shade700,
-            onSecondary: Colors.black,
-            error: errorRed,
-            onError: Colors.white,
-            background: Colors.white,
-            onBackground: Colors.black,
-            surface: Colors.grey[100]!,
-            onSurface: Colors.black,
-          )
+          primary: primaryOrange,
+          onPrimary: Colors.white,
+          secondary: Colors.amber.shade700,
+          onSecondary: Colors.black,
+          error: errorRed,
+          onError: Colors.white,
+          surface: Colors.white,
+          onSurface: Colors.black,
+        )
         : ColorScheme.dark(
-            primary: primaryOrange,
-            onPrimary: Colors.black,
-            secondary: Colors.amber.shade600,
-            onSecondary: Colors.black,
-            error: errorRed,
-            onError: Colors.white,
-            background: Colors.black,
-            onBackground: Colors.white,
-            surface: Colors.grey[900]!,
-            onSurface: Colors.white,
-          );
+          primary: primaryOrange,
+          onPrimary: Colors.black,
+          secondary: Colors.amber.shade600,
+          onSecondary: Colors.black,
+          error: errorRed,
+          onError: Colors.white,
+          surface: Colors.black,
+          onSurface: Colors.white,
+        );
   }
 
   static TextTheme _buildTextTheme(Brightness brightness) {
-    final baseColor = brightness == Brightness.light ? Colors.black : Colors.white;
+    final baseColor =
+        brightness == Brightness.light ? Colors.black : Colors.white;
     return TextTheme(
-      displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: baseColor),
-      displayMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: baseColor),
-      displaySmall: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: baseColor),
-      headlineLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: baseColor),
-      headlineMedium: TextStyle(fontSize: 20, color: baseColor.withOpacity(0.87)),
-      headlineSmall: TextStyle(fontSize: 18, color: baseColor.withOpacity(0.87)),
-      titleLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: baseColor),
-      titleMedium: TextStyle(fontSize: 16, color: baseColor.withOpacity(0.87)),
-      titleSmall: TextStyle(fontSize: 14, color: baseColor.withOpacity(0.87)),
-      bodyLarge: TextStyle(fontSize: 16, color: baseColor.withOpacity(0.87)),
-      bodyMedium: TextStyle(fontSize: 14, color: baseColor.withOpacity(0.87)),
-      bodySmall: TextStyle(fontSize: 12, color: baseColor.withOpacity(0.87)),
-      labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: baseColor),
-      labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: baseColor),
-      labelSmall: TextStyle(fontSize: 11, color: baseColor.withOpacity(0.6)),
+      displayLarge: TextStyle(
+        fontSize: 32,
+        fontWeight: FontWeight.bold,
+        color: baseColor,
+      ),
+      displayMedium: TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+        color: baseColor,
+      ),
+      displaySmall: TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.bold,
+        color: baseColor,
+      ),
+      headlineLarge: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.bold,
+        color: baseColor,
+      ),
+      headlineMedium: TextStyle(
+        fontSize: 20,
+        color: baseColor.withValues(alpha: 0.87),
+      ),
+      headlineSmall: TextStyle(
+        fontSize: 18,
+        color: baseColor.withValues(alpha: 0.87),
+      ),
+      titleLarge: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+        color: baseColor,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        color: baseColor.withValues(alpha: 0.87),
+      ),
+      titleSmall: TextStyle(
+        fontSize: 14,
+        color: baseColor.withValues(alpha: 0.87),
+      ),
+      bodyLarge: TextStyle(
+        fontSize: 16,
+        color: baseColor.withValues(alpha: 0.87),
+      ),
+      bodyMedium: TextStyle(
+        fontSize: 14,
+        color: baseColor.withValues(alpha: 0.87),
+      ),
+      bodySmall: TextStyle(
+        fontSize: 12,
+        color: baseColor.withValues(alpha: 0.87),
+      ),
+      labelLarge: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+        color: baseColor,
+      ),
+      labelMedium: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: baseColor,
+      ),
+      labelSmall: TextStyle(
+        fontSize: 11,
+        color: baseColor.withValues(alpha: 0.6),
+      ),
     );
   }
 
@@ -245,11 +300,14 @@ class AppTheme {
     );
   }
 
-  static InputDecorationTheme _buildInputDecorationTheme(Brightness brightness) {
+  static InputDecorationTheme _buildInputDecorationTheme(
+    Brightness brightness,
+  ) {
     final isLight = brightness == Brightness.light;
     return InputDecorationTheme(
       filled: true,
-      fillColor: isLight ? Colors.grey.withOpacity(0.1) : Colors.grey[850],
+      fillColor:
+          isLight ? Colors.grey.withValues(alpha: 0.1) : Colors.grey[850],
       contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(borderRadius),
@@ -277,10 +335,7 @@ class AppTheme {
       hintStyle: TextStyle(
         color: isLight ? Colors.grey.shade500 : Colors.grey.shade500,
       ),
-      errorStyle: TextStyle(
-        color: errorRed,
-        fontSize: 12,
-      ),
+      errorStyle: TextStyle(color: errorRed, fontSize: 12),
       prefixIconColor: primaryOrange,
       suffixIconColor: primaryOrange,
     );
@@ -289,18 +344,15 @@ class AppTheme {
   static ChipThemeData _buildChipTheme(Brightness brightness) {
     final isLight = brightness == Brightness.light;
     return ChipThemeData(
-      backgroundColor: isLight 
-          ? Colors.grey.withOpacity(0.1) 
-          : Colors.grey.withOpacity(0.2),
+      backgroundColor:
+          isLight
+              ? Colors.grey.withValues(alpha: 0.1)
+              : Colors.grey.withValues(alpha: 0.2),
       selectedColor: primaryOrange,
       secondarySelectedColor: primaryOrange,
       disabledColor: disabledColor,
-      labelStyle: TextStyle(
-        color: isLight ? Colors.black : Colors.white,
-      ),
-      secondaryLabelStyle: const TextStyle(
-        color: Colors.white,
-      ),
+      labelStyle: TextStyle(color: isLight ? Colors.black : Colors.white),
+      secondaryLabelStyle: const TextStyle(color: Colors.white),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(borderRadius),
@@ -312,25 +364,22 @@ class AppTheme {
     return ElevatedButton.styleFrom(
       backgroundColor: primaryOrange,
       foregroundColor: Colors.white,
-      disabledBackgroundColor: primaryOrange.withOpacity(0.5),
-      disabledForegroundColor: Colors.white.withOpacity(0.5),
+      disabledBackgroundColor: primaryOrange.withValues(alpha: 0.5),
+      disabledForegroundColor: Colors.white.withValues(alpha: 0.5),
       elevation: 4,
-      shadowColor: Colors.black.withOpacity(0.25),
+      shadowColor: Colors.black.withValues(alpha: 0.25),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(borderRadius),
       ),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-      textStyle: const TextStyle(
-        fontWeight: FontWeight.bold,
-        fontSize: 16,
-      ),
+      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
     ).copyWith(
-      overlayColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.pressed)) {
-          return Colors.white.withOpacity(0.2);
+      overlayColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.pressed)) {
+          return Colors.white.withValues(alpha: 0.2);
         }
-        if (states.contains(MaterialState.hovered)) {
-          return Colors.white.withOpacity(0.1);
+        if (states.contains(WidgetState.hovered)) {
+          return Colors.white.withValues(alpha: 0.1);
         }
         return Colors.transparent;
       }),
@@ -341,17 +390,14 @@ class AppTheme {
     return TextButton.styleFrom(
       foregroundColor: primaryOrange,
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-      textStyle: const TextStyle(
-        fontWeight: FontWeight.bold,
-        fontSize: 16,
-      ),
+      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
     ).copyWith(
-      overlayColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.pressed)) {
-          return primaryOrange.withOpacity(0.2);
+      overlayColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.pressed)) {
+          return primaryOrange.withValues(alpha: 0.2);
         }
-        if (states.contains(MaterialState.hovered)) {
-          return primaryOrange.withOpacity(0.1);
+        if (states.contains(WidgetState.hovered)) {
+          return primaryOrange.withValues(alpha: 0.1);
         }
         return Colors.transparent;
       }),
@@ -366,17 +412,14 @@ class AppTheme {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(borderRadius),
       ),
-      textStyle: const TextStyle(
-        fontWeight: FontWeight.bold,
-        fontSize: 16,
-      ),
+      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
     ).copyWith(
-      overlayColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.pressed)) {
-          return primaryOrange.withOpacity(0.2);
+      overlayColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.pressed)) {
+          return primaryOrange.withValues(alpha: 0.2);
         }
-        if (states.contains(MaterialState.hovered)) {
-          return primaryOrange.withOpacity(0.1);
+        if (states.contains(WidgetState.hovered)) {
+          return primaryOrange.withValues(alpha: 0.1);
         }
         return Colors.transparent;
       }),
@@ -392,49 +435,58 @@ class AppTheme {
     return isTV ? tvCardMargin : const EdgeInsets.all(8.0);
   }
 
-  static double responsiveValue(BuildContext context, 
-    {required double mobile, double? tablet, double? desktop}) {
+  static double responsiveValue(
+    BuildContext context, {
+    required double mobile,
+    double? tablet,
+    double? desktop,
+  }) {
     final width = MediaQuery.of(context).size.width;
     if (width >= 1200 && desktop != null) return desktop;
     if (width >= 600 && tablet != null) return tablet;
     return mobile;
   }
 
-  static BoxDecoration pageDecoration(BuildContext context, {bool useGradient = true}) {
+  static BoxDecoration pageDecoration(
+    BuildContext context, {
+    bool useGradient = true,
+  }) {
     final theme = Theme.of(context);
     if (useGradient) {
       return BoxDecoration(
         gradient: RadialGradient(
           center: Alignment.topCenter,
           radius: 1.5, // Réduit de 1.5 à 0.8 pour un effet plus subtil
-          colors: theme.brightness == Brightness.dark
-              ? [
-                  const Color(0xFF121212), // Plus foncé près du centre
-                  const Color(0xFF1E1E1E), // Intermediate
-                  const Color(0xFF2D2D2D), // Plus clair sur les bords
-                ]
-              : [
-                  const Color(0xFFF8F9FA), // Très léger près du centre
-                  const Color(0xFFE9ECEF), // Intermediate
-                  const Color(0xFFDEE2E6), // Léger sur les bords
-                ],
+          colors:
+              theme.brightness == Brightness.dark
+                  ? [
+                    const Color(0xFF121212), // Plus foncé près du centre
+                    const Color(0xFF1E1E1E), // Intermediate
+                    const Color(0xFF2D2D2D), // Plus clair sur les bords
+                  ]
+                  : [
+                    const Color(0xFFF8F9FA), // Très léger près du centre
+                    const Color(0xFFE9ECEF), // Intermediate
+                    const Color(0xFFDEE2E6), // Léger sur les bords
+                  ],
           stops: const [0.0, 0.5, 1.0], // Contrôle la progression des couleurs
         ),
       );
     } else {
-      return BoxDecoration(
-        color: theme.colorScheme.background,
-      );
+      return BoxDecoration(color: theme.colorScheme.surface);
     }
   }
 
-  static BoxDecoration cardDecoration(BuildContext context, {double elevation = 2}) {
+  static BoxDecoration cardDecoration(
+    BuildContext context, {
+    double elevation = 2,
+  }) {
     return BoxDecoration(
       color: Theme.of(context).cardColor,
       borderRadius: BorderRadius.circular(borderRadius),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.1 * elevation),
+          color: Colors.black.withValues(alpha: 0.1 * elevation),
           blurRadius: 6 * elevation,
           spreadRadius: 1 * elevation,
           offset: Offset(0, 2 * elevation),
@@ -464,7 +516,9 @@ class AppTheme {
   }
 
   static TextStyle offerDetailValueStyle(BuildContext context) {
-    return Theme.of(context).textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold);
+    return Theme.of(
+      context,
+    ).textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold);
   }
 
   static const tvSectionTitleStyle = TextStyle(
@@ -477,13 +531,6 @@ class AppTheme {
     fontSize: 32,
     fontWeight: FontWeight.bold,
     color: Colors.white,
-    shadows: [
-      Shadow(
-        color: Colors.black,
-        blurRadius: 8,
-        offset: Offset(2, 2),
-      ),
-    ],
+    shadows: [Shadow(color: Colors.black, blurRadius: 8, offset: Offset(2, 2))],
   );
-
 }

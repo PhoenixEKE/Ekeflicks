@@ -4,7 +4,6 @@ import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
 import 'package:provider/provider.dart';
 
-
 class SubscriptionOffer {
   final String title;
   final String? price;
@@ -57,8 +56,6 @@ class SubscriptionOffer {
     return '$formatted $currencyLabel';
   }
 
-
-
   bool get isFree {
     final normalizedTitle = title.trim().toLowerCase();
     final parsedPrice = double.tryParse((price ?? '').replaceAll(',', '.'));
@@ -78,7 +75,8 @@ class SubscriptionOffersWidget extends StatefulWidget {
   const SubscriptionOffersWidget({super.key, this.onOfferSelected});
 
   @override
-  State<SubscriptionOffersWidget> createState() => _SubscriptionOffersWidgetState();
+  State<SubscriptionOffersWidget> createState() =>
+      _SubscriptionOffersWidgetState();
 }
 
 class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
@@ -99,10 +97,8 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
     try {
       final userProvider = context.read<UserProvider>();
 
-      final response =
-          await userProvider.apiClient.dio.get<Map<String, dynamic>>(
-        '/subscription-plans/',
-      );
+      final response = await userProvider.apiClient.dio
+          .get<Map<String, dynamic>>('/subscription-plans/');
 
       final payload = response.data;
       final rawPlans = payload?['results'] ?? payload;
@@ -111,31 +107,33 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
         throw StateError('Liste des offres indisponible.');
       }
 
-      final loadedOffers = rawPlans
-          .whereType<Map>()
-          .where((plan) => plan['is_active'] == true)
-          .map((plan) {
-        final price = plan['price']?.toString();
-        final currency =
-            plan['currency']?.toString().toUpperCase() ?? 'EUR';
-        final maxDevices = (plan['max_devices'] as num?)?.toInt() ?? 1;
-        final quality = plan['max_quality']?.toString() ?? 'HD';
-        final downloadEnabled = plan['download_enabled'] == true;
+      final loadedOffers =
+          rawPlans
+              .whereType<Map>()
+              .where((plan) => plan['is_active'] == true)
+              .map((plan) {
+                final price = plan['price']?.toString();
+                final currency =
+                    plan['currency']?.toString().toUpperCase() ?? 'EUR';
+                final maxDevices = (plan['max_devices'] as num?)?.toInt() ?? 1;
+                final quality = plan['max_quality']?.toString() ?? 'HD';
+                final downloadEnabled = plan['download_enabled'] == true;
 
-        return SubscriptionOffer(
-          title: plan['name']?.toString() ?? '',
-          price: price,
-            currency: currency,
-          quality: quality,
-          resolution: quality,
-          devicesSupported: 'TV, ordinateur, smartphone, tablette',
-          simultaneousDevices: maxDevices,
-          downloadEnabled: downloadEnabled,
-          adsIncluded: plan['ads_included'] == true,
-          planSlug: plan['slug']?.toString() ?? '',
-          durationDays: (plan['duration_days'] as num?)?.toInt() ?? 30,
-        );
-      }).toList();
+                return SubscriptionOffer(
+                  title: plan['name']?.toString() ?? '',
+                  price: price,
+                  currency: currency,
+                  quality: quality,
+                  resolution: quality,
+                  devicesSupported: 'TV, ordinateur, smartphone, tablette',
+                  simultaneousDevices: maxDevices,
+                  downloadEnabled: downloadEnabled,
+                  adsIncluded: plan['ads_included'] == true,
+                  planSlug: plan['slug']?.toString() ?? '',
+                  durationDays: (plan['duration_days'] as num?)?.toInt() ?? 30,
+                );
+              })
+              .toList();
 
       if (!mounted) return;
 
@@ -185,10 +183,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
             children: [
               const Icon(Icons.error_outline, size: 40),
               const SizedBox(height: 12),
-              Text(
-                _loadError!,
-                textAlign: TextAlign.center,
-              ),
+              Text(_loadError!, textAlign: TextAlign.center),
               const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: () {
@@ -210,11 +205,12 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth > 600;
 
-        final double cardWidth = isDesktop
-            ? 200
-            : (constraints.maxWidth > 450
-                ? (constraints.maxWidth / 2) - 12
-                : constraints.maxWidth * 0.9);
+        final double cardWidth =
+            isDesktop
+                ? 200
+                : (constraints.maxWidth > 450
+                    ? (constraints.maxWidth / 2) - 12
+                    : constraints.maxWidth * 0.9);
 
         return Center(
           child: Wrap(
@@ -232,20 +228,25 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                   onEnter: (_) => setState(() => hoveredIndex = index),
                   onExit: (_) => setState(() => hoveredIndex = null),
                   child: Transform(
-                    transform: hoveredIndex == index && isDesktop
-                        ? (Matrix4.identity()..scale(1.03))
-                        : Matrix4.identity(),
+                    transform:
+                        hoveredIndex == index && isDesktop
+                            ? (Matrix4.identity()..scale(1.03))
+                            : Matrix4.identity(),
                     alignment: Alignment.center,
                     child: Container(
                       width: cardWidth,
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
-                            : Theme.of(context).cardColor,
+                        color:
+                            isSelected
+                                ? Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.2)
+                                : Theme.of(context).cardColor,
                         border: Border.all(
-                          color: isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : (isFree ? Colors.green : Colors.grey),
+                          color:
+                              isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : (isFree ? Colors.green : Colors.grey),
                           width: isFree ? 3 : 2,
                         ),
                         borderRadius: BorderRadius.circular(12),
@@ -257,7 +258,10 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                           // Badge "GRATUIT" pour l'offre free
                           if (isFree) ...[
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.green,
                                 borderRadius: BorderRadius.circular(4),
@@ -309,7 +313,8 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                               style: AppTheme.offerPriceStyle(context),
                             ),
                           ],
-                          if (isDesktop || isSelected) _offerDetails(offer, context),
+                          if (isDesktop || isSelected)
+                            _offerDetails(offer, context),
                         ],
                       ),
                     ),
@@ -371,15 +376,36 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
             infoRow(Icons.timer, "Durée", "${offer.durationDays} jours"),
             infoRow(Icons.card_giftcard, "Type", "Essai gratuit"),
           ] else ...[
-            infoRow(Icons.monetization_on, loc.abonnementMensuel,
-                offer.price != null ? offer.formattedPrice : loc.prixNonDisponible),
+            infoRow(
+              Icons.monetization_on,
+              loc.abonnementMensuel,
+              offer.price != null
+                  ? offer.formattedPrice
+                  : loc.prixNonDisponible,
+            ),
           ],
           infoRow(Icons.high_quality, loc.qualite, offer.quality),
           infoRow(Icons.tv, loc.resolution, offer.resolution),
-          infoRow(Icons.devices, loc.appareilsPrisEnCharge, offer.devicesSupported),
-          infoRow(Icons.group, loc.appareilsSimultanes, offer.simultaneousDevices.toString()),
-          infoRow(Icons.download, loc.telechargement, offer.downloadEnabled ? loc.oui : loc.non),
-          infoRow(Icons.ads_click, loc.publicites, offer.adsIncluded ? loc.oui : loc.non),
+          infoRow(
+            Icons.devices,
+            loc.appareilsPrisEnCharge,
+            offer.devicesSupported,
+          ),
+          infoRow(
+            Icons.group,
+            loc.appareilsSimultanes,
+            offer.simultaneousDevices.toString(),
+          ),
+          infoRow(
+            Icons.download,
+            loc.telechargement,
+            offer.downloadEnabled ? loc.oui : loc.non,
+          ),
+          infoRow(
+            Icons.ads_click,
+            loc.publicites,
+            offer.adsIncluded ? loc.oui : loc.non,
+          ),
         ],
       ),
     );
