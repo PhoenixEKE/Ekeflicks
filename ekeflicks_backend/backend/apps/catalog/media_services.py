@@ -1,5 +1,10 @@
 from django.core.files.storage import storages
+from django.db import transaction
 from rest_framework import serializers
+
+from apps.catalog.technical_media_validation import (
+    validate_image_against_published_spec,
+)
 
 from apps.common.media_storage import (
     copy_internal_to_final,
@@ -8,6 +13,65 @@ from apps.common.media_storage import (
     save_internal_upload,
     safe_extension,
 )
+
+
+SEASON_MEDIA_CONFIG = {
+    'poster': {
+        'temp_field': 'poster_temp_path',
+        'final_field': 'poster_url',
+        'storage_alias': 'final_posters',
+        'cdn_prefix': 'posters',
+        'default_extension': '.jpg',
+        'allowed_extensions': {
+            '.jpg',
+            '.jpeg',
+            '.png',
+            '.webp',
+        },
+        'final_name': 'poster',
+    },
+    'backdrop': {
+        'temp_field': 'backdrop_temp_path',
+        'final_field': 'backdrop_url',
+        'storage_alias': 'final_backdrops',
+        'cdn_prefix': 'backdrops',
+        'default_extension': '.jpg',
+        'allowed_extensions': {
+            '.jpg',
+            '.jpeg',
+            '.png',
+            '.webp',
+        },
+        'final_name': 'backdrop',
+    },
+    'trailer': {
+        'temp_field': 'trailer_temp_path',
+        'final_field': 'trailer_url',
+        'storage_alias': 'final_trailers',
+        'cdn_prefix': 'trailers',
+        'default_extension': '.mp4',
+        'allowed_extensions': {
+            '.mp4',
+            '.m4v',
+            '.mov',
+            '.webm',
+        },
+        'final_name': 'trailer',
+    },
+}
+
+
+TEAM_IMAGE_CONFIG = {
+    'storage_alias': 'final_posters',
+    'cdn_prefix': 'team',
+    'default_extension': '.jpg',
+    'allowed_extensions': {
+        '.jpg',
+        '.jpeg',
+        '.png',
+        '.webp',
+    },
+}
 
 
 CONTENT_MEDIA_CONFIG = {
@@ -54,6 +118,12 @@ def store_content_media_temp(content, uploaded_file, media_type, uploader=None):
         raise serializers.ValidationError(
             {'media_type': 'Type de média non supporté.'}
         ) from exc
+
+    if media_type in {'poster', 'backdrop'}:
+        validate_image_against_published_spec(
+            uploaded_file,
+            media_type,
+        )
 
     extension = safe_extension(
         getattr(uploaded_file, 'name', ''),
@@ -103,6 +173,283 @@ def store_content_media_temp(content, uploaded_file, media_type, uploader=None):
     }
 
 
+def store_season_media_temp(
+    season,
+    uploaded_file,
+    media_type,
+    uploader=None,
+):
+    """
+    Stocke un media de saison uniquement dans le stockage TEMP.
+
+    Les champs *_url restent reserves au media FINAL apres
+    validation administrative du contenu.
+    """
+    try:
+        config = SEASON_MEDIA_CONFIG[media_type]
+    except KeyError as exc:
+        raise serializers.ValidationError(
+            {'media_type': 'Type de media saison non supporte.'}
+        ) from exc
+
+    if media_type in {'poster', 'backdrop'}:
+        validate_image_against_published_spec(
+            uploaded_file,
+            media_type,
+        )
+
+    extension = safe_extension(
+        getattr(uploaded_file, 'name', ''),
+        config['default_extension'],
+    )
+
+    if extension not in config['allowed_extensions']:
+        raise serializers.ValidationError({
+            'file': (
+                'Extension non autorisee pour '
+                f'{media_type}: {extension}'
+            )
+        })
+
+    content = season.content
+
+    producer_id = object_id(
+        uploader or content.producer
+    )
+
+    internal_path = (
+        f'uploads/producer_{producer_id}/'
+        f'{dated_path()}/'
+        f'content_{content.id}/'
+        f'season_{season.season_number:02d}/'
+        f'{media_type}_original{extension}'
+    )
+
+    saved_path = save_internal_upload(
+        uploaded_file=uploaded_file,
+        storage_path=internal_path,
+    )
+
+    temp_field = config['temp_field']
+    final_field = config['final_field']
+
+    old_temp_path = str(
+        getattr(season, temp_field, '') or ''
+    ).strip()
+
+    setattr(season, temp_field, saved_path)
+    setattr(season, final_field, '')
+
+    season.save(
+        update_fields=[
+            temp_field,
+            final_field,
+            'updated_at',
+        ]
+    )
+
+    # L'activite sur une saison doit egalement repousser
+    # l'expiration automatique du brouillon parent.
+    content.save(update_fields=['updated_at'])
+
+    # save_internal_upload remplace deja l'objet si le chemin
+    # est identique. Cette branche couvre un ancien fichier
+    # avec une extension differente.
+    if old_temp_path and old_temp_path != saved_path:
+        try:
+            from django.core.files.storage import default_storage
+
+            if default_storage.exists(old_temp_path):
+                default_storage.delete(old_temp_path)
+        except Exception:
+            # Une erreur de nettoyage de l'ancien TEMP ne doit
+            # pas invalider le nouvel upload deja persiste.
+            pass
+
+    return {
+        'media_type': media_type,
+        'field': temp_field,
+        'temporary_path': saved_path,
+        'final_field': final_field,
+        'url': '',
+        'storage': 'temporary',
+    }
+
+
+def cleanup_approved_content_temporary_media(content):
+    """
+    Nettoie les objets TEMP après approbation réussie.
+
+    Cette fonction est volontairement best-effort :
+    une erreur de suppression TEMP ne doit jamais invalider
+    un contenu déjà promu et approuvé.
+
+    Un chemin TEMP n'est vidé en base que lorsque l'objet
+    correspondant n'existe plus dans le stockage temporaire.
+    """
+    from django.core.files.storage import default_storage
+
+    result = {
+        'deleted': 0,
+        'missing': 0,
+        'errors': 0,
+        'db_updates': 0,
+    }
+
+    def delete_temp(path):
+        temporary_path = str(path or '').strip()
+
+        if not temporary_path:
+            return True
+
+        try:
+            if default_storage.exists(temporary_path):
+                default_storage.delete(temporary_path)
+
+            if default_storage.exists(temporary_path):
+                result['errors'] += 1
+                return False
+
+            result['deleted'] += 1
+            return True
+        except Exception:
+            result['errors'] += 1
+            return False
+
+    content_fields = []
+
+    for config in CONTENT_MEDIA_CONFIG.values():
+        temp_field = config['temp_field']
+        temp_path = getattr(content, temp_field, '')
+
+        if not str(temp_path or '').strip():
+            continue
+
+        if delete_temp(temp_path):
+            setattr(content, temp_field, '')
+            content_fields.append(temp_field)
+
+    for temp_field in (
+        'director_image_temp_path',
+        'screenwriter_image_temp_path',
+    ):
+        temp_path = getattr(content, temp_field, '')
+
+        if not str(temp_path or '').strip():
+            continue
+
+        if delete_temp(temp_path):
+            setattr(content, temp_field, '')
+            content_fields.append(temp_field)
+
+    producer_team = (
+        [
+            dict(member)
+            if isinstance(member, dict)
+            else member
+            for member in content.producer_team
+        ]
+        if isinstance(content.producer_team, list)
+        else []
+    )
+
+    producer_team_changed = False
+
+    for member in producer_team:
+        if not isinstance(member, dict):
+            continue
+
+        temp_path = str(
+            member.get('image_temp_path') or ''
+        ).strip()
+
+        if not temp_path:
+            continue
+
+        if delete_temp(temp_path):
+            member['image_temp_path'] = ''
+            producer_team_changed = True
+
+    if producer_team_changed:
+        content.producer_team = producer_team
+        content_fields.append('producer_team')
+
+    cast_team = (
+        [
+            dict(member)
+            if isinstance(member, dict)
+            else member
+            for member in content.cast_team
+        ]
+        if isinstance(content.cast_team, list)
+        else []
+    )
+
+    cast_team_changed = False
+
+    for member in cast_team:
+        if not isinstance(member, dict):
+            continue
+
+        temp_path = str(
+            member.get('image_temp_path') or ''
+        ).strip()
+
+        if not temp_path:
+            continue
+
+        if delete_temp(temp_path):
+            member['image_temp_path'] = ''
+            cast_team_changed = True
+
+    if cast_team_changed:
+        content.cast_team = cast_team
+        content_fields.append('cast_team')
+
+    if content_fields:
+        content_fields = list(dict.fromkeys(content_fields))
+        content_fields.append('updated_at')
+
+        try:
+            content.save(update_fields=content_fields)
+            result['db_updates'] += 1
+        except Exception:
+            # Le FINAL et l'approbation restent valides.
+            # Les champs TEMP pourront être nettoyés lors
+            # d'une nouvelle tentative.
+            result['errors'] += 1
+
+    for season in content.seasons.all():
+        season_fields = []
+
+        for config in SEASON_MEDIA_CONFIG.values():
+            temp_field = config['temp_field']
+            temp_path = getattr(season, temp_field, '')
+
+            if not str(temp_path or '').strip():
+                continue
+
+            if delete_temp(temp_path):
+                setattr(season, temp_field, '')
+                season_fields.append(temp_field)
+
+        if not season_fields:
+            continue
+
+        season_fields = list(dict.fromkeys(season_fields))
+        season_fields.append('updated_at')
+
+        try:
+            season.save(update_fields=season_fields)
+            result['db_updates'] += 1
+        except Exception:
+            # Même principe : aucune erreur de cleanup TEMP
+            # ne doit invalider le média FINAL.
+            result['errors'] += 1
+
+    return result
+
+
 def promote_content_media_to_final(content):
     """
     Copie les médias TEMP du contenu vers B2 FINAL/CDN.
@@ -149,6 +496,7 @@ def promote_content_media_to_final(content):
             )
 
             promoted[media_type] = {
+                'kind': 'content_media',
                 'temp_field': temp_field,
                 'temp_path': temp_path,
                 'final_field': final_field,
@@ -156,6 +504,285 @@ def promote_content_media_to_final(content):
                 'storage_alias': config['storage_alias'],
                 'url': public_url,
             }
+
+        primary_people = (
+            (
+                'director',
+                'director_image_temp_path',
+                'director_image_url',
+            ),
+            (
+                'screenwriter',
+                'screenwriter_image_temp_path',
+                'screenwriter_image_url',
+            ),
+        )
+
+        for role, temp_field, final_field in primary_people:
+            temp_path = str(
+                getattr(content, temp_field, '') or ''
+            ).strip()
+
+            if not temp_path:
+                continue
+
+            extension = safe_extension(
+                temp_path,
+                TEAM_IMAGE_CONFIG['default_extension'],
+            )
+
+            if (
+                extension
+                not in TEAM_IMAGE_CONFIG['allowed_extensions']
+            ):
+                raise serializers.ValidationError({
+                    temp_field: (
+                        'Extension TEMP non autorisée pour '
+                        f'la photo {role}: {extension}'
+                    )
+                })
+
+            final_path = (
+                f"{content.id}/"
+                f"team/"
+                f"{role}{extension}"
+            )
+
+            saved_path, public_url = copy_internal_to_final(
+                internal_path=temp_path,
+                storage_alias=(
+                    TEAM_IMAGE_CONFIG['storage_alias']
+                ),
+                final_path=final_path,
+                cdn_prefix=TEAM_IMAGE_CONFIG['cdn_prefix'],
+            )
+
+            promoted[f'{role}_image'] = {
+                'kind': 'primary_person',
+                'temp_field': temp_field,
+                'temp_path': temp_path,
+                'final_field': final_field,
+                'final_path': saved_path,
+                'storage_alias': (
+                    TEAM_IMAGE_CONFIG['storage_alias']
+                ),
+                'url': public_url,
+            }
+
+        producer_team = (
+            content.producer_team
+            if isinstance(content.producer_team, list)
+            else []
+        )
+
+        for index, member in enumerate(producer_team):
+            if not isinstance(member, dict):
+                continue
+
+            temp_path = str(
+                member.get('image_temp_path') or ''
+            ).strip()
+
+            if not temp_path:
+                continue
+
+            extension = safe_extension(
+                temp_path,
+                TEAM_IMAGE_CONFIG['default_extension'],
+            )
+
+            if (
+                extension
+                not in TEAM_IMAGE_CONFIG['allowed_extensions']
+            ):
+                raise serializers.ValidationError({
+                    'producer_team': (
+                        'Extension TEMP non autorisée pour '
+                        f'la photo du producteur {index + 1}: '
+                        f'{extension}'
+                    )
+                })
+
+            final_path = (
+                f"{content.id}/"
+                f"team/"
+                f"producer_{index + 1}{extension}"
+            )
+
+            saved_path, public_url = copy_internal_to_final(
+                internal_path=temp_path,
+                storage_alias=(
+                    TEAM_IMAGE_CONFIG['storage_alias']
+                ),
+                final_path=final_path,
+                cdn_prefix=TEAM_IMAGE_CONFIG['cdn_prefix'],
+            )
+
+            promoted[
+                f'producer_team_{index}'
+            ] = {
+                'kind': 'producer_team',
+                'index': index,
+                'temp_path': temp_path,
+                'final_path': saved_path,
+                'storage_alias': (
+                    TEAM_IMAGE_CONFIG['storage_alias']
+                ),
+                'url': public_url,
+            }
+
+        cast_team = (
+            content.cast_team
+            if isinstance(content.cast_team, list)
+            else []
+        )
+
+        for index, member in enumerate(cast_team):
+            if not isinstance(member, dict):
+                continue
+
+            temp_path = str(
+                member.get('image_temp_path') or ''
+            ).strip()
+
+            if not temp_path:
+                continue
+
+            extension = safe_extension(
+                temp_path,
+                TEAM_IMAGE_CONFIG['default_extension'],
+            )
+
+            if (
+                extension
+                not in TEAM_IMAGE_CONFIG['allowed_extensions']
+            ):
+                raise serializers.ValidationError({
+                    'cast_team': (
+                        'Extension TEMP non autorisée pour '
+                        f'la photo de l’acteur {index + 1}: '
+                        f'{extension}'
+                    )
+                })
+
+            final_path = (
+                f"{content.id}/"
+                f"team/"
+                f"actor_{index + 1}{extension}"
+            )
+
+            saved_path, public_url = copy_internal_to_final(
+                internal_path=temp_path,
+                storage_alias=(
+                    TEAM_IMAGE_CONFIG['storage_alias']
+                ),
+                final_path=final_path,
+                cdn_prefix=TEAM_IMAGE_CONFIG['cdn_prefix'],
+            )
+
+            promoted[
+                f'cast_team_{index}'
+            ] = {
+                'kind': 'cast_team',
+                'index': index,
+                'temp_path': temp_path,
+                'final_path': saved_path,
+                'storage_alias': (
+                    TEAM_IMAGE_CONFIG['storage_alias']
+                ),
+                'url': public_url,
+            }
+
+        # Les medias de Saison participent exactement a la
+        # meme tentative de promotion que les medias globaux.
+        # Ainsi, un echec sur une Saison declenche le rollback
+        # de tous les objets FINAL copies pendant cette tentative.
+        seasons = list(
+            content.seasons.all().order_by(
+                'season_number',
+                'created_at',
+            )
+        )
+
+        for season in seasons:
+            for media_type, config in (
+                SEASON_MEDIA_CONFIG.items()
+            ):
+                temp_field = config['temp_field']
+                final_field = config['final_field']
+
+                temp_path = str(
+                    getattr(
+                        season,
+                        temp_field,
+                        '',
+                    )
+                    or ''
+                ).strip()
+
+                if not temp_path:
+                    continue
+
+                extension = safe_extension(
+                    temp_path,
+                    config['default_extension'],
+                )
+
+                if (
+                    extension
+                    not in config['allowed_extensions']
+                ):
+                    raise serializers.ValidationError({
+                        temp_field: (
+                            'Extension TEMP non autorisee '
+                            'pour le media '
+                            f'{media_type} de la Saison '
+                            f'{season.season_number}: '
+                            f'{extension}'
+                        )
+                    })
+
+                final_path = (
+                    f'{content.id}/'
+                    f'season_{season.season_number:02d}/'
+                    f"{config['final_name']}"
+                    f'{extension}'
+                )
+
+                saved_path, public_url = (
+                    copy_internal_to_final(
+                        internal_path=temp_path,
+                        storage_alias=(
+                            config['storage_alias']
+                        ),
+                        final_path=final_path,
+                        cdn_prefix=(
+                            config['cdn_prefix']
+                        ),
+                    )
+                )
+
+                promoted[
+                    (
+                        f'season_{season.id}_'
+                        f'{media_type}'
+                    )
+                ] = {
+                    'kind': 'season_media',
+                    'season': season,
+                    'season_id': season.id,
+                    'season_number': (
+                        season.season_number
+                    ),
+                    'temp_field': temp_field,
+                    'temp_path': temp_path,
+                    'final_field': final_field,
+                    'final_path': saved_path,
+                    'storage_alias': (
+                        config['storage_alias']
+                    ),
+                    'url': public_url,
+                }
 
     except Exception:
         # Rollback best-effort des objets FINAL créés pendant
@@ -173,18 +800,175 @@ def promote_content_media_to_final(content):
 
     # Les URLs ne sont persistées qu'après réussite de TOUTES
     # les copies.
-    if promoted:
-        update_fields = []
+    try:
+        with transaction.atomic():
+            if promoted:
+                update_fields = []
+                producer_team_changed = False
+                cast_team_changed = False
+                season_updates = {}
 
-        for item in promoted.values():
-            setattr(
-                content,
-                item['final_field'],
-                item['url'],
-            )
-            update_fields.append(item['final_field'])
+                producer_team = (
+                    [
+                        dict(member)
+                        if isinstance(member, dict)
+                        else member
+                        for member in content.producer_team
+                    ]
+                    if isinstance(content.producer_team, list)
+                    else []
+                )
 
-        update_fields.append('updated_at')
-        content.save(update_fields=update_fields)
+                cast_team = (
+                    [
+                        dict(member)
+                        if isinstance(member, dict)
+                        else member
+                        for member in content.cast_team
+                    ]
+                    if isinstance(content.cast_team, list)
+                    else []
+                )
+
+                for item in promoted.values():
+                    if item['kind'] == 'content_media':
+                        setattr(
+                            content,
+                            item['final_field'],
+                            item['url'],
+                        )
+                        update_fields.append(
+                            item['final_field']
+                        )
+                        continue
+
+                    if item['kind'] == 'primary_person':
+                        setattr(
+                            content,
+                            item['final_field'],
+                            item['url'],
+                        )
+                        update_fields.append(
+                            item['final_field']
+                        )
+                        continue
+
+                    if item['kind'] == 'season_media':
+                        season = item['season']
+
+                        setattr(
+                            season,
+                            item['final_field'],
+                            item['url'],
+                        )
+
+                        season_entry = (
+                            season_updates.setdefault(
+                                season.id,
+                                {
+                                    'season': season,
+                                    'fields': [],
+                                },
+                            )
+                        )
+
+                        season_entry['fields'].append(
+                            item['final_field']
+                        )
+                        continue
+
+                    if item['kind'] == 'producer_team':
+                        index = item['index']
+
+                        if (
+                            index >= len(producer_team)
+                            or not isinstance(
+                                producer_team[index],
+                                dict,
+                            )
+                        ):
+                            raise RuntimeError(
+                                'Référence producer_team '
+                                'invalide après promotion.'
+                            )
+
+                        producer_team[index][
+                            'image_url'
+                        ] = item['url']
+
+                        producer_team_changed = True
+                        continue
+
+                    if item['kind'] == 'cast_team':
+                        index = item['index']
+
+                        if (
+                            index >= len(cast_team)
+                            or not isinstance(
+                                cast_team[index],
+                                dict,
+                            )
+                        ):
+                            raise RuntimeError(
+                                'Référence cast_team '
+                                'invalide après promotion.'
+                            )
+
+                        cast_team[index][
+                            'image_url'
+                        ] = item['url']
+
+                        cast_team_changed = True
+
+                if producer_team_changed:
+                    content.producer_team = producer_team
+                    update_fields.append('producer_team')
+
+                if cast_team_changed:
+                    content.cast_team = cast_team
+                    update_fields.append('cast_team')
+
+                # Evite les doublons dans update_fields.
+                update_fields = list(dict.fromkeys(update_fields))
+
+                update_fields.append('updated_at')
+
+                content.save(
+                    update_fields=update_fields
+                )
+
+                for season_entry in season_updates.values():
+                    season = season_entry['season']
+
+                    season_fields = list(
+                        dict.fromkeys(
+                            season_entry['fields']
+                        )
+                    )
+
+                    season_fields.append('updated_at')
+
+                    season.save(
+                        update_fields=season_fields
+                    )
+    except Exception:
+        # Une erreur de persistance DB annule la transaction
+        # et nettoie aussi les objets FINAL copies pendant
+        # cette tentative afin d eviter tout etat partiel.
+        for item in reversed(list(promoted.values())):
+            try:
+                final_storage = storages[
+                    item['storage_alias']
+                ]
+                if final_storage.exists(
+                    item['final_path']
+                ):
+                    final_storage.delete(
+                        item['final_path']
+                    )
+            except Exception:
+                pass
+
+        raise
 
     return promoted

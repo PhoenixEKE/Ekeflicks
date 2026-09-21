@@ -1,3 +1,4 @@
+import logging
 from email.mime.image import MIMEImage
 from django.conf import settings
 from django.contrib.staticfiles import finders
@@ -19,6 +20,10 @@ EVENT_CATEGORIES = {
     "parental_pin_changed": "security",
     "subscription_created": "subscription",
     "content_published": "catalog",
+    "social_connection_requested": "social",
+    "social_connection_accepted": "social",
+    "salon_invitation_received": "social",
+    "salon_invitation_accepted": "social",
 }
 
 
@@ -89,8 +94,27 @@ EVENT_DEFAULTS = {
         "Demande de fermeture recue",
         "Votre demande de fermeture de compte a ete enregistree.",
     ),
+    "social_connection_requested": (
+        "Nouvelle demande de connexion",
+        "Vous avez recu une nouvelle demande de connexion.",
+    ),
+    "social_connection_accepted": (
+        "Connexion acceptee",
+        "Votre demande de connexion a ete acceptee.",
+    ),
+    "salon_invitation_received": (
+        "Invitation a un Salon",
+        "Vous avez recu une invitation a rejoindre un Salon.",
+    ),
+    "salon_invitation_accepted": (
+        "Invitation Salon acceptee",
+        "Votre invitation a un Salon a ete acceptee.",
+    ),
 }
 
+
+
+logger = logging.getLogger(__name__)
 
 def _unsubscribe_url(user):
     token = signing.dumps(str(user.pk), salt="notification-unsubscribe")
@@ -196,12 +220,18 @@ def notify_user(user, event_name, title="", message="", data=None, email_enabled
             # inline HTML resources rather than ordinary attachments.
             email.mixed_subtype = "related"
             _attach_email_logo(email)
-            email.send(fail_silently=True)
-            notification.is_sent = True
-            notification.sent_at = timezone.now()
-            notification.save(update_fields=["is_sent", "sent_at"])
+            sent_count = email.send(fail_silently=False)
+            if sent_count:
+                notification.is_sent = True
+                notification.sent_at = timezone.now()
+                notification.save(update_fields=["is_sent", "sent_at"])
         except Exception:
-            pass
+            logger.exception(
+                "Notification email delivery failed: notification_id=%s event=%s user_id=%s",
+                notification.id,
+                event_name,
+                getattr(user, "id", None),
+            )
 
     return notification
 

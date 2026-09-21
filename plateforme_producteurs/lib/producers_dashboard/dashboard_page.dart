@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:plateforme_producteurs/producers_dashboard/technical_specification_page.dart';
 import 'package:go_router/go_router.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:provider/provider.dart';
@@ -9,12 +10,14 @@ import 'package:plateforme_producteurs/services/auth_service.dart';
 import 'package:plateforme_producteurs/widgets/producer_page_shell.dart';
 
 import 'overview_page.dart';
+import 'analytics/analytics_page.dart';
 import 'my_videos/films_tab.dart';
 import 'my_videos/series_tab.dart';
 import 'upload/upload_page.dart';
 import 'finance/finance_page.dart';
 import 'claims/claims_page.dart';
 import 'profile/profile_page.dart';
+import 'package:plateforme_producteurs/widgets/producer_modal_shell.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -25,6 +28,9 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 0;
+
+  String? _editingContentId;
+  int? _editingOriginIndex;
 
   @override
   void initState() {
@@ -51,21 +57,77 @@ class _DashboardPageState extends State<DashboardPage> {
     context.go('/');
   }
 
+  void _openContentEditor(String contentId, int originIndex) {
+    setState(() {
+      _editingContentId = contentId;
+      _editingOriginIndex = originIndex;
+      _selectedIndex = 4;
+    });
+  }
+
+  void _leaveContentEditor() {
+    final origin = _editingOriginIndex ?? 1;
+
+    setState(() {
+      _editingContentId = null;
+      _editingOriginIndex = null;
+      _selectedIndex = origin;
+    });
+  }
+
+  void _selectDashboardTab(int index) {
+    setState(() {
+      if (index == 4 && _selectedIndex != 4) {
+        _editingContentId = null;
+        _editingOriginIndex = null;
+      }
+
+      _selectedIndex = index;
+    });
+  }
+
   List<Widget> _buildPages(AppLocalizations l10n) {
     return [
       const OverviewPage(),
-      const FilmsTab(),
-      const SeriesTab(),
-      const UploadPage(),
+      const AnalyticsPage(),
+      FilmsTab(
+        onEditContent: (contentId) {
+          _openContentEditor(contentId, 2);
+        },
+      ),
+      SeriesTab(
+        onEditContent: (contentId) {
+          _openContentEditor(contentId, 3);
+        },
+      ),
+      UploadPage(
+        key: ValueKey(_editingContentId ?? 'new-content'),
+        contentId: _editingContentId,
+        onExit: _leaveContentEditor,
+      ),
       const FinancePage(),
       const ClaimsPage(),
       const ProfilePage(),
     ];
   }
 
+  List<String> _buildPageTitles(AppLocalizations l10n) {
+    return [
+      l10n.dashboardTab,
+      'Analytics',
+      l10n.moviesTab,
+      l10n.seriesTab,
+      l10n.uploadTab,
+      l10n.financeTab,
+      l10n.supportTab,
+      l10n.profileTab,
+    ];
+  }
+
   List<BottomNavigationBarItem> _buildNavItems(AppLocalizations l10n) {
     final icons = [
       Icons.dashboard_rounded,
+      Icons.analytics_rounded,
       Icons.movie_rounded,
       Icons.live_tv_rounded,
       Icons.cloud_upload_rounded,
@@ -76,6 +138,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
     final labels = [
       l10n.dashboardTab,
+      'Analytics',
       l10n.moviesTab,
       l10n.seriesTab,
       l10n.uploadTab,
@@ -115,6 +178,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: ProducerPageShell(
+        title: _buildPageTitles(l10n)[_selectedIndex],
         padding: EdgeInsets.zero,
         actions: [
           IconButton(
@@ -130,6 +194,17 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
               onPressed: () => _showNotifications(context, l10n),
             ),
+          IconButton(
+            icon: const Icon(Icons.description_outlined),
+            tooltip: 'Cahier des charges technique',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const TechnicalSpecificationPage(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             tooltip: l10n.logout,
@@ -159,7 +234,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       child: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
+        onTap: _selectDashboardTab,
         backgroundColor: Colors.transparent,
         elevation: 0,
         type: BottomNavigationBarType.fixed,
@@ -174,13 +249,16 @@ class _DashboardPageState extends State<DashboardPage> {
   void _showNotifications(BuildContext context, AppLocalizations l10n) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDecorations.borderRadiusLarge),
-        ),
-        title: Text(l10n.notificationsTitle, style: AppTheme.textTitle),
-        content: SizedBox(
+      builder: (context) => ProducerModalShell(
+        title: l10n.notificationsTitle,
+        maxWidth: 620,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.close, style: TextStyle(color: AppTheme.primary)),
+          ),
+        ],
+        child: SizedBox(
           width: double.maxFinite,
           child: ListView(
             shrinkWrap: true,
@@ -204,12 +282,6 @@ class _DashboardPageState extends State<DashboardPage> {
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.close, style: TextStyle(color: AppTheme.primary)),
-          ),
-        ],
       ),
     );
   }

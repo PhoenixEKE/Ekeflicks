@@ -1,0 +1,1289 @@
+{
+  "id": "b102c653-c218-4e58-bcf5-67aa9c97bb77",
+  "version": "1.7",
+  "title": "Cahier des charges technique — Spécifications pour la livraison des assets",
+  "is_published": true,
+  "published_at": "2026-09-07T18:55:55.206810+00:00",
+  "sections": [
+    {
+      "key": "principles",
+      "items": [
+        {
+          "label": "Niveaux de livraison",
+          "value": "EKEFLICKS accepte trois niveaux : Master Premium, Master Standard et Master Distribution."
+        },
+        {
+          "label": "HDR",
+          "value": "Le HDR n'est obligatoire que lorsqu'un master HDR est livré ou spécifiquement demandé."
+        },
+        {
+          "label": "Audio multicanal",
+          "value": "5.1 ou 7.1 si disponible. Une piste stéréo conforme reste acceptée lorsque le master ne comporte pas de multicanal."
+        },
+        {
+          "label": "Sous-titres et doublages",
+          "value": "Les sous-titres multilingues et pistes de doublage sont livrés lorsqu'ils existent ou sont contractuellement requis."
+        },
+        {
+          "label": "Validation",
+          "value": "EKEFLICKS peut effectuer des contrôles automatiques et manuels avant validation définitive."
+        }
+      ],
+      "title": "1. Principes généraux de livraison",
+      "description": "Les fichiers livrés doivent correspondre au meilleur master professionnel disponible. Les brouillons peuvent être incomplets, mais la soumission finale doit respecter les exigences applicables."
+    },
+    {
+      "key": "poster",
+      "items": [
+        {
+          "label": "Ratio",
+          "value": "2:3 exact.",
+          "required": true,
+          "rule_key": "poster.aspect_ratio",
+          "auto_validation": true
+        },
+        {
+          "label": "Résolution minimale",
+          "value": "1000 × 1500 pixels.",
+          "required": true,
+          "rule_key": "poster.min_resolution",
+          "auto_validation": true
+        },
+        {
+          "label": "Résolution recommandée",
+          "value": "3000 × 4500 pixels."
+        },
+        {
+          "label": "Poids maximal",
+          "value": "20 Mo.",
+          "required": true,
+          "rule_key": "poster.max_size_mb",
+          "auto_validation": true
+        },
+        {
+          "label": "Formats",
+          "value": "PNG ou JPG/JPEG en qualité maximale.",
+          "required": true,
+          "rule_key": "poster.formats",
+          "auto_validation": true
+        },
+        {
+          "label": "Espace colorimétrique",
+          "value": "RGB."
+        },
+        {
+          "label": "Titre",
+          "value": "Le titre localisé de l'œuvre peut apparaître."
+        },
+        {
+          "label": "Éléments interdits",
+          "value": "Bordures, logos DVD/Blu-ray, logos de plateformes concurrentes, texte promotionnel ou dates de sortie."
+        },
+        {
+          "label": "Zone de sécurité",
+          "value": "Conserver les informations essentielles dans une zone de sécurité d'environ 10 % autour des bords."
+        }
+      ],
+      "title": "2. Poster",
+      "description": "Affiche principale verticale utilisée dans le catalogue EKEFLICKS."
+    },
+    {
+      "key": "banner",
+      "items": [
+        {
+          "label": "Ratio",
+          "value": "16:9 exact.",
+          "required": true,
+          "rule_key": "banner.aspect_ratio",
+          "auto_validation": true
+        },
+        {
+          "label": "Résolution minimale",
+          "value": "1920 × 1080 pixels.",
+          "required": true,
+          "rule_key": "banner.min_resolution",
+          "auto_validation": true
+        },
+        {
+          "label": "Résolution recommandée",
+          "value": "3840 × 2160 pixels."
+        },
+        {
+          "label": "Poids maximal",
+          "value": "10 Mo.",
+          "required": true,
+          "rule_key": "banner.max_size_mb",
+          "auto_validation": true
+        },
+        {
+          "label": "Formats",
+          "value": "PNG ou JPG/JPEG.",
+          "required": true,
+          "rule_key": "banner.formats",
+          "auto_validation": true
+        },
+        {
+          "label": "Espace colorimétrique",
+          "value": "RGB."
+        },
+        {
+          "label": "Texte",
+          "value": "Éviter les textes localisés intégrés au visuel, sauf validation éditoriale spécifique."
+        },
+        {
+          "label": "Éléments interdits",
+          "value": "Logos de plateformes concurrentes."
+        },
+        {
+          "label": "Composition",
+          "value": "Les personnages, visages et éléments clés doivent rester dans la zone centrale de sécurité."
+        }
+      ],
+      "title": "3. Bannière",
+      "description": "Visuel horizontal principal utilisé dans les interfaces éditoriales EKEFLICKS."
+    },
+    {
+      "key": "trailer",
+      "items": [
+        {
+          "label": "Master recommandé",
+          "value": "MOV Apple ProRes 422 ou ProRes 422 HQ. Une livraison MP4 professionnelle peut être acceptée pour le niveau Distribution."
+        },
+        {
+          "label": "Résolution recommandée",
+          "value": "3840 × 2160 lorsque disponible."
+        },
+        {
+          "label": "Résolution minimale",
+          "value": "1920 × 1080, sauf source historique ou exception préalablement approuvée."
+        },
+        {
+          "label": "Aspect ratio",
+          "value": "Respect du ratio natif de la source."
+        },
+        {
+          "label": "Framerate",
+          "value": "Constant : 23.976, 24, 25, 29.97 ou 30 fps."
+        },
+        {
+          "label": "Audio",
+          "value": "PCM 48 kHz recommandé pour les masters ProRes. AAC 48 kHz haute qualité accepté pour MP4."
+        },
+        {
+          "label": "Sous-titres",
+          "value": "SRT ou WebVTT livrés séparément si disponibles."
+        },
+        {
+          "label": "HDR",
+          "value": "Rec.2020 ou DCI-P3 selon le master. Métadonnées HDR ou Dolby Vision fournies en sidecar lorsque nécessaires."
+        },
+        {
+          "label": "Durée",
+          "value": "30 secondes à 2 minutes 30."
+        },
+        {
+          "label": "Convention de nommage",
+          "value": "[Titre]_S[XX]_Trailer_[Type]_[Res]_[HDR].ext pour une série ; adaptation équivalente pour un film."
+        },
+        {
+          "label": "Conteneur — Premium",
+          "value": "MOV obligatoire pour le niveau Master Premium.",
+          "expected": [
+            "mov"
+          ],
+          "required": true,
+          "rule_key": "trailer.container.premium",
+          "severity": "blocking",
+          "rule_type": "container_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium"
+          ]
+        },
+        {
+          "label": "Conteneur — Standard",
+          "value": "MOV obligatoire pour le niveau Master Standard.",
+          "expected": [
+            "mov"
+          ],
+          "required": true,
+          "rule_key": "trailer.container.standard",
+          "severity": "blocking",
+          "rule_type": "container_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "standard"
+          ]
+        },
+        {
+          "label": "Conteneur — Distribution",
+          "value": "MP4 obligatoire pour le niveau Master Distribution.",
+          "expected": [
+            "mp4"
+          ],
+          "required": true,
+          "rule_key": "trailer.container.distribution",
+          "severity": "blocking",
+          "rule_type": "container_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "distribution"
+          ]
+        },
+        {
+          "label": "Codec vidéo — Premium",
+          "value": "Apple ProRes pour le niveau Master Premium.",
+          "expected": [
+            "prores",
+            "prores_ks",
+            "prores_aw"
+          ],
+          "required": true,
+          "rule_key": "trailer.codec.premium",
+          "severity": "blocking",
+          "rule_type": "video_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium"
+          ]
+        },
+        {
+          "label": "Codec vidéo — Standard",
+          "value": "Apple ProRes pour le niveau Master Standard.",
+          "expected": [
+            "prores",
+            "prores_ks",
+            "prores_aw"
+          ],
+          "required": true,
+          "rule_key": "trailer.codec.standard",
+          "severity": "blocking",
+          "rule_type": "video_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "standard"
+          ]
+        },
+        {
+          "label": "Codec vidéo — Distribution",
+          "value": "H.264 AVC ou H.265/HEVC pour le niveau Distribution.",
+          "expected": [
+            "h264",
+            "hevc",
+            "h265"
+          ],
+          "required": true,
+          "rule_key": "trailer.codec.distribution",
+          "severity": "blocking",
+          "rule_type": "video_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "distribution"
+          ]
+        },
+        {
+          "label": "Résolution minimale",
+          "value": "1920 × 1080 minimum.",
+          "expected": {
+            "width": 1920,
+            "height": 1080
+          },
+          "required": true,
+          "rule_key": "trailer.min_resolution",
+          "severity": "blocking",
+          "rule_type": "min_resolution",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Framerate",
+          "value": "23.976, 24, 25, 29.97 ou 30 fps.",
+          "expected": [
+            23.976,
+            24,
+            25,
+            29.97,
+            30
+          ],
+          "required": true,
+          "rule_key": "trailer.allowed_fps",
+          "severity": "blocking",
+          "rule_type": "allowed_fps",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Framerate constant",
+          "value": "Framerate constant obligatoire.",
+          "expected": true,
+          "required": true,
+          "rule_key": "trailer.constant_frame_rate",
+          "severity": "blocking",
+          "rule_type": "constant_frame_rate",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Scan progressif",
+          "value": "Scan progressif obligatoire.",
+          "expected": true,
+          "required": true,
+          "rule_key": "trailer.progressive",
+          "severity": "blocking",
+          "rule_type": "progressive",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Piste audio obligatoire",
+          "value": "Le trailer doit contenir au moins une piste audio.",
+          "expected": true,
+          "required": true,
+          "rule_key": "trailer.audio.required",
+          "severity": "blocking",
+          "rule_type": "audio_stream_required",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Codec audio — Premium",
+          "value": "PCM recommandé pour les trailers ProRes Premium.",
+          "expected": [
+            "pcm_s16le",
+            "pcm_s24le",
+            "pcm_s32le"
+          ],
+          "required": false,
+          "rule_key": "trailer.audio.codec.premium",
+          "severity": "warning",
+          "rule_type": "audio_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium"
+          ]
+        },
+        {
+          "label": "Codec audio — Standard",
+          "value": "PCM recommandé pour les trailers ProRes Standard.",
+          "expected": [
+            "pcm_s16le",
+            "pcm_s24le",
+            "pcm_s32le"
+          ],
+          "required": false,
+          "rule_key": "trailer.audio.codec.standard",
+          "severity": "warning",
+          "rule_type": "audio_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "standard"
+          ]
+        },
+        {
+          "label": "Codec audio — Distribution",
+          "value": "AAC ou PCM accepté pour les trailers MP4 Distribution.",
+          "expected": [
+            "aac",
+            "pcm_s16le",
+            "pcm_s24le",
+            "pcm_s32le"
+          ],
+          "required": true,
+          "rule_key": "trailer.audio.codec.distribution",
+          "severity": "blocking",
+          "rule_type": "audio_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "distribution"
+          ]
+        },
+        {
+          "label": "Fréquence audio",
+          "value": "48 kHz.",
+          "expected": 48000,
+          "required": true,
+          "rule_key": "trailer.audio.sample_rate",
+          "severity": "blocking",
+          "rule_type": "audio_sample_rate",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Colorimétrie SDR",
+          "value": "Rec.709 pour les trailers SDR.",
+          "expected": {
+            "color_space": [
+              "bt709"
+            ],
+            "color_primaries": [
+              "bt709"
+            ]
+          },
+          "required": false,
+          "rule_key": "trailer.color.sdr",
+          "severity": "warning",
+          "rule_type": "color_space_sdr",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Colorimétrie HDR",
+          "value": "Rec.2020 ou DCI-P3 selon le master HDR.",
+          "expected": {
+            "color_primaries": [
+              "bt2020",
+              "smpte432"
+            ]
+          },
+          "required": false,
+          "rule_key": "trailer.color.hdr",
+          "severity": "warning",
+          "rule_type": "color_space_hdr",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Durée",
+          "value": "30 secondes minimum et 150 secondes maximum.",
+          "expected": {
+            "max_seconds": 150,
+            "min_seconds": 30
+          },
+          "required": true,
+          "rule_key": "trailer.duration",
+          "severity": "blocking",
+          "rule_type": "duration_range",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        }
+      ],
+      "title": "4. Bande-annonce",
+      "description": "La meilleure source professionnelle disponible doit être livrée."
+    },
+    {
+      "key": "master_levels",
+      "items": [
+        {
+          "label": "Master Premium",
+          "value": "Destiné notamment aux Originals, studios, contenus premium et workflows HDR. MOV Apple ProRes 422 HQ, ProRes 4444 ou ProRes 4444 XQ selon le master disponible. UHD ou résolution native. 10 ou 12 bits selon le codec et la source."
+        },
+        {
+          "label": "Master Standard",
+          "value": "Destiné aux producteurs professionnels. MOV Apple ProRes 422 ou 422 HQ, UHD ou Full HD, vidéo progressive, PCM 48 kHz / 24 bits recommandé."
+        },
+        {
+          "label": "Master Distribution",
+          "value": "Destiné notamment aux producteurs indépendants lorsque le ProRes n'est pas disponible. MP4 H.264 AVC ou H.265/HEVC haute qualité, Full HD ou 4K."
+        }
+      ],
+      "title": "5. Niveaux de livraison du master programme",
+      "description": "Le niveau applicable dépend du contrat, de l'origine du contenu et du meilleur master professionnel disponible."
+    },
+    {
+      "key": "program_video",
+      "items": [
+        {
+          "label": "Conteneur Premium / Standard",
+          "value": "MOV."
+        },
+        {
+          "label": "Codecs Premium",
+          "value": "Apple ProRes 422 HQ, 4444 ou 4444 XQ selon le master disponible."
+        },
+        {
+          "label": "Codecs Standard",
+          "value": "Apple ProRes 422 ou 422 HQ."
+        },
+        {
+          "label": "Distribution",
+          "value": "MP4 H.264 AVC ou H.265/HEVC."
+        },
+        {
+          "label": "H.264 dans MOV",
+          "value": "Non accepté comme livraison Distribution. Une source H.264 doit être encapsulée en MP4.",
+          "required": true,
+          "rule_key": "master.h264_container",
+          "auto_validation": true
+        },
+        {
+          "label": "Résolution",
+          "value": "Full HD 1920 × 1080 minimum recommandé ; 3840 × 2160 pour UHD/4K lorsque disponible."
+        },
+        {
+          "label": "Aspect ratio",
+          "value": "Respect du ratio natif de l'œuvre."
+        },
+        {
+          "label": "Framerate",
+          "value": "Constant : 23.976, 24, 25, 29.97 ou 30 fps.",
+          "required": true,
+          "rule_key": "master.allowed_fps",
+          "auto_validation": true
+        },
+        {
+          "label": "Scan",
+          "value": "Progressif uniquement.",
+          "required": true,
+          "rule_key": "master.progressive",
+          "auto_validation": true
+        },
+        {
+          "label": "Débit Distribution",
+          "value": "Au moins 30 Mb/s recommandé en Full HD et 50 Mb/s recommandé en 4K."
+        },
+        {
+          "label": "Intervalle image clé",
+          "value": "Maximum 2 secondes pour H.264/H.265 Distribution."
+        },
+        {
+          "label": "SDR",
+          "value": "Rec.709 accepté et recommandé pour les masters SDR."
+        },
+        {
+          "label": "HDR",
+          "value": "Rec.2020 ou espace approprié au master HDR ; P3 peut être utilisé dans les workflows adaptés."
+        },
+        {
+          "label": "Audio Premium / Standard",
+          "value": "PCM 48 kHz / 24 bits recommandé. Stéréo, 5.1 ou 7.1 selon le meilleur master disponible."
+        },
+        {
+          "label": "Audio Distribution",
+          "value": "AAC 48 kHz haute qualité, 256 kb/s ou supérieur recommandé, ou PCM lorsque disponible."
+        },
+        {
+          "label": "Sous-titres",
+          "value": "Fichiers SRT ou WebVTT séparés."
+        },
+        {
+          "label": "Doublages",
+          "value": "Pistes audio séparées lorsqu'elles existent."
+        },
+        {
+          "label": "HDR sidecar",
+          "value": "Métadonnées XML Dolby Vision, HDR10+ ou autres fichiers sidecar fournis lorsque le format l'exige."
+        },
+        {
+          "label": "Conteneur Master Premium",
+          "value": "MOV obligatoire pour Master Premium.",
+          "expected": [
+            "mov"
+          ],
+          "required": true,
+          "rule_key": "master.container.premium",
+          "severity": "blocking",
+          "rule_type": "container_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium"
+          ]
+        },
+        {
+          "label": "Conteneur Master Standard",
+          "value": "MOV obligatoire pour Master Standard.",
+          "expected": [
+            "mov"
+          ],
+          "required": true,
+          "rule_key": "master.container.standard",
+          "severity": "blocking",
+          "rule_type": "container_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "standard"
+          ]
+        },
+        {
+          "label": "Conteneur Master Distribution",
+          "value": "MP4 obligatoire pour Master Distribution.",
+          "expected": [
+            "mp4"
+          ],
+          "required": true,
+          "rule_key": "master.container.distribution",
+          "severity": "blocking",
+          "rule_type": "container_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "distribution"
+          ]
+        },
+        {
+          "label": "Codec Master Premium",
+          "value": "Apple ProRes 422 HQ, ProRes 4444 ou ProRes 4444 XQ.",
+          "expected": [
+            "prores"
+          ],
+          "required": true,
+          "rule_key": "master.codec.premium",
+          "severity": "blocking",
+          "rule_type": "video_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium"
+          ]
+        },
+        {
+          "label": "Codec Master Standard",
+          "value": "Apple ProRes 422 ou ProRes 422 HQ.",
+          "expected": [
+            "prores"
+          ],
+          "required": true,
+          "rule_key": "master.codec.standard",
+          "severity": "blocking",
+          "rule_type": "video_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "standard"
+          ]
+        },
+        {
+          "label": "Codec Master Distribution",
+          "value": "H.264 AVC ou H.265/HEVC.",
+          "expected": [
+            "h264",
+            "hevc"
+          ],
+          "required": true,
+          "rule_key": "master.codec.distribution",
+          "severity": "blocking",
+          "rule_type": "video_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "distribution"
+          ]
+        },
+        {
+          "label": "Profils de résolution Master Premium",
+          "value": "UHD 3840 × 2160, DCI 4K 4096 × 2160, DCI Flat 3996 × 2160, DCI Scope 4096 × 1716 ou UHD Scope 3840 × 1608.",
+          "expected": [
+            {
+              "label": "UHD 4K",
+              "width": 3840,
+              "height": 2160
+            },
+            {
+              "label": "DCI 4K Full",
+              "width": 4096,
+              "height": 2160
+            },
+            {
+              "label": "DCI 4K Flat",
+              "width": 3996,
+              "height": 2160
+            },
+            {
+              "label": "DCI 4K Scope",
+              "width": 4096,
+              "height": 1716
+            },
+            {
+              "label": "UHD Scope",
+              "width": 3840,
+              "height": 1608
+            }
+          ],
+          "required": true,
+          "rule_key": "master.resolution.premium",
+          "severity": "blocking",
+          "rule_type": "resolution_allowed_profiles",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium"
+          ]
+        },
+        {
+          "label": "Résolution minimale Master Standard",
+          "value": "1920 × 1080 pixels minimum.",
+          "expected": {
+            "width": 1920,
+            "height": 1080
+          },
+          "required": true,
+          "rule_key": "master.min_resolution.standard",
+          "severity": "blocking",
+          "rule_type": "min_resolution",
+          "auto_validation": true,
+          "delivery_levels": [
+            "standard"
+          ]
+        },
+        {
+          "label": "Résolution minimale Master Distribution",
+          "value": "1920 × 1080 pixels minimum.",
+          "expected": {
+            "width": 1920,
+            "height": 1080
+          },
+          "required": true,
+          "rule_key": "master.min_resolution.distribution",
+          "severity": "blocking",
+          "rule_type": "min_resolution",
+          "auto_validation": true,
+          "delivery_levels": [
+            "distribution"
+          ]
+        },
+        {
+          "label": "Débit recommandé Distribution Full HD",
+          "value": "30 Mb/s minimum recommandé en Full HD.",
+          "expected": {
+            "max_width": 3839,
+            "min_width": 1920,
+            "max_height": 2159,
+            "min_height": 1080,
+            "bitrate_bps": 30000000
+          },
+          "required": false,
+          "rule_key": "master.min_bitrate.distribution.fhd",
+          "severity": "warning",
+          "rule_type": "min_video_bitrate",
+          "auto_validation": true,
+          "delivery_levels": [
+            "distribution"
+          ]
+        },
+        {
+          "label": "Débit recommandé Distribution UHD / 4K",
+          "value": "50 Mb/s minimum recommandé en UHD / 4K.",
+          "expected": {
+            "min_width": 3840,
+            "min_height": 2160,
+            "bitrate_bps": 50000000
+          },
+          "required": false,
+          "rule_key": "master.min_bitrate.distribution.uhd",
+          "severity": "warning",
+          "rule_type": "min_video_bitrate",
+          "auto_validation": true,
+          "delivery_levels": [
+            "distribution"
+          ]
+        },
+        {
+          "label": "Intervalle images clés Distribution",
+          "value": "Intervalle maximum de 2 secondes pour H.264/H.265.",
+          "expected": 2.0,
+          "required": true,
+          "rule_key": "master.keyframe_interval.distribution",
+          "severity": "blocking",
+          "rule_type": "max_keyframe_interval_seconds",
+          "auto_validation": true,
+          "delivery_levels": [
+            "distribution"
+          ]
+        },
+        {
+          "label": "Fréquence audio",
+          "value": "48 kHz.",
+          "expected": 48000,
+          "required": true,
+          "rule_key": "master.audio.sample_rate",
+          "severity": "blocking",
+          "rule_type": "audio_sample_rate",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Codec audio Premium",
+          "value": "PCM recommandé pour Master Premium.",
+          "expected": [
+            "pcm_s16le",
+            "pcm_s24le",
+            "pcm_s32le"
+          ],
+          "required": false,
+          "rule_key": "master.audio.codec.premium",
+          "severity": "warning",
+          "rule_type": "audio_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium"
+          ]
+        },
+        {
+          "label": "Codec audio Standard",
+          "value": "PCM recommandé pour Master Standard.",
+          "expected": [
+            "pcm_s16le",
+            "pcm_s24le",
+            "pcm_s32le"
+          ],
+          "required": false,
+          "rule_key": "master.audio.codec.standard",
+          "severity": "warning",
+          "rule_type": "audio_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "standard"
+          ]
+        },
+        {
+          "label": "Codec audio Distribution",
+          "value": "AAC haute qualité ou PCM.",
+          "expected": [
+            "aac",
+            "pcm_s16le",
+            "pcm_s24le",
+            "pcm_s32le"
+          ],
+          "required": true,
+          "rule_key": "master.audio.codec.distribution",
+          "severity": "blocking",
+          "rule_type": "audio_codec_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "distribution"
+          ]
+        },
+        {
+          "label": "Colorimétrie SDR",
+          "value": "Rec.709 pour un master SDR.",
+          "expected": {
+            "color_space": [
+              "bt709"
+            ],
+            "color_primaries": [
+              "bt709"
+            ]
+          },
+          "required": false,
+          "rule_key": "master.color.sdr",
+          "severity": "warning",
+          "rule_type": "color_space_sdr",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Colorimétrie HDR",
+          "value": "Rec.2020 ou P3 pour un master HDR, selon le workflow source.",
+          "expected": {
+            "color_primaries": [
+              "bt2020",
+              "smpte432"
+            ]
+          },
+          "required": false,
+          "rule_key": "master.color.hdr",
+          "severity": "warning",
+          "rule_type": "color_space_hdr",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Profondeur Master Premium",
+          "value": "10 ou 12 bits selon codec et source.",
+          "expected": [
+            10,
+            12
+          ],
+          "required": false,
+          "rule_key": "master.bit_depth.premium",
+          "severity": "warning",
+          "rule_type": "bit_depth_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium"
+          ]
+        },
+        {
+          "label": "Framerate constant",
+          "value": "Framerate constant obligatoire.",
+          "expected": true,
+          "required": true,
+          "rule_key": "master.constant_frame_rate",
+          "severity": "blocking",
+          "rule_type": "constant_frame_rate",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Piste audio obligatoire",
+          "value": "Le master programme doit contenir au moins une piste audio.",
+          "expected": true,
+          "required": true,
+          "rule_key": "master.audio.required",
+          "severity": "blocking",
+          "rule_type": "audio_stream_required",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Profil ProRes — Master Premium",
+          "value": "Apple ProRes 422 HQ, Apple ProRes 4444 ou Apple ProRes 4444 XQ.",
+          "expected": [
+            "hq",
+            "4444",
+            "xq"
+          ],
+          "required": true,
+          "rule_key": "master.prores_profile.premium",
+          "severity": "blocking",
+          "rule_type": "prores_profile_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium"
+          ]
+        },
+        {
+          "label": "Profil ProRes — Master Standard",
+          "value": "Apple ProRes 422 ou Apple ProRes 422 HQ.",
+          "expected": [
+            "standard",
+            "hq"
+          ],
+          "required": true,
+          "rule_key": "master.prores_profile.standard",
+          "severity": "blocking",
+          "rule_type": "prores_profile_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "standard"
+          ]
+        },
+        {
+          "label": "Configuration des canaux audio",
+          "value": "Les masters peuvent être livrés en stéréo 2.0, 5.1 ou 7.1 selon le master disponible.",
+          "expected": [
+            2,
+            6,
+            8
+          ],
+          "required": true,
+          "rule_key": "master.audio.channels",
+          "severity": "blocking",
+          "rule_type": "audio_channels_allowed",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard",
+            "distribution"
+          ]
+        },
+        {
+          "label": "Profondeur audio PCM",
+          "value": "Les masters Premium et Standard doivent contenir une piste PCM 24 bits.",
+          "expected": 24,
+          "required": true,
+          "rule_key": "master.audio.pcm_bit_depth",
+          "severity": "blocking",
+          "rule_type": "audio_pcm_bit_depth",
+          "auto_validation": true,
+          "delivery_levels": [
+            "premium",
+            "standard"
+          ]
+        }
+      ],
+      "title": "6. Vidéo programme — exigences techniques",
+      "description": "Les spécifications ci-dessous sont contrôlées selon le niveau de livraison applicable."
+    },
+    {
+      "key": "naming",
+      "items": [
+        {
+          "label": "Épisode — format",
+          "value": "[TitreSerie]_S[XX]_E[XX]_[TitreEpisode]_[Res]_[HDR].ext"
+        },
+        {
+          "label": "Épisode — exemple",
+          "value": "AEGIS_CORE_S01_E01_Le_Dernier_Match_4K_SDR.mov"
+        },
+        {
+          "label": "Épisode — exemple HDR",
+          "value": "AEGIS_CORE_S01_E02_La_Resonance_4K_HDR10.mov"
+        },
+        {
+          "label": "Trailer série — format",
+          "value": "[TitreSerie]_S[XX]_Trailer_[Type]_[Res]_[HDR].ext"
+        },
+        {
+          "label": "Trailer série — exemple",
+          "value": "AEGIS_CORE_S01_Trailer_Official_4K_SDR.mov"
+        },
+        {
+          "label": "Trailer série — exemple teaser",
+          "value": "LA_VILLA_DES_BABIENS_S01_Trailer_Teaser_1080p_SDR.mov"
+        },
+        {
+          "label": "Film — format",
+          "value": "[TitreFilm]_[Annee]_[Res]_[HDR].ext"
+        },
+        {
+          "label": "Film — exemple",
+          "value": "BABY_CITY_2027_4K_HDR10.mov"
+        },
+        {
+          "label": "Règle — espaces",
+          "value": "Remplacer les espaces par des underscores (_)."
+        },
+        {
+          "label": "Règle — caractères",
+          "value": "Utiliser uniquement des lettres non accentuées, chiffres, tirets (-) et underscores (_)."
+        },
+        {
+          "label": "Règle — caractères interdits",
+          "value": "Ne pas utiliser d'accents, d'apostrophes, d'emojis ni de caractères spéciaux dans les noms de fichiers."
+        },
+        {
+          "label": "Règle — cohérence",
+          "value": "Conserver exactement la même convention de nommage pour tous les assets appartenant au même contenu."
+        }
+      ],
+      "title": "7. Convention de nommage",
+      "description": "Les noms de fichiers doivent permettre l'identification immédiate du contenu livré. Les exemples ci-dessous servent de référence pour les livraisons EKEFLICKS."
+    },
+    {
+      "key": "metadata",
+      "items": [
+        {
+          "field": "title",
+          "label": "Titre",
+          "value": "Obligatoire.",
+          "required": true
+        },
+        {
+          "field": "original_title",
+          "label": "Titre original",
+          "value": "Obligatoire.",
+          "required": true
+        },
+        {
+          "field": "season_episode",
+          "label": "Saison / épisode",
+          "value": "Obligatoire pour les séries et épisodes.",
+          "required": true,
+          "conditional": "series"
+        },
+        {
+          "field": "synopsis",
+          "label": "Synopsis court",
+          "value": "150 à 300 caractères.",
+          "required": true
+        },
+        {
+          "field": "long_synopsis",
+          "label": "Synopsis long",
+          "value": "500 à 1000 caractères recommandé.",
+          "required": false
+        },
+        {
+          "field": "genres",
+          "label": "Genres",
+          "value": "Obligatoire.",
+          "required": true
+        },
+        {
+          "field": "production_year",
+          "label": "Année de production",
+          "value": "Obligatoire.",
+          "required": true
+        },
+        {
+          "field": "directors",
+          "label": "Réalisateur(s)",
+          "value": "Obligatoire.",
+          "required": true
+        },
+        {
+          "field": "cast",
+          "label": "Acteurs principaux",
+          "value": "Obligatoire, dans l'ordre d'importance.",
+          "required": true
+        },
+        {
+          "field": "screenwriters",
+          "label": "Scénariste(s)",
+          "value": "Obligatoire.",
+          "required": true
+        },
+        {
+          "field": "producers",
+          "label": "Producteur(s)",
+          "value": "Obligatoire.",
+          "required": true
+        },
+        {
+          "field": "age_rating",
+          "label": "Classification",
+          "value": "Obligatoire. Exemple : Tous publics, 12+, 16+, 18+.",
+          "required": true
+        },
+        {
+          "field": "duration",
+          "label": "Durée exacte",
+          "value": "Obligatoire, en minutes.",
+          "required": true
+        },
+        {
+          "field": "original_language",
+          "label": "Langue originale",
+          "value": "Obligatoire.",
+          "required": true
+        },
+        {
+          "field": "audio_languages",
+          "label": "Langues audio",
+          "value": "Obligatoire.",
+          "required": true
+        },
+        {
+          "field": "subtitle_languages",
+          "label": "Langues de sous-titres",
+          "value": "Facultatif. Renseigner les langues disponibles si le contenu possède des sous-titres.",
+          "required": false
+        },
+        {
+          "field": "country_of_origin",
+          "label": "Pays d'origine",
+          "value": "Obligatoire.",
+          "required": true
+        }
+      ],
+      "title": "8. Métadonnées obligatoires",
+      "description": "Les métadonnées obligatoires doivent être complètes avant la soumission finale. Les sous-titres restent facultatifs."
+    },
+    {
+      "key": "xml",
+      "items": [
+        {
+          "label": "Fonction",
+          "value": "L'XML préremplit uniquement les champs reconnus."
+        },
+        {
+          "label": "Validation",
+          "value": "L'import XML ne soumet jamais automatiquement un contenu."
+        },
+        {
+          "label": "Contrôle producteur",
+          "value": "Les valeurs importées sont affichées au producteur pour vérification et correction avant enregistrement."
+        },
+        {
+          "label": "Schéma",
+          "value": "Format EKEFLICKS Metadata XML versionné. Un modèle XML téléchargeable sera fourni."
+        },
+        {
+          "label": "Séries",
+          "value": "Le schéma pourra contenir les saisons et épisodes avec leurs métadonnées propres."
+        }
+      ],
+      "title": "9. Import XML des métadonnées",
+      "description": "EKEFLICKS pourra accepter un fichier XML pour préremplir le formulaire de dépôt."
+    },
+    {
+      "key": "deadlines",
+      "items": [
+        {
+          "label": "Poster",
+          "value": "J-30 minimum."
+        },
+        {
+          "label": "Bannière",
+          "value": "J-30 minimum."
+        },
+        {
+          "label": "Master programme",
+          "value": "J-30 minimum."
+        },
+        {
+          "label": "Métadonnées",
+          "value": "J-30 minimum."
+        },
+        {
+          "label": "Trailer",
+          "value": "J-14 minimum."
+        },
+        {
+          "label": "Exceptions",
+          "value": "Toute exception doit faire l'objet d'un accord écrit préalable d'EKEFLICKS."
+        }
+      ],
+      "title": "10. Délais de livraison",
+      "description": "Les délais sont calculés avant la date de mise en ligne prévue."
+    },
+    {
+      "key": "conformity",
+      "items": [
+        {
+          "label": "Poster",
+          "value": "Contrôle possible du format, ratio, dimensions et poids."
+        },
+        {
+          "label": "Bannière",
+          "value": "Contrôle possible du format, ratio, dimensions et poids."
+        },
+        {
+          "label": "Vidéo",
+          "value": "Contrôle serveur prévu via FFprobe : conteneur, codec, résolution, framerate, scan, débit, audio et autres caractéristiques techniques disponibles."
+        },
+        {
+          "label": "Métadonnées",
+          "value": "Contrôle des champs obligatoires avant soumission finale."
+        },
+        {
+          "label": "Rapport",
+          "value": "Le producteur pourra visualiser un rapport de conformité et les éléments à corriger."
+        }
+      ],
+      "title": "11. Contrôle de conformité EKEFLICKS",
+      "description": "Les livraisons peuvent être analysées automatiquement après upload."
+    }
+  ]
+}

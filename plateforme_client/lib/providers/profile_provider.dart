@@ -3,11 +3,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_ekeflicks/src/openapi.dart';
 import 'package:app_ekeflicks/src/models/profile.dart';
 import 'package:app_ekeflicks/src/models/profile_create.dart';
+import 'package:app_ekeflicks/services/app_session_analytics_service.dart';
 
 class ProfileProvider extends ChangeNotifier {
   final Openapi apiClient;
+  late final AppSessionAnalyticsService appSessionAnalytics;
 
-  ProfileProvider(this.apiClient);
+  ProfileProvider(this.apiClient) {
+    appSessionAnalytics = AppSessionAnalyticsService(apiClient.dio);
+  }
 
   List<Profile> _availableProfiles = [];
   List<Profile> get availableProfiles => _availableProfiles;
@@ -103,11 +107,19 @@ class ProfileProvider extends ChangeNotifier {
   }
 
   Future<void> selectProfile(Profile profile) async {
+    final previousProfileId = _currentProfile?.id;
     _currentProfile = profile;
     notifyListeners();
+
     await _initPrefs();
+
     if (profile.id != null) {
       await _prefs?.setString('last_profile_id', profile.id!);
+    }
+
+    if (previousProfileId != profile.id ||
+        !appSessionAnalytics.hasActiveSession) {
+      await appSessionAnalytics.setProfile(profile.id);
     }
   }
 
@@ -233,6 +245,7 @@ class ProfileProvider extends ChangeNotifier {
   }
 
   Future<void> reset() async {
+    await appSessionAnalytics.setProfile(null);
     _availableProfiles = [];
     _currentProfile = null;
     notifyListeners();

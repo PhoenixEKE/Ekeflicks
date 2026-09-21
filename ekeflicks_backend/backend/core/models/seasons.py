@@ -9,6 +9,17 @@ class Season(TimeStampedModel):
     content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='seasons')
     season_number = models.IntegerField()
     title = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+
+    poster_url = models.URLField(max_length=1000, blank=True)
+    poster_temp_path = models.CharField(max_length=1000, blank=True)
+
+    backdrop_url = models.URLField(max_length=1000, blank=True)
+    backdrop_temp_path = models.CharField(max_length=1000, blank=True)
+
+    trailer_url = models.URLField(max_length=1000, blank=True)
+    trailer_temp_path = models.CharField(max_length=1000, blank=True)
+
     episode_count = models.IntegerField(default=0)
 
     class Meta:

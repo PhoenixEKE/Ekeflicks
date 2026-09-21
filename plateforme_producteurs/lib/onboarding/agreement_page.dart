@@ -208,6 +208,7 @@ class _ProducerAgreementPageState extends State<ProducerAgreementPage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const ProducerAuthShell(
+        title: 'Contrat Producteur EKEFLICKS',
         child: Center(child: CircularProgressIndicator()),
       );
     }
@@ -216,6 +217,7 @@ class _ProducerAgreementPageState extends State<ProducerAgreementPage> {
 
     if (agreement == null) {
       return const ProducerAuthShell(
+        title: 'Contrat Producteur EKEFLICKS',
         child: Center(child: Text('Le contrat Producteur est indisponible.')),
       );
     }
@@ -223,6 +225,7 @@ class _ProducerAgreementPageState extends State<ProducerAgreementPage> {
     final signed = agreement.isSigned;
 
     return ProducerAuthShell(
+      title: signed ? 'Mon contrat Producteur' : 'Contrat Producteur EKEFLICKS',
       maxWidth: 1180,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

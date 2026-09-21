@@ -8,6 +8,7 @@ from core.models import (
     CustomList,
     Episode,
     Favorite,
+    Like,
     ListItem,
     Profile,
     Rating,
@@ -41,6 +42,57 @@ class FavoriteSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         favorite, _created = Favorite.objects.get_or_create(**validated_data)
         return favorite
+
+
+class LikeSerializer(serializers.ModelSerializer):
+    profile = ProfileSummarySerializer(read_only=True)
+    content = ContentListSerializer(read_only=True)
+
+    profile_id = serializers.PrimaryKeyRelatedField(
+        source='profile',
+        queryset=Profile.objects.all(),
+        write_only=True,
+    )
+    content_id = serializers.PrimaryKeyRelatedField(
+        source='content',
+        queryset=Content.objects.all(),
+        write_only=True,
+    )
+
+    class Meta:
+        model = Like
+        fields = [
+            'id',
+            'profile',
+            'profile_id',
+            'content',
+            'content_id',
+            'created_at',
+        ]
+        read_only_fields = [
+            'id',
+            'profile',
+            'content',
+            'created_at',
+        ]
+        validators = []
+
+    def validate_profile_id(self, profile):
+        return validate_profile_owner(self, profile)
+
+    def create(self, validated_data):
+        like, created = Like.objects.get_or_create(
+            profile=validated_data['profile'],
+            content=validated_data['content'],
+        )
+
+        # G5-1D6:
+        # Expose whether this POST caused a real PostgreSQL state change.
+        # This flag is request-local on the serializer instance and is
+        # intentionally not part of the API representation.
+        self.like_was_created = created
+
+        return like
 
 
 class RatingSerializer(serializers.ModelSerializer):
@@ -243,6 +295,102 @@ class CustomListSerializer(serializers.ModelSerializer):
         if profile.type and not profile.type.can_create_lists:
             raise serializers.ValidationError("Ce profil ne peut pas creer de listes.")
         return profile
+
+
+
+class VideoAnalyticsEventSerializer(serializers.Serializer):
+    EVENT_CHOICES = (
+        'start',
+        'progress',
+        'complete',
+        'abandon',
+    )
+
+    event = serializers.ChoiceField(
+        choices=EVENT_CHOICES,
+    )
+    event_id = serializers.UUIDField(
+        required=False,
+    )
+    occurred_at = serializers.DateTimeField(
+        required=False,
+    )
+    position_seconds = serializers.IntegerField(
+        required=False,
+        min_value=0,
+    )
+    watch_seconds = serializers.IntegerField(
+        required=False,
+        min_value=0,
+    )
+    completion_percent = serializers.FloatField(
+        required=False,
+        min_value=0,
+        max_value=100,
+    )
+    platform = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=50,
+    )
+    timezone = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        max_length=100,
+        default='UTC',
+    )
+    interface_language = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=20,
+    )
+    app_version = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=50,
+    )
+
+    def validate_occurred_at(self, value):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        now = timezone.now()
+
+        # Analytics events may arrive slightly late because of
+        # temporary connectivity, especially on mobile networks.
+        if value < now - timedelta(hours=24):
+            raise serializers.ValidationError(
+                'occurred_at ne peut pas dater de plus de 24 heures.'
+            )
+
+        # Small clock skew is tolerated, but future-dated analytics
+        # must not pollute time-series aggregation.
+        if value > now + timedelta(minutes=5):
+            raise serializers.ValidationError(
+                'occurred_at ne peut pas etre situe a plus de '
+                '5 minutes dans le futur.'
+            )
+
+        return value
+
+    def validate(self, attrs):
+        event = attrs['event']
+
+        if event in (
+            'progress',
+            'complete',
+            'abandon',
+        ):
+            if 'position_seconds' not in attrs:
+                raise serializers.ValidationError(
+                    {
+                        'position_seconds':
+                            'position_seconds est requis '
+                            'pour cet evenement.'
+                    }
+                )
+
+        return attrs
 
 
 class ViewingSessionSerializer(serializers.ModelSerializer):

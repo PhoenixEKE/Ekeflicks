@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ekeflicks-metadata version="1.0">
+  <content type="series">
+    <title>E3 Série Structure Bloquée</title>
+
+    <seasons>
+      <season number="1">
+        <title>XML NE DOIT PAS REMPLACER SAISON PERSISTÉE</title>
+
+        <episodes>
+          <episode number="1">
+            <title>XML NE DOIT PAS REMPLACER ÉPISODE PERSISTÉ</title>
+            <duration-minutes>31</duration-minutes>
+          </episode>
+        </episodes>
+      </season>
+
+      <season number="2">
+        <title>XML SAISON BLOQUÉE 2</title>
+
+        <episodes>
+          <episode number="1">
+            <title>XML ÉPISODE BLOQUÉ 2</title>
+            <duration-minutes>32</duration-minutes>
+          </episode>
+        </episodes>
+      </season>
+    </seasons>
+  </content>
+</ekeflicks-metadata>

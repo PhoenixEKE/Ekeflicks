@@ -18,6 +18,11 @@ import 'package:app_ekeflicks/widgets/dialog/info_dialog.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
 import 'package:app_ekeflicks/core/api_config.dart';
+import 'package:app_ekeflicks/widgets/eke_ai/eke_ai_widgets.dart';
+import 'package:app_ekeflicks/ui/pages/eke_ai_assistant_page.dart';
+import 'package:app_ekeflicks/services/eke_ai_service.dart';
+import 'package:app_ekeflicks/providers/user_provider.dart';
+import 'package:app_ekeflicks/models/eke_ai_models.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,6 +37,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String _priceWithCurrency = "5 €"; // valeur par défaut
   String? _popupText;
   String? _popupTitle;
+  List<EkeAIContent> _ekeAIForYou = const [];
+  bool _ekeAIForYouLoading = false;
+  bool _ekeAIForYouError = false;
 
   @override
   void initState() {
@@ -40,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _isMobile = MediaQuery.of(context).size.width < 600;
       await _fetchBestPrice();
       await _loadContent();
+      await _loadEkeAIForYou();
       _checkPopupAlreadyShown();
     });
   }
@@ -50,6 +59,182 @@ class _HomeScreenState extends State<HomeScreen> {
     provider.profileId =
         Provider.of<ProfileProvider>(context, listen: false).currentProfile?.id;
     await provider.loadInitialContent(loc);
+  }
+
+  EkeAIService _ekeAIService() {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    return EkeAIService(userProvider.apiClient.dio);
+  }
+
+  Future<void> _loadEkeAIForYou() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+    if (!userProvider.isLoggedIn) {
+      if (mounted) {
+        setState(() {
+          _ekeAIForYou = const [];
+          _ekeAIForYouLoading = false;
+          _ekeAIForYouError = false;
+        });
+      }
+      return;
+    }
+
+    setState(() {
+      _ekeAIForYouLoading = true;
+      _ekeAIForYouError = false;
+    });
+
+    try {
+      final response = await _ekeAIService().forYou(limit: 20);
+
+      if (!mounted) return;
+
+      setState(() {
+        _ekeAIForYou = response.items;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _ekeAIForYou = const [];
+        _ekeAIForYouError = true;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _ekeAIForYouLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _ekeAIFeedback(EkeAIContent content, String action) async {
+    if (content.id.isEmpty) return;
+
+    try {
+      await _ekeAIService().feedback(contentId: content.id, action: action);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Préférence enregistrée.')));
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Action momentanément indisponible.')),
+      );
+    }
+  }
+
+  Future<void> _showEkeAIExplanation(EkeAIContent content) async {
+    if (content.id.isEmpty) return;
+
+    try {
+      final result = await _ekeAIService().explain(content.id);
+
+      if (!mounted) return;
+
+      final explanation =
+          result.explanation?.trim().isNotEmpty == true
+              ? result.explanation!.trim()
+              : content.reason?.trim();
+
+      showDialog<void>(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Pourquoi ce contenu ?'),
+              content: Text(
+                explanation == null || explanation.isEmpty
+                    ? 'EKE IA ne dispose pas encore '
+                        'd’une explication pour ce contenu.'
+                    : explanation,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Fermer'),
+                ),
+              ],
+            ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Explication indisponible.')),
+      );
+    }
+  }
+
+  Widget _buildEkeAIForYouSection() {
+    final userProvider = Provider.of<UserProvider>(context);
+
+    if (!userProvider.isLoggedIn) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.auto_awesome),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Pour vous — EKE IA',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const EkeAIAssistantPage()),
+                );
+              },
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('Assistant'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_ekeAIForYouLoading)
+          const LinearProgressIndicator()
+        else if (_ekeAIForYouError)
+          EkeAIErrorState(onRetry: _loadEkeAIForYou)
+        else if (_ekeAIForYou.isEmpty)
+          const EkeAIEmptyState(
+            message:
+                'Aucune recommandation personnalisée '
+                'n’est disponible pour le moment.',
+          )
+        else
+          SizedBox(
+            height: 360,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _ekeAIForYou.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final content = _ekeAIForYou[index];
+
+                return EkeAIContentCard(
+                  content: content,
+                  onExplain: () => _showEkeAIExplanation(content),
+                  onLike: () => _ekeAIFeedback(content, 'like'),
+                  onFavorite: () => _ekeAIFeedback(content, 'favorite'),
+                );
+              },
+            ),
+          ),
+      ],
+    );
   }
 
   Future<void> _fetchBestPrice() async {
@@ -324,6 +509,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 contentProvider.newReleases,
                                 context,
                               ),
+                              _buildEkeAIForYouSection(),
+                              const SizedBox(height: 20),
                               const SizedBox(height: 20),
                               _buildFeatureBlocks(
                                 _generateFeatures(loc),

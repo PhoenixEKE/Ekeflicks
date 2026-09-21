@@ -17,6 +17,11 @@ from core.models import (
     Recommendation,
     User,
     WatchHistory,
+    Episode,
+    Season,
+    TechnicalSpecification,
+    VideoAsset,
+    MediaAnalysisReport,
 )
 
 
@@ -52,6 +57,607 @@ TEST_FILE_STORAGES = {
 
 
 class CatalogApiTests(APITestCase):
+
+    def _create_published_technical_specification(self):
+        specification, _ = (
+            TechnicalSpecification.objects.get_or_create(
+                version='test-1.1',
+                defaults={
+                    'title': 'Cahier technique de test',
+                    'introduction': (
+                        'Version utilisée par les tests.'
+                    ),
+                    'sections': [],
+                    'is_published': True,
+                    'published_at': timezone.now(),
+                },
+            )
+        )
+
+        if not specification.is_published:
+            specification.is_published = True
+            specification.published_at = timezone.now()
+            specification.save(
+                update_fields=[
+                    'is_published',
+                    'published_at',
+                    'updated_at',
+                ]
+            )
+
+        self.technical_specification = specification
+
+        return specification
+
+    def _set_complete_submission_metadata(
+        self,
+        content,
+    ):
+        genre, _ = Genre.objects.get_or_create(
+            name='Drame Test',
+            defaults={'slug': 'drame-test'},
+        )
+
+        content.original_title = (
+            content.original_title
+            or content.title
+        )
+        content.synopsis = (
+            'Synopsis court de test destiné à valider '
+            'la soumission finale EKEFLICKS. Il contient '
+            'suffisamment de caractères pour respecter '
+            'la plage imposée par le cahier des charges '
+            'technique de la plateforme.'
+        )
+        content.description = (
+            'Synopsis long de test utilisé pour vérifier '
+            'la conformité des métadonnées lors de la '
+            'soumission finale sur EKEFLICKS. '
+            'Ce texte décrit le contenu, ses personnages, '
+            'son contexte et sa progression narrative de '
+            'manière volontairement détaillée afin de '
+            'respecter la longueur minimale prévue par le '
+            'cahier des charges technique. '
+            'Il constitue uniquement une donnée de test '
+            'et permet de confirmer que les brouillons '
+            'peuvent rester incomplets tandis que la '
+            'soumission finale exige un ensemble complet '
+            'de métadonnées éditoriales avant le passage '
+            'au statut pending.'
+        )
+        content.release_year = 2027
+        content.director_name = 'Réalisateur Test'
+        content.screenwriter_name = 'Scénariste Test'
+        content.age_rating = '12+'
+        content.language = 'Français'
+        content.audio_languages = ['Français']
+        content.subtitle_languages = []
+        content.available_from = timezone.localdate()
+        content.country = 'Côte d’Ivoire'
+
+        if content.type != 'series':
+            content.duration = 95
+
+        content.save(
+            update_fields=[
+                'original_title',
+                'synopsis',
+                'description',
+                'release_year',
+                'director_name',
+                'screenwriter_name',
+                'age_rating',
+                'language',
+                'audio_languages',
+                'subtitle_languages',
+                'available_from',
+                'country',
+                'duration',
+                'updated_at',
+            ]
+        )
+
+        content.genres.add(genre)
+
+        return content
+
+    def _create_verified_producer_for_team_preview(
+        self,
+        email,
+    ):
+        producer = User.objects.create_user(
+            email=email,
+            password='StrongPass123',
+            is_producer=True,
+        )
+
+        producer.is_verified = True
+        producer.save(update_fields=['is_verified'])
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=(
+                settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0]
+            ),
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        return producer
+
+    def test_producer_can_delete_own_draft(self):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'draft-delete-owner@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Draft Delete Owner',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.delete(
+            reverse('content-detail', args=[content.id]),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+        self.assertFalse(
+            Content.objects.filter(id=content.id).exists()
+        )
+
+    def test_producer_cannot_delete_another_producers_draft(self):
+        owner = (
+            self._create_verified_producer_for_team_preview(
+                'draft-delete-real-owner@example.com'
+            )
+        )
+        other_producer = (
+            self._create_verified_producer_for_team_preview(
+                'draft-delete-other@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Foreign Draft',
+            type='movie',
+            producer=owner,
+            producer_submission_status='draft',
+        )
+
+        self.client.force_authenticate(user=other_producer)
+
+        response = self.client.delete(
+            reverse('content-detail', args=[content.id]),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertTrue(
+            Content.objects.filter(id=content.id).exists()
+        )
+
+    def test_producer_cannot_delete_non_draft_content(self):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'draft-delete-status@example.com'
+            )
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        for submission_status in (
+            'pending',
+            'approved',
+            'rejected',
+        ):
+            with self.subTest(
+                submission_status=submission_status
+            ):
+                content = Content.objects.create(
+                    title=f'Protected {submission_status}',
+                    type='movie',
+                    producer=producer,
+                    producer_submission_status=submission_status,
+                )
+
+                response = self.client.delete(
+                    reverse(
+                        'content-detail',
+                        args=[content.id],
+                    ),
+                )
+
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_400_BAD_REQUEST,
+                )
+                self.assertTrue(
+                    Content.objects.filter(
+                        id=content.id
+                    ).exists()
+                )
+
+    @override_settings(STORAGES=TEST_FILE_STORAGES)
+    def test_deleting_draft_removes_registered_temp_media(self):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'draft-delete-media@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Draft Delete Media',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        base_path = (
+            f'uploads/producer_{producer.id}/'
+            f'2026/09/05/'
+            f'content_{content.id}'
+        )
+
+        paths = {
+            'poster': f'{base_path}/poster.jpg',
+            'backdrop': f'{base_path}/backdrop.jpg',
+            'trailer': f'{base_path}/trailer.mp4',
+            'director': f'{base_path}/team/director.jpg',
+            'screenwriter': (
+                f'{base_path}/team/screenwriter.jpg'
+            ),
+            'producer': (
+                f'{base_path}/team/producer.jpg'
+            ),
+            'actor': f'{base_path}/team/actor.jpg',
+        }
+
+        storage = storages['default']
+
+        for temporary_path in paths.values():
+            storage.save(
+                temporary_path,
+                SimpleUploadedFile(
+                    'temporary.bin',
+                    b'temporary-content',
+                ),
+            )
+            self.assertTrue(
+                storage.exists(temporary_path)
+            )
+
+        content.poster_temp_path = paths['poster']
+        content.backdrop_temp_path = paths['backdrop']
+        content.trailer_temp_path = paths['trailer']
+        content.director_image_temp_path = paths['director']
+        content.screenwriter_image_temp_path = (
+            paths['screenwriter']
+        )
+        content.producer_team = [
+            {
+                'name': 'Producteur',
+                'image_temp_path': paths['producer'],
+                'image_url': '',
+            }
+        ]
+        content.cast_team = [
+            {
+                'name': 'Acteur',
+                'image_temp_path': paths['actor'],
+                'image_url': '',
+            }
+        ]
+        content.save(
+            update_fields=[
+                'poster_temp_path',
+                'backdrop_temp_path',
+                'trailer_temp_path',
+                'director_image_temp_path',
+                'screenwriter_image_temp_path',
+                'producer_team',
+                'cast_team',
+                'updated_at',
+            ]
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.delete(
+            reverse('content-detail', args=[content.id]),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        for temporary_path in paths.values():
+            self.assertFalse(
+                storage.exists(temporary_path),
+                temporary_path,
+            )
+
+        self.assertFalse(
+            Content.objects.filter(id=content.id).exists()
+        )
+
+    @patch('apps.catalog.draft_cleanup.default_storage.delete')
+    @patch('apps.catalog.draft_cleanup.default_storage.exists')
+    def test_storage_error_does_not_block_draft_deletion(
+        self,
+        exists_mock,
+        delete_mock,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'draft-delete-storage-error@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Draft Storage Failure',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+            poster_temp_path='uploads/test/poster.jpg',
+        )
+
+        exists_mock.return_value = True
+        delete_mock.side_effect = RuntimeError(
+            'Temporary storage unavailable'
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.delete(
+            reverse('content-detail', args=[content.id]),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+        self.assertFalse(
+            Content.objects.filter(id=content.id).exists()
+        )
+
+        exists_mock.assert_called_with(
+            'uploads/test/poster.jpg'
+        )
+        delete_mock.assert_called_with(
+            'uploads/test/poster.jpg'
+        )
+
+    @patch('apps.catalog.draft_cleanup.default_storage.delete')
+    @patch('apps.catalog.draft_cleanup.default_storage.exists')
+    def test_empty_temp_paths_are_not_sent_to_storage(
+        self,
+        exists_mock,
+        delete_mock,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'draft-delete-empty-path@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Draft Empty Paths',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+            producer_team=[
+                {
+                    'name': 'Producteur',
+                    'image_temp_path': '',
+                    'image_url': '',
+                }
+            ],
+            cast_team=[
+                {
+                    'name': 'Acteur',
+                    'image_url': '',
+                }
+            ],
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.delete(
+            reverse('content-detail', args=[content.id]),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+        exists_mock.assert_not_called()
+        delete_mock.assert_not_called()
+
+    def test_regular_user_cannot_delete_draft(self):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'draft-delete-producer@example.com'
+            )
+        )
+
+        viewer = User.objects.create_user(
+            email='draft-delete-viewer@example.com',
+            password='StrongPass123',
+        )
+
+        content = Content.objects.create(
+            title='Producer Draft Protected',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        self.client.force_authenticate(user=viewer)
+
+        response = self.client.delete(
+            reverse('content-detail', args=[content.id]),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertTrue(
+            Content.objects.filter(id=content.id).exists()
+        )
+
+    @patch(
+        'apps.catalog.views.minio_public_upload_client'
+    )
+    def test_producer_can_preview_own_team_temp_image(
+        self,
+        public_client_factory,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'team-preview@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Preview Team',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        temporary_path = (
+            f'uploads/producer_{producer.id}/'
+            f'2026/09/05/'
+            f'content_{content.id}/'
+            f'team/photo.jpg'
+        )
+
+        content.producer_team = [
+            {
+                'name': 'Producteur Test',
+                'image_temp_path': temporary_path,
+                'image_url': '',
+            }
+        ]
+
+        content.save(
+            update_fields=[
+                'producer_team',
+                'updated_at',
+            ]
+        )
+
+        public_client = public_client_factory.return_value
+
+        public_client.generate_presigned_url.return_value = (
+            'https://minio.example.test/team-preview'
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.get(
+            reverse(
+                'content-team-image-preview',
+                args=[content.id],
+            ),
+            {
+                'path': temporary_path,
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            response.data['preview_url'],
+            'https://minio.example.test/team-preview',
+        )
+
+        self.assertEqual(
+            response.data['expires_in'],
+            900,
+        )
+
+        public_client.generate_presigned_url.assert_called_once_with(
+            ClientMethod='get_object',
+            Params={
+                'Bucket': settings.MINIO_BUCKET,
+                'Key': temporary_path,
+            },
+            ExpiresIn=900,
+            HttpMethod='GET',
+        )
+
+    @patch(
+        'apps.catalog.views.minio_public_upload_client'
+    )
+    def test_producer_cannot_preview_unregistered_team_path(
+        self,
+        public_client_factory,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'team-preview-denied@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Preview Team Denied',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+            producer_team=[],
+        )
+
+        foreign_path = (
+            f'uploads/producer_{producer.id}/'
+            f'2026/09/05/'
+            f'content_{content.id}/'
+            f'team/not-registered.jpg'
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.get(
+            reverse(
+                'content-team-image-preview',
+                args=[content.id],
+            ),
+            {
+                'path': foreign_path,
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        public_client_factory.assert_not_called()
+
     def setUp(self):
         self.genre = Genre.objects.create(name='Action', slug='action')
         self.series_genre = Genre.objects.create(name='Drama', slug='drama')
@@ -101,6 +707,19 @@ class CatalogApiTests(APITestCase):
         self.assertEqual(response.data['results'][0]['id'], str(self.series.id))
 
     def test_home_returns_netflix_style_rows(self):
+        # The public Home Top10 must contain approved,
+        # currently available content only.
+        self.content.producer_submission_status = 'approved'
+        self.content.available_from = None
+        self.content.available_until = None
+        self.content.save(
+            update_fields=[
+                'producer_submission_status',
+                'available_from',
+                'available_until',
+            ]
+        )
+
         user = User.objects.create_user(email='home@example.com', password='StrongPass123')
         profile = Profile.objects.get(user=user)
         WatchHistory.objects.create(
@@ -130,7 +749,9 @@ class CatalogApiTests(APITestCase):
         row_keys = [row['key'] for row in response.data['rows']]
         self.assertIn('continue_watching', row_keys)
         self.assertIn('recommended', row_keys)
-        self.assertIn('top_10', row_keys)
+        # No persisted published Top10 snapshot exists in this
+        # fixture, therefore the public Top10 rail must be absent.
+        self.assertNotIn('top_10', row_keys)
 
     def test_non_staff_cannot_create_content(self):
         user = User.objects.create_user(email='viewer@example.com', password='StrongPass123')
@@ -291,6 +912,452 @@ class CatalogApiTests(APITestCase):
         self.assertEqual(self.content.trailer_url, '')
 
     @patch(
+        'apps.catalog.media_services.copy_internal_to_final'
+    )
+    def test_season_media_are_promoted_to_final(
+        self,
+        copy_mock,
+    ):
+        from apps.catalog.media_services import (
+            promote_content_media_to_final,
+        )
+
+        series = Content.objects.create(
+            title='Serie promotion saison',
+            type='series',
+        )
+
+        season = Season.objects.create(
+            content=series,
+            season_number=1,
+            poster_temp_path='temp/season/poster.jpg',
+            backdrop_temp_path='temp/season/backdrop.webp',
+            trailer_temp_path='temp/season/trailer.mp4',
+        )
+
+        def fake_copy(
+            internal_path,
+            storage_alias,
+            final_path,
+            cdn_prefix='',
+        ):
+            return (
+                final_path,
+                (
+                    'https://cdn.example.test/'
+                    f'{final_path}'
+                ),
+            )
+
+        copy_mock.side_effect = fake_copy
+
+        promoted = promote_content_media_to_final(
+            series
+        )
+
+        self.assertIn(
+            f'season_{season.id}_poster',
+            promoted,
+        )
+        self.assertIn(
+            f'season_{season.id}_backdrop',
+            promoted,
+        )
+        self.assertIn(
+            f'season_{season.id}_trailer',
+            promoted,
+        )
+
+        season.refresh_from_db()
+
+        self.assertEqual(
+            season.poster_url,
+            (
+                'https://cdn.example.test/'
+                f'{series.id}/season_01/poster.jpg'
+            ),
+        )
+        self.assertEqual(
+            season.backdrop_url,
+            (
+                'https://cdn.example.test/'
+                f'{series.id}/season_01/backdrop.webp'
+            ),
+        )
+        self.assertEqual(
+            season.trailer_url,
+            (
+                'https://cdn.example.test/'
+                f'{series.id}/season_01/trailer.mp4'
+            ),
+        )
+
+        # Les chemins TEMP restent references,
+        # comme pour les medias Content existants.
+        self.assertEqual(
+            season.poster_temp_path,
+            'temp/season/poster.jpg',
+        )
+        self.assertEqual(
+            season.backdrop_temp_path,
+            'temp/season/backdrop.webp',
+        )
+        self.assertEqual(
+            season.trailer_temp_path,
+            'temp/season/trailer.mp4',
+        )
+
+    @patch(
+        'apps.catalog.media_services.copy_internal_to_final'
+    )
+    def test_season_media_failure_rolls_back_all_final_copies(
+        self,
+        copy_mock,
+    ):
+        from apps.catalog.media_services import (
+            promote_content_media_to_final,
+        )
+
+        series = Content.objects.create(
+            title='Serie rollback saison',
+            type='series',
+            poster_temp_path='temp/content/poster.jpg',
+            poster_url='',
+        )
+
+        season = Season.objects.create(
+            content=series,
+            season_number=1,
+            poster_temp_path='temp/season/poster.jpg',
+            backdrop_temp_path='temp/season/backdrop.jpg',
+            trailer_temp_path='temp/season/trailer.mp4',
+        )
+
+        created = []
+
+        def fake_copy(
+            internal_path,
+            storage_alias,
+            final_path,
+            cdn_prefix='',
+        ):
+            if (
+                internal_path
+                == 'temp/season/backdrop.jpg'
+            ):
+                raise RuntimeError(
+                    'season backdrop copy failure'
+                )
+
+            storage = storages[storage_alias]
+
+            storage.save(
+                final_path,
+                SimpleUploadedFile(
+                    'final.bin',
+                    b'final-data',
+                ),
+            )
+
+            created.append(
+                (storage_alias, final_path)
+            )
+
+            return (
+                final_path,
+                (
+                    'https://cdn.example.test/'
+                    f'{final_path}'
+                ),
+            )
+
+        copy_mock.side_effect = fake_copy
+
+        with self.assertRaises(RuntimeError):
+            promote_content_media_to_final(
+                series
+            )
+
+        self.assertGreaterEqual(
+            len(created),
+            2,
+        )
+
+        for storage_alias, final_path in created:
+            self.assertFalse(
+                storages[storage_alias].exists(
+                    final_path
+                ),
+                f'{storage_alias}:{final_path}',
+            )
+
+        series.refresh_from_db()
+        season.refresh_from_db()
+
+        self.assertEqual(series.poster_url, '')
+        self.assertEqual(season.poster_url, '')
+        self.assertEqual(season.backdrop_url, '')
+        self.assertEqual(season.trailer_url, '')
+
+    @patch(
+        'apps.catalog.media_services.copy_internal_to_final'
+    )
+    def test_season_database_failure_rolls_back_final_copies(
+        self,
+        copy_mock,
+    ):
+        from apps.catalog.media_services import (
+            promote_content_media_to_final,
+        )
+
+        series = Content.objects.create(
+            title='Serie rollback DB saison',
+            type='series',
+            poster_temp_path='temp/content/poster.jpg',
+            poster_url='',
+        )
+
+        season = Season.objects.create(
+            content=series,
+            season_number=1,
+            poster_temp_path='temp/season/poster.jpg',
+            poster_url='',
+        )
+
+        created = []
+
+        def fake_copy(
+            internal_path,
+            storage_alias,
+            final_path,
+            cdn_prefix='',
+        ):
+            storage = storages[storage_alias]
+
+            storage.save(
+                final_path,
+                SimpleUploadedFile(
+                    'final.bin',
+                    b'final-data',
+                ),
+            )
+
+            created.append(
+                (storage_alias, final_path)
+            )
+
+            return (
+                final_path,
+                (
+                    'https://cdn.example.test/'
+                    f'{final_path}'
+                ),
+            )
+
+        copy_mock.side_effect = fake_copy
+
+        with patch.object(
+            Season,
+            'save',
+            side_effect=RuntimeError(
+                'season database failure'
+            ),
+        ):
+            with self.assertRaises(RuntimeError):
+                promote_content_media_to_final(
+                    series
+                )
+
+        for storage_alias, final_path in created:
+            self.assertFalse(
+                storages[storage_alias].exists(
+                    final_path
+                ),
+                f'{storage_alias}:{final_path}',
+            )
+
+        series.refresh_from_db()
+        season.refresh_from_db()
+
+        self.assertEqual(series.poster_url, '')
+        self.assertEqual(season.poster_url, '')
+
+    @patch(
+        'apps.catalog.media_services.copy_internal_to_final'
+    )
+    def test_producer_team_image_is_promoted_to_final(
+        self,
+        copy_mock,
+    ):
+        from apps.catalog.media_services import (
+            promote_content_media_to_final,
+        )
+
+        self.content.producer_team = [
+            {
+                'name': 'Producteur Photo',
+                'image_temp_path': (
+                    'uploads/test/team/'
+                    'producer.jpg'
+                ),
+                'image_url': '',
+            }
+        ]
+        self.content.save(
+            update_fields=[
+                'producer_team',
+                'updated_at',
+            ]
+        )
+
+        copy_mock.return_value = (
+            (
+                f'{self.content.id}/'
+                'team/producer_1.jpg'
+            ),
+            (
+                'https://cdn.example.test/'
+                f'{self.content.id}/'
+                'team/producer_1.jpg'
+            ),
+        )
+
+        promoted = promote_content_media_to_final(
+            self.content
+        )
+
+        self.assertIn(
+            'producer_team_0',
+            promoted,
+        )
+
+        copy_mock.assert_called_once_with(
+            internal_path=(
+                'uploads/test/team/'
+                'producer.jpg'
+            ),
+            storage_alias='final_posters',
+            final_path=(
+                f'{self.content.id}/'
+                'team/producer_1.jpg'
+            ),
+            cdn_prefix='team',
+        )
+
+        self.content.refresh_from_db()
+
+        member = self.content.producer_team[0]
+
+        self.assertEqual(
+            member['name'],
+            'Producteur Photo',
+        )
+        self.assertEqual(
+            member['image_temp_path'],
+            (
+                'uploads/test/team/'
+                'producer.jpg'
+            ),
+        )
+        self.assertEqual(
+            member['image_url'],
+            (
+                'https://cdn.example.test/'
+                f'{self.content.id}/'
+                'team/producer_1.jpg'
+            ),
+        )
+
+    @patch(
+        'apps.catalog.media_services.copy_internal_to_final'
+    )
+    def test_team_image_failure_does_not_persist_final_urls(
+        self,
+        copy_mock,
+    ):
+        from apps.catalog.media_services import (
+            promote_content_media_to_final,
+        )
+
+        self.content.poster_temp_path = (
+            'temp/poster.jpg'
+        )
+        self.content.poster_url = ''
+
+        self.content.producer_team = [
+            {
+                'name': 'Producteur Photo',
+                'image_temp_path': (
+                    'temp/team/producer.jpg'
+                ),
+                'image_url': '',
+            }
+        ]
+
+        self.content.save(
+            update_fields=[
+                'poster_temp_path',
+                'poster_url',
+                'producer_team',
+                'updated_at',
+            ]
+        )
+
+        calls = {'count': 0}
+
+        def fake_copy(
+            internal_path,
+            storage_alias,
+            final_path,
+            cdn_prefix='',
+        ):
+            calls['count'] += 1
+
+            if calls['count'] == 2:
+                raise RuntimeError(
+                    'team image copy failure'
+                )
+
+            storage = storages[storage_alias]
+
+            storage.save(
+                final_path,
+                SimpleUploadedFile(
+                    'final.jpg',
+                    b'final-data',
+                ),
+            )
+
+            return (
+                final_path,
+                (
+                    'https://cdn.example.test/'
+                    f'{final_path}'
+                ),
+            )
+
+        copy_mock.side_effect = fake_copy
+
+        with self.assertRaises(RuntimeError):
+            promote_content_media_to_final(
+                self.content
+            )
+
+        self.content.refresh_from_db()
+
+        self.assertEqual(
+            self.content.poster_url,
+            '',
+        )
+
+        self.assertEqual(
+            self.content.producer_team[0][
+                'image_url'
+            ],
+            '',
+        )
+
+    @patch(
         'apps.catalog.views.promote_content_media_to_final'
     )
     def test_approval_promotes_media_before_approved(
@@ -440,6 +1507,7 @@ class CatalogApiTests(APITestCase):
         )
 
     def test_producer_can_create_submit_and_view_own_content(self):
+        self._create_published_technical_specification()
         producer = User.objects.create_user(
             email='producer@example.com',
             password='StrongPass123',
@@ -482,6 +1550,36 @@ class CatalogApiTests(APITestCase):
         self.assertEqual(content.producer, producer)
         self.assertEqual(content.producer_submission_status, 'draft')
 
+        content.producer_team = [
+            {
+                'name': 'Producteur Test',
+                'image_temp_path': (
+                    f'uploads/producer_{producer.id}/'
+                    f'content_{content.id}/team/producer.jpg'
+                ),
+                'image_url': '',
+            }
+        ]
+        content.cast_team = [
+            {
+                'name': 'Acteur Test',
+                'image_temp_path': (
+                    f'uploads/producer_{producer.id}/'
+                    f'content_{content.id}/team/actor.jpg'
+                ),
+                'image_url': '',
+            }
+        ]
+        content.save(
+            update_fields=[
+                'producer_team',
+                'cast_team',
+                'updated_at',
+            ]
+        )
+
+        self._set_complete_submission_metadata(content)
+
         submit_response = self.client.post(
             reverse('content-submit', args=[content.id]),
             {'producer_notes': 'Pret pour validation.'},
@@ -493,6 +1591,24 @@ class CatalogApiTests(APITestCase):
         self.assertEqual(content.producer_submission_status, 'pending')
         self.assertEqual(content.producer_notes, 'Pret pour validation.')
         self.assertIsNotNone(content.submitted_at)
+        self.assertEqual(
+            content.technical_specification,
+            self.technical_specification,
+        )
+        self.assertEqual(
+            content.technical_specification_version,
+            'test-1.1',
+        )
+        self.assertEqual(
+            submit_response.data['technical_specification'],
+            self.technical_specification.id,
+        )
+        self.assertEqual(
+            submit_response.data[
+                'technical_specification_version'
+            ],
+            'test-1.1',
+        )
 
         mine_response = self.client.get(reverse('content-mine'))
         payload = mine_response.data['results'] if 'results' in mine_response.data else mine_response.data
@@ -507,6 +1623,1460 @@ class CatalogApiTests(APITestCase):
             1,
         )
 
+
+    @override_settings(
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_producer_can_upload_team_image_to_temporary_storage(self):
+        storages._storages.clear()
+
+        producer = User.objects.create_user(
+            email='team-image@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        producer.is_verified = True
+        producer.save(update_fields=['is_verified'])
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            company_name='Team Image Producer',
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=(
+                settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0]
+            ),
+            contract_title=(
+                'EKEFLICKS Producer Agreement - Team Image Test'
+            ),
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        content = Content.objects.create(
+            title='Team image movie',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        uploaded_file = SimpleUploadedFile(
+            'producer.jpg',
+            b'producer-photo',
+        )
+
+        response = self.client.post(
+            reverse(
+                'content-upload-team-image',
+                args=[content.id],
+            ),
+            {'file': uploaded_file},
+            format='multipart',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            response.data['media_type'],
+            'team_image',
+        )
+        self.assertEqual(
+            response.data['storage'],
+            'temporary',
+        )
+
+        temporary_path = response.data[
+            'temporary_path'
+        ]
+
+        self.assertTrue(temporary_path)
+        self.assertTrue(
+            storages['default'].exists(
+                temporary_path
+            )
+        )
+
+    @override_settings(
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_producer_can_upload_director_image_to_temporary_storage(self):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'director-image@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Director image movie',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+            director_image_url='https://cdn.example.test/old-director.jpg',
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        uploaded_file = SimpleUploadedFile(
+            'director.png',
+            b'director-photo',
+        )
+
+        response = self.client.post(
+            reverse(
+                'content-upload-director-image',
+                args=[content.id],
+            ),
+            {'file': uploaded_file},
+            format='multipart',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            response.data['media_type'],
+            'director_image',
+        )
+
+        temporary_path = response.data['temporary_path']
+
+        self.assertTrue(temporary_path)
+        self.assertTrue(
+            storages['default'].exists(temporary_path)
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.director_image_temp_path,
+            temporary_path,
+        )
+        self.assertEqual(
+            content.director_image_url,
+            '',
+        )
+
+    @override_settings(
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_producer_can_upload_screenwriter_image_to_temporary_storage(self):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'screenwriter-image@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Screenwriter image movie',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+            screenwriter_image_url=(
+                'https://cdn.example.test/old-screenwriter.jpg'
+            ),
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        uploaded_file = SimpleUploadedFile(
+            'screenwriter.webp',
+            b'screenwriter-photo',
+        )
+
+        response = self.client.post(
+            reverse(
+                'content-upload-screenwriter-image',
+                args=[content.id],
+            ),
+            {'file': uploaded_file},
+            format='multipart',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            response.data['media_type'],
+            'screenwriter_image',
+        )
+
+        temporary_path = response.data['temporary_path']
+
+        self.assertTrue(temporary_path)
+        self.assertTrue(
+            storages['default'].exists(temporary_path)
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.screenwriter_image_temp_path,
+            temporary_path,
+        )
+        self.assertEqual(
+            content.screenwriter_image_url,
+            '',
+        )
+
+    @patch(
+        'apps.catalog.views.minio_public_upload_client'
+    )
+    def test_producer_can_preview_director_temp_image(
+        self,
+        public_client_factory,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'director-preview@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Director preview',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        temporary_path = (
+            f'uploads/producer_{producer.id}/'
+            f'2026/09/05/'
+            f'content_{content.id}/'
+            f'team/director_test.jpg'
+        )
+
+        content.director_image_temp_path = temporary_path
+        content.save(
+            update_fields=[
+                'director_image_temp_path',
+                'updated_at',
+            ]
+        )
+
+        public_client_factory.return_value.generate_presigned_url.return_value = (
+            'https://minio.example.test/director-preview'
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.get(
+            reverse(
+                'content-team-image-preview',
+                args=[content.id],
+            ),
+            {'path': temporary_path},
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            response.data['preview_url'],
+            'https://minio.example.test/director-preview',
+        )
+
+    @patch(
+        'apps.catalog.views.minio_public_upload_client'
+    )
+    def test_producer_can_preview_screenwriter_temp_image(
+        self,
+        public_client_factory,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'screenwriter-preview@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Screenwriter preview',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        temporary_path = (
+            f'uploads/producer_{producer.id}/'
+            f'2026/09/05/'
+            f'content_{content.id}/'
+            f'team/screenwriter_test.jpg'
+        )
+
+        content.screenwriter_image_temp_path = temporary_path
+        content.save(
+            update_fields=[
+                'screenwriter_image_temp_path',
+                'updated_at',
+            ]
+        )
+
+        public_client_factory.return_value.generate_presigned_url.return_value = (
+            'https://minio.example.test/screenwriter-preview'
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.get(
+            reverse(
+                'content-team-image-preview',
+                args=[content.id],
+            ),
+            {'path': temporary_path},
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            response.data['preview_url'],
+            'https://minio.example.test/screenwriter-preview',
+        )
+
+    @patch(
+        'apps.catalog.media_services.copy_internal_to_final'
+    )
+    def test_director_and_screenwriter_images_are_promoted_to_final(
+        self,
+        copy_mock,
+    ):
+        from apps.catalog.media_services import (
+            promote_content_media_to_final,
+        )
+
+        self.content.director_image_temp_path = (
+            'uploads/test/team/director.jpg'
+        )
+        self.content.director_image_url = ''
+
+        self.content.screenwriter_image_temp_path = (
+            'uploads/test/team/screenwriter.png'
+        )
+        self.content.screenwriter_image_url = ''
+
+        self.content.save(
+            update_fields=[
+                'director_image_temp_path',
+                'director_image_url',
+                'screenwriter_image_temp_path',
+                'screenwriter_image_url',
+                'updated_at',
+            ]
+        )
+
+        def fake_copy(
+            internal_path,
+            storage_alias,
+            final_path,
+            cdn_prefix='',
+        ):
+            return (
+                final_path,
+                f'https://cdn.example.test/{final_path}',
+            )
+
+        copy_mock.side_effect = fake_copy
+
+        promoted = promote_content_media_to_final(
+            self.content
+        )
+
+        self.assertIn(
+            'director_image',
+            promoted,
+        )
+        self.assertIn(
+            'screenwriter_image',
+            promoted,
+        )
+
+        self.content.refresh_from_db()
+
+        self.assertEqual(
+            self.content.director_image_temp_path,
+            'uploads/test/team/director.jpg',
+        )
+        self.assertEqual(
+            self.content.screenwriter_image_temp_path,
+            'uploads/test/team/screenwriter.png',
+        )
+
+        self.assertEqual(
+            self.content.director_image_url,
+            (
+                'https://cdn.example.test/'
+                f'{self.content.id}/team/director.jpg'
+            ),
+        )
+
+        self.assertEqual(
+            self.content.screenwriter_image_url,
+            (
+                'https://cdn.example.test/'
+                f'{self.content.id}/team/screenwriter.png'
+            ),
+        )
+
+    def test_producer_cannot_submit_incomplete_metadata(self):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'metadata-incomplete@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Metadata incomplete',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse('content-submit', args=[content.id]),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn('metadata', response.data)
+
+        metadata = response.data['metadata']
+
+        for field in (
+            'original_title',
+            'synopsis',
+            'genres',
+            'release_year',
+            'director_name',
+            'screenwriter_name',
+            'age_rating',
+            'duration',
+            'language',
+            'audio_languages',
+            'country',
+        ):
+            self.assertIn(field, metadata)
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+        self.assertIsNone(content.submitted_at)
+        self.assertIsNone(
+            content.technical_specification
+        )
+        self.assertEqual(
+            content.technical_specification_version,
+            '',
+        )
+
+    def test_producer_can_submit_without_subtitles(self):
+        self._create_published_technical_specification()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'no-subtitles@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Film sans sous titres',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+            producer_team=[
+                {
+                    'name': 'Producteur Test',
+                    'image_temp_path': (
+                        'uploads/test/no-subtitles-producer.jpg'
+                    ),
+                    'image_url': '',
+                }
+            ],
+            cast_team=[
+                {
+                    'name': 'Acteur Test',
+                    'image_temp_path': (
+                        'uploads/test/no-subtitles-actor.jpg'
+                    ),
+                    'image_url': '',
+                }
+            ],
+        )
+
+        self._set_complete_submission_metadata(content)
+
+        content.subtitle_languages = []
+        content.available_from = None
+        content.save(
+            update_fields=[
+                'subtitle_languages',
+                'available_from',
+                'updated_at',
+            ]
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse('content-submit', args=[content.id]),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'pending',
+        )
+
+    def test_producer_cannot_submit_series_episode_without_duration(
+        self,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'episode-duration@example.com'
+            )
+        )
+
+        content = self._create_submittable_series(
+            producer,
+            'Serie durée épisode',
+        )
+
+        season = self._create_complete_season(
+            content,
+            season_number=1,
+            episode_count=1,
+        )
+
+        Episode.objects.create(
+            season=season,
+            content=content,
+            episode_number=1,
+            title='Episode sans durée',
+            description='Description présente',
+            duration=None,
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse('content-submit', args=[content.id]),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn(
+            'episode_metadata',
+            response.data,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+
+    def test_producer_cannot_submit_without_complete_producer_team(self):
+        producer = User.objects.create_user(
+            email='missing-team@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        producer.is_verified = True
+        producer.save(update_fields=['is_verified'])
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            company_name='Missing Team Producer',
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=(
+                settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0]
+            ),
+            contract_title=(
+                'EKEFLICKS Producer Agreement - Missing Team Test'
+            ),
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        content = Content.objects.create(
+            title='Missing producer team',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+            producer_team=[
+                {
+                    'name': 'Sans Photo',
+                    'image_url': '',
+                }
+            ],
+        )
+
+        self._set_complete_submission_metadata(content)
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse(
+                'content-submit',
+                args=[content.id],
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn(
+            'producer_team',
+            response.data,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+
+    def test_producer_cannot_submit_without_complete_cast_team(self):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'missing-cast@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Missing cast team',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+            producer_team=[
+                {
+                    'name': 'Producteur Complet',
+                    'image_temp_path': (
+                        'uploads/test/'
+                        'producer-complet.jpg'
+                    ),
+                    'image_url': '',
+                }
+            ],
+            cast_team=[],
+        )
+
+        self._set_complete_submission_metadata(content)
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse(
+                'content-submit',
+                args=[content.id],
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            'cast_team',
+            response.data,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+
+    def test_producer_cannot_submit_without_published_technical_specification(
+        self,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'no-technical-spec@example.com'
+            )
+        )
+
+        TechnicalSpecification.objects.update(
+            is_published=False,
+            published_at=None,
+        )
+
+        content = Content.objects.create(
+            title='No technical specification',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+            producer_team=[
+                {
+                    'name': 'Producteur Test',
+                    'image_temp_path': (
+                        'uploads/test/'
+                        'producer-no-spec.jpg'
+                    ),
+                    'image_url': '',
+                }
+            ],
+            cast_team=[
+                {
+                    'name': 'Acteur Test',
+                    'image_temp_path': (
+                        'uploads/test/'
+                        'actor-no-spec.jpg'
+                    ),
+                    'image_url': '',
+                }
+            ],
+        )
+
+        self._set_complete_submission_metadata(content)
+
+        self.client.force_authenticate(
+            user=producer
+        )
+
+        response = self.client.post(
+            reverse(
+                'content-submit',
+                args=[content.id],
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+        self.assertIn(
+            'detail',
+            response.data,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+        self.assertIsNone(
+            content.submitted_at
+        )
+        self.assertIsNone(
+            content.technical_specification
+        )
+        self.assertEqual(
+            content.technical_specification_version,
+            '',
+        )
+
+    def test_producer_can_submit_with_complete_producer_team(self):
+        self._create_published_technical_specification()
+        producer = User.objects.create_user(
+            email='complete-team@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        producer.is_verified = True
+        producer.save(update_fields=['is_verified'])
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            company_name='Complete Team Producer',
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=(
+                settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0]
+            ),
+            contract_title=(
+                'EKEFLICKS Producer Agreement - Complete Team Test'
+            ),
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        content = Content.objects.create(
+            title='Complete producer team',
+            type='movie',
+            producer=producer,
+            producer_submission_status='draft',
+            producer_team=[
+                {
+                    'name': 'Producteur Photo',
+                    'image_temp_path': (
+                        'uploads/test/'
+                        'producer-photo.jpg'
+                    ),
+                    'image_url': '',
+                }
+            ],
+            cast_team=[
+                {
+                    'name': 'Acteur Photo',
+                    'image_temp_path': (
+                        'uploads/test/'
+                        'actor-photo.jpg'
+                    ),
+                    'image_url': '',
+                }
+            ],
+        )
+
+        self._set_complete_submission_metadata(content)
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse(
+                'content-submit',
+                args=[content.id],
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'pending',
+        )
+
+
+    def _create_submittable_series(self, producer, title):
+        content = Content.objects.create(
+            title=title,
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+            producer_team=[
+                {
+                    'name': 'Producteur Serie',
+                    'image_temp_path': (
+                        'uploads/test/producer-serie.jpg'
+                    ),
+                    'image_url': '',
+                }
+            ],
+            cast_team=[
+                {
+                    'name': 'Acteur Serie',
+                    'image_temp_path': (
+                        'uploads/test/acteur-serie.jpg'
+                    ),
+                    'image_url': '',
+                }
+            ],
+        )
+
+        self._set_complete_submission_metadata(content)
+
+        return content
+
+    def _create_complete_season(
+        self,
+        content,
+        season_number=1,
+        episode_count=0,
+    ):
+        return Season.objects.create(
+            content=content,
+            season_number=season_number,
+            title=f'Saison {season_number}',
+            description='Resume complet de la saison.',
+            poster_temp_path=(
+                f'uploads/test/series/'
+                f'season_{season_number:02d}/poster.jpg'
+            ),
+            backdrop_temp_path=(
+                f'uploads/test/series/'
+                f'season_{season_number:02d}/backdrop.jpg'
+            ),
+            trailer_temp_path=(
+                f'uploads/test/series/'
+                f'season_{season_number:02d}/trailer.mp4'
+            ),
+            episode_count=episode_count,
+        )
+
+    def test_producer_cannot_submit_series_without_season(self):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'series-no-season@example.com'
+            )
+        )
+        content = self._create_submittable_series(
+            producer,
+            'Serie sans saison',
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse('content-submit', args=[content.id]),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn('seasons', response.data)
+
+        content.refresh_from_db()
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+
+    def test_producer_cannot_submit_series_without_season_description(self):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'series-no-season-description@example.com'
+            )
+        )
+        content = self._create_submittable_series(
+            producer,
+            'Serie sans resume saison',
+        )
+
+        Season.objects.create(
+            content=content,
+            season_number=1,
+            title='Saison 1',
+            poster_temp_path='uploads/test/season/poster.jpg',
+            backdrop_temp_path='uploads/test/season/backdrop.jpg',
+            trailer_temp_path='uploads/test/season/trailer.mp4',
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse('content-submit', args=[content.id]),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn('season_metadata', response.data)
+
+        content.refresh_from_db()
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+
+    def test_producer_cannot_submit_series_without_season_media(self):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'series-no-season-media@example.com'
+            )
+        )
+        content = self._create_submittable_series(
+            producer,
+            'Serie sans medias saison',
+        )
+
+        Season.objects.create(
+            content=content,
+            season_number=1,
+            title='Saison 1',
+            description='Resume complet de la saison.',
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse('content-submit', args=[content.id]),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn('season_media', response.data)
+
+        content.refresh_from_db()
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+
+    def test_producer_cannot_submit_series_without_episode(self):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'series-no-episode@example.com'
+            )
+        )
+        content = self._create_submittable_series(
+            producer,
+            'Serie sans episode',
+        )
+
+        self._create_complete_season(
+            content,
+            season_number=1,
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse('content-submit', args=[content.id]),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn('episodes', response.data)
+
+        content.refresh_from_db()
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+
+    def test_producer_cannot_submit_series_with_unuploaded_episode(self):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'series-no-master@example.com'
+            )
+        )
+        content = self._create_submittable_series(
+            producer,
+            'Serie master absent',
+        )
+
+        season = self._create_complete_season(
+            content,
+            season_number=1,
+        )
+
+        Episode.objects.create(
+            season=season,
+            content=content,
+            episode_number=1,
+            title='Episode 1',
+            description='Premier episode',
+            duration=25,
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse('content-submit', args=[content.id]),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn('episode_videos', response.data)
+
+        content.refresh_from_db()
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+
+    def test_producer_can_submit_complete_series(self):
+        self._create_published_technical_specification()
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'series-complete@example.com'
+            )
+        )
+        content = self._create_submittable_series(
+            producer,
+            'Serie complete',
+        )
+
+        season = self._create_complete_season(
+            content,
+            season_number=1,
+            episode_count=1,
+        )
+
+        episode = Episode.objects.create(
+            season=season,
+            content=content,
+            episode_number=1,
+            title='Episode 1',
+            description='Premier episode complet',
+            duration=25,
+        )
+
+        VideoAsset.objects.create(
+            content=content,
+            episode=episode,
+            title='Master Episode 1',
+            source_file_path=(
+                'uploads/test/series/'
+                'season_01/episode_01/master.mp4'
+            ),
+            source_file_size_bytes=1024,
+            source_uploaded_at=timezone.now(),
+            source_uploaded_by=producer,
+            status='draft',
+            moderation_status='pending',
+        )
+
+        asset = (
+            VideoAsset.objects
+            .filter(
+                content=content,
+                episode=episode,
+            )
+            .latest('created_at')
+        )
+
+        MediaAnalysisReport.objects.create(
+            asset=asset,
+            status='passed',
+            frame_rate='25.000',
+            technical_metadata={
+                'source_identity': {
+                    'path': str(
+                        asset.source_file_path or ''
+                    ).strip(),
+                    'url': str(
+                        asset.source_file_url or ''
+                    ).strip(),
+                    'size_bytes': int(
+                        asset.source_file_size_bytes or 0
+                    ),
+                    'uploaded_at': (
+                        asset.source_uploaded_at.isoformat()
+                        if asset.source_uploaded_at is not None
+                        else None
+                    ),
+                },
+                'technical_specification_conformity': {
+                    'status': 'conform',
+                    'blocking': False,
+                    'specification_version': (
+                        self.technical_specification.version
+                    ),
+                    'checks': [],
+                    'blocking_errors': [],
+                    'warnings': [],
+                }
+            },
+            analyzed_at=timezone.now(),
+        )
+
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse('content-submit', args=[content.id]),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'pending',
+        )
+        self.assertIsNotNone(
+            content.submitted_at,
+        )
+
+
+    def _create_qc_series_for_submission(
+        self,
+        email,
+    ):
+        self._create_published_technical_specification()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                email
+            )
+        )
+
+        content = self._create_submittable_series(
+            producer,
+            'Serie QC technique',
+        )
+
+        season = self._create_complete_season(
+            content,
+            season_number=1,
+            episode_count=1,
+        )
+
+        episode = Episode.objects.create(
+            season=season,
+            content=content,
+            episode_number=1,
+            title='Episode QC',
+            description='Episode complet.',
+            duration=25,
+        )
+
+        asset = VideoAsset.objects.create(
+            content=content,
+            episode=episode,
+            title='Master QC',
+            source_file_path=(
+                'uploads/test/qc/'
+                'season_01/episode_01/master.mp4'
+            ),
+            source_file_size_bytes=1024,
+            source_uploaded_at=timezone.now(),
+            source_uploaded_by=producer,
+            status='draft',
+            moderation_status='pending',
+        )
+
+        self.client.force_authenticate(
+            user=producer
+        )
+
+        return content, asset
+
+    def test_series_submit_blocks_pending_master_analysis(
+        self,
+    ):
+        content, asset = (
+            self._create_qc_series_for_submission(
+                'qc-pending@example.com'
+            )
+        )
+
+        MediaAnalysisReport.objects.create(
+            asset=asset,
+            status='pending',
+        )
+
+        response = self.client.post(
+            reverse(
+                'content-submit',
+                args=[content.id],
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            'technical_conformity',
+            response.data,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+
+    def test_series_submit_blocks_non_conform_master(
+        self,
+    ):
+        content, asset = (
+            self._create_qc_series_for_submission(
+                'qc-non-conform@example.com'
+            )
+        )
+
+        MediaAnalysisReport.objects.create(
+            asset=asset,
+            status='passed',
+            frame_rate='60.000',
+            technical_metadata={
+                'technical_specification_conformity': {
+                    'status': 'non_conform',
+                    'blocking': True,
+                    'specification_version': (
+                        self.technical_specification.version
+                    ),
+                    'checks': [],
+                    'blocking_errors': [
+                        'Framerate non conforme.'
+                    ],
+                    'warnings': [],
+                }
+            },
+            analyzed_at=timezone.now(),
+        )
+
+        response = self.client.post(
+            reverse(
+                'content-submit',
+                args=[content.id],
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        payload = response.data[
+            'technical_conformity'
+        ]
+
+        self.assertTrue(
+            payload['blocking']
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'draft',
+        )
+
+    def test_series_submit_accepts_conform_master(
+        self,
+    ):
+        content, asset = (
+            self._create_qc_series_for_submission(
+                'qc-conform@example.com'
+            )
+        )
+
+        MediaAnalysisReport.objects.create(
+            asset=asset,
+            status='passed',
+            frame_rate='25.000',
+            technical_metadata={
+                'source_identity': {
+                    'path': str(
+                        asset.source_file_path or ''
+                    ).strip(),
+                    'url': str(
+                        asset.source_file_url or ''
+                    ).strip(),
+                    'size_bytes': int(
+                        asset.source_file_size_bytes or 0
+                    ),
+                    'uploaded_at': (
+                        asset.source_uploaded_at.isoformat()
+                        if asset.source_uploaded_at is not None
+                        else None
+                    ),
+                },
+                'technical_specification_conformity': {
+                    'status': 'conform',
+                    'blocking': False,
+                    'specification_version': (
+                        self.technical_specification.version
+                    ),
+                    'checks': [],
+                    'blocking_errors': [],
+                    'warnings': [],
+                }
+            },
+            analyzed_at=timezone.now(),
+        )
+
+        response = self.client.post(
+            reverse(
+                'content-submit',
+                args=[content.id],
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'pending',
+        )
 
     def test_producer_cannot_submit_non_draft_content(self):
         producer = User.objects.create_user(
@@ -1156,6 +3726,280 @@ class CatalogApiTests(APITestCase):
         )
 
 
+
+    @patch(
+        'apps.catalog.views.'
+        'cleanup_approved_content_temporary_media'
+    )
+    @patch(
+        'apps.catalog.views.'
+        'promote_content_media_to_final'
+    )
+    def test_approval_runs_cleanup_only_after_promotion(
+        self,
+        promote_mock,
+        cleanup_mock,
+    ):
+        producer = User.objects.create_user(
+            email='approval-cleanup-order@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        staff = User.objects.create_user(
+            email='approval-cleanup-reviewer@example.com',
+            password='StrongPass123',
+            is_staff=True,
+        )
+
+        content = Content.objects.create(
+            title='Approval cleanup order',
+            type='movie',
+            producer=producer,
+            producer_submission_status='pending',
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=staff)
+
+        response = self.client.post(
+            reverse(
+                'content-approve-submission',
+                args=[content.id],
+            ),
+            {'reason': 'Validation cleanup.'},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        promote_mock.assert_called_once()
+
+        cleanup_mock.assert_called_once()
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'approved',
+        )
+
+        cleanup_content = cleanup_mock.call_args.args[0]
+
+        self.assertEqual(
+            cleanup_content.id,
+            content.id,
+        )
+
+        self.assertEqual(
+            cleanup_content.producer_submission_status,
+            'approved',
+        )
+
+    @patch(
+        'apps.catalog.views.'
+        'cleanup_approved_content_temporary_media',
+        side_effect=RuntimeError('TEMP cleanup failure'),
+    )
+    @patch(
+        'apps.catalog.views.'
+        'promote_content_media_to_final'
+    )
+    def test_cleanup_failure_does_not_break_approval(
+        self,
+        promote_mock,
+        cleanup_mock,
+    ):
+        producer = User.objects.create_user(
+            email='approval-cleanup-failure@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        staff = User.objects.create_user(
+            email='approval-cleanup-failure-reviewer@example.com',
+            password='StrongPass123',
+            is_staff=True,
+        )
+
+        content = Content.objects.create(
+            title='Cleanup failure safe approval',
+            type='movie',
+            producer=producer,
+            producer_submission_status='pending',
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=staff)
+
+        response = self.client.post(
+            reverse(
+                'content-approve-submission',
+                args=[content.id],
+            ),
+            {'reason': 'Validation finale.'},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        promote_mock.assert_called_once()
+        cleanup_mock.assert_called_once()
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.producer_submission_status,
+            'approved',
+        )
+
+        self.assertEqual(
+            content.review_reason,
+            'Validation finale.',
+        )
+
+    @override_settings(
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_approval_cleanup_clears_team_temporary_paths(
+        self,
+    ):
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+
+        from apps.catalog.media_services import (
+            cleanup_approved_content_temporary_media,
+        )
+
+        content = Content.objects.create(
+            title='Approved TEMP cleanup',
+            type='movie',
+            producer_submission_status='approved',
+        )
+
+        director_path = default_storage.save(
+            'uploads/test/cleanup/director.jpg',
+            ContentFile(b'director'),
+        )
+
+        screenwriter_path = default_storage.save(
+            'uploads/test/cleanup/screenwriter.jpg',
+            ContentFile(b'screenwriter'),
+        )
+
+        producer_path = default_storage.save(
+            'uploads/test/cleanup/producer.jpg',
+            ContentFile(b'producer'),
+        )
+
+        actor_path = default_storage.save(
+            'uploads/test/cleanup/actor.jpg',
+            ContentFile(b'actor'),
+        )
+
+        content.director_image_temp_path = director_path
+        content.screenwriter_image_temp_path = (
+            screenwriter_path
+        )
+
+        content.producer_team = [
+            {
+                'name': 'Producteur Test',
+                'image_temp_path': producer_path,
+                'image_url': (
+                    'https://cdn.example.test/'
+                    'producer.jpg'
+                ),
+            }
+        ]
+
+        content.cast_team = [
+            {
+                'name': 'Acteur Test',
+                'image_temp_path': actor_path,
+                'image_url': (
+                    'https://cdn.example.test/'
+                    'actor.jpg'
+                ),
+            }
+        ]
+
+        content.save(
+            update_fields=[
+                'director_image_temp_path',
+                'screenwriter_image_temp_path',
+                'producer_team',
+                'cast_team',
+                'updated_at',
+            ]
+        )
+
+        result = (
+            cleanup_approved_content_temporary_media(
+                content
+            )
+        )
+
+        content.refresh_from_db()
+
+        self.assertEqual(
+            content.director_image_temp_path,
+            '',
+        )
+        self.assertEqual(
+            content.screenwriter_image_temp_path,
+            '',
+        )
+
+        self.assertEqual(
+            content.producer_team[0][
+                'image_temp_path'
+            ],
+            '',
+        )
+
+        self.assertEqual(
+            content.cast_team[0][
+                'image_temp_path'
+            ],
+            '',
+        )
+
+        self.assertFalse(
+            default_storage.exists(director_path)
+        )
+        self.assertFalse(
+            default_storage.exists(screenwriter_path)
+        )
+        self.assertFalse(
+            default_storage.exists(producer_path)
+        )
+        self.assertFalse(
+            default_storage.exists(actor_path)
+        )
+
+        self.assertEqual(
+            content.producer_team[0]['image_url'],
+            (
+                'https://cdn.example.test/'
+                'producer.jpg'
+            ),
+        )
+
+        self.assertEqual(
+            content.cast_team[0]['image_url'],
+            (
+                'https://cdn.example.test/'
+                'actor.jpg'
+            ),
+        )
+
+        self.assertEqual(result['errors'], 0)
+
     def test_admin_can_approve_and_reject_producer_submissions(self):
         producer = User.objects.create_user(
             email='producer-review@example.com',
@@ -1252,13 +4096,1172 @@ class CatalogApiTests(APITestCase):
 
         self.assertEqual(season_response.status_code, status.HTTP_403_FORBIDDEN)
 
+    @override_settings(
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_deleting_series_draft_removes_season_temp_media(
+        self,
+    ):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'series-draft-season-cleanup@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie cleanup saisons',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season_one = Season.objects.create(
+            content=content,
+            season_number=1,
+        )
+        season_two = Season.objects.create(
+            content=content,
+            season_number=2,
+        )
+
+        base_path = (
+            f'uploads/producer_{producer.id}/'
+            f'2026/09/06/'
+            f'content_{content.id}'
+        )
+
+        paths = {
+            's1_poster': (
+                f'{base_path}/season_01/poster.jpg'
+            ),
+            's1_backdrop': (
+                f'{base_path}/season_01/backdrop.jpg'
+            ),
+            's1_trailer': (
+                f'{base_path}/season_01/trailer.mp4'
+            ),
+            's2_poster': (
+                f'{base_path}/season_02/poster.jpg'
+            ),
+            's2_backdrop': (
+                f'{base_path}/season_02/backdrop.jpg'
+            ),
+            's2_trailer': (
+                f'{base_path}/season_02/trailer.mp4'
+            ),
+        }
+
+        storage = storages['default']
+
+        for temporary_path in paths.values():
+            storage.save(
+                temporary_path,
+                SimpleUploadedFile(
+                    'temporary.bin',
+                    b'season-temporary-content',
+                ),
+            )
+            self.assertTrue(
+                storage.exists(temporary_path)
+            )
+
+        season_one.poster_temp_path = (
+            paths['s1_poster']
+        )
+        season_one.backdrop_temp_path = (
+            paths['s1_backdrop']
+        )
+        season_one.trailer_temp_path = (
+            paths['s1_trailer']
+        )
+        season_one.save(
+            update_fields=[
+                'poster_temp_path',
+                'backdrop_temp_path',
+                'trailer_temp_path',
+                'updated_at',
+            ]
+        )
+
+        season_two.poster_temp_path = (
+            paths['s2_poster']
+        )
+        season_two.backdrop_temp_path = (
+            paths['s2_backdrop']
+        )
+        season_two.trailer_temp_path = (
+            paths['s2_trailer']
+        )
+        season_two.save(
+            update_fields=[
+                'poster_temp_path',
+                'backdrop_temp_path',
+                'trailer_temp_path',
+                'updated_at',
+            ]
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.delete(
+            reverse(
+                'content-detail',
+                args=[content.id],
+            ),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        for temporary_path in paths.values():
+            self.assertFalse(
+                storage.exists(temporary_path),
+                temporary_path,
+            )
+
+        self.assertFalse(
+            Content.objects.filter(
+                id=content.id
+            ).exists()
+        )
+
+    @override_settings(
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_deleting_draft_season_removes_its_temp_media(
+        self,
+    ):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-delete-temp@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie suppression saison',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+        )
+
+        base_path = (
+            f'uploads/producer_{producer.id}/'
+            f'2026/09/06/'
+            f'content_{content.id}/season_01'
+        )
+
+        paths = {
+            'poster': f'{base_path}/poster.jpg',
+            'backdrop': f'{base_path}/backdrop.jpg',
+            'trailer': f'{base_path}/trailer.mp4',
+        }
+
+        storage = storages['default']
+
+        for temporary_path in paths.values():
+            storage.save(
+                temporary_path,
+                SimpleUploadedFile(
+                    'temporary.bin',
+                    b'season-delete-content',
+                ),
+            )
+
+        season.poster_temp_path = paths['poster']
+        season.backdrop_temp_path = (
+            paths['backdrop']
+        )
+        season.trailer_temp_path = (
+            paths['trailer']
+        )
+        season.save(
+            update_fields=[
+                'poster_temp_path',
+                'backdrop_temp_path',
+                'trailer_temp_path',
+                'updated_at',
+            ]
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.delete(
+            reverse(
+                'season-detail',
+                args=[season.id],
+            ),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        for temporary_path in paths.values():
+            self.assertFalse(
+                storage.exists(temporary_path),
+                temporary_path,
+            )
+
+        self.assertFalse(
+            Season.objects.filter(
+                id=season.id
+            ).exists()
+        )
+
+        self.assertTrue(
+            Content.objects.filter(
+                id=content.id
+            ).exists()
+        )
+
+    @patch(
+        'apps.catalog.draft_cleanup.default_storage.delete'
+    )
+    @patch(
+        'apps.catalog.draft_cleanup.default_storage.exists'
+    )
+    def test_storage_error_does_not_block_season_deletion(
+        self,
+        exists_mock,
+        delete_mock,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-delete-storage-error@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie storage error saison',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+            poster_temp_path=(
+                'uploads/test/season/poster.jpg'
+            ),
+        )
+
+        exists_mock.return_value = True
+        delete_mock.side_effect = RuntimeError(
+            'Temporary storage unavailable'
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.delete(
+            reverse(
+                'season-detail',
+                args=[season.id],
+            ),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        self.assertFalse(
+            Season.objects.filter(
+                id=season.id
+            ).exists()
+        )
+
+        exists_mock.assert_called_with(
+            'uploads/test/season/poster.jpg'
+        )
+        delete_mock.assert_called_with(
+            'uploads/test/season/poster.jpg'
+        )
+
+    def test_producer_cannot_delete_season_of_non_draft_content(
+        self,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-delete-protected@example.com'
+            )
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        for submission_status in (
+            'pending',
+            'approved',
+            'rejected',
+        ):
+            with self.subTest(
+                submission_status=submission_status
+            ):
+                content = Content.objects.create(
+                    title=(
+                        'Serie saison protegee '
+                        f'{submission_status}'
+                    ),
+                    type='series',
+                    producer=producer,
+                    producer_submission_status=(
+                        submission_status
+                    ),
+                )
+
+                season = Season.objects.create(
+                    content=content,
+                    season_number=1,
+                )
+
+                response = self.client.delete(
+                    reverse(
+                        'season-detail',
+                        args=[season.id],
+                    ),
+                )
+
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_400_BAD_REQUEST,
+                )
+
+                self.assertTrue(
+                    Season.objects.filter(
+                        id=season.id
+                    ).exists()
+                )
+
+    @override_settings(
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_producer_can_upload_own_season_poster(self):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-poster-owner@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie poster saison',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+            title='Saison 1',
+        )
+
+        old_updated_at = content.updated_at
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse(
+                'season-upload-poster',
+                args=[season.id],
+            ),
+            {
+                'file': SimpleUploadedFile(
+                    'poster.jpg',
+                    b'season-poster',
+                )
+            },
+            format='multipart',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            response.data['field'],
+            'poster_temp_path',
+        )
+        self.assertEqual(
+            response.data['final_field'],
+            'poster_url',
+        )
+        self.assertEqual(
+            response.data['storage'],
+            'temporary',
+        )
+        self.assertEqual(response.data['url'], '')
+
+        temporary_path = response.data[
+            'temporary_path'
+        ]
+
+        self.assertIn(
+            f'content_{content.id}/season_01/',
+            temporary_path,
+        )
+        self.assertTrue(
+            temporary_path.endswith(
+                '/poster_original.jpg'
+            )
+        )
+
+        season.refresh_from_db()
+        content.refresh_from_db()
+
+        self.assertEqual(
+            season.poster_temp_path,
+            temporary_path,
+        )
+        self.assertEqual(season.poster_url, '')
+
+        self.assertTrue(
+            storages['default'].exists(
+                temporary_path
+            )
+        )
+
+        self.assertGreater(
+            content.updated_at,
+            old_updated_at,
+        )
+
+    @override_settings(
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_producer_can_upload_own_season_backdrop(self):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-backdrop-owner@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie banniere saison',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=2,
+            title='Saison 2',
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse(
+                'season-upload-backdrop',
+                args=[season.id],
+            ),
+            {
+                'file': SimpleUploadedFile(
+                    'backdrop.webp',
+                    b'season-backdrop',
+                )
+            },
+            format='multipart',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        temporary_path = response.data[
+            'temporary_path'
+        ]
+
+        self.assertEqual(
+            response.data['field'],
+            'backdrop_temp_path',
+        )
+        self.assertEqual(
+            response.data['final_field'],
+            'backdrop_url',
+        )
+        self.assertIn(
+            f'content_{content.id}/season_02/',
+            temporary_path,
+        )
+        self.assertTrue(
+            temporary_path.endswith(
+                '/backdrop_original.webp'
+            )
+        )
+
+        season.refresh_from_db()
+
+        self.assertEqual(
+            season.backdrop_temp_path,
+            temporary_path,
+        )
+        self.assertEqual(
+            season.backdrop_url,
+            '',
+        )
+
+        self.assertTrue(
+            storages['default'].exists(
+                temporary_path
+            )
+        )
+
+    @override_settings(
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_producer_cannot_upload_media_to_other_season(self):
+        storages._storages.clear()
+
+        owner = (
+            self._create_verified_producer_for_team_preview(
+                'season-media-owner@example.com'
+            )
+        )
+        other = (
+            self._create_verified_producer_for_team_preview(
+                'season-media-other@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie autre producteur',
+            type='series',
+            producer=owner,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+        )
+
+        self.client.force_authenticate(user=other)
+
+        response = self.client.post(
+            reverse(
+                'season-upload-poster',
+                args=[season.id],
+            ),
+            {
+                'file': SimpleUploadedFile(
+                    'poster.jpg',
+                    b'forbidden-poster',
+                )
+            },
+            format='multipart',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        season.refresh_from_db()
+
+        self.assertEqual(
+            season.poster_temp_path,
+            '',
+        )
+
+    @override_settings(
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_producer_cannot_replace_non_draft_season_media(self):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-media-pending@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie deja soumise',
+            type='series',
+            producer=producer,
+            producer_submission_status='pending',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+            poster_temp_path=(
+                'uploads/test/existing-season-poster.jpg'
+            ),
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse(
+                'season-upload-poster',
+                args=[season.id],
+            ),
+            {
+                'file': SimpleUploadedFile(
+                    'replacement.jpg',
+                    b'replacement',
+                )
+            },
+            format='multipart',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            'producer_submission_status',
+            response.data,
+        )
+
+        season.refresh_from_db()
+
+        self.assertEqual(
+            season.poster_temp_path,
+            'uploads/test/existing-season-poster.jpg',
+        )
+
+    @override_settings(
+        STORAGES=TEST_FILE_STORAGES,
+    )
+    def test_producer_cannot_upload_invalid_season_image_extension(self):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-media-extension@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie extension invalide',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse(
+                'season-upload-poster',
+                args=[season.id],
+            ),
+            {
+                'file': SimpleUploadedFile(
+                    'poster.exe',
+                    b'invalid-image',
+                )
+            },
+            format='multipart',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        season.refresh_from_db()
+
+        self.assertEqual(
+            season.poster_temp_path,
+            '',
+        )
+
+    @patch(
+        'apps.catalog.views.minio_public_upload_client'
+    )
+    def test_producer_can_create_season_trailer_upload_session(
+        self,
+        mock_public_client,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-trailer-session@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie trailer session',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+            title='Saison 1',
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        client = mock_public_client.return_value
+        client.generate_presigned_url.return_value = (
+            'https://upload.example.test/season-trailer'
+        )
+
+        response = self.client.post(
+            reverse(
+                'season-trailer-upload-session',
+                args=[season.id],
+            ),
+            {
+                'filename': 'trailer.mp4',
+                'size_bytes': 123456,
+            },
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertIn(
+            'upload_url',
+            response.data,
+        )
+        self.assertIn(
+            'completion_token',
+            response.data,
+        )
+        self.assertEqual(
+            response.data['size_bytes'],
+            123456,
+        )
+
+        client.generate_presigned_url.assert_called_once()
+
+        call_kwargs = (
+            client.generate_presigned_url.call_args.kwargs
+        )
+
+        self.assertEqual(
+            call_kwargs['ClientMethod'],
+            'put_object',
+        )
+
+        params = call_kwargs['Params']
+
+        expected_path = (
+            f'uploads/producer_{producer.id}/'
+            f'content_{content.id}/'
+            'season_01/'
+            'trailer_original.mp4'
+        )
+
+        self.assertEqual(
+            params['Bucket'],
+            settings.MINIO_BUCKET,
+        )
+        self.assertEqual(
+            params['Key'],
+            expected_path,
+        )
+
+    def test_season_trailer_upload_rejects_bad_extension(
+        self,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-trailer-extension@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie trailer extension',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse(
+                'season-trailer-upload-session',
+                args=[season.id],
+            ),
+            {
+                'filename': 'trailer.exe',
+                'size_bytes': 1000,
+            },
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_season_trailer_upload_rejects_other_producer(
+        self,
+    ):
+        owner = (
+            self._create_verified_producer_for_team_preview(
+                'season-trailer-owner@example.com'
+            )
+        )
+        other = (
+            self._create_verified_producer_for_team_preview(
+                'season-trailer-other@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie trailer privee',
+            type='series',
+            producer=owner,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+        )
+
+        self.client.force_authenticate(user=other)
+
+        response = self.client.post(
+            reverse(
+                'season-trailer-upload-session',
+                args=[season.id],
+            ),
+            {
+                'filename': 'trailer.mp4',
+                'size_bytes': 1000,
+            },
+            format='json',
+        )
+
+        self.assertIn(
+            response.status_code,
+            {
+                status.HTTP_403_FORBIDDEN,
+                status.HTTP_404_NOT_FOUND,
+            },
+        )
+
+    def test_season_trailer_upload_rejects_non_draft(
+        self,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-trailer-pending@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie trailer pending',
+            type='series',
+            producer=producer,
+            producer_submission_status='pending',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.post(
+            reverse(
+                'season-trailer-upload-session',
+                args=[season.id],
+            ),
+            {
+                'filename': 'trailer.mp4',
+                'size_bytes': 1000,
+            },
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    @patch(
+        'apps.catalog.views.minio_internal_client'
+    )
+    @patch(
+        'apps.catalog.views.minio_public_upload_client'
+    )
+    def test_season_trailer_upload_session_and_complete(
+        self,
+        mock_public_client,
+        mock_internal_client,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-trailer-complete@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie trailer complete',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=3,
+            trailer_url=(
+                'https://old.example.test/'
+                'season-trailer.mp4'
+            ),
+        )
+
+        old_updated_at = content.updated_at
+
+        self.client.force_authenticate(user=producer)
+
+        public_client = (
+            mock_public_client.return_value
+        )
+        public_client.generate_presigned_url.return_value = (
+            'https://upload.example.test/season-trailer'
+        )
+
+        session_response = self.client.post(
+            reverse(
+                'season-trailer-upload-session',
+                args=[season.id],
+            ),
+            {
+                'filename': 'season-three.mov',
+                'size_bytes': 987654,
+            },
+            format='json',
+        )
+
+        self.assertEqual(
+            session_response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        token = session_response.data[
+            'completion_token'
+        ]
+
+        internal_client = (
+            mock_internal_client.return_value
+        )
+        internal_client.head_object.return_value = {
+            'ContentLength': 987654,
+        }
+
+        complete_response = self.client.post(
+            reverse(
+                'season-trailer-upload-complete',
+                args=[season.id],
+            ),
+            {
+                'completion_token': token,
+            },
+            format='json',
+        )
+
+        self.assertEqual(
+            complete_response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        season.refresh_from_db()
+        content.refresh_from_db()
+
+        expected_path = (
+            f'uploads/producer_{producer.id}/'
+            f'content_{content.id}/'
+            'season_03/'
+            'trailer_original.mov'
+        )
+
+        self.assertEqual(
+            season.trailer_temp_path,
+            expected_path,
+        )
+        self.assertEqual(
+            season.trailer_url,
+            '',
+        )
+        self.assertEqual(
+            complete_response.data[
+                'temporary_path'
+            ],
+            expected_path,
+        )
+        self.assertEqual(
+            complete_response.data['storage'],
+            'temporary',
+        )
+        self.assertEqual(
+            complete_response.data['url'],
+            '',
+        )
+        self.assertEqual(
+            complete_response.data['size_bytes'],
+            987654,
+        )
+
+        internal_client.head_object.assert_called_once_with(
+            Bucket=settings.MINIO_BUCKET,
+            Key=expected_path,
+        )
+
+        self.assertGreater(
+            content.updated_at,
+            old_updated_at,
+        )
+
+    @patch(
+        'apps.catalog.views.minio_public_upload_client'
+    )
+    def test_season_trailer_token_cannot_be_used_for_other_season(
+        self,
+        mock_public_client,
+    ):
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-trailer-token-scope@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie trailer token scope',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season_one = Season.objects.create(
+            content=content,
+            season_number=1,
+        )
+        season_two = Season.objects.create(
+            content=content,
+            season_number=2,
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        mock_public_client.return_value.generate_presigned_url.return_value = (
+            'https://upload.example.test/season-trailer'
+        )
+
+        session_response = self.client.post(
+            reverse(
+                'season-trailer-upload-session',
+                args=[season_one.id],
+            ),
+            {
+                'filename': 'trailer.mp4',
+                'size_bytes': 5000,
+            },
+            format='json',
+        )
+
+        self.assertEqual(
+            session_response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        response = self.client.post(
+            reverse(
+                'season-trailer-upload-complete',
+                args=[season_two.id],
+            ),
+            {
+                'completion_token':
+                    session_response.data[
+                        'completion_token'
+                    ],
+            },
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        season_two.refresh_from_db()
+
+        self.assertEqual(
+            season_two.trailer_temp_path,
+            '',
+        )
+
     def test_producer_can_manage_own_series_structure(self):
         producer = User.objects.create_user(
             email='series-producer@example.com',
             password='StrongPass123',
             is_producer=True,
+            producer_company='Series Producer',
         )
-        series = Content.objects.create(title='Producer Series', type='series', producer=producer)
+        producer.is_verified = True
+        producer.save(update_fields=['is_verified'])
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            company_name='Series Producer',
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=(
+                settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0]
+            ),
+            contract_title=(
+                'EKEFLICKS Producer Agreement - Series Test'
+            ),
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        series = Content.objects.create(
+            title='Producer Series',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
         self.client.force_authenticate(user=producer)
 
         season_response = self.client.post(
@@ -1281,3 +5284,246 @@ class CatalogApiTests(APITestCase):
 
         self.assertEqual(episode_response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(str(episode_response.data['content']), str(series.id))
+
+    @override_settings(STORAGES=TEST_FILE_STORAGES)
+    def test_deleting_episode_removes_video_master(self):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'episode-master-delete@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie suppression episode master',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+        )
+
+        episode = Episode.objects.create(
+            content=content,
+            season=season,
+            episode_number=1,
+            title='Episode 1',
+        )
+
+        source_path = (
+            'uploads/test/episode-delete/master.mp4'
+        )
+
+        asset = VideoAsset.objects.create(
+            content=content,
+            episode=episode,
+            title='Episode 1',
+            source_file_path=source_path,
+        )
+
+        storage = storages['default']
+        storage.save(
+            source_path,
+            SimpleUploadedFile(
+                'master.mp4',
+                b'episode-master',
+                content_type='video/mp4',
+            ),
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.delete(
+            reverse(
+                'episode-detail',
+                args=[episode.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        self.assertFalse(
+            Episode.objects.filter(
+                id=episode.id
+            ).exists()
+        )
+
+        self.assertFalse(
+            VideoAsset.objects.filter(
+                id=asset.id
+            ).exists()
+        )
+
+        self.assertFalse(
+            storage.exists(source_path)
+        )
+
+    @override_settings(STORAGES=TEST_FILE_STORAGES)
+    def test_deleting_season_removes_all_episode_masters(self):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'season-master-delete@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie suppression saison masters',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+        )
+
+        storage = storages['default']
+        paths = []
+
+        for number in (1, 2):
+            episode = Episode.objects.create(
+                content=content,
+                season=season,
+                episode_number=number,
+                title=f'Episode {number}',
+            )
+
+            source_path = (
+                f'uploads/test/season-delete/'
+                f'episode_{number}/master.mp4'
+            )
+
+            paths.append(source_path)
+
+            VideoAsset.objects.create(
+                content=content,
+                episode=episode,
+                title=f'Episode {number}',
+                source_file_path=source_path,
+            )
+
+            storage.save(
+                source_path,
+                SimpleUploadedFile(
+                    f'master_{number}.mp4',
+                    f'master-{number}'.encode(),
+                    content_type='video/mp4',
+                ),
+            )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.delete(
+            reverse(
+                'season-detail',
+                args=[season.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        self.assertFalse(
+            Season.objects.filter(
+                id=season.id
+            ).exists()
+        )
+
+        self.assertEqual(
+            VideoAsset.objects.filter(
+                content=content
+            ).count(),
+            0,
+        )
+
+        for source_path in paths:
+            self.assertFalse(
+                storage.exists(source_path),
+                source_path,
+            )
+
+    @override_settings(STORAGES=TEST_FILE_STORAGES)
+    def test_deleting_series_draft_removes_episode_masters(self):
+        storages._storages.clear()
+
+        producer = (
+            self._create_verified_producer_for_team_preview(
+                'series-master-delete@example.com'
+            )
+        )
+
+        content = Content.objects.create(
+            title='Serie draft suppression masters',
+            type='series',
+            producer=producer,
+            producer_submission_status='draft',
+        )
+
+        season = Season.objects.create(
+            content=content,
+            season_number=1,
+        )
+
+        episode = Episode.objects.create(
+            content=content,
+            season=season,
+            episode_number=1,
+            title='Episode 1',
+        )
+
+        source_path = (
+            'uploads/test/series-draft-delete/master.mp4'
+        )
+
+        VideoAsset.objects.create(
+            content=content,
+            episode=episode,
+            title='Episode 1',
+            source_file_path=source_path,
+        )
+
+        storage = storages['default']
+        storage.save(
+            source_path,
+            SimpleUploadedFile(
+                'master.mp4',
+                b'series-master',
+                content_type='video/mp4',
+            ),
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.delete(
+            reverse(
+                'content-detail',
+                args=[content.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        self.assertFalse(
+            Content.objects.filter(
+                id=content.id
+            ).exists()
+        )
+
+        self.assertFalse(
+            storage.exists(source_path)
+        )

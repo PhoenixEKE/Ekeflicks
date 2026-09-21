@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.files.storage import storages
 from django.test import override_settings
@@ -9,6 +10,9 @@ from rest_framework.test import APITestCase
 from core.models import (
     Content,
     Episode,
+    MediaAnalysisReport,
+    ProducerAccount,
+    ProducerAgreement,
     Profile,
     Season,
     Subscription,
@@ -287,6 +291,29 @@ class StreamingApiTests(APITestCase):
             password='StrongPass123',
             is_producer=True,
         )
+
+        producer.is_verified = True
+        producer.save(
+            update_fields=['is_verified']
+        )
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=(
+                settings
+                .PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0]
+            ),
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
         content = Content.objects.create(
             title='Producer Video',
             type='movie',
@@ -335,6 +362,152 @@ class StreamingApiTests(APITestCase):
         self.assertEqual(dashboard_response.status_code, status.HTTP_200_OK)
         self.assertEqual(dashboard_response.data['video_asset_total'], 1)
         self.assertEqual(dashboard_response.data['by_moderation_status']['pending'], 1)
+
+    def test_video_asset_defaults_to_distribution_delivery_level(self):
+        producer = User.objects.create_user(
+            email='delivery-default@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        content = Content.objects.create(
+            title='Delivery Default',
+            type='movie',
+            producer=producer,
+        )
+
+        asset = VideoAsset.objects.create(
+            content=content,
+            title='Master source',
+        )
+
+        self.assertEqual(
+            asset.delivery_level,
+            VideoAsset.DELIVERY_LEVEL_DISTRIBUTION,
+        )
+
+    def test_producer_can_create_standard_delivery_level_asset(self):
+        producer = User.objects.create_user(
+            email='delivery-standard@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        producer.is_verified = True
+        producer.save(
+            update_fields=['is_verified']
+        )
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=(
+                settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0]
+            ),
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        content = Content.objects.create(
+            title='Delivery Standard',
+            type='movie',
+            producer=producer,
+        )
+
+        self.client.force_authenticate(
+            user=producer
+        )
+
+        response = self.client.post(
+            reverse('video-asset-list'),
+            {
+                'content_id': str(content.id),
+                'title': 'Master Standard',
+                'delivery_level': 'standard',
+            },
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        asset = VideoAsset.objects.get(
+            id=response.data['id']
+        )
+
+        self.assertEqual(
+            asset.delivery_level,
+            VideoAsset.DELIVERY_LEVEL_STANDARD,
+        )
+
+        self.assertEqual(
+            response.data['delivery_level'],
+            'standard',
+        )
+
+    def test_video_asset_rejects_invalid_delivery_level(self):
+        producer = User.objects.create_user(
+            email='delivery-invalid@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        producer.is_verified = True
+        producer.save(
+            update_fields=['is_verified']
+        )
+
+        producer_account = ProducerAccount.objects.create(
+            user=producer,
+            status=ProducerAccount.STATUS_ACTIVE,
+            activated_at=timezone.now(),
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=(
+                settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0]
+            ),
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        content = Content.objects.create(
+            title='Delivery Invalid',
+            type='movie',
+            producer=producer,
+        )
+
+        self.client.force_authenticate(
+            user=producer
+        )
+
+        response = self.client.post(
+            reverse('video-asset-list'),
+            {
+                'content_id': str(content.id),
+                'title': 'Master Invalid',
+                'delivery_level': 'invalid-level',
+            },
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            'delivery_level',
+            response.data,
+        )
+
 
     def test_producer_cannot_create_asset_for_another_producer_content(self):
         owner = User.objects.create_user(
@@ -448,6 +621,19 @@ class StreamingApiTests(APITestCase):
         self.user.save(update_fields=['is_staff'])
         self.client.force_authenticate(user=self.user)
 
+        MediaAnalysisReport.objects.update_or_create(
+            asset=self.asset,
+            defaults={
+                'status': 'passed',
+                'error_message': '',
+                'flags': [],
+                'moderation_scores': {},
+                'detected_events': [],
+                'technical_metadata': {},
+                'analyzed_at': timezone.now(),
+            },
+        )
+
         response = self.client.post(
             reverse('video-asset-approve', args=[self.asset.id]),
             {'reason': 'Qualite video validee'},
@@ -529,7 +715,6 @@ class StreamingApiTests(APITestCase):
         storages._storages.clear()
         output_root = timezone.datetime.now().strftime('test-hls-%Y%m%d%H%M%S%f')
         from pathlib import Path
-        from django.conf import settings
         root = Path(settings.MEDIA_ROOT) / output_root
         rendition_dir = root / '720p'
         rendition_dir.mkdir(parents=True, exist_ok=True)
@@ -587,3 +772,142 @@ class StreamingApiTests(APITestCase):
                     self.assertEqual(uploaded['master.m3u8'], f'/final-media/{storage_path}')
 
         storages._storages.clear()
+
+    @override_settings(STORAGES=TEST_FILE_STORAGES)
+    def test_deleting_video_asset_removes_source_master(self):
+        storages._storages.clear()
+
+        producer = User.objects.create_user(
+            email='video-delete-owner@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+
+        producer.is_verified = True
+        producer.save(
+            update_fields=['is_verified']
+        )
+
+        producer_account = (
+            ProducerAccount.objects.create(
+                user=producer,
+                status=ProducerAccount.STATUS_ACTIVE,
+                activated_at=timezone.now(),
+            )
+        )
+
+        ProducerAgreement.objects.create(
+            producer_account=producer_account,
+            contract_version=(
+                settings
+                .PRODUCER_AGREEMENT_ACCEPTED_VERSIONS[0]
+            ),
+            status=ProducerAgreement.STATUS_SIGNED,
+            accepted_at=timezone.now(),
+            signed_at=timezone.now(),
+        )
+
+        content = Content.objects.create(
+            title='Delete Video Asset Source',
+            type='movie',
+            producer=producer,
+        )
+
+        asset = VideoAsset.objects.create(
+            content=content,
+            title='Master source',
+            source_file_path='uploads/test/video-delete/master.mp4',
+        )
+
+        storage = storages['default']
+        storage.save(
+            asset.source_file_path,
+            SimpleUploadedFile(
+                'master.mp4',
+                b'video-master-delete',
+                content_type='video/mp4',
+            ),
+        )
+
+        self.assertTrue(
+            storage.exists(asset.source_file_path)
+        )
+
+        self.client.force_authenticate(user=producer)
+
+        response = self.client.delete(
+            reverse(
+                'video-asset-detail',
+                args=[asset.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        self.assertFalse(
+            VideoAsset.objects.filter(
+                id=asset.id
+            ).exists()
+        )
+
+        self.assertFalse(
+            storage.exists(
+                'uploads/test/video-delete/master.mp4'
+            )
+        )
+
+    def test_video_asset_delete_storage_error_does_not_block_database_delete(
+        self,
+    ):
+        from unittest.mock import patch
+
+        self.user.is_staff = True
+        self.user.save(
+            update_fields=['is_staff']
+        )
+
+        self.asset.source_file_path = (
+            'uploads/test/storage-error/master.mp4'
+        )
+        self.asset.save(
+            update_fields=[
+                'source_file_path',
+                'updated_at',
+            ]
+        )
+
+        self.client.force_authenticate(
+            user=self.user
+        )
+
+        with patch(
+            'apps.streaming.services.'
+            'default_storage.exists',
+            return_value=True,
+        ), patch(
+            'apps.streaming.services.'
+            'default_storage.delete',
+            side_effect=RuntimeError(
+                'storage unavailable'
+            ),
+        ):
+            response = self.client.delete(
+                reverse(
+                    'video-asset-detail',
+                    args=[self.asset.id],
+                )
+            )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        self.assertFalse(
+            VideoAsset.objects.filter(
+                id=self.asset.id
+            ).exists()
+        )

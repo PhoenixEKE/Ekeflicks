@@ -4,6 +4,7 @@ import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/services/producer_service.dart';
 
 import '../upload/upload_page.dart';
+import 'package:plateforme_producteurs/widgets/producer_modal_shell.dart';
 
 class ContentsPage extends StatefulWidget {
   final bool selectionMode;
@@ -18,6 +19,7 @@ class _ContentsPageState extends State<ContentsPage> {
   bool _isLoading = true;
   String? _error;
   List<Map<String, dynamic>> _drafts = const [];
+  String? _deletingDraftId;
 
   @override
   void initState() {
@@ -88,6 +90,107 @@ class _ContentsPageState extends State<ContentsPage> {
     await _loadDrafts();
   }
 
+  Future<void> _deleteDraft(String contentId, String title) async {
+    if (_deletingDraftId != null) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return ProducerModalShell(
+          title: 'Supprimer ce brouillon ?',
+          maxWidth: 560,
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('ANNULER'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('SUPPRIMER'),
+            ),
+          ],
+          child: Text(
+            'Le brouillon « $title » sera supprimé définitivement. '
+            'Les fichiers temporaires associés seront également supprimés. '
+            'Cette action est irréversible.',
+          ),
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _deletingDraftId = contentId;
+    });
+
+    try {
+      await ProducerService.instance.deleteDraft(contentId);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _drafts = _drafts
+            .where((draft) => draft['id']?.toString() != contentId)
+            .toList();
+        _deletingDraftId = null;
+      });
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return ProducerModalShell(
+            title: 'Brouillon supprimé',
+            maxWidth: 520,
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+            child: const Text('Le brouillon a été supprimé avec succès.'),
+          );
+        },
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _deletingDraftId = null;
+      });
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return ProducerModalShell(
+            title: 'Suppression impossible',
+            maxWidth: 560,
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+            child: Text(error.toString().replaceFirst('Exception: ', '')),
+          );
+        },
+      );
+    }
+  }
+
   String _contentTypeLabel(Map<String, dynamic> draft) {
     switch (draft['type']?.toString()) {
       case 'series':
@@ -125,9 +228,39 @@ class _ContentsPageState extends State<ContentsPage> {
         'à ${two(local.hour)}:${two(local.minute)}';
   }
 
+  String? _draftDeletionWarning(Map<String, dynamic> content) {
+    final raw = content['updated_at']?.toString().trim() ?? '';
+
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    final parsed = DateTime.tryParse(raw);
+
+    if (parsed == null) {
+      return null;
+    }
+
+    final age = DateTime.now().toUtc().difference(parsed.toUtc()).inDays;
+
+    if (age < 90) {
+      return null;
+    }
+
+    if (age >= 120) {
+      return 'Suppression automatique imminente';
+    }
+
+    final remainingDays = 120 - age;
+
+    return 'Suppression automatique dans $remainingDays '
+        '${remainingDays > 1 ? 'jours' : 'jour'}';
+  }
+
   Widget _buildDraftCard(Map<String, dynamic> draft) {
     final id = draft['id']?.toString() ?? '';
     final updatedAt = _updatedAt(draft);
+    final deletionWarning = _draftDeletionWarning(draft);
     final type = _contentTypeLabel(draft);
 
     return Card(
@@ -218,12 +351,51 @@ class _ContentsPageState extends State<ContentsPage> {
                         ],
                       ],
                     ),
+                    if (deletionWarning != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 17,
+                            color: AppTheme.warning,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              deletionWarning,
+                              style: TextStyle(
+                                color: AppTheme.warning,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
+              IconButton(
+                onPressed: id.isEmpty || _deletingDraftId != null
+                    ? null
+                    : () => _deleteDraft(id, _title(draft)),
+                tooltip: 'Supprimer le brouillon',
+                icon: _deletingDraftId == id
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_outline),
+              ),
+              const SizedBox(width: 4),
               ElevatedButton.icon(
-                onPressed: id.isEmpty ? null : () => _openDraft(id),
+                onPressed: id.isEmpty || _deletingDraftId != null
+                    ? null
+                    : () => _openDraft(id),
                 icon: const Icon(Icons.edit_outlined, size: 18),
                 label: const Text('CONTINUER'),
                 style: ElevatedButton.styleFrom(

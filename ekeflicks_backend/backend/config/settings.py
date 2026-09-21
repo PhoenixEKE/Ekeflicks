@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -46,6 +47,7 @@ ALLOWED_HOSTS = env_list(
 # =========================================================
 
 INSTALLED_APPS = [
+    'apps.salons.apps.SalonsConfig',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -267,7 +269,7 @@ SIMPLE_JWT = {
 
 STREAMING_REQUIRE_ACTIVE_SUBSCRIPTION = env_bool('STREAMING_REQUIRE_ACTIVE_SUBSCRIPTION', True)
 STREAMING_MANIFEST_TTL_SECONDS = int(os.environ.get('STREAMING_MANIFEST_TTL_SECONDS', '3600'))
-HLS_SEGMENT_DURATION_SECONDS = int(os.environ.get('HLS_SEGMENT_DURATION_SECONDS', '6'))
+HLS_SEGMENT_DURATION_SECONDS = int(os.environ.get('HLS_SEGMENT_DURATION_SECONDS', '4'))
 OFFLINE_LICENSE_DAYS = int(os.environ.get('OFFLINE_LICENSE_DAYS', '30'))
 
 # URLs CDN pour les médias
@@ -616,6 +618,23 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 
+CELERY_BEAT_SCHEDULE = {
+    'purge-expired-producer-drafts-daily': {
+        'task': 'apps.catalog.tasks.purge_expired_producer_drafts',
+        'schedule': crontab(hour=3, minute=30),
+    },
+    'publish-global-top10-daily': {
+        'task': (
+            'apps.analytics.tasks.'
+            'publish_global_top10_daily'
+        ),
+        'schedule': crontab(
+            hour=4,
+            minute=0,
+        ),
+    },
+}
+
 # =========================================================
 # SECURITY - Production with Cloudflare
 # =========================================================
@@ -696,6 +715,7 @@ CLICKHOUSE_HOST = os.environ.get('CLICKHOUSE_HOST')
 CLICKHOUSE_PORT = int(os.environ.get('CLICKHOUSE_PORT', 8123))
 CLICKHOUSE_USER = os.environ.get('CLICKHOUSE_USER')
 CLICKHOUSE_PASSWORD = os.environ.get('CLICKHOUSE_PASSWORD')
+CLICKHOUSE_DATABASE = os.environ.get('CLICKHOUSE_DATABASE', 'ekeflicks')
 
 # =========================================================
 # LOGGING - Production ready
@@ -821,3 +841,39 @@ EKEFLICKS_CONTRACT_SIGNER_ROLE = os.environ.get(
     'EKEFLICKS_CONTRACT_SIGNER_ROLE',
     '',
 )
+
+# Tests Django : isolation stricte du cache pour éviter toute écriture
+# dans Redis de production (throttling, cache applicatif, etc.).
+import sys as _sys
+
+if "test" in _sys.argv:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "ekeflicks-tests",
+            "KEY_PREFIX": "ekeflicks-tests",
+        }
+    }
+
+
+# ---------------------------------------------------------------------------
+# G5-3C — Salons realtime / Django Channels
+# ---------------------------------------------------------------------------
+
+ASGI_APPLICATION = "config.asgi.application"
+
+SALON_REALTIME_TICKET_TTL = 60
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [
+                f"redis://{REDIS_HOST}:{REDIS_PORT}/2",
+            ],
+            "capacity": 1500,
+            "expiry": 60,
+            "group_expiry": 86400,
+        },
+    },
+}

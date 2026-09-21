@@ -1,0 +1,413 @@
+from django.core.files.storage import storages
+from rest_framework import serializers
+
+from apps.common.media_storage import (
+    copy_internal_to_final,
+    dated_path,
+    object_id,
+    save_internal_upload,
+    safe_extension,
+)
+
+
+TEAM_IMAGE_CONFIG = {
+    'storage_alias': 'final_posters',
+    'cdn_prefix': 'team',
+    'default_extension': '.jpg',
+    'allowed_extensions': {
+        '.jpg',
+        '.jpeg',
+        '.png',
+        '.webp',
+    },
+}
+
+
+CONTENT_MEDIA_CONFIG = {
+    'poster': {
+        'temp_field': 'poster_temp_path',
+        'final_field': 'poster_url',
+        'storage_alias': 'final_posters',
+        'cdn_prefix': 'posters',
+        'default_extension': '.jpg',
+        'allowed_extensions': {'.jpg', '.jpeg', '.png', '.webp'},
+        'final_name': 'poster',
+    },
+    'backdrop': {
+        'temp_field': 'backdrop_temp_path',
+        'final_field': 'backdrop_url',
+        'storage_alias': 'final_backdrops',
+        'cdn_prefix': 'backdrops',
+        'default_extension': '.jpg',
+        'allowed_extensions': {'.jpg', '.jpeg', '.png', '.webp'},
+        'final_name': 'backdrop',
+    },
+    'trailer': {
+        'temp_field': 'trailer_temp_path',
+        'final_field': 'trailer_url',
+        'storage_alias': 'final_trailers',
+        'cdn_prefix': 'trailers',
+        'default_extension': '.mp4',
+        'allowed_extensions': {'.mp4', '.m4v', '.mov', '.webm'},
+        'final_name': 'trailer',
+    },
+}
+
+
+def store_content_media_temp(content, uploaded_file, media_type, uploader=None):
+    """
+    Stocke un média producteur uniquement dans MinIO TEMP.
+
+    Aucune copie B2/CDN n'est réalisée ici.
+    Les champs *_url restent réservés au média FINAL après validation admin.
+    """
+    try:
+        config = CONTENT_MEDIA_CONFIG[media_type]
+    except KeyError as exc:
+        raise serializers.ValidationError(
+            {'media_type': 'Type de média non supporté.'}
+        ) from exc
+
+    extension = safe_extension(
+        getattr(uploaded_file, 'name', ''),
+        config['default_extension'],
+    )
+
+    if extension not in config['allowed_extensions']:
+        raise serializers.ValidationError({
+            'file': f"Extension non autorisée pour {media_type}: {extension}"
+        })
+
+    producer_id = object_id(uploader)
+    internal_path = (
+        f"uploads/producer_{producer_id}/"
+        f"{dated_path()}/"
+        f"content_{content.id}/"
+        f"{media_type}_original{extension}"
+    )
+
+    saved_path = save_internal_upload(
+        uploaded_file=uploaded_file,
+        storage_path=internal_path,
+    )
+
+    temp_field = config['temp_field']
+    final_field = config['final_field']
+
+    setattr(content, temp_field, saved_path)
+
+    # Un remplacement de média TEMP invalide toute ancienne référence FINAL
+    # présente sur le brouillon.
+    setattr(content, final_field, '')
+
+    content.save(update_fields=[
+        temp_field,
+        final_field,
+        'updated_at',
+    ])
+
+    return {
+        'media_type': media_type,
+        'field': temp_field,
+        'temporary_path': saved_path,
+        'final_field': final_field,
+        'url': '',
+        'storage': 'temporary',
+    }
+
+
+def promote_content_media_to_final(content):
+    """
+    Copie les médias TEMP du contenu vers B2 FINAL/CDN.
+
+    En cas d'échec pendant la promotion, les objets FINAL déjà
+    copiés pendant cette tentative sont supprimés.
+
+    Cette fonction ne modifie PAS le statut d'approbation.
+    """
+    promoted = {}
+
+    try:
+        for media_type, config in CONTENT_MEDIA_CONFIG.items():
+            temp_field = config['temp_field']
+            final_field = config['final_field']
+            temp_path = getattr(content, temp_field, '')
+
+            if not temp_path:
+                continue
+
+            extension = safe_extension(
+                temp_path,
+                config['default_extension'],
+            )
+
+            if extension not in config['allowed_extensions']:
+                raise serializers.ValidationError({
+                    temp_field: (
+                        f"Extension TEMP non autorisée pour "
+                        f"{media_type}: {extension}"
+                    )
+                })
+
+            final_path = (
+                f"{content.id}/"
+                f"{config['final_name']}{extension}"
+            )
+
+            saved_path, public_url = copy_internal_to_final(
+                internal_path=temp_path,
+                storage_alias=config['storage_alias'],
+                final_path=final_path,
+                cdn_prefix=config['cdn_prefix'],
+            )
+
+            promoted[media_type] = {
+                'kind': 'content_media',
+                'temp_field': temp_field,
+                'temp_path': temp_path,
+                'final_field': final_field,
+                'final_path': saved_path,
+                'storage_alias': config['storage_alias'],
+                'url': public_url,
+            }
+
+        producer_team = (
+            content.producer_team
+            if isinstance(content.producer_team, list)
+            else []
+        )
+
+        for index, member in enumerate(producer_team):
+            if not isinstance(member, dict):
+                continue
+
+            temp_path = str(
+                member.get('image_temp_path') or ''
+            ).strip()
+
+            if not temp_path:
+                continue
+
+            extension = safe_extension(
+                temp_path,
+                TEAM_IMAGE_CONFIG['default_extension'],
+            )
+
+            if (
+                extension
+                not in TEAM_IMAGE_CONFIG['allowed_extensions']
+            ):
+                raise serializers.ValidationError({
+                    'producer_team': (
+                        'Extension TEMP non autorisée pour '
+                        f'la photo du producteur {index + 1}: '
+                        f'{extension}'
+                    )
+                })
+
+            final_path = (
+                f"{content.id}/"
+                f"team/"
+                f"producer_{index + 1}{extension}"
+            )
+
+            saved_path, public_url = copy_internal_to_final(
+                internal_path=temp_path,
+                storage_alias=(
+                    TEAM_IMAGE_CONFIG['storage_alias']
+                ),
+                final_path=final_path,
+                cdn_prefix=TEAM_IMAGE_CONFIG['cdn_prefix'],
+            )
+
+            promoted[
+                f'producer_team_{index}'
+            ] = {
+                'kind': 'producer_team',
+                'index': index,
+                'temp_path': temp_path,
+                'final_path': saved_path,
+                'storage_alias': (
+                    TEAM_IMAGE_CONFIG['storage_alias']
+                ),
+                'url': public_url,
+            }
+
+        cast_team = (
+            content.cast_team
+            if isinstance(content.cast_team, list)
+            else []
+        )
+
+        for index, member in enumerate(cast_team):
+            if not isinstance(member, dict):
+                continue
+
+            temp_path = str(
+                member.get('image_temp_path') or ''
+            ).strip()
+
+            if not temp_path:
+                continue
+
+            extension = safe_extension(
+                temp_path,
+                TEAM_IMAGE_CONFIG['default_extension'],
+            )
+
+            if (
+                extension
+                not in TEAM_IMAGE_CONFIG['allowed_extensions']
+            ):
+                raise serializers.ValidationError({
+                    'cast_team': (
+                        'Extension TEMP non autorisée pour '
+                        f'la photo de l’acteur {index + 1}: '
+                        f'{extension}'
+                    )
+                })
+
+            final_path = (
+                f"{content.id}/"
+                f"team/"
+                f"actor_{index + 1}{extension}"
+            )
+
+            saved_path, public_url = copy_internal_to_final(
+                internal_path=temp_path,
+                storage_alias=(
+                    TEAM_IMAGE_CONFIG['storage_alias']
+                ),
+                final_path=final_path,
+                cdn_prefix=TEAM_IMAGE_CONFIG['cdn_prefix'],
+            )
+
+            promoted[
+                f'cast_team_{index}'
+            ] = {
+                'kind': 'cast_team',
+                'index': index,
+                'temp_path': temp_path,
+                'final_path': saved_path,
+                'storage_alias': (
+                    TEAM_IMAGE_CONFIG['storage_alias']
+                ),
+                'url': public_url,
+            }
+
+    except Exception:
+        # Rollback best-effort des objets FINAL créés pendant
+        # CETTE tentative. Une erreur de cleanup ne doit jamais
+        # masquer l'erreur de promotion originale.
+        for item in reversed(list(promoted.values())):
+            try:
+                final_storage = storages[item['storage_alias']]
+                if final_storage.exists(item['final_path']):
+                    final_storage.delete(item['final_path'])
+            except Exception:
+                pass
+
+        raise
+
+    # Les URLs ne sont persistées qu'après réussite de TOUTES
+    # les copies.
+    if promoted:
+        update_fields = []
+        producer_team_changed = False
+        cast_team_changed = False
+
+        producer_team = (
+            [
+                dict(member)
+                if isinstance(member, dict)
+                else member
+                for member in content.producer_team
+            ]
+            if isinstance(content.producer_team, list)
+            else []
+        )
+
+        cast_team = (
+            [
+                dict(member)
+                if isinstance(member, dict)
+                else member
+                for member in content.cast_team
+            ]
+            if isinstance(content.cast_team, list)
+            else []
+        )
+
+        for item in promoted.values():
+            if item['kind'] == 'content_media':
+                setattr(
+                    content,
+                    item['final_field'],
+                    item['url'],
+                )
+                update_fields.append(
+                    item['final_field']
+                )
+                continue
+
+            if item['kind'] == 'producer_team':
+                index = item['index']
+
+                if (
+                    index >= len(producer_team)
+                    or not isinstance(
+                        producer_team[index],
+                        dict,
+                    )
+                ):
+                    raise RuntimeError(
+                        'Référence producer_team '
+                        'invalide après promotion.'
+                    )
+
+                producer_team[index][
+                    'image_url'
+                ] = item['url']
+
+                producer_team_changed = True
+                continue
+
+            if item['kind'] == 'cast_team':
+                index = item['index']
+
+                if (
+                    index >= len(cast_team)
+                    or not isinstance(
+                        cast_team[index],
+                        dict,
+                    )
+                ):
+                    raise RuntimeError(
+                        'Référence cast_team '
+                        'invalide après promotion.'
+                    )
+
+                cast_team[index][
+                    'image_url'
+                ] = item['url']
+
+                cast_team_changed = True
+
+        if producer_team_changed:
+            content.producer_team = producer_team
+            update_fields.append('producer_team')
+
+        if cast_team_changed:
+            content.cast_team = cast_team
+            update_fields.append('cast_team')
+
+        # Evite les doublons dans update_fields.
+        update_fields = list(dict.fromkeys(update_fields))
+
+        update_fields.append('updated_at')
+
+        content.save(
+            update_fields=update_fields
+        )
+
+    return promoted

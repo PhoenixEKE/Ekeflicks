@@ -1,17 +1,26 @@
+from django.db import transaction
 from django.db.models import Avg
-from rest_framework import filters, permissions, viewsets
+from rest_framework import filters, permissions, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.playback.serializers import (
     CustomListSerializer,
     FavoriteSerializer,
+    LikeSerializer,
     ListItemSerializer,
     RatingSerializer,
     ViewingSessionSerializer,
+    VideoAnalyticsEventSerializer,
     WatchHistorySerializer,
 )
-from core.models import CustomList, Favorite, ListItem, Rating, ViewingSession, WatchHistory
+from apps.analytics.services import (
+    build_like_analytics_event,
+)
+from apps.analytics.tasks import (
+    write_analytics_event_task,
+)
+from core.models import CustomList, Favorite, Like, ListItem, Rating, ViewingSession, WatchHistory
 
 
 class FavoriteViewSet(viewsets.ModelViewSet):
@@ -24,6 +33,74 @@ class FavoriteViewSet(viewsets.ModelViewSet):
             .select_related('profile', 'profile__type', 'content', 'content__status')
             .prefetch_related('content__genres', 'content__emissions')
             .order_by('-created_at')
+        )
+
+
+class LikeViewSet(viewsets.ModelViewSet):
+    serializer_class = LikeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = (
+            Like.objects
+            .filter(profile__user=self.request.user)
+            .select_related(
+                'profile',
+                'profile__type',
+                'profile__user',
+                'content',
+                'content__status',
+                'content__producer',
+            )
+            .prefetch_related(
+                'content__genres',
+                'content__emissions',
+            )
+            .order_by('-created_at')
+        )
+
+        profile_id = self.request.query_params.get('profile')
+        content_id = self.request.query_params.get('content')
+
+        if profile_id:
+            queryset = queryset.filter(profile_id=profile_id)
+
+        if content_id:
+            queryset = queryset.filter(content_id=content_id)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        like = serializer.save()
+
+        if not getattr(
+            serializer,
+            'like_was_created',
+            False,
+        ):
+            return
+
+        event = build_like_analytics_event(
+            'content_like',
+            like,
+        )
+
+        transaction.on_commit(
+            lambda event=event:
+                write_analytics_event_task.delay(event)
+        )
+
+    def perform_destroy(self, instance):
+        event = build_like_analytics_event(
+            'content_unlike',
+            instance,
+        )
+
+        instance.delete()
+
+        transaction.on_commit(
+            lambda event=event:
+                write_analytics_event_task.delay(event)
         )
 
 
@@ -145,3 +222,83 @@ class ViewingSessionViewSet(viewsets.ModelViewSet):
         if profile_id:
             queryset = queryset.filter(profile_id=profile_id)
         return queryset
+
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='analytics',
+    )
+    def analytics_event(self, request, pk=None):
+        """
+        Receive a player lifecycle event for a ViewingSession.
+
+        The session object is resolved through get_object(), therefore
+        the existing profile__user ownership filter remains authoritative.
+        """
+        viewing_session = self.get_object()
+
+        serializer = VideoAnalyticsEventSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        event_name = f"video_{data['event']}"
+
+        from apps.analytics.services import (
+            build_video_analytics_event,
+        )
+        from apps.analytics.tasks import (
+            write_analytics_event_task,
+        )
+
+        event = build_video_analytics_event(
+            event_name,
+            viewing_session,
+            position_seconds=data.get(
+                'position_seconds'
+            ),
+            watch_seconds=data.get(
+                'watch_seconds'
+            ),
+            completion_percent=data.get(
+                'completion_percent'
+            ),
+            platform=data.get(
+                'platform',
+                '',
+            ),
+            timezone_name=data.get(
+                'timezone',
+                'UTC',
+            ),
+            interface_language=data.get(
+                'interface_language',
+                '',
+            ),
+            app_version=data.get(
+                'app_version',
+                '',
+            ),
+            event_id=data.get(
+                'event_id'
+            ),
+            occurred_at=data.get(
+                'occurred_at'
+            ),
+        )
+
+        write_analytics_event_task.delay(event)
+
+        return Response(
+            {
+                'event_id': event['event_id'],
+                'event_name': event_name,
+                'viewing_session_id': str(
+                    viewing_session.session_id
+                ),
+                'accepted': True,
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )

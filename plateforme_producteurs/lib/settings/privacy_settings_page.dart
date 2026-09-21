@@ -23,6 +23,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
     final theme = Theme.of(context);
 
     return ProducerPageShell(
+      title: l10n.privacySettings,
       showBack: true,
       maxWidth: 1000,
       child: SingleChildScrollView(

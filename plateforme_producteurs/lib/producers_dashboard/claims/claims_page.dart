@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import '../../widgets/producer_modal_shell.dart';
+import '../../widgets/producer_sheet_header.dart';
 
 class ClaimsPage extends StatelessWidget {
   const ClaimsPage({super.key});
@@ -223,18 +225,10 @@ class ClaimsPage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.divider.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+              ProducerSheetHeader(
+                title: claim['title']!,
+                onClose: () => Navigator.pop(context),
               ),
-              Text(claim['title']!, style: AppTheme.textTitle),
               const SizedBox(height: 16),
               _buildDetailRow(context, l10n.status, claim['status']!),
               _buildDetailRow(context, l10n.date, claim['date']!),
@@ -316,15 +310,40 @@ class ClaimsPage extends StatelessWidget {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.new_claim, style: AppTheme.textSubtitle),
-        backgroundColor: AppTheme.cardBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(
-            AppDecorations.borderRadiusMedium,
+      builder: (context) => ProducerModalShell(
+        title: l10n.new_claim,
+        maxWidth: 600,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.cancel, style: TextStyle(color: AppTheme.primary)),
           ),
-        ),
-        content: Form(
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      l10n.claim_submitted,
+                      style: AppTheme.textBody,
+                    ),
+                    backgroundColor: AppTheme.success,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        AppDecorations.borderRadiusMedium,
+                      ),
+                    ),
+                  ),
+                );
+              }
+            },
+            style: AppDecorations.elevatedButtonStyle,
+            child: Text(l10n.submit, style: AppTheme.textBodyBold),
+          ),
+        ],
+        child: Form(
           key: formKey,
           child: SingleChildScrollView(
             child: Column(
@@ -377,36 +396,6 @@ class ClaimsPage extends StatelessWidget {
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.cancel, style: TextStyle(color: AppTheme.primary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      l10n.claim_submitted,
-                      style: AppTheme.textBody,
-                    ),
-                    backgroundColor: AppTheme.success,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppDecorations.borderRadiusMedium,
-                      ),
-                    ),
-                  ),
-                );
-              }
-            },
-            style: AppDecorations.elevatedButtonStyle,
-            child: Text(l10n.submit, style: AppTheme.textBodyBold),
-          ),
-        ],
       ),
     );
   }

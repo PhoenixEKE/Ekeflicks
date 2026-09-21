@@ -99,6 +99,7 @@ class ProducerAgreement {
   final String? signerName;
   final String? signerRole;
   final String? signatureMethod;
+  final String? ipAddress;
 
   final DateTime? acceptedAt;
   final DateTime? signedAt;
@@ -131,6 +132,7 @@ class ProducerAgreement {
     this.signerName,
     this.signerRole,
     this.signatureMethod,
+    this.ipAddress,
     this.acceptedAt,
     this.signedAt,
     this.effectiveDate,
@@ -174,6 +176,7 @@ class ProducerAgreement {
       signerName: json['signer_name']?.toString(),
       signerRole: json['signer_role']?.toString(),
       signatureMethod: json['signature_method']?.toString(),
+      ipAddress: json['ip_address']?.toString(),
       acceptedAt: parseDate(json['accepted_at']),
       signedAt: parseDate(json['signed_at']),
       effectiveDate: parseDate(json['effective_date']),

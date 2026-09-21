@@ -25,6 +25,16 @@ class VideoAsset(TimeStampedModel):
         ('rejected', 'Rejected'),
     ]
 
+    DELIVERY_LEVEL_PREMIUM = 'premium'
+    DELIVERY_LEVEL_STANDARD = 'standard'
+    DELIVERY_LEVEL_DISTRIBUTION = 'distribution'
+
+    DELIVERY_LEVEL_CHOICES = [
+        (DELIVERY_LEVEL_PREMIUM, 'Master Premium'),
+        (DELIVERY_LEVEL_STANDARD, 'Master Standard'),
+        (DELIVERY_LEVEL_DISTRIBUTION, 'Master Distribution'),
+    ]
+
     DRM_CHOICES = [
         ('none', 'None'),
         ('aes_128', 'HLS AES-128'),
@@ -64,6 +74,17 @@ class VideoAsset(TimeStampedModel):
     thumbnail_url = models.URLField(max_length=1000, blank=True)
 
     duration_seconds = models.IntegerField(default=0)
+
+    # Niveau du master source fourni par le producteur.
+    # Il détermine le profil de conformité technique appliqué
+    # lors de l'analyse FFprobe.
+    delivery_level = models.CharField(
+        max_length=20,
+        choices=DELIVERY_LEVEL_CHOICES,
+        default=DELIVERY_LEVEL_DISTRIBUTION,
+        db_index=True,
+    )
+
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     moderation_status = models.CharField(
         max_length=20,

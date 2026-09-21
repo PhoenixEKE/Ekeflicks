@@ -79,6 +79,7 @@ class _LoginPageState extends State<LoginPage> {
     final localeProvider = context.watch<LocaleProvider>();
 
     return ProducerPageShell(
+      title: l10n.loginPageTitle,
       maxWidth: 500,
       scrollable: true,
       contentDecoration: true,

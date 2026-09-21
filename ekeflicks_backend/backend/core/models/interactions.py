@@ -44,6 +44,37 @@ class Favorite(models.Model):
         return f"{self.profile.name} - {self.content.title}"
 
 
+class Like(models.Model):
+    """J'aime indépendants des favoris et des notes."""
+    profile = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name='likes',
+    )
+    content = models.ForeignKey(
+        Content,
+        on_delete=models.CASCADE,
+        related_name='likes',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'likes'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['profile', 'content'],
+                name='unique_profile_content_like',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['content', '-created_at']),
+            models.Index(fields=['profile', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.profile.name} - {self.content.title}"
+
+
 class Rating(TimeStampedModel):
     """Notes et avis"""
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='ratings')

@@ -65,8 +65,7 @@ final appRouter = GoRouter(
     }
 
     if (account.status == 'active' &&
-        account.currentAgreementStatus == 'signed' &&
-        account.canSubmitContent) {
+        account.currentAgreementStatus == 'signed') {
       if (location == '/' ||
           location == '/register' ||
           location == '/onboarding') {
@@ -130,6 +129,7 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => MaterialPage(
         key: state.pageKey,
         child: const ProducerPageShell(
+          title: 'Profil',
           showFaq: true,
           showBack: true,
           maxWidth: 1280,
@@ -141,6 +141,7 @@ final appRouter = GoRouter(
   errorPageBuilder: (context, state) => MaterialPage(
     key: state.pageKey,
     child: ProducerPageShell(
+      title: AppLocalizations.of(context)!.pageNotFound,
       showFaq: true,
       showBack: true,
       maxWidth: 700,

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ekeflicks-metadata version="1.0">
+  <content type="series">
+    <title>E3 Série XML</title>
+    <original-title>E3 Series Original</original-title>
+
+    <synopsis>
+      Série fonctionnelle destinée au test du préremplissage XML.
+    </synopsis>
+
+    <long-synopsis>
+      Cette série XML contrôle la reconstruction locale de deux saisons
+      contenant au total trois épisodes sans identifiant serveur.
+    </long-synopsis>
+
+    <genres>
+      <genre>Drame</genre>
+      <genre>Thriller</genre>
+    </genres>
+
+    <production-year>2026</production-year>
+
+    <directors>
+      <director>Réalisateur Série E3</director>
+    </directors>
+
+    <cast>
+      <person>Actrice Série E3</person>
+      <person>Acteur Série E3</person>
+    </cast>
+
+    <screenwriters>
+      <screenwriter>Scénariste Série E3</screenwriter>
+    </screenwriters>
+
+    <producers>
+      <producer>Producteur Série E3</producer>
+    </producers>
+
+    <age-rating>12+</age-rating>
+
+    <original-language>fr</original-language>
+
+    <audio-languages>
+      <language>fr</language>
+    </audio-languages>
+
+    <subtitle-languages>
+      <language>en</language>
+    </subtitle-languages>
+
+    <country-of-origin>CI</country-of-origin>
+
+    <seasons>
+      <season number="1">
+        <title>E3 Saison 1</title>
+        <description>Première saison du test fonctionnel XML.</description>
+
+        <episodes>
+          <episode number="1">
+            <title>E3 S1 Episode 1</title>
+            <description>Premier épisode de la saison 1.</description>
+            <duration-minutes>26</duration-minutes>
+          </episode>
+
+          <episode number="2">
+            <title>E3 S1 Episode 2</title>
+            <description>Deuxième épisode de la saison 1.</description>
+            <duration-minutes>24</duration-minutes>
+          </episode>
+        </episodes>
+      </season>
+
+      <season number="2">
+        <title>E3 Saison 2</title>
+        <description>Deuxième saison du test fonctionnel XML.</description>
+
+        <episodes>
+          <episode number="1">
+            <title>E3 S2 Episode 1</title>
+            <description>Premier épisode de la saison 2.</description>
+            <duration-minutes>28</duration-minutes>
+          </episode>
+        </episodes>
+      </season>
+    </seasons>
+  </content>
+</ekeflicks-metadata>

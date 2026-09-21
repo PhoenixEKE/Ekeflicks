@@ -14,6 +14,7 @@ from core.models import (
     PaymentWebhookEvent,
     ProducerContentView,
     SubscriptionPlan,
+    SubscriptionPlanOffer,
     User,
     ViewingSession,
 )
@@ -72,7 +73,7 @@ class BillingApiTests(APITestCase):
         self.assertFalse(Payment.objects.filter(subscription_id=response.data['id']).exists())
 
     def test_best_price_returns_cheapest_active_plan(self):
-        SubscriptionPlan.objects.create(
+        basic_plan = SubscriptionPlan.objects.create(
             name='Basic',
             slug='basic',
             price='5.00',
@@ -80,11 +81,31 @@ class BillingApiTests(APITestCase):
             duration_days=30,
         )
 
-        response = self.client.get(reverse('subscription-plan-best-price'))
+        SubscriptionPlanOffer.objects.create(
+            plan=basic_plan,
+            zone=SubscriptionPlanOffer.ZONE_GLOBAL,
+            price='5.00',
+            currency='EUR',
+            duration_days=30,
+            is_active=True,
+        )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['best_price'], '5.00')
-        self.assertEqual(response.data['currency'], 'EUR')
+        response = self.client.get(
+            reverse('subscription-plan-best-price')
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            response.data['best_price'],
+            '5.00',
+        )
+        self.assertEqual(
+            response.data['currency'],
+            'EUR',
+        )
 
     def test_payment_uses_subscription_plan_amount(self):
         self.client.force_authenticate(user=self.user)

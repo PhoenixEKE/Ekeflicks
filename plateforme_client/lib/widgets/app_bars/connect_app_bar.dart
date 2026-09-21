@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_ekeflicks/ui/pages/eke_ai_search_page.dart';
 import 'package:provider/provider.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/providers/theme_provider.dart';
@@ -6,7 +7,6 @@ import 'package:app_ekeflicks/providers/locale_provider.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/providers/device_info_provider.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
-import 'package:app_ekeflicks/widgets/search/ia_search_delegate.dart';
 import 'package:app_ekeflicks/ui/pages/genre_page.dart';
 import 'package:app_ekeflicks/models/content_model.dart';
 import 'package:app_ekeflicks/ui/users/profile_switcher.dart';
@@ -242,7 +242,9 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
   );
 
   void _showSearch(BuildContext context, bool isTV) {
-    showSearch(context: context, delegate: IASearchDelegate(isTV: isTV));
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const EkeAISearchPage()));
   }
 
   Widget _buildNotificationIcon(

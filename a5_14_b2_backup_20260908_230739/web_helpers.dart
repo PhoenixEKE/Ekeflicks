@@ -1,0 +1,157 @@
+import 'dart:async';
+import 'dart:js_interop';
+import 'dart:typed_data';
+
+import 'package:web/web.dart' as web;
+
+void canonicalizeProducerPortalUrl() {
+  final location = web.window.location;
+  final hash = location.hash;
+
+  if (location.pathname != '/' && hash.startsWith('#/')) {
+    web.window.history.replaceState(null, '', '/$hash');
+  }
+}
+
+void openPdfBytes(List<int> bytes) {
+  final uint8List = Uint8List.fromList(bytes);
+
+  final blob = web.Blob(
+    <web.BlobPart>[uint8List.toJS].toJS,
+    web.BlobPropertyBag(type: 'application/pdf'),
+  );
+
+  final url = web.URL.createObjectURL(blob);
+
+  web.window.open(url, '_blank');
+
+  Future<void>.delayed(const Duration(seconds: 30), () {
+    web.URL.revokeObjectURL(url);
+  });
+}
+
+void downloadPdfBytes(List<int> bytes, String filename) {
+  final uint8List = Uint8List.fromList(bytes);
+
+  final blob = web.Blob(
+    <web.BlobPart>[uint8List.toJS].toJS,
+    web.BlobPropertyBag(type: 'application/pdf'),
+  );
+
+  final url = web.URL.createObjectURL(blob);
+
+  final anchor = web.document.createElement('a') as web.HTMLAnchorElement;
+
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = 'none';
+
+  web.document.body?.append(anchor);
+
+  anchor.click();
+  anchor.remove();
+
+  web.URL.revokeObjectURL(url);
+}
+
+Future<int> getBlobUrlSize(String blobUrl) async {
+  final sourceRequest = web.Request(blobUrl.toJS);
+  final sourceResponse = await web.window.fetch(sourceRequest).toDart;
+
+  if (!sourceResponse.ok) {
+    throw StateError(
+      'Impossible de lire le fichier sélectionné dans le navigateur.',
+    );
+  }
+
+  final blob = await sourceResponse.blob().toDart;
+  final size = blob.size;
+
+  if (size <= 0) {
+    throw StateError('Le fichier sélectionné est vide.');
+  }
+
+  return size;
+}
+
+Future<void> uploadBlobUrlToPresignedUrl({
+  required String blobUrl,
+  required String uploadUrl,
+  required int expectedSize,
+}) async {
+  final sourceRequest = web.Request(blobUrl.toJS);
+  final sourceResponse = await web.window.fetch(sourceRequest).toDart;
+
+  if (!sourceResponse.ok) {
+    throw StateError(
+      'Impossible de lire la vidéo sélectionnée dans le navigateur.',
+    );
+  }
+
+  final blob = await sourceResponse.blob().toDart;
+
+  if (blob.size == 0) {
+    throw StateError('La vidéo sélectionnée est vide.');
+  }
+
+  if (blob.size != expectedSize) {
+    throw StateError(
+      'La taille de la vidéo sélectionnée est incohérente '
+      '(attendu : $expectedSize octets, obtenu : ${blob.size} octets).',
+    );
+  }
+
+  final completer = Completer<void>();
+  final xhr = web.XMLHttpRequest();
+
+  xhr.open('PUT', uploadUrl);
+  xhr.withCredentials = false;
+
+  xhr.addEventListener(
+    'load',
+    ((web.Event _) {
+      final status = xhr.status;
+
+      if (status >= 200 && status < 300) {
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      } else {
+        if (!completer.isCompleted) {
+          completer.completeError(
+            StateError(
+              'Le stockage vidéo a refusé le fichier '
+              '(HTTP $status).',
+            ),
+          );
+        }
+      }
+    }).toJS,
+  );
+
+  xhr.addEventListener(
+    'error',
+    ((web.Event _) {
+      if (!completer.isCompleted) {
+        completer.completeError(
+          StateError('Erreur réseau pendant l’envoi de la vidéo.'),
+        );
+      }
+    }).toJS,
+  );
+
+  xhr.addEventListener(
+    'abort',
+    ((web.Event _) {
+      if (!completer.isCompleted) {
+        completer.completeError(
+          StateError('L’envoi de la vidéo a été interrompu.'),
+        );
+      }
+    }).toJS,
+  );
+
+  xhr.send(blob);
+
+  await completer.future;
+}

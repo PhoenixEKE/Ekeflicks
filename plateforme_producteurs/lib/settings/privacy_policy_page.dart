@@ -50,6 +50,7 @@ class PrivacyPolicyPage extends StatelessWidget {
     }
 
     return ProducerPageShell(
+      title: l10n.privacyPolicyTitle,
       showBack: true,
       maxWidth: 1100,
       child: SingleChildScrollView(

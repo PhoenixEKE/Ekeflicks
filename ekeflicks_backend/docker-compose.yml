@@ -9,7 +9,8 @@ services:
 
     container_name: ekeflicks_django
 
-    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000
+    command: >-
+      uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'
 
     env_file:
       - .env
@@ -162,7 +163,7 @@ services:
 
 
   clickhouse:
-    image: clickhouse/clickhouse-server:23.8
+    image: clickhouse/clickhouse-server:26.8.2.7
 
     container_name: ekeflicks_clickhouse
 

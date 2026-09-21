@@ -122,7 +122,20 @@ class _ProducerOnboardingPageState extends State<ProducerOnboardingPage> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate() || _saving) {
+    if (_saving) {
+      return;
+    }
+
+    final form = _formKey.currentState;
+
+    if (form == null || !form.validate()) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vérifiez les champs obligatoires avant de continuer.'),
+        ),
+      );
       return;
     }
 
@@ -147,18 +160,49 @@ class _ProducerOnboardingPageState extends State<ProducerOnboardingPage> {
 
       if (!account.emailVerified) {
         setState(() => _showVerification = true);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vérifiez votre adresse email pour continuer.'),
+          ),
+        );
         return;
       }
 
-      if (account.status == 'contract_pending') {
+      if (account.status == 'contract_pending' ||
+          account.currentAgreementStatus != 'signed') {
         context.go('/agreement');
+        return;
       }
+
+      if (account.status == 'active' &&
+          account.currentAgreementStatus == 'signed') {
+        context.go('/dashboard');
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Informations enregistrées. '
+            'Statut du compte : ${account.status}.',
+          ),
+        ),
+      );
     } on ApiException catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur inattendue pendant l’enregistrement : $e'),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -342,6 +386,7 @@ class _ProducerOnboardingPageState extends State<ProducerOnboardingPage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const ProducerAuthShell(
+        title: 'Informations professionnelles',
         showFaqButton: false,
         child: Center(
           child: Padding(

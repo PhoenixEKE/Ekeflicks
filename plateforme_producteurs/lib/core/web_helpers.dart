@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:js_interop';
 import 'dart:typed_data';
 
+import 'package:cross_file/cross_file.dart';
 import 'package:web/web.dart' as web;
 
 void canonicalizeProducerPortalUrl() {
@@ -28,6 +29,30 @@ void openPdfBytes(List<int> bytes) {
   Future<void>.delayed(const Duration(seconds: 30), () {
     web.URL.revokeObjectURL(url);
   });
+}
+
+void downloadXmlBytes(List<int> bytes, String filename) {
+  final uint8List = Uint8List.fromList(bytes);
+
+  final blob = web.Blob(
+    <web.BlobPart>[uint8List.toJS].toJS,
+    web.BlobPropertyBag(type: 'application/xml;charset=utf-8'),
+  );
+
+  final url = web.URL.createObjectURL(blob);
+
+  final anchor = web.document.createElement('a') as web.HTMLAnchorElement;
+
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = 'none';
+
+  web.document.body?.append(anchor);
+
+  anchor.click();
+  anchor.remove();
+
+  web.URL.revokeObjectURL(url);
 }
 
 void downloadPdfBytes(List<int> bytes, String filename) {
@@ -84,7 +109,8 @@ Future<void> uploadBlobUrlToPresignedUrl({
 
   if (!sourceResponse.ok) {
     throw StateError(
-      'Impossible de lire la vidéo sélectionnée dans le navigateur.',
+      'Impossible de lire la vidéo sélectionnée '
+      'dans le navigateur.',
     );
   }
 
@@ -96,21 +122,60 @@ Future<void> uploadBlobUrlToPresignedUrl({
 
   if (blob.size != expectedSize) {
     throw StateError(
-      'La taille de la vidéo sélectionnée est incohérente '
-      '(attendu : $expectedSize octets, obtenu : ${blob.size} octets).',
+      'La taille de la vidéo sélectionnée est '
+      'incohérente '
+      '(attendu : $expectedSize octets, '
+      'obtenu : ${blob.size} octets).',
     );
   }
 
   final completer = Completer<void>();
   final xhr = web.XMLHttpRequest();
+  final uploadStartedAt = DateTime.now();
+
+  var lastLoggedPercent = -10;
 
   xhr.open('PUT', uploadUrl);
   xhr.withCredentials = false;
+
+  print(
+    'G5_4_UPLOAD event=start '
+    'bytes=${blob.size}',
+  );
+
+  xhr.upload.addEventListener(
+    'progress',
+    ((web.ProgressEvent event) {
+      final loaded = event.loaded;
+      final total = event.total;
+
+      final percent = total > 0 ? ((loaded / total) * 100).floor() : -1;
+
+      if (percent >= 0 &&
+          (percent >= lastLoggedPercent + 10 || percent == 100)) {
+        lastLoggedPercent = percent;
+
+        print(
+          'G5_4_UPLOAD event=progress '
+          'loaded=$loaded '
+          'total=$total '
+          'percent=$percent',
+        );
+      }
+    }).toJS,
+  );
 
   xhr.addEventListener(
     'load',
     ((web.Event _) {
       final status = xhr.status;
+      final elapsed = DateTime.now().difference(uploadStartedAt).inMilliseconds;
+
+      print(
+        'G5_4_UPLOAD event=load '
+        'status=$status '
+        'elapsed_ms=$elapsed',
+      );
 
       if (status >= 200 && status < 300) {
         if (!completer.isCompleted) {
@@ -120,8 +185,8 @@ Future<void> uploadBlobUrlToPresignedUrl({
         if (!completer.isCompleted) {
           completer.completeError(
             StateError(
-              'Le stockage vidéo a refusé le fichier '
-              '(HTTP $status).',
+              'Le stockage vidéo a refusé '
+              'le fichier (HTTP $status).',
             ),
           );
         }
@@ -132,9 +197,20 @@ Future<void> uploadBlobUrlToPresignedUrl({
   xhr.addEventListener(
     'error',
     ((web.Event _) {
+      final elapsed = DateTime.now().difference(uploadStartedAt).inMilliseconds;
+
+      print(
+        'G5_4_UPLOAD event=error '
+        'status=${xhr.status} '
+        'elapsed_ms=$elapsed',
+      );
+
       if (!completer.isCompleted) {
         completer.completeError(
-          StateError('Erreur réseau pendant l’envoi de la vidéo.'),
+          StateError(
+            'Erreur réseau pendant '
+            'l’envoi de la vidéo.',
+          ),
         );
       }
     }).toJS,
@@ -143,9 +219,20 @@ Future<void> uploadBlobUrlToPresignedUrl({
   xhr.addEventListener(
     'abort',
     ((web.Event _) {
+      final elapsed = DateTime.now().difference(uploadStartedAt).inMilliseconds;
+
+      print(
+        'G5_4_UPLOAD event=abort '
+        'status=${xhr.status} '
+        'elapsed_ms=$elapsed',
+      );
+
       if (!completer.isCompleted) {
         completer.completeError(
-          StateError('L’envoi de la vidéo a été interrompu.'),
+          StateError(
+            'L’envoi de la vidéo '
+            'a été interrompu.',
+          ),
         );
       }
     }).toJS,
@@ -154,4 +241,240 @@ Future<void> uploadBlobUrlToPresignedUrl({
   xhr.send(blob);
 
   await completer.future;
+}
+
+class MultipartUploadedPart {
+  const MultipartUploadedPart({required this.partNumber, required this.etag});
+
+  final int partNumber;
+  final String etag;
+
+  Map<String, dynamic> toJson() {
+    return {'part_number': partNumber, 'etag': etag};
+  }
+}
+
+class NativeVideoFile {
+  NativeVideoFile._({required this.file, required this.previewUrl});
+
+  final web.File file;
+  final String previewUrl;
+
+  String get name => file.name;
+
+  int get size => file.size;
+
+  XFile get previewFile => XFile(previewUrl, name: name, length: size);
+
+  void dispose() {
+    web.URL.revokeObjectURL(previewUrl);
+  }
+}
+
+Future<NativeVideoFile?> pickNativeVideoFile() async {
+  final input = web.HTMLInputElement()
+    ..type = 'file'
+    ..accept = 'video/*'
+    ..multiple = false;
+
+  final completer = Completer<NativeVideoFile?>();
+
+  void completeSelection() {
+    if (completer.isCompleted) {
+      return;
+    }
+
+    final files = input.files;
+
+    if (files == null || files.length == 0) {
+      completer.complete(null);
+      return;
+    }
+
+    final file = files.item(0);
+
+    if (file == null) {
+      completer.complete(null);
+      return;
+    }
+
+    if (file.size <= 0) {
+      completer.completeError(StateError('La vidéo sélectionnée est vide.'));
+      return;
+    }
+
+    final previewUrl = web.URL.createObjectURL(file);
+
+    completer.complete(NativeVideoFile._(file: file, previewUrl: previewUrl));
+  }
+
+  input.addEventListener(
+    'change',
+    ((web.Event _) {
+      completeSelection();
+    }).toJS,
+  );
+
+  input.addEventListener(
+    'cancel',
+    ((web.Event _) {
+      if (!completer.isCompleted) {
+        completer.complete(null);
+      }
+    }).toJS,
+  );
+
+  input.click();
+
+  return completer.future;
+}
+
+class MultipartBlobUploadSession {
+  MultipartBlobUploadSession._({
+    required this.source,
+    required this.expectedSize,
+  });
+
+  final web.File source;
+  final int expectedSize;
+
+  int get size => expectedSize;
+
+  static Future<MultipartBlobUploadSession> open({
+    required web.File source,
+    required int expectedSize,
+  }) async {
+    if (expectedSize <= 0) {
+      throw StateError('La taille de la vidéo sélectionnée est invalide.');
+    }
+
+    final actualSize = source.size;
+
+    if (actualSize <= 0) {
+      throw StateError('La vidéo sélectionnée est vide.');
+    }
+
+    if (actualSize != expectedSize) {
+      throw StateError(
+        'La taille de la vidéo sélectionnée '
+        'a changé avant son envoi.',
+      );
+    }
+
+    return MultipartBlobUploadSession._(
+      source: source,
+      expectedSize: expectedSize,
+    );
+  }
+
+  Future<MultipartUploadedPart> uploadPart({
+    required String uploadUrl,
+    required int partNumber,
+    required int startByte,
+    required int endByte,
+  }) async {
+    if (partNumber <= 0) {
+      throw StateError('Numéro de partie multipart invalide.');
+    }
+
+    if (startByte < 0 || endByte <= startByte || endByte > expectedSize) {
+      throw StateError('Plage multipart invalide.');
+    }
+
+    final partLength = endByte - startByte;
+
+    final partBlob = source.slice(
+      startByte,
+      endByte,
+      'application/octet-stream',
+    );
+
+    if (partBlob.size != partLength) {
+      throw StateError(
+        'Découpage incomplet de la partie '
+        '$partNumber.',
+      );
+    }
+
+    final completer = Completer<MultipartUploadedPart>();
+    final xhr = web.XMLHttpRequest();
+
+    xhr.open('PUT', uploadUrl);
+    xhr.withCredentials = false;
+
+    xhr.addEventListener(
+      'load',
+      ((web.Event _) {
+        final status = xhr.status;
+
+        if (status >= 200 && status < 300) {
+          final etag = xhr.getResponseHeader('ETag')?.trim() ?? '';
+
+          if (etag.isEmpty) {
+            if (!completer.isCompleted) {
+              completer.completeError(
+                StateError(
+                  'Le stockage n’a pas retourné '
+                  'l’ETag de la partie '
+                  '$partNumber.',
+                ),
+              );
+            }
+
+            return;
+          }
+
+          if (!completer.isCompleted) {
+            completer.complete(
+              MultipartUploadedPart(partNumber: partNumber, etag: etag),
+            );
+          }
+
+          return;
+        }
+
+        if (!completer.isCompleted) {
+          completer.completeError(
+            StateError(
+              'Le stockage vidéo a refusé '
+              'la partie $partNumber '
+              '(HTTP $status).',
+            ),
+          );
+        }
+      }).toJS,
+    );
+
+    xhr.addEventListener(
+      'error',
+      ((web.Event _) {
+        if (!completer.isCompleted) {
+          completer.completeError(
+            StateError(
+              'Erreur réseau pendant l’envoi '
+              'de la partie $partNumber.',
+            ),
+          );
+        }
+      }).toJS,
+    );
+
+    xhr.addEventListener(
+      'abort',
+      ((web.Event _) {
+        if (!completer.isCompleted) {
+          completer.completeError(
+            StateError(
+              'L’envoi de la partie '
+              '$partNumber a été interrompu.',
+            ),
+          );
+        }
+      }).toJS,
+    );
+
+    xhr.send(partBlob);
+
+    return completer.future;
+  }
 }

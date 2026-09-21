@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import '../../widgets/producer_sheet_header.dart';
 
 class FinancePage extends StatefulWidget {
   const FinancePage({super.key});
@@ -41,29 +42,40 @@ class _FinancePageState extends State<FinancePage> {
       context: context,
       isScrollControlled: true,
       builder: (BuildContext context) {
-        return WithdrawalForm(
-          availableBalance: _availableBalance,
-          onWithdraw: (amount) {
-            setState(() {
-              _availableBalance -= amount;
-            });
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  '${AppLocalizations.of(context)!.request_withdrawal} ${amount.toStringAsFixed(2)} € ${AppLocalizations.of(context)!.success}',
-                  style: AppTheme.textBody,
-                ),
-                backgroundColor: AppTheme.success,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(
-                    AppDecorations.borderRadiusMedium,
-                  ),
-                ),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ProducerSheetHeader(
+              title: AppLocalizations.of(context)!.request_withdrawal,
+              onClose: () => Navigator.of(context).pop(),
+            ),
+            Flexible(
+              child: WithdrawalForm(
+                availableBalance: _availableBalance,
+                onWithdraw: (amount) {
+                  setState(() {
+                    _availableBalance -= amount;
+                  });
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        '${AppLocalizations.of(context)!.request_withdrawal} ${amount.toStringAsFixed(2)} € ${AppLocalizations.of(context)!.success}',
+                        style: AppTheme.textBody,
+                      ),
+                      backgroundColor: AppTheme.success,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          AppDecorations.borderRadiusMedium,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ],
         );
       },
       shape: RoundedRectangleBorder(

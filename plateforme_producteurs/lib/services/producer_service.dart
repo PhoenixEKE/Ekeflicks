@@ -1,5 +1,6 @@
 import 'package:plateforme_producteurs/models/producer_onboarding.dart';
 import 'package:plateforme_producteurs/services/api_client.dart';
+import 'package:plateforme_producteurs/models/producer_analytics.dart';
 
 class ProducerService {
   ProducerService._();
@@ -7,6 +8,56 @@ class ProducerService {
   static final ProducerService instance = ProducerService._();
 
   final ApiClient _api = ApiClient.instance;
+
+  Map<String, int>? _genreIdsByNameCache;
+  Future<Map<String, int>>? _genreIdsByNameLoad;
+
+  Future<Map<String, dynamic>> getTechnicalSpecification() async {
+    final response = await _api.get(
+      '/api/v1/technical-specification/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de récupérer le cahier des charges technique.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map) {
+      throw const ApiException(
+        'Réponse du cahier des charges technique invalide.',
+      );
+    }
+
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<List<int>> downloadTechnicalSpecification() async {
+    final response = await _api.getBytes(
+      '/api/v1/technical-specification/pdf/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback:
+              'Impossible de télécharger le cahier des charges technique.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    return response.bodyBytes;
+  }
 
   Future<ProducerAccount> getOnboarding() async {
     final response = await _api.get(
@@ -220,7 +271,32 @@ class ProducerService {
     return ProducerAgreement.fromJson(data);
   }
 
-  Future<List<int>> getGenreIdsByNames(Iterable<String> names) async {
+  Future<Map<String, int>> _loadGenreIdsByName() async {
+    final cached = _genreIdsByNameCache;
+
+    if (cached != null) {
+      return cached;
+    }
+
+    final runningLoad = _genreIdsByNameLoad;
+
+    if (runningLoad != null) {
+      return runningLoad;
+    }
+
+    final load = _fetchGenreIdsByName();
+    _genreIdsByNameLoad = load;
+
+    try {
+      final genres = await load;
+      _genreIdsByNameCache = genres;
+      return genres;
+    } finally {
+      _genreIdsByNameLoad = null;
+    }
+  }
+
+  Future<Map<String, int>> _fetchGenreIdsByName() async {
     final response = await _api.get('/api/v1/genres/', authenticated: true);
 
     if (response.statusCode != 200) {
@@ -248,25 +324,46 @@ class ProducerService {
     final byName = <String, int>{};
 
     for (final row in rows) {
-      if (row is! Map) continue;
+      if (row is! Map) {
+        continue;
+      }
 
       final rawName = row['name'];
       final rawId = row['id'];
 
-      if (rawName is! String) continue;
+      if (rawName is! String) {
+        continue;
+      }
 
       final id = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
 
-      if (id == null) continue;
+      if (id == null) {
+        continue;
+      }
 
       byName[rawName.trim().toLowerCase()] = id;
     }
 
+    return Map<String, int>.unmodifiable(byName);
+  }
+
+  Future<List<int>> getGenreIdsByNames(Iterable<String> names) async {
+    final requestedNames = names
+        .map((name) => name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+
+    if (requestedNames.isEmpty) {
+      return const <int>[];
+    }
+
+    final byName = await _loadGenreIdsByName();
+
     final ids = <int>[];
     final missing = <String>[];
 
-    for (final name in names) {
-      final id = byName[name.trim().toLowerCase()];
+    for (final name in requestedNames) {
+      final id = byName[name.toLowerCase()];
 
       if (id == null) {
         missing.add(name);
@@ -326,13 +423,19 @@ class ProducerService {
   Future<Map<String, dynamic>> updateContent({
     required String contentId,
     String? title,
+    String? originalTitle,
     String? description,
     String? synopsis,
     String? type,
     int? releaseYear,
+    String? availableFrom,
+    int? duration,
+    String? ageRating,
     List<int>? genreIds,
     String? language,
     String? country,
+    List<String>? audioLanguages,
+    List<String>? subtitleLanguages,
     String? directorName,
     String? screenwriterName,
     List<Map<String, dynamic>>? producerTeam,
@@ -342,6 +445,10 @@ class ProducerService {
 
     if (title != null) {
       body['title'] = title.trim();
+    }
+
+    if (originalTitle != null) {
+      body['original_title'] = originalTitle.trim();
     }
 
     if (description != null) {
@@ -360,6 +467,18 @@ class ProducerService {
       body['release_year'] = releaseYear;
     }
 
+    if (availableFrom != null) {
+      body['available_from'] = availableFrom.trim();
+    }
+
+    if (duration != null) {
+      body['duration'] = duration;
+    }
+
+    if (ageRating != null) {
+      body['age_rating'] = ageRating.trim();
+    }
+
     if (genreIds != null) {
       body['genre_ids'] = genreIds;
     }
@@ -370,6 +489,14 @@ class ProducerService {
 
     if (country != null) {
       body['country'] = country.trim();
+    }
+
+    if (audioLanguages != null) {
+      body['audio_languages'] = audioLanguages;
+    }
+
+    if (subtitleLanguages != null) {
+      body['subtitle_languages'] = subtitleLanguages;
     }
 
     if (directorName != null) {
@@ -411,6 +538,29 @@ class ProducerService {
     }
 
     return data;
+  }
+
+  Future<void> deleteDraft(String contentId) async {
+    final cleanId = contentId.trim();
+
+    if (cleanId.isEmpty) {
+      throw const ApiException('Identifiant du brouillon invalide.');
+    }
+
+    final response = await _api.delete(
+      '/api/v1/contents/$cleanId/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 204) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de supprimer le brouillon.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
   }
 
   Future<List<Map<String, dynamic>>> getMyContents({
@@ -481,6 +631,227 @@ class ProducerService {
 
     if (data is! Map<String, dynamic>) {
       throw const ApiException('Réponse contenu invalide.');
+    }
+
+    return data;
+  }
+
+  Future<String> getContentMediaPreview({
+    required String contentId,
+    required String temporaryPath,
+  }) async {
+    final cleanId = contentId.trim();
+    final cleanPath = temporaryPath.trim();
+
+    if (cleanId.isEmpty) {
+      throw const ApiException('Identifiant du contenu invalide.');
+    }
+
+    if (cleanPath.isEmpty) {
+      throw const ApiException('Le chemin temporaire du média est vide.');
+    }
+
+    final response = await _api.get(
+      '/api/v1/contents/${Uri.encodeComponent(cleanId)}/media-preview/'
+      '?path=${Uri.encodeQueryComponent(cleanPath)}',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de prévisualiser le média.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de prévisualisation média invalide.');
+    }
+
+    final previewUrl = data['preview_url']?.toString().trim() ?? '';
+
+    if (previewUrl.isEmpty) {
+      throw const ApiException('URL de prévisualisation média absente.');
+    }
+
+    return previewUrl;
+  }
+
+  Future<String> getSeasonMediaPreview({
+    required String seasonId,
+    required String temporaryPath,
+  }) async {
+    final cleanId = seasonId.trim();
+    final cleanPath = temporaryPath.trim();
+
+    if (cleanId.isEmpty) {
+      throw const ApiException('Identifiant de saison invalide.');
+    }
+
+    if (cleanPath.isEmpty) {
+      throw const ApiException(
+        'Le chemin temporaire du média de saison est vide.',
+      );
+    }
+
+    final response = await _api.get(
+      '/api/v1/seasons/${Uri.encodeComponent(cleanId)}/media-preview/'
+      '?path=${Uri.encodeQueryComponent(cleanPath)}',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de prévisualiser le média de la saison.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException(
+        'Réponse de prévisualisation média Saison invalide.',
+      );
+    }
+
+    final previewUrl = data['preview_url']?.toString().trim() ?? '';
+
+    if (previewUrl.isEmpty) {
+      throw const ApiException('URL de prévisualisation média Saison absente.');
+    }
+
+    return previewUrl;
+  }
+
+  Future<String> getTeamImagePreview({
+    required String contentId,
+    required String temporaryPath,
+  }) async {
+    final cleanPath = temporaryPath.trim();
+
+    if (cleanPath.isEmpty) {
+      throw const ApiException('Le chemin temporaire de la photo est vide.');
+    }
+
+    final response = await _api.get(
+      '/api/v1/contents/$contentId/team-image-preview/'
+      '?path=${Uri.encodeQueryComponent(cleanPath)}',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de prévisualiser la photo du producteur.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de prévisualisation photo invalide.');
+    }
+
+    final previewUrl = data['preview_url']?.toString().trim() ?? '';
+
+    if (previewUrl.isEmpty) {
+      throw const ApiException('URL de prévisualisation photo absente.');
+    }
+
+    return previewUrl;
+  }
+
+  Future<Map<String, dynamic>> uploadPrimaryPersonImage({
+    required String contentId,
+    required String role,
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    if (role != 'director' && role != 'screenwriter') {
+      throw const ApiException('Rôle de personne non supporté.');
+    }
+
+    if (bytes.isEmpty) {
+      throw const ApiException('La photo est vide.');
+    }
+
+    final response = await _api.postMultipart(
+      '/api/v1/contents/$contentId/upload-$role-image/',
+      authenticated: true,
+      bytes: bytes,
+      filename: filename,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(response, fallback: 'Impossible d’envoyer la photo.'),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse photo invalide.');
+    }
+
+    final temporaryPath = data['temporary_path']?.toString().trim();
+
+    if (temporaryPath == null || temporaryPath.isEmpty) {
+      throw const ApiException('Réponse photo incomplète.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> uploadTeamImage({
+    required String contentId,
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    if (bytes.isEmpty) {
+      throw const ApiException('La photo du membre de l’équipe est vide.');
+    }
+
+    final response = await _api.postMultipart(
+      '/api/v1/contents/$contentId/upload-team-image/',
+      authenticated: true,
+      bytes: bytes,
+      filename: filename,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible d’envoyer la photo du membre de l’équipe.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse photo équipe invalide.');
+    }
+
+    final temporaryPath = data['temporary_path']?.toString().trim();
+
+    if (temporaryPath == null || temporaryPath.isEmpty) {
+      throw const ApiException('Réponse photo équipe incomplète.');
     }
 
     return data;
@@ -588,17 +959,459 @@ class ProducerService {
     return data;
   }
 
-  Future<List<Map<String, dynamic>>> getMyVideoAssets({
-    String? contentId,
+  Future<Map<String, dynamic>> retryTrailerAnalysis({
+    required String contentId,
   }) async {
-    final query = contentId == null || contentId.isEmpty
-        ? ''
-        : '?content=${Uri.encodeQueryComponent(contentId)}';
+    final cleanContentId = contentId.trim();
 
-    final response = await _api.get(
-      '/api/v1/video-assets/mine/$query',
+    if (cleanContentId.isEmpty) {
+      throw const ApiException('Identifiant de contenu invalide.');
+    }
+
+    final response = await _api.post(
+      '/api/v1/contents/$cleanContentId/trailer-analysis-retry/',
       authenticated: true,
     );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de relancer l’analyse du trailer.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de relance trailer invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> uploadSeasonMedia({
+    required String seasonId,
+    required String mediaType,
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final allowedTypes = {'poster', 'backdrop'};
+
+    if (!allowedTypes.contains(mediaType)) {
+      throw const ApiException('Type de média Saison non supporté.');
+    }
+
+    if (bytes.isEmpty) {
+      throw const ApiException('Le fichier média Saison est vide.');
+    }
+
+    final cleanSeasonId = seasonId.trim();
+
+    if (cleanSeasonId.isEmpty) {
+      throw const ApiException('Identifiant de saison invalide.');
+    }
+
+    final response = await _api.postMultipart(
+      '/api/v1/seasons/$cleanSeasonId/upload-$mediaType/',
+      authenticated: true,
+      bytes: bytes,
+      filename: filename,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible d’envoyer le média de la saison.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse média Saison invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> createSeasonTrailerUploadSession({
+    required String seasonId,
+    required String filename,
+    required int sizeBytes,
+  }) async {
+    final cleanSeasonId = seasonId.trim();
+
+    if (cleanSeasonId.isEmpty) {
+      throw const ApiException('Identifiant de saison invalide.');
+    }
+
+    final response = await _api.post(
+      '/api/v1/seasons/$cleanSeasonId/trailer-upload-session/',
+      authenticated: true,
+      body: {'filename': filename, 'size_bytes': sizeBytes},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de préparer l’envoi du trailer de la saison.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de session trailer Saison invalide.');
+    }
+
+    final uploadUrl = data['upload_url'];
+    final completionToken = data['completion_token'];
+
+    if (uploadUrl is! String ||
+        uploadUrl.isEmpty ||
+        completionToken is! String ||
+        completionToken.isEmpty) {
+      throw const ApiException('Session d’upload trailer Saison incomplète.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> completeSeasonTrailerUpload({
+    required String seasonId,
+    required String completionToken,
+  }) async {
+    final cleanSeasonId = seasonId.trim();
+
+    if (cleanSeasonId.isEmpty) {
+      throw const ApiException('Identifiant de saison invalide.');
+    }
+
+    final response = await _api.post(
+      '/api/v1/seasons/$cleanSeasonId/trailer-upload-complete/',
+      authenticated: true,
+      body: {'completion_token': completionToken},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de confirmer le trailer de la saison.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse confirmation trailer Saison invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> retrySeasonTrailerAnalysis({
+    required String seasonId,
+  }) async {
+    final cleanSeasonId = seasonId.trim();
+
+    if (cleanSeasonId.isEmpty) {
+      throw const ApiException('Identifiant de saison invalide.');
+    }
+
+    final response = await _api.post(
+      '/api/v1/seasons/$cleanSeasonId/trailer-analysis-retry/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de relancer l’analyse du trailer de la saison.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de relance trailer Saison invalide.');
+    }
+
+    return data;
+  }
+
+  Future<List<Map<String, dynamic>>> getSeasons({
+    required String contentId,
+  }) async {
+    final cleanContentId = contentId.trim();
+
+    if (cleanContentId.isEmpty) {
+      throw const ApiException('Identifiant de série invalide.');
+    }
+
+    final response = await _api.get(
+      '/api/v1/seasons/?content=${Uri.encodeQueryComponent(cleanContentId)}',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de charger les saisons.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is List) {
+      return data.whereType<Map<String, dynamic>>().toList();
+    }
+
+    if (data is Map<String, dynamic>) {
+      final results = data['results'];
+
+      if (results is List) {
+        return results.whereType<Map<String, dynamic>>().toList();
+      }
+    }
+
+    throw const ApiException('Réponse saisons invalide.');
+  }
+
+  Future<Map<String, dynamic>> createSeason({
+    required String contentId,
+    required int seasonNumber,
+    String title = '',
+    String description = '',
+    int episodeCount = 0,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/seasons/',
+      authenticated: true,
+      body: {
+        'content_id': contentId.trim(),
+        'season_number': seasonNumber,
+        'title': title.trim(),
+        'description': description.trim(),
+        'episode_count': episodeCount,
+      },
+    );
+
+    if (response.statusCode != 201) {
+      throw ApiException(
+        _api.errorMessage(response, fallback: 'Impossible de créer la saison.'),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse création saison invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> updateSeason({
+    required String seasonId,
+    String? title,
+    String? description,
+    int? episodeCount,
+  }) async {
+    final body = <String, dynamic>{};
+
+    if (title != null) {
+      body['title'] = title.trim();
+    }
+
+    if (description != null) {
+      body['description'] = description.trim();
+    }
+
+    if (episodeCount != null) {
+      body['episode_count'] = episodeCount;
+    }
+
+    final response = await _api.patch(
+      '/api/v1/seasons/${seasonId.trim()}/',
+      authenticated: true,
+      body: body,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de mettre à jour la saison.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse mise à jour saison invalide.');
+    }
+
+    return data;
+  }
+
+  Future<void> deleteSeason(String seasonId) async {
+    final response = await _api.delete(
+      '/api/v1/seasons/${seasonId.trim()}/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 204) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de supprimer la saison.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> createEpisode({
+    required String seasonId,
+    required int episodeNumber,
+    required String title,
+    String description = '',
+    int? duration,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/episodes/',
+      authenticated: true,
+      body: {
+        'season_id': seasonId.trim(),
+        'episode_number': episodeNumber,
+        'title': title.trim(),
+        'description': description.trim(),
+        if (duration != null) 'duration': duration,
+      },
+    );
+
+    if (response.statusCode != 201) {
+      throw ApiException(
+        _api.errorMessage(response, fallback: 'Impossible de créer l’épisode.'),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse création épisode invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> updateEpisode({
+    required String episodeId,
+    String? title,
+    String? description,
+    int? duration,
+  }) async {
+    final body = <String, dynamic>{};
+
+    if (title != null) {
+      body['title'] = title.trim();
+    }
+
+    if (description != null) {
+      body['description'] = description.trim();
+    }
+
+    if (duration != null) {
+      body['duration'] = duration;
+    }
+
+    final response = await _api.patch(
+      '/api/v1/episodes/${episodeId.trim()}/',
+      authenticated: true,
+      body: body,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de mettre à jour l’épisode.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse mise à jour épisode invalide.');
+    }
+
+    return data;
+  }
+
+  Future<void> deleteEpisode(String episodeId) async {
+    final response = await _api.delete(
+      '/api/v1/episodes/${episodeId.trim()}/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 204) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de supprimer l’épisode.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getMyVideoAssets({
+    String? contentId,
+    String? episodeId,
+  }) async {
+    final params = <String, String>{};
+
+    final cleanContentId = contentId?.trim() ?? '';
+    final cleanEpisodeId = episodeId?.trim() ?? '';
+
+    if (cleanContentId.isNotEmpty) {
+      params['content'] = cleanContentId;
+    }
+
+    if (cleanEpisodeId.isNotEmpty) {
+      params['episode'] = cleanEpisodeId;
+    }
+
+    final uri = Uri(
+      path: '/api/v1/video-assets/mine/',
+      queryParameters: params.isEmpty ? null : params,
+    );
+
+    final response = await _api.get(uri.toString(), authenticated: true);
 
     if (response.statusCode != 200) {
       throw ApiException(
@@ -627,14 +1440,70 @@ class ProducerService {
     throw const ApiException('Réponse ressources vidéo invalide.');
   }
 
+  Future<String> getVideoAssetSourcePreview({required String assetId}) async {
+    final cleanAssetId = assetId.trim();
+
+    if (cleanAssetId.isEmpty) {
+      throw const ApiException('Identifiant de ressource vidéo invalide.');
+    }
+
+    final response = await _api.get(
+      '/api/v1/video-assets/'
+      '${Uri.encodeComponent(cleanAssetId)}/source-preview/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de prévisualiser le master vidéo.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de prévisualisation master invalide.');
+    }
+
+    final previewUrl = data['preview_url']?.toString().trim() ?? '';
+
+    if (previewUrl.isEmpty) {
+      throw const ApiException('URL de prévisualisation master absente.');
+    }
+
+    return previewUrl;
+  }
+
   Future<Map<String, dynamic>> createVideoAsset({
     required String contentId,
     required String title,
+    required String deliveryLevel,
+    String? episodeId,
   }) async {
+    final cleanEpisodeId = episodeId?.trim() ?? '';
+    final cleanDeliveryLevel = deliveryLevel.trim().toLowerCase();
+
+    if (!const {
+      'premium',
+      'standard',
+      'distribution',
+    }.contains(cleanDeliveryLevel)) {
+      throw const ApiException('Niveau de livraison master invalide.');
+    }
+
     final response = await _api.post(
       '/api/v1/video-assets/',
       authenticated: true,
-      body: {'content_id': contentId, 'title': title.trim()},
+      body: {
+        'content_id': contentId.trim(),
+        'title': title.trim(),
+        'delivery_level': cleanDeliveryLevel,
+        if (cleanEpisodeId.isNotEmpty) 'episode_id': cleanEpisodeId,
+      },
     );
 
     if (response.statusCode != 201) {
@@ -648,6 +1517,51 @@ class ProducerService {
     }
 
     final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse ressource vidéo invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> updateVideoAssetDeliveryLevel({
+    required String assetId,
+    required String deliveryLevel,
+  }) async {
+    final cleanAssetId = assetId.trim();
+    final cleanDeliveryLevel = deliveryLevel.trim().toLowerCase();
+
+    if (cleanAssetId.isEmpty) {
+      throw const ApiException('Identifiant de ressource vidéo invalide.');
+    }
+
+    if (!const {
+      'premium',
+      'standard',
+      'distribution',
+    }.contains(cleanDeliveryLevel)) {
+      throw const ApiException('Niveau de livraison master invalide.');
+    }
+
+    final response = await _api.patch(
+      '/api/v1/video-assets/$cleanAssetId/',
+      authenticated: true,
+      body: {'delivery_level': cleanDeliveryLevel},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de mettre à jour le niveau du master.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
     if (data is! Map<String, dynamic>) {
       throw const ApiException('Réponse ressource vidéo invalide.');
     }
@@ -724,6 +1638,136 @@ class ProducerService {
     return data;
   }
 
+  Future<Map<String, dynamic>> createSourceMultipartUpload({
+    required String assetId,
+    required String filename,
+    required int sizeBytes,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/video-assets/$assetId/source-multipart-start/',
+      authenticated: true,
+      body: {'filename': filename, 'size_bytes': sizeBytes},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de préparer l’envoi multipart de la vidéo.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de session multipart invalide.');
+    }
+
+    final uploadToken = data['upload_token'];
+    final partSize = data['part_size'];
+    final partCount = data['part_count'];
+
+    if (uploadToken is! String ||
+        uploadToken.isEmpty ||
+        partSize is! int ||
+        partSize <= 0 ||
+        partCount is! int ||
+        partCount <= 0) {
+      throw const ApiException('Session multipart incomplète.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> createSourceMultipartPart({
+    required String assetId,
+    required String uploadToken,
+    required int partNumber,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/video-assets/$assetId/source-multipart-part/',
+      authenticated: true,
+      body: {'upload_token': uploadToken, 'part_number': partNumber},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de préparer une partie de la vidéo.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de partie multipart invalide.');
+    }
+
+    final uploadUrl = data['upload_url'];
+
+    if (uploadUrl is! String || uploadUrl.isEmpty) {
+      throw const ApiException('URL multipart invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> completeSourceMultipartUpload({
+    required String assetId,
+    required String uploadToken,
+    required List<Map<String, dynamic>> parts,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/video-assets/$assetId/source-multipart-complete/',
+      authenticated: true,
+      body: {'upload_token': uploadToken, 'parts': parts},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de finaliser l’envoi multipart de la vidéo.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de finalisation multipart invalide.');
+    }
+
+    return data;
+  }
+
+  Future<void> abortSourceMultipartUpload({
+    required String assetId,
+    required String uploadToken,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/video-assets/$assetId/source-multipart-abort/',
+      authenticated: true,
+      body: {'upload_token': uploadToken},
+    );
+
+    if (response.statusCode != 204) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible d’abandonner la session multipart.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> uploadVideoSource({
     required String assetId,
     required Stream<List<int>> stream,
@@ -756,6 +1800,177 @@ class ProducerService {
     return data;
   }
 
+  Future<Map<String, dynamic>> previewXmlMetadata({
+    required List<int> bytes,
+    required String filename,
+    String? contentId,
+  }) async {
+    if (bytes.isEmpty) {
+      throw const ApiException('Le fichier XML de métadonnées est vide.');
+    }
+
+    final normalizedFilename = filename.trim();
+
+    if (normalizedFilename.isEmpty) {
+      throw const ApiException('Le nom du fichier XML est invalide.');
+    }
+
+    final fields = <String, String>{};
+
+    final normalizedContentId = contentId?.trim() ?? '';
+
+    if (normalizedContentId.isNotEmpty) {
+      fields['content_id'] = normalizedContentId;
+    }
+
+    final response = await _api.postMultipart(
+      '/api/v1/contents/xml-metadata-preview/',
+      bytes: bytes,
+      filename: normalizedFilename,
+      fieldName: 'file',
+      authenticated: true,
+      fields: fields.isEmpty ? null : fields,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible d’analyser le fichier XML de métadonnées.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map) {
+      throw const ApiException('Réponse de prévisualisation XML invalide.');
+    }
+
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingSubmissions() async {
+    final response = await _api.get(
+      '/api/v1/contents/pending-submissions/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de charger les contenus à valider.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is List) {
+      return data
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(growable: false);
+    }
+
+    if (data is Map) {
+      final results = data['results'];
+
+      if (results is List) {
+        return results
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList(growable: false);
+      }
+    }
+
+    throw const ApiException('Réponse de file de validation invalide.');
+  }
+
+  Future<Map<String, dynamic>> approveSubmission({
+    required String contentId,
+    String reason = '',
+  }) async {
+    return _reviewSubmission(
+      contentId: contentId,
+      path: 'approve-submission',
+      reason: reason,
+      fallback: 'Impossible d’approuver le contenu.',
+    );
+  }
+
+  Future<Map<String, dynamic>> rejectSubmission({
+    required String contentId,
+    required String reason,
+  }) async {
+    final cleanReason = reason.trim();
+
+    if (cleanReason.isEmpty) {
+      throw const ApiException('Le motif de refus est obligatoire.');
+    }
+
+    return _reviewSubmission(
+      contentId: contentId,
+      path: 'reject-submission',
+      reason: cleanReason,
+      fallback: 'Impossible de refuser le contenu.',
+    );
+  }
+
+  Future<Map<String, dynamic>> requestSubmissionCorrection({
+    required String contentId,
+    required String reason,
+  }) async {
+    final cleanReason = reason.trim();
+
+    if (cleanReason.isEmpty) {
+      throw const ApiException('Le motif de correction est obligatoire.');
+    }
+
+    return rejectSubmission(
+      contentId: contentId,
+      reason: 'CORRECTION DEMANDÉE — $cleanReason',
+    );
+  }
+
+  Future<Map<String, dynamic>> _reviewSubmission({
+    required String contentId,
+    required String path,
+    required String reason,
+    required String fallback,
+  }) async {
+    final cleanId = contentId.trim();
+
+    if (cleanId.isEmpty) {
+      throw const ApiException('Identifiant de contenu invalide.');
+    }
+
+    final response = await _api.post(
+      '/api/v1/contents/'
+      '${Uri.encodeComponent(cleanId)}/$path/',
+      authenticated: true,
+      body: {'reason': reason.trim()},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(response, fallback: fallback),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map) {
+      throw const ApiException('Réponse de validation invalide.');
+    }
+
+    return Map<String, dynamic>.from(data);
+  }
+
   Future<Map<String, dynamic>> submitContent({
     required String contentId,
     String producerNotes = '',
@@ -782,5 +1997,96 @@ class ProducerService {
     }
 
     return data;
+  }
+}
+
+extension ProducerAnalyticsApi on ProducerService {
+  Future<ProducerAnalyticsOverview> getProducerAnalytics({
+    int days = 30,
+  }) async {
+    final effectiveDays = days <= 0 ? 30 : days;
+
+    final endAt = DateTime.now().toUtc();
+    final startAt = endAt.subtract(Duration(days: effectiveDays));
+
+    final query = Uri(
+      queryParameters: {
+        'start_at': startAt.toIso8601String(),
+        'end_at': endAt.toIso8601String(),
+        'limit': '100',
+      },
+    ).query;
+
+    final response = await _api.get(
+      '/api/v1/producer-analytics/?$query',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de récupérer les statistiques.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map) {
+      throw const ApiException('Réponse Analytics Producteur invalide.');
+    }
+
+    return ProducerAnalyticsOverview.fromJson(Map<String, dynamic>.from(data));
+  }
+
+  Future<ProducerAnalyticsDetail> getProducerContentAnalytics(
+    String contentId, {
+    int days = 30,
+  }) async {
+    final cleanId = contentId.trim();
+
+    if (cleanId.isEmpty) {
+      throw const ApiException('Identifiant du contenu invalide.');
+    }
+
+    final effectiveDays = days <= 0 ? 30 : days;
+
+    final endAt = DateTime.now().toUtc();
+    final startAt = endAt.subtract(Duration(days: effectiveDays));
+
+    final query = Uri(
+      queryParameters: {
+        'start_at': startAt.toIso8601String(),
+        'end_at': endAt.toIso8601String(),
+      },
+    ).query;
+
+    final response = await _api.get(
+      '/api/v1/producer-analytics/contents/'
+      '${Uri.encodeComponent(cleanId)}/?$query',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback:
+              'Impossible de récupérer les statistiques '
+              'du contenu.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map) {
+      throw const ApiException('Réponse Analytics du contenu invalide.');
+    }
+
+    return ProducerAnalyticsDetail.fromJson(Map<String, dynamic>.from(data));
   }
 }

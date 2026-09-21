@@ -94,6 +94,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     final isDark = theme.brightness == Brightness.dark;
 
     return ProducerPageShell(
+      title: l10n.helpCenterTitle,
       showBack: true,
       maxWidth: 1280,
       padding: EdgeInsets.zero,

@@ -14,6 +14,13 @@ from apps.common.minio_storage import (
     minio_public_upload_client,
 )
 from apps.common.permissions import IsStaffOrProducerAssetOwner, is_producer_user
+from apps.streaming.multipart_upload import (
+    MultipartUploadError,
+    abort_source_multipart_upload,
+    complete_source_multipart_upload,
+    create_source_multipart_upload,
+    presign_source_multipart_part,
+)
 from apps.notifications.services import notify_new_publication, notify_user
 from apps.streaming.media_services import publish_subtitle_track
 from apps.streaming.storage_paths import build_source_upload_path
@@ -29,6 +36,7 @@ from apps.streaming.serializers import (
 )
 from apps.streaming.services import (
     create_playback_license,
+    delete_video_asset_source,
     derive_aes128_content_key,
     drm_configuration,
     ensure_encryption_key_id,
@@ -87,6 +95,11 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
                 'upload_source',
                 'source_upload_session',
                 'source_upload_complete',
+                'source_multipart_start',
+                'source_multipart_part',
+                'source_multipart_complete',
+                'source_multipart_abort',
+                'source_preview',
                 'upload_subtitle',
                 'update',
                 'partial_update',
@@ -161,6 +174,58 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
             moderated_at=None,
             published_at=None,
         )
+
+    def perform_destroy(self, instance):
+        self._ensure_can_manage_content(instance.content)
+
+        # Best-effort : une panne du stockage TEMP
+        # ne doit pas bloquer la suppression DB.
+        delete_video_asset_source(instance)
+
+        instance.delete()
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='source-preview',
+    )
+    def source_preview(self, request, pk=None):
+        asset = self.get_object()
+
+        self._ensure_can_manage_content(asset.content)
+
+        source_path = str(asset.source_file_path or '').strip()
+
+        if not source_path:
+            raise exceptions.NotFound(
+                'Aucun master privé disponible pour cette vidéo.'
+            )
+
+        expected_prefix = (
+            f'uploads/producer_{asset.content.producer_id}/'
+        )
+
+        if not source_path.startswith(expected_prefix):
+            raise exceptions.PermissionDenied(
+                'Le chemin du master privé est invalide.'
+            )
+
+        expires_in = 900
+
+        preview_url = minio_public_upload_client().generate_presigned_url(
+            ClientMethod='get_object',
+            Params={
+                'Bucket': settings.MINIO_BUCKET,
+                'Key': source_path,
+            },
+            ExpiresIn=expires_in,
+            HttpMethod='GET',
+        )
+
+        return Response({
+            'preview_url': preview_url,
+            'expires_in': expires_in,
+        })
 
     @action(detail=False, methods=['get'])
     def mine(self, request):
@@ -401,6 +466,372 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
         return Response(
             self.get_serializer(asset).data,
             status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='source-multipart-start',
+    )
+    def source_multipart_start(self, request, pk=None):
+        asset = self.get_object()
+
+        filename = str(
+            request.data.get('filename') or ''
+        ).strip()
+
+        raw_size = request.data.get('size_bytes')
+
+        if not filename:
+            raise exceptions.ValidationError({
+                'filename':
+                    'Le nom du fichier video est obligatoire.'
+            })
+
+        try:
+            size_bytes = int(raw_size)
+        except (TypeError, ValueError):
+            raise exceptions.ValidationError({
+                'size_bytes':
+                    'La taille du fichier est invalide.'
+            })
+
+        if size_bytes <= 0:
+            raise exceptions.ValidationError({
+                'size_bytes':
+                    'La taille du fichier doit être '
+                    'supérieure à zéro.'
+            })
+
+        class UploadReference:
+            name = filename
+
+        object_key = build_source_upload_path(
+            asset,
+            UploadReference(),
+            request.user,
+        )
+
+        try:
+            session = create_source_multipart_upload(
+                client=minio_internal_client(),
+                object_key=object_key,
+                size_bytes=size_bytes,
+            )
+        except MultipartUploadError as exc:
+            raise exceptions.ValidationError({
+                'source': str(exc),
+            }) from exc
+
+        token_payload = {
+            'asset_id': str(asset.id),
+            'user_id': str(request.user.id),
+            'bucket': session['bucket'],
+            'object_key': session['object_key'],
+            'upload_id': session['upload_id'],
+            'size_bytes': session['size_bytes'],
+            'part_size': session['part_size'],
+            'part_count': session['part_count'],
+        }
+
+        upload_token = signing.dumps(
+            token_payload,
+            salt='streaming-source-multipart',
+            compress=True,
+        )
+
+        return Response({
+            'upload_token': upload_token,
+            'part_size': session['part_size'],
+            'part_count': session['part_count'],
+            'expires_in': session['expires_in'],
+        })
+
+    def _source_multipart_payload(
+        self,
+        request,
+        asset,
+    ):
+        upload_token = str(
+            request.data.get('upload_token') or ''
+        ).strip()
+
+        if not upload_token:
+            raise exceptions.ValidationError({
+                'upload_token':
+                    'Le jeton multipart est obligatoire.'
+            })
+
+        try:
+            payload = signing.loads(
+                upload_token,
+                salt='streaming-source-multipart',
+                max_age=3600,
+            )
+        except signing.SignatureExpired:
+            raise exceptions.ValidationError({
+                'upload_token':
+                    'La session multipart a expiré.'
+            })
+        except signing.BadSignature:
+            raise exceptions.ValidationError({
+                'upload_token':
+                    'La session multipart est invalide.'
+            })
+
+        if str(payload.get('asset_id')) != str(asset.id):
+            raise exceptions.ValidationError({
+                'upload_token':
+                    'La session ne correspond pas '
+                    'à cette vidéo.'
+            })
+
+        if str(payload.get('user_id')) != str(request.user.id):
+            raise exceptions.PermissionDenied(
+                'Cette session appartient '
+                'à un autre utilisateur.'
+            )
+
+        bucket = str(payload.get('bucket') or '')
+        object_key = str(
+            payload.get('object_key') or ''
+        )
+        upload_id = str(
+            payload.get('upload_id') or ''
+        )
+
+        try:
+            size_bytes = int(
+                payload.get('size_bytes') or 0
+            )
+            part_size = int(
+                payload.get('part_size') or 0
+            )
+            part_count = int(
+                payload.get('part_count') or 0
+            )
+        except (TypeError, ValueError) as exc:
+            raise exceptions.ValidationError({
+                'upload_token':
+                    'Métadonnées multipart invalides.'
+            }) from exc
+
+        if (
+            bucket != settings.MINIO_BUCKET
+            or not object_key
+            or not upload_id
+            or size_bytes <= 0
+            or part_size <= 0
+            or part_count <= 0
+        ):
+            raise exceptions.ValidationError({
+                'upload_token':
+                    'Référence multipart invalide.'
+            })
+
+        return {
+            'bucket': bucket,
+            'object_key': object_key,
+            'upload_id': upload_id,
+            'size_bytes': size_bytes,
+            'part_size': part_size,
+            'part_count': part_count,
+        }
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='source-multipart-part',
+    )
+    def source_multipart_part(self, request, pk=None):
+        asset = self.get_object()
+
+        payload = self._source_multipart_payload(
+            request,
+            asset,
+        )
+
+        raw_part_number = request.data.get(
+            'part_number'
+        )
+
+        try:
+            part_number = int(raw_part_number)
+        except (TypeError, ValueError):
+            raise exceptions.ValidationError({
+                'part_number':
+                    'Le numéro de partie est invalide.'
+            })
+
+        try:
+            upload_url = presign_source_multipart_part(
+                client=minio_public_upload_client(),
+                bucket=payload['bucket'],
+                object_key=payload['object_key'],
+                upload_id=payload['upload_id'],
+                part_number=part_number,
+                part_count=payload['part_count'],
+            )
+        except MultipartUploadError as exc:
+            raise exceptions.ValidationError({
+                'part_number': str(exc),
+            }) from exc
+
+        return Response({
+            'part_number': part_number,
+            'upload_url': upload_url,
+            'expires_in': 3600,
+        })
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='source-multipart-complete',
+    )
+    def source_multipart_complete(
+        self,
+        request,
+        pk=None,
+    ):
+        asset = self.get_object()
+
+        payload = self._source_multipart_payload(
+            request,
+            asset,
+        )
+
+        parts = request.data.get('parts')
+
+        client = minio_internal_client()
+
+        try:
+            complete_source_multipart_upload(
+                client=client,
+                bucket=payload['bucket'],
+                object_key=payload['object_key'],
+                upload_id=payload['upload_id'],
+                parts=parts,
+                part_count=payload['part_count'],
+            )
+        except MultipartUploadError as exc:
+            raise exceptions.ValidationError({
+                'parts': str(exc),
+            }) from exc
+
+        try:
+            metadata = client.head_object(
+                Bucket=payload['bucket'],
+                Key=payload['object_key'],
+            )
+        except Exception as exc:
+            raise exceptions.ValidationError({
+                'source':
+                    'Le fichier multipart finalisé '
+                    'est introuvable dans le stockage.'
+            }) from exc
+
+        stored_size = int(
+            metadata.get('ContentLength') or 0
+        )
+
+        if stored_size <= 0:
+            raise exceptions.ValidationError({
+                'source':
+                    'Le fichier multipart stocké est vide.'
+            })
+
+        if stored_size != payload['size_bytes']:
+            raise exceptions.ValidationError({
+                'source':
+                    'La taille du fichier multipart '
+                    'ne correspond pas au fichier envoyé.'
+            })
+
+        asset.source_file_path = payload['object_key']
+        asset.source_file_url = ''
+        asset.source_file_size_bytes = stored_size
+        asset.source_uploaded_at = timezone.now()
+        asset.source_uploaded_by = request.user
+        asset.status = 'draft'
+        asset.moderation_status = 'pending'
+        asset.moderation_reason = ''
+        asset.moderated_by = None
+        asset.moderated_at = None
+        asset.published_at = None
+
+        asset.save(update_fields=[
+            'source_file_path',
+            'source_file_url',
+            'source_file_size_bytes',
+            'source_uploaded_at',
+            'source_uploaded_by',
+            'status',
+            'moderation_status',
+            'moderation_reason',
+            'moderated_by',
+            'moderated_at',
+            'published_at',
+            'updated_at',
+        ])
+
+        MediaAnalysisReport.objects.update_or_create(
+            asset=asset,
+            defaults={
+                'status': 'pending',
+                'error_message': '',
+                'flags': [],
+                'moderation_scores': {},
+                'detected_events': [],
+                'technical_metadata': {},
+                'analyzed_at': None,
+            },
+        )
+
+        analyze_video_asset.delay(str(asset.id))
+
+        if asset.content.producer:
+            notify_user(
+                asset.content.producer,
+                'video_uploaded',
+                data={
+                    'asset_id': str(asset.id),
+                    'content_id': str(
+                        asset.content_id
+                    ),
+                },
+            )
+
+        return Response(
+            self.get_serializer(asset).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='source-multipart-abort',
+    )
+    def source_multipart_abort(
+        self,
+        request,
+        pk=None,
+    ):
+        asset = self.get_object()
+
+        payload = self._source_multipart_payload(
+            request,
+            asset,
+        )
+
+        abort_source_multipart_upload(
+            client=minio_internal_client(),
+            bucket=payload['bucket'],
+            object_key=payload['object_key'],
+            upload_id=payload['upload_id'],
+        )
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT
         )
 
     @action(

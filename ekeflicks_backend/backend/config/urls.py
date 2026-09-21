@@ -23,6 +23,7 @@ def health_check(_request):
 
 
 urlpatterns = [
+    path('api/v1/', include('apps.salons.urls')),
     path('', health_check, name='health_check'),
     path('health/', health_check, name='health'),
     path('cdn/<path:media_path>', cdn_media, name='cdn-media'),

@@ -71,7 +71,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final _navigatorKey = GlobalKey<NavigatorState>();
   final Uri _launchUri = Uri.base;
   bool _initialLinkSeen = false;
@@ -81,8 +81,40 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initDeepLinks();
     _initializeApp();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final profileProvider = Provider.of<ProfileProvider>(
+      context,
+      listen: false,
+    );
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        profileProvider.appSessionAnalytics.onForeground();
+        break;
+
+      // `inactive` can be a transient loss of focus and must not
+      // fragment an application analytics session.
+      case AppLifecycleState.inactive:
+        break;
+
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        profileProvider.appSessionAnalytics.onBackground();
+        break;
+    }
   }
 
   Future<void> _initializeApp() async {

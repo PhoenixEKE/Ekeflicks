@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_producteurs/widgets/producer_modal_shell.dart';
 
 class AddSeasonModal extends StatefulWidget {
   final int nextSeasonNumber;
@@ -226,150 +227,130 @@ class _AddSeasonModalState extends State<AddSeasonModal> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 600,
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    return ProducerModalShell(
+      title: 'Ajouter la Saison ${widget.nextSeasonNumber}',
+      maxWidth: 600,
+      maxHeight: MediaQuery.of(context).size.height * 0.9,
+      bodyPadding: const EdgeInsets.all(16.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    // Informations de base
+                    TextFormField(
+                      controller: _titleController,
+                      decoration: InputDecoration(
+                        labelText: 'Titre de la saison',
+                        hintText: 'Ex: Saison ${widget.nextSeasonNumber}',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: AppTheme.cardBackground,
+                        labelStyle: TextStyle(color: AppTheme.textSecondary),
+                      ),
+                      style: TextStyle(color: AppTheme.textPrimary),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Le titre est obligatoire';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      controller: _descController,
+                      decoration: InputDecoration(
+                        labelText: 'Description',
+                        hintText: 'Description de la saison...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: AppTheme.cardBackground,
+                        labelStyle: TextStyle(color: AppTheme.textSecondary),
+                      ),
+                      style: TextStyle(color: AppTheme.textPrimary),
+                      maxLines: 4,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Upload des médias
+                    _buildFileUploadSection(
+                      title: 'Affiche (Poster)',
+                      filePath: _posterPath,
+                      isUploading: _isUploadingPoster,
+                      onUpload: () => _pickImage('poster'),
+                      onRemove: () => _removeFile('poster'),
+                      icon: Icons.photo,
+                      fileType: 'l\'affiche',
+                    ),
+
+                    _buildFileUploadSection(
+                      title: 'Bannière',
+                      filePath: _bannerPath,
+                      isUploading: _isUploadingBanner,
+                      onUpload: () => _pickImage('banner'),
+                      onRemove: () => _removeFile('banner'),
+                      icon: Icons.photo_library,
+                      fileType: 'la bannière',
+                    ),
+
+                    _buildFileUploadSection(
+                      title: 'Bande-annonce',
+                      filePath: _trailerPath,
+                      isUploading: _isUploadingTrailer,
+                      onUpload: () => _pickImage('trailer'),
+                      onRemove: () => _removeFile('trailer'),
+                      icon: Icons.video_library,
+                      fileType: 'la bande-annonce',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Text(
-                'Ajouter la Saison ${widget.nextSeasonNumber}',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary,
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  l10n.cancel,
+                  style: TextStyle(color: AppTheme.primary),
                 ),
               ),
-              const SizedBox(height: 16),
-
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        // Informations de base
-                        TextFormField(
-                          controller: _titleController,
-                          decoration: InputDecoration(
-                            labelText: 'Titre de la saison',
-                            hintText: 'Ex: Saison ${widget.nextSeasonNumber}',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            filled: true,
-                            fillColor: AppTheme.cardBackground,
-                            labelStyle: TextStyle(
-                              color: AppTheme.textSecondary,
-                            ),
-                          ),
-                          style: TextStyle(color: AppTheme.textPrimary),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Le titre est obligatoire';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        TextFormField(
-                          controller: _descController,
-                          decoration: InputDecoration(
-                            labelText: 'Description',
-                            hintText: 'Description de la saison...',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            filled: true,
-                            fillColor: AppTheme.cardBackground,
-                            labelStyle: TextStyle(
-                              color: AppTheme.textSecondary,
-                            ),
-                          ),
-                          style: TextStyle(color: AppTheme.textPrimary),
-                          maxLines: 4,
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Upload des médias
-                        _buildFileUploadSection(
-                          title: 'Affiche (Poster)',
-                          filePath: _posterPath,
-                          isUploading: _isUploadingPoster,
-                          onUpload: () => _pickImage('poster'),
-                          onRemove: () => _removeFile('poster'),
-                          icon: Icons.photo,
-                          fileType: 'l\'affiche',
-                        ),
-
-                        _buildFileUploadSection(
-                          title: 'Bannière',
-                          filePath: _bannerPath,
-                          isUploading: _isUploadingBanner,
-                          onUpload: () => _pickImage('banner'),
-                          onRemove: () => _removeFile('banner'),
-                          icon: Icons.photo_library,
-                          fileType: 'la bannière',
-                        ),
-
-                        _buildFileUploadSection(
-                          title: 'Bande-annonce',
-                          filePath: _trailerPath,
-                          isUploading: _isUploadingTrailer,
-                          onUpload: () => _pickImage('trailer'),
-                          onRemove: () => _removeFile('trailer'),
-                          icon: Icons.video_library,
-                          fileType: 'la bande-annonce',
-                        ),
-                      ],
-                    ),
-                  ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  if (_formKey.currentState!.validate()) {
+                    widget.onAddSeason(
+                      _titleController.text,
+                      _descController.text,
+                      _posterPath,
+                      _bannerPath,
+                      _trailerPath,
+                    );
+                    Navigator.pop(context);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: AppTheme.textPrimary,
                 ),
-              ),
-
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      l10n.cancel,
-                      style: TextStyle(color: AppTheme.primary),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        widget.onAddSeason(
-                          _titleController.text,
-                          _descController.text,
-                          _posterPath,
-                          _bannerPath,
-                          _trailerPath,
-                        );
-                        Navigator.pop(context);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      foregroundColor: AppTheme.textPrimary,
-                    ),
-                    child: Text('Ajouter la saison'),
-                  ),
-                ],
+                child: Text('Ajouter la saison'),
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }

@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from apps.playback.views import (
     CustomListViewSet,
     FavoriteViewSet,
+    LikeViewSet,
     ListItemViewSet,
     RatingViewSet,
     ViewingSessionViewSet,
@@ -12,6 +13,7 @@ from apps.playback.views import (
 
 router = DefaultRouter()
 router.register('favorites', FavoriteViewSet, basename='favorite')
+router.register('likes', LikeViewSet, basename='like')
 router.register('watch-history', WatchHistoryViewSet, basename='watch-history')
 router.register('ratings', RatingViewSet, basename='rating')
 router.register('lists', CustomListViewSet, basename='custom-list')

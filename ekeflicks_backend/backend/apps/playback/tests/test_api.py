@@ -2,7 +2,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from core.models import Content, Favorite, Profile, User, WatchHistory
+from core.models import Content, Favorite, Like, Profile, User, WatchHistory
 
 
 class PlaybackApiTests(APITestCase):
@@ -107,3 +107,116 @@ class PlaybackApiTests(APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['content']['id'], str(self.content.id))
         self.assertEqual(response.data[0]['progress'], 35)
+
+
+class LikeAPITests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='like-user@example.com',
+            password='TestPassword123!',
+        )
+        self.other_user = User.objects.create_user(
+            email='like-other@example.com',
+            password='TestPassword123!',
+        )
+
+        self.profile = self.user.profiles.first()
+        self.other_profile = self.other_user.profiles.first()
+
+        self.content = Content.objects.create(
+            title='Like Test Content',
+            type='movie',
+        )
+
+        self.client.force_authenticate(self.user)
+
+    def test_like_can_be_created_for_own_profile(self):
+        response = self.client.post(
+            reverse('like-list'),
+            {
+                'profile_id': self.profile.id,
+                'content_id': self.content.id,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            Like.objects.filter(
+                profile=self.profile,
+                content=self.content,
+            ).count(),
+            1,
+        )
+
+    def test_like_rejects_profile_owned_by_another_user(self):
+        response = self.client.post(
+            reverse('like-list'),
+            {
+                'profile_id': self.other_profile.id,
+                'content_id': self.content.id,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(
+            Like.objects.filter(
+                profile=self.other_profile,
+                content=self.content,
+            ).exists()
+        )
+
+    def test_duplicate_like_does_not_create_duplicate(self):
+        Like.objects.create(
+            profile=self.profile,
+            content=self.content,
+        )
+
+        response = self.client.post(
+            reverse('like-list'),
+            {
+                'profile_id': self.profile.id,
+                'content_id': self.content.id,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            Like.objects.filter(
+                profile=self.profile,
+                content=self.content,
+            ).count(),
+            1,
+        )
+
+    def test_like_can_be_deleted(self):
+        like = Like.objects.create(
+            profile=self.profile,
+            content=self.content,
+        )
+
+        response = self.client.delete(
+            reverse('like-detail', kwargs={'pk': like.pk}),
+        )
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(
+            Like.objects.filter(pk=like.pk).exists()
+        )
+
+    def test_user_cannot_delete_another_users_like(self):
+        like = Like.objects.create(
+            profile=self.other_profile,
+            content=self.content,
+        )
+
+        response = self.client.delete(
+            reverse('like-detail', kwargs={'pk': like.pk}),
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(
+            Like.objects.filter(pk=like.pk).exists()
+        )

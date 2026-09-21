@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/models/series_models.dart';
+import 'package:plateforme_producteurs/widgets/producer_modal_shell.dart';
+import '../../widgets/producer_sheet_header.dart';
 
 class SeriesDetailsModal extends StatefulWidget {
   final Series series;
@@ -52,6 +54,12 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
         child: CustomScrollView(
           controller: controller,
           slivers: [
+            SliverToBoxAdapter(
+              child: ProducerSheetHeader(
+                title: _currentSeries.title,
+                onClose: () => Navigator.of(context).pop(),
+              ),
+            ),
             SliverAppBar(
               expandedHeight: 200,
               flexibleSpace: FlexibleSpaceBar(
@@ -620,13 +628,27 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
   void _showVideoPlayer(BuildContext context, Episode episode) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardBackground,
-        title: Text(
-          episode.title,
-          style: TextStyle(color: AppTheme.textPrimary),
-        ),
-        content: Column(
+      builder: (context) => ProducerModalShell(
+        title: episode.title,
+        maxWidth: 680,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Fermer', style: TextStyle(color: AppTheme.primary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Action pour lire la vidéo
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              foregroundColor: AppTheme.textPrimary,
+            ),
+            child: Text('Lire la vidéo'),
+          ),
+        ],
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
@@ -677,23 +699,6 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
             ],
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Fermer', style: TextStyle(color: AppTheme.primary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // Action pour lire la vidéo
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
-              foregroundColor: AppTheme.textPrimary,
-            ),
-            child: Text('Lire la vidéo'),
-          ),
-        ],
       ),
     );
   }
@@ -828,22 +833,19 @@ class _SeriesDetailsModalState extends State<SeriesDetailsModal> {
   void _showEditSeriesDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardBackground,
-        title: Text(
-          'Modifier la série',
-          style: TextStyle(color: AppTheme.textPrimary),
-        ),
-        content: Text(
-          'La fonctionnalité de modification arrive bientôt!',
-          style: TextStyle(color: AppTheme.textSecondary),
-        ),
+      builder: (context) => ProducerModalShell(
+        title: 'Modifier la série',
+        maxWidth: 520,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Fermer', style: TextStyle(color: AppTheme.primary)),
           ),
         ],
+        child: Text(
+          'La fonctionnalité de modification arrive bientôt!',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
       ),
     );
   }

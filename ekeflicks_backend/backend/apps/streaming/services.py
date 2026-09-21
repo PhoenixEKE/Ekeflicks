@@ -110,6 +110,64 @@ def store_video_source(asset, uploaded_file, uploader=None):
     return asset
 
 
+def delete_video_asset_source(asset):
+    """
+    Supprime best-effort le master source temporaire
+    associe a un VideoAsset.
+
+    La suppression du stockage ne doit jamais bloquer
+    la suppression de l objet en base.
+    """
+    source_path = str(
+        getattr(asset, 'source_file_path', '') or ''
+    ).strip()
+
+    if not source_path:
+        return {
+            'deleted': 0,
+            'errors': 0,
+        }
+
+    try:
+        if default_storage.exists(source_path):
+            default_storage.delete(source_path)
+
+            return {
+                'deleted': 1,
+                'errors': 0,
+            }
+
+        return {
+            'deleted': 0,
+            'errors': 0,
+        }
+    except Exception:
+        return {
+            'deleted': 0,
+            'errors': 1,
+        }
+
+
+
+
+def delete_video_asset_sources(assets):
+    """
+    Supprime best-effort les masters sources temporaires
+    d'une collection de VideoAsset.
+    """
+    deleted = 0
+    errors = 0
+
+    for asset in assets:
+        result = delete_video_asset_source(asset)
+        deleted += result['deleted']
+        errors += result['errors']
+
+    return {
+        'deleted': deleted,
+        'errors': errors,
+    }
+
 def _urlsafe_hmac(secret, payload):
     digest = hmac.new(
         str(secret).encode('utf-8'),

@@ -1,16 +1,27 @@
 from pathlib import Path
 from django.conf import settings
 from django.core import signing
+from django.core.exceptions import ObjectDoesNotExist
+from apps.catalog.draft_cleanup import (
+    delete_draft_temporary_media,
+    delete_season_temporary_media,
+)
 from django.db.models import Count, Q
 from django.utils import timezone
+from django.utils.text import slugify
 from rest_framework import exceptions, filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
+from apps.catalog.submission_conformity import (
+    validate_content_video_conformity_for_submission,
+)
 from apps.catalog.media_services import (
+    cleanup_approved_content_temporary_media,
     promote_content_media_to_final,
     store_content_media_temp,
+    store_season_media_temp,
 )
 from apps.catalog.experience_services import (
     apply_advanced_search_filters,
@@ -39,6 +50,11 @@ from apps.catalog.serializers import (
     SeasonSerializer,
 )
 from apps.common.api import is_int, is_true, paginate
+from apps.common.media_storage import (
+    dated_path,
+    safe_extension,
+    save_internal_upload,
+)
 from apps.common.minio_storage import (
     minio_internal_client,
     minio_public_upload_client,
@@ -50,7 +66,16 @@ from apps.common.permissions import (
     is_producer_user,
 )
 from apps.notifications.services import notify_staff, notify_user
-from core.models import Content, ContentSimilarity, ContentStatus, Emission, Episode, Genre, Profile, Season, VideoAsset
+from apps.streaming.services import delete_video_asset_sources
+from core.models import Content, ContentSimilarity, ContentStatus, Emission, Episode, Genre, Profile, Season, TechnicalSpecification, VideoAsset
+from apps.catalog.trailer_analysis import schedule_trailer_analysis as _schedule_trailer_analysis
+from apps.catalog.trailer_analysis import retry_trailer_analysis as _retry_trailer_analysis
+from apps.catalog.xml_metadata import (
+    MAX_XML_SIZE_BYTES,
+    XmlMetadataError,
+    parse_xml_metadata_bytes,
+    validate_xml_upload_metadata,
+)
 
 
 class GenreViewSet(viewsets.ModelViewSet):
@@ -83,6 +108,68 @@ class ContentStatusViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     ordering_fields = ['name']
     ordering = ['name']
+
+
+
+def _producer_temp_media_preview_url(
+    *,
+    temporary_path,
+    allowed_paths,
+    expected_prefix,
+    expected_content_segment,
+):
+    """
+    Return a short-lived authenticated preview URL for an
+    already-authorized producer TEMP media object.
+
+    The API remains the storage boundary:
+    callers never construct MinIO/B2 URLs themselves.
+    """
+    temporary_path = str(temporary_path or '').strip()
+
+    if not temporary_path:
+        raise exceptions.ValidationError({
+            'path': 'Le chemin temporaire du média est obligatoire.'
+        })
+
+    normalized_allowed_paths = {
+        str(value or '').strip()
+        for value in allowed_paths
+        if str(value or '').strip()
+    }
+
+    if temporary_path not in normalized_allowed_paths:
+        raise exceptions.PermissionDenied(
+            'Ce média temporaire n’appartient pas à cette ressource.'
+        )
+
+    if (
+        not temporary_path.startswith(expected_prefix)
+        or expected_content_segment not in temporary_path
+    ):
+        raise exceptions.PermissionDenied(
+            'Chemin de média temporaire invalide.'
+        )
+
+    expires_in = 900
+
+    preview_url = (
+        minio_public_upload_client()
+        .generate_presigned_url(
+            ClientMethod='get_object',
+            Params={
+                'Bucket': settings.MINIO_BUCKET,
+                'Key': temporary_path,
+            },
+            ExpiresIn=expires_in,
+            HttpMethod='GET',
+        )
+    )
+
+    return {
+        'preview_url': preview_url,
+        'expires_in': expires_in,
+    }
 
 
 class ContentViewSet(viewsets.ModelViewSet):
@@ -120,7 +207,7 @@ class ContentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = (
-            Content.objects.select_related('status', 'producer', 'reviewed_by')
+            Content.objects.select_related('status', 'producer', 'reviewed_by', 'technical_specification')
             .prefetch_related('genres', 'emissions', 'seasons__episodes')
             .all()
         )
@@ -240,9 +327,60 @@ class ContentViewSet(viewsets.ModelViewSet):
             reviewed_at=None,
         )
 
+    def perform_destroy(self, instance):
+        # Le staff conserve le comportement administratif standard.
+        if self.request.user.is_staff:
+            instance.delete()
+            return
+
+        self._require_producer_role(self.request)
+
+        if instance.producer_id != self.request.user.id:
+            raise exceptions.PermissionDenied(
+                'Ce contenu appartient à un autre producteur.'
+            )
+
+        if instance.producer_submission_status != 'draft':
+            raise exceptions.ValidationError({
+                'producer_submission_status': (
+                    'Seul un brouillon peut être supprimé par son producteur.'
+                )
+            })
+
+        delete_draft_temporary_media(instance)
+
+        delete_video_asset_sources(
+            instance.video_assets.all()
+        )
+
+        instance.delete()
+
     def _require_producer_role(self, request):
         if not is_producer_user(request.user):
             raise exceptions.PermissionDenied('Un compte producteur est requis.')
+
+    def _ensure_team_media_upload_allowed(
+        self,
+        request,
+        content,
+    ):
+        if request.user.is_staff:
+            return
+
+        self._require_producer_role(request)
+
+        if content.producer_id != request.user.id:
+            raise exceptions.PermissionDenied(
+                'Ce contenu appartient à un autre producteur.'
+            )
+
+        if content.producer_submission_status != 'draft':
+            raise exceptions.ValidationError({
+                'producer_submission_status': (
+                    'Les photos de l’équipe ne peuvent être '
+                    'modifiées que pendant l’état brouillon.'
+                )
+            })
 
     def _producer_queryset(self, request):
         self._require_producer_role(request)
@@ -253,6 +391,243 @@ class ContentViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(producer_id=producer_id)
             return queryset
         return queryset.filter(producer=request.user)
+
+    @action(
+        detail=False,
+        methods=['post'],
+        url_path='xml-metadata-preview',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def xml_metadata_preview(self, request):
+        """
+        Parse an EKEFLICKS Metadata XML document and return a
+        normalized preview.
+
+        This endpoint is deliberately read-only with regard to
+        Content / Season / Episode / Genre business data:
+        - no content save;
+        - no season/episode creation;
+        - no automatic submission;
+        - no XML permanent storage;
+        - no Celery / technical QC trigger.
+        """
+
+        uploaded_file = request.FILES.get('file')
+
+        if uploaded_file is None:
+            return Response(
+                {
+                    'code': 'xml_missing',
+                    'detail': (
+                        'Le fichier XML de métadonnées est obligatoire.'
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        content_id = str(
+            request.data.get('content_id') or ''
+        ).strip()
+
+        if content_id:
+            content = (
+                Content.objects
+                .select_related('producer')
+                .filter(pk=content_id)
+                .first()
+            )
+
+            if content is None:
+                raise exceptions.NotFound(
+                    'Le brouillon indiqué est introuvable.'
+                )
+
+            if not request.user.is_staff:
+                self._require_producer_role(request)
+
+                if content.producer_id != request.user.id:
+                    raise exceptions.PermissionDenied(
+                        'Ce contenu appartient à un autre producteur.'
+                    )
+
+            if content.producer_submission_status != 'draft':
+                raise exceptions.ValidationError({
+                    'content_id': (
+                        'L’import XML avec content_id est autorisé '
+                        'uniquement pour un brouillon.'
+                    )
+                })
+
+        try:
+            validate_xml_upload_metadata(
+                filename=getattr(
+                    uploaded_file,
+                    'name',
+                    '',
+                ),
+                content_type=getattr(
+                    uploaded_file,
+                    'content_type',
+                    None,
+                ),
+                size=getattr(
+                    uploaded_file,
+                    'size',
+                    0,
+                ),
+            )
+
+            payload = uploaded_file.read(
+                MAX_XML_SIZE_BYTES + 1
+            )
+
+            preview = parse_xml_metadata_bytes(
+                payload
+            ).as_dict()
+
+        except XmlMetadataError as exc:
+            return Response(
+                {
+                    'code': exc.code,
+                    'detail': exc.message,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        recognized = preview.get(
+            'recognized'
+        )
+
+        if not isinstance(recognized, dict):
+            recognized = {}
+            preview['recognized'] = recognized
+
+        content_preview = recognized.get(
+            'content'
+        )
+
+        if not isinstance(content_preview, dict):
+            content_preview = {}
+            recognized['content'] = content_preview
+
+        raw_genres = content_preview.get(
+            'genres'
+        )
+
+        if not isinstance(raw_genres, list):
+            raw_genres = []
+
+        genre_rows = list(
+            Genre.objects
+            .only(
+                'id',
+                'name',
+                'slug',
+            )
+            .order_by('id')
+        )
+
+        genres_by_name = {
+            str(genre.name).strip().casefold(): genre
+            for genre in genre_rows
+        }
+
+        genres_by_slug = {
+            str(genre.slug).strip().casefold(): genre
+            for genre in genre_rows
+        }
+
+        normalized_genres = []
+        genre_ids = []
+        genre_matches = []
+        unresolved_genres = []
+
+        for raw_value in raw_genres:
+            value = str(
+                raw_value or ''
+            ).strip()
+
+            if not value:
+                continue
+
+            genre = genres_by_name.get(
+                value.casefold()
+            )
+
+            if genre is None:
+                genre = genres_by_slug.get(
+                    slugify(value).casefold()
+                )
+
+            if genre is None:
+                normalized_genres.append(
+                    value
+                )
+
+                unresolved_genres.append(
+                    value
+                )
+
+                preview.setdefault(
+                    'warnings',
+                    [],
+                ).append({
+                    'code': 'unresolved_genre',
+                    'field': 'genres',
+                    'value': value,
+                    'message': (
+                        'Le genre XML ne correspond à aucun '
+                        'genre EKEFLICKS existant.'
+                    ),
+                })
+
+                continue
+
+            canonical_name = str(
+                genre.name
+            ).strip()
+
+            normalized_genres.append(
+                canonical_name
+            )
+
+            genre_ids.append(
+                genre.id
+            )
+
+            genre_matches.append({
+                'input': value,
+                'id': genre.id,
+                'name': canonical_name,
+                'slug': genre.slug,
+            })
+
+        if raw_genres:
+            content_preview[
+                'genres'
+            ] = normalized_genres
+
+        content_preview[
+            'genre_ids'
+        ] = genre_ids
+
+        preview[
+            'genre_matches'
+        ] = genre_matches
+
+        preview[
+            'unresolved_genres'
+        ] = unresolved_genres
+
+        if content_id:
+            preview[
+                'content_id'
+            ] = content_id
+
+        return Response(
+            preview,
+            status=status.HTTP_200_OK,
+        )
 
     def _status_counts(self, queryset, field_name):
         return {
@@ -470,11 +845,480 @@ class ContentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_409_CONFLICT,
             )
 
+        metadata_errors = {}
+
+        if not str(content.title or '').strip():
+            metadata_errors['title'] = (
+                'Le titre est obligatoire.'
+            )
+
+        if not str(content.original_title or '').strip():
+            metadata_errors['original_title'] = (
+                'Le titre original est obligatoire.'
+            )
+
+        synopsis = str(content.synopsis or '').strip()
+
+        if not 150 <= len(synopsis) <= 300:
+            metadata_errors['synopsis'] = (
+                'Le synopsis court doit contenir '
+                'entre 150 et 300 caractères.'
+            )
+
+        description = str(
+            content.description or ''
+        ).strip()
+
+        if description and not 500 <= len(description) <= 1000:
+            metadata_errors['description'] = (
+                'Le synopsis long, lorsqu’il est renseigné, '
+                'doit contenir entre 500 et 1000 caractères.'
+            )
+
+        if not content.genres.exists():
+            metadata_errors['genres'] = (
+                'Ajoutez au moins un genre.'
+            )
+
+        if content.release_year is None:
+            metadata_errors['release_year'] = (
+                'L’année de production est obligatoire.'
+            )
+
+        if not str(content.director_name or '').strip():
+            metadata_errors['director_name'] = (
+                'Le réalisateur est obligatoire.'
+            )
+
+        if not str(content.screenwriter_name or '').strip():
+            metadata_errors['screenwriter_name'] = (
+                'Le scénariste est obligatoire.'
+            )
+
+        if not str(content.age_rating or '').strip():
+            metadata_errors['age_rating'] = (
+                'La classification est obligatoire.'
+            )
+
+        if (
+            content.type != 'series'
+            and (
+                content.duration is None
+                or content.duration <= 0
+            )
+        ):
+            metadata_errors['duration'] = (
+                'La durée exacte du film est obligatoire.'
+            )
+
+        if not str(content.language or '').strip():
+            metadata_errors['language'] = (
+                'La langue originale est obligatoire.'
+            )
+
+        audio_languages = (
+            content.audio_languages
+            if isinstance(content.audio_languages, list)
+            else []
+        )
+
+        valid_audio_languages = [
+            str(language).strip()
+            for language in audio_languages
+            if str(language).strip()
+        ]
+
+        if not valid_audio_languages:
+            metadata_errors['audio_languages'] = (
+                'Ajoutez au moins une langue audio.'
+            )
+
+        subtitle_languages = (
+            content.subtitle_languages
+            if isinstance(content.subtitle_languages, list)
+            else []
+        )
+
+        invalid_subtitle_languages = any(
+            not isinstance(language, str)
+            or not language.strip()
+            for language in subtitle_languages
+        )
+
+        if invalid_subtitle_languages:
+            metadata_errors['subtitle_languages'] = (
+                'Les langues de sous-titres '
+                'doivent être valides.'
+            )
+
+        if not str(content.country or '').strip():
+            metadata_errors['country'] = (
+                'Le pays d’origine est obligatoire.'
+            )
+
+        if metadata_errors:
+            return Response(
+                {'metadata': metadata_errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        producer_team = (
+            content.producer_team
+            if isinstance(content.producer_team, list)
+            else []
+        )
+
+        has_complete_producer = any(
+            isinstance(member, dict)
+            and str(member.get('name') or '').strip()
+            and (
+                str(member.get('image_temp_path') or '').strip()
+                or str(member.get('image_url') or '').strip()
+            )
+            for member in producer_team
+        )
+
+        if not has_complete_producer:
+            return Response(
+                {
+                    'producer_team': (
+                        'Ajoutez au moins un producteur avec '
+                        'son nom et sa photo avant la soumission.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cast_team = (
+            content.cast_team
+            if isinstance(content.cast_team, list)
+            else []
+        )
+
+        has_complete_actor = any(
+            isinstance(member, dict)
+            and str(member.get('name') or '').strip()
+            and (
+                str(member.get('image_temp_path') or '').strip()
+                or str(member.get('image_url') or '').strip()
+            )
+            for member in cast_team
+        )
+
+        if not has_complete_actor:
+            return Response(
+                {
+                    'cast_team': (
+                        'Ajoutez au moins un acteur avec '
+                        'son nom et sa photo avant la soumission.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if content.type == 'series':
+            seasons = list(
+                content.seasons.prefetch_related(
+                    'episodes__video_assets'
+                ).order_by('season_number')
+            )
+
+            if not seasons:
+                return Response(
+                    {
+                        'seasons': (
+                            'Ajoutez au moins une saison '
+                            'avant de soumettre la serie.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            seasons_without_description = [
+                season.season_number
+                for season in seasons
+                if not str(
+                    season.description or ''
+                ).strip()
+            ]
+
+            if seasons_without_description:
+                return Response(
+                    {
+                        'season_metadata': (
+                            'Chaque saison doit avoir '
+                            'un resume avant soumission. '
+                            'Saison(s) incomplete(s) : '
+                            + ', '.join(
+                                str(number)
+                                for number
+                                in seasons_without_description
+                            )
+                            + '.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            seasons_with_missing_media = []
+
+            for season in seasons:
+                missing_media = []
+
+                if not (
+                    str(
+                        season.poster_temp_path or ''
+                    ).strip()
+                    or str(
+                        season.poster_url or ''
+                    ).strip()
+                ):
+                    missing_media.append('poster')
+
+                if not (
+                    str(
+                        season.backdrop_temp_path or ''
+                    ).strip()
+                    or str(
+                        season.backdrop_url or ''
+                    ).strip()
+                ):
+                    missing_media.append('banniere')
+
+                if not (
+                    str(
+                        season.trailer_temp_path or ''
+                    ).strip()
+                    or str(
+                        season.trailer_url or ''
+                    ).strip()
+                ):
+                    missing_media.append('trailer')
+
+                if missing_media:
+                    seasons_with_missing_media.append(
+                        (
+                            season.season_number,
+                            missing_media,
+                        )
+                    )
+
+            if seasons_with_missing_media:
+                missing_labels = '; '.join(
+                    (
+                        f'Saison {season_number} : '
+                        + ', '.join(missing_media)
+                    )
+                    for (
+                        season_number,
+                        missing_media,
+                    ) in seasons_with_missing_media
+                )
+
+                return Response(
+                    {
+                        'season_media': (
+                            'Chaque saison doit avoir '
+                            'un poster, une banniere et '
+                            'un trailer avant soumission. '
+                            'Media(s) manquant(s) : '
+                            f'{missing_labels}.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            empty_seasons = [
+                season.season_number
+                for season in seasons
+                if not season.episodes.all()
+            ]
+
+            if empty_seasons:
+                return Response(
+                    {
+                        'episodes': (
+                            'Chaque saison doit contenir '
+                            'au moins un episode. '
+                            'Saison(s) incomplete(s) : '
+                            + ', '.join(
+                                str(number)
+                                for number in empty_seasons
+                            )
+                            + '.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            episodes_with_missing_metadata = []
+
+            for season in seasons:
+                for episode in season.episodes.all():
+                    missing_metadata = []
+
+                    if not str(
+                        episode.title or ''
+                    ).strip():
+                        missing_metadata.append('titre')
+
+                    if not str(
+                        episode.description or ''
+                    ).strip():
+                        missing_metadata.append('description')
+
+                    if (
+                        episode.duration is None
+                        or episode.duration <= 0
+                    ):
+                        missing_metadata.append('durée')
+
+                    if missing_metadata:
+                        episodes_with_missing_metadata.append(
+                            (
+                                season.season_number,
+                                episode.episode_number,
+                                missing_metadata,
+                            )
+                        )
+
+            if episodes_with_missing_metadata:
+                missing_labels = '; '.join(
+                    (
+                        f'S{season_number}'
+                        f'E{episode_number} : '
+                        + ', '.join(missing_metadata)
+                    )
+                    for (
+                        season_number,
+                        episode_number,
+                        missing_metadata,
+                    ) in episodes_with_missing_metadata
+                )
+
+                return Response(
+                    {
+                        'episode_metadata': (
+                            'Chaque épisode doit avoir '
+                            'un titre, une description et '
+                            'une durée exacte avant soumission. '
+                            'Métadonnée(s) manquante(s) : '
+                            f'{missing_labels}.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            episodes_without_video = []
+
+            for season in seasons:
+                for episode in season.episodes.all():
+                    has_uploaded_source = any(
+                        (
+                            asset.source_uploaded_at
+                            is not None
+                            and (
+                                asset.source_file_size_bytes
+                                or 0
+                            ) > 0
+                            and bool(
+                                str(
+                                    asset.source_file_path
+                                    or ''
+                                ).strip()
+                                or str(
+                                    asset.source_file_url
+                                    or ''
+                                ).strip()
+                            )
+                        )
+                        for asset
+                        in episode.video_assets.all()
+                    )
+
+                    if not has_uploaded_source:
+                        episodes_without_video.append(
+                            (
+                                season.season_number,
+                                episode.episode_number,
+                            )
+                        )
+
+            if episodes_without_video:
+                missing_labels = ', '.join(
+                    (
+                        f'S{season_number}'
+                        f'E{episode_number}'
+                    )
+                    for (
+                        season_number,
+                        episode_number,
+                    ) in episodes_without_video
+                )
+
+                return Response(
+                    {
+                        'episode_videos': (
+                            'Chaque episode doit avoir '
+                            'une video master entierement '
+                            'uploadee avant soumission. '
+                            'Episode(s) incomplet(s) : '
+                            f'{missing_labels}.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         if not content.producer_id and not request.user.is_staff:
             content.producer = request.user
         content.producer_notes = serializer.validated_data.get(
             'producer_notes',
             content.producer_notes,
+        )
+        technical_specification = (
+            TechnicalSpecification.objects
+            .filter(is_published=True)
+            .order_by(
+                '-published_at',
+                '-created_at',
+            )
+            .first()
+        )
+
+        if technical_specification is None:
+            return Response(
+                {
+                    'detail': (
+                        'Aucun cahier des charges technique '
+                        'n\'est actuellement publié. '
+                        'La soumission est temporairement '
+                        'indisponible.'
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        technical_conformity_error = (
+            validate_content_video_conformity_for_submission(
+                content,
+                technical_specification,
+            )
+        )
+
+        if technical_conformity_error:
+            return Response(
+                {
+                    'technical_conformity':
+                        technical_conformity_error,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        content.technical_specification = (
+            technical_specification
+        )
+        content.technical_specification_version = (
+            technical_specification.version
         )
         content.producer_submission_status = 'pending'
         content.submitted_at = timezone.now()
@@ -484,6 +1328,8 @@ class ContentViewSet(viewsets.ModelViewSet):
         content.save(update_fields=[
             'producer',
             'producer_notes',
+            'technical_specification',
+            'technical_specification_version',
             'producer_submission_status',
             'submitted_at',
             'review_reason',
@@ -551,6 +1397,15 @@ class ContentViewSet(viewsets.ModelViewSet):
             'updated_at',
         ])
 
+        # Le contenu est maintenant approuvé et les URLs FINAL
+        # ont déjà été persistées. Le nettoyage TEMP est donc
+        # volontairement best-effort et ne peut plus casser
+        # l'approbation.
+        try:
+            cleanup_approved_content_temporary_media(content)
+        except Exception:
+            pass
+
         if content.producer:
             notify_user(
                 content.producer,
@@ -613,6 +1468,347 @@ class ContentViewSet(viewsets.ModelViewSet):
         )
         serializer = ContentListSerializer(queryset, many=True, context=self.get_serializer_context())
         return Response(serializer.data)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='media-preview',
+    )
+    def media_preview(self, request, pk=None):
+        content = self.get_object()
+
+        if not request.user.is_staff:
+            self._require_producer_role(request)
+
+            if content.producer_id != request.user.id:
+                raise exceptions.PermissionDenied(
+                    'Ce contenu appartient à un autre producteur.'
+                )
+
+        temporary_path = str(
+            request.query_params.get('path') or ''
+        ).strip()
+
+        allowed_paths = {
+            content.poster_temp_path,
+            content.backdrop_temp_path,
+            content.trailer_temp_path,
+        }
+
+        producer_id = content.producer_id or request.user.id
+
+        payload = _producer_temp_media_preview_url(
+            temporary_path=temporary_path,
+            allowed_paths=allowed_paths,
+            expected_prefix=f'uploads/producer_{producer_id}/',
+            expected_content_segment=f'content_{content.id}/',
+        )
+
+        return Response(payload)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='team-image-preview',
+    )
+    def team_image_preview(self, request, pk=None):
+        content = self.get_object()
+
+        if not request.user.is_staff:
+            self._require_producer_role(request)
+
+            if content.producer_id != request.user.id:
+                raise exceptions.PermissionDenied(
+                    'Ce contenu appartient à un autre producteur.'
+                )
+
+        temporary_path = str(
+            request.query_params.get('path') or ''
+        ).strip()
+
+        if not temporary_path:
+            raise exceptions.ValidationError({
+                'path': (
+                    'Le chemin temporaire de la photo '
+                    'est obligatoire.'
+                )
+            })
+
+        producer_team = (
+            content.producer_team
+            if isinstance(content.producer_team, list)
+            else []
+        )
+
+        cast_team = (
+            content.cast_team
+            if isinstance(content.cast_team, list)
+            else []
+        )
+
+        team_members = producer_team + cast_team
+
+        allowed_paths = {
+            str(member.get('image_temp_path') or '').strip()
+            for member in team_members
+            if isinstance(member, dict)
+            and str(
+                member.get('image_temp_path') or ''
+            ).strip()
+        }
+
+        director_temp_path = str(
+            content.director_image_temp_path or ''
+        ).strip()
+
+        screenwriter_temp_path = str(
+            content.screenwriter_image_temp_path or ''
+        ).strip()
+
+        if director_temp_path:
+            allowed_paths.add(director_temp_path)
+
+        if screenwriter_temp_path:
+            allowed_paths.add(screenwriter_temp_path)
+
+        if temporary_path not in allowed_paths:
+            raise exceptions.PermissionDenied(
+                'Cette photo ne fait pas partie '
+                'de l’équipe de ce contenu.'
+            )
+
+        producer_id = content.producer_id or request.user.id
+
+        expected_prefix = (
+            f'uploads/producer_{producer_id}/'
+        )
+
+        expected_content_segment = (
+            f'/content_{content.id}/team/'
+        )
+
+        if (
+            not temporary_path.startswith(expected_prefix)
+            or expected_content_segment not in temporary_path
+        ):
+            raise exceptions.PermissionDenied(
+                'Chemin de photo temporaire invalide.'
+            )
+
+        expires_in = 900
+
+        preview_url = (
+            minio_public_upload_client()
+            .generate_presigned_url(
+                ClientMethod='get_object',
+                Params={
+                    'Bucket': settings.MINIO_BUCKET,
+                    'Key': temporary_path,
+                },
+                ExpiresIn=expires_in,
+                HttpMethod='GET',
+            )
+        )
+
+        return Response({
+            'preview_url': preview_url,
+            'expires_in': expires_in,
+        })
+
+    def _upload_primary_person_image(
+        self,
+        request,
+        content,
+        role,
+    ):
+        self._ensure_team_media_upload_allowed(
+            request,
+            content,
+        )
+
+        serializer = ContentMediaUploadSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        uploaded_file = serializer.validated_data['file']
+
+        extension = safe_extension(
+            getattr(uploaded_file, 'name', ''),
+            '.jpg',
+        )
+
+        allowed_extensions = {
+            '.jpg',
+            '.jpeg',
+            '.png',
+            '.webp',
+        }
+
+        if extension not in allowed_extensions:
+            raise exceptions.ValidationError({
+                'file': (
+                    'Extension de photo non autorisée: '
+                    f'{extension}'
+                )
+            })
+
+        if role == 'director':
+            temp_field = 'director_image_temp_path'
+            final_field = 'director_image_url'
+        elif role == 'screenwriter':
+            temp_field = 'screenwriter_image_temp_path'
+            final_field = 'screenwriter_image_url'
+        else:
+            raise exceptions.ValidationError({
+                'role': 'Rôle de personne invalide.'
+            })
+
+        producer_id = (
+            content.producer_id
+            or request.user.id
+        )
+
+        import uuid
+
+        image_id = uuid.uuid4().hex
+
+        internal_path = (
+            f'uploads/producer_{producer_id}/'
+            f'{dated_path()}/'
+            f'content_{content.id}/'
+            f'team/{role}_{image_id}{extension}'
+        )
+
+        saved_path = save_internal_upload(
+            uploaded_file=uploaded_file,
+            storage_path=internal_path,
+        )
+
+        setattr(content, temp_field, saved_path)
+
+        # Une nouvelle photo TEMP invalide l'ancienne URL FINAL.
+        setattr(content, final_field, '')
+
+        content.save(update_fields=[
+            temp_field,
+            final_field,
+            'updated_at',
+        ])
+
+        return Response(
+            {
+                'media_type': f'{role}_image',
+                'temporary_path': saved_path,
+                'url': '',
+                'storage': 'temporary',
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='upload-director-image',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_director_image(self, request, pk=None):
+        content = self.get_object()
+        return self._upload_primary_person_image(
+            request,
+            content,
+            'director',
+        )
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='upload-screenwriter-image',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_screenwriter_image(self, request, pk=None):
+        content = self.get_object()
+        return self._upload_primary_person_image(
+            request,
+            content,
+            'screenwriter',
+        )
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='upload-team-image',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_team_image(self, request, pk=None):
+        content = self.get_object()
+
+        self._ensure_team_media_upload_allowed(
+            request,
+            content,
+        )
+
+        serializer = ContentMediaUploadSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        uploaded_file = serializer.validated_data['file']
+
+        extension = safe_extension(
+            getattr(uploaded_file, 'name', ''),
+            '.jpg',
+        )
+
+        allowed_extensions = {
+            '.jpg',
+            '.jpeg',
+            '.png',
+            '.webp',
+        }
+
+        if extension not in allowed_extensions:
+            raise exceptions.ValidationError({
+                'file': (
+                    'Extension de photo non autorisée: '
+                    f'{extension}'
+                )
+            })
+
+        producer_id = (
+            content.producer_id
+            or request.user.id
+        )
+
+        import uuid
+
+        image_id = uuid.uuid4().hex
+
+        internal_path = (
+            f'uploads/producer_{producer_id}/'
+            f'{dated_path()}/'
+            f'content_{content.id}/'
+            f'team/{image_id}{extension}'
+        )
+
+        saved_path = save_internal_upload(
+            uploaded_file=uploaded_file,
+            storage_path=internal_path,
+        )
+
+        # L'upload d'une photo constitue une activité
+        # sur le brouillon.
+        content.save(update_fields=['updated_at'])
+
+        return Response(
+            {
+                'media_type': 'team_image',
+                'temporary_path': saved_path,
+                'url': '',
+                'storage': 'temporary',
+            },
+            status=status.HTTP_200_OK,
+        )
 
     def _upload_media(self, request, media_type):
         content = self.get_object()
@@ -962,6 +2158,7 @@ class ContentViewSet(viewsets.ModelViewSet):
                 'updated_at',
             ]
         )
+        _schedule_trailer_analysis(content)
 
         return Response({
             'media_type': 'trailer',
@@ -971,6 +2168,58 @@ class ContentViewSet(viewsets.ModelViewSet):
             'url': '',
             'storage': 'temporary',
             'size_bytes': stored_size,
+        })
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='trailer-analysis-retry',
+    )
+    def trailer_analysis_retry(self, request, pk=None):
+        content = self.get_object()
+
+        self._ensure_trailer_direct_upload_allowed(
+            request,
+            content,
+        )
+
+        if not content.trailer_temp_path:
+            raise exceptions.ValidationError({
+                'trailer': (
+                    'Aucun trailer temporaire '
+                    'n’est disponible pour cette analyse.'
+                )
+            })
+
+        try:
+            report = content.trailer_analysis_report
+        except ObjectDoesNotExist as exc:
+            raise exceptions.ValidationError({
+                'trailer_analysis_status': (
+                    'Aucune analyse trailer '
+                    'ne peut être relancée.'
+                )
+            }) from exc
+
+        if report.status != report.STATUS_FAILED:
+            raise exceptions.ValidationError({
+                'trailer_analysis_status': (
+                    'Seule une analyse trailer '
+                    'en échec peut être relancée.'
+                )
+            })
+
+        report = _retry_trailer_analysis(content)
+
+        if report is None:
+            raise exceptions.ValidationError({
+                'trailer': (
+                    'Le trailer ne peut pas être analysé.'
+                )
+            })
+
+        return Response({
+            'trailer_analysis_status': report.status,
         })
 
 
@@ -1006,9 +2255,526 @@ class SeasonViewSet(ProducerContentOwnershipMixin, viewsets.ModelViewSet):
         serializer.save()
 
     def perform_update(self, serializer):
-        content = serializer.validated_data.get('content') or serializer.instance.content
+        content = (
+            serializer.validated_data.get('content')
+            or serializer.instance.content
+        )
         self._ensure_can_manage_content(content)
         serializer.save()
+
+    def perform_destroy(self, instance):
+        content = instance.content
+
+        self._ensure_can_manage_content(content)
+
+        if (
+            not self.request.user.is_staff
+            and content.producer_submission_status != 'draft'
+        ):
+            raise exceptions.ValidationError({
+                'producer_submission_status': (
+                    'Seule une saison appartenant a un '
+                    'brouillon peut etre supprimee par '
+                    'son producteur.'
+                )
+            })
+
+        # Le nettoyage TEMP est volontairement best-effort :
+        # une panne de stockage ne doit pas laisser une Saison
+        # impossible a supprimer en base.
+        delete_season_temporary_media(instance)
+
+        delete_video_asset_sources(
+            VideoAsset.objects.filter(
+                episode__season=instance,
+            )
+        )
+
+        instance.delete()
+
+    def _ensure_media_upload_allowed(self, season):
+        content = season.content
+
+        self._ensure_can_manage_content(content)
+
+        if (
+            not self.request.user.is_staff
+            and content.producer_submission_status != 'draft'
+        ):
+            raise exceptions.ValidationError({
+                'producer_submission_status': (
+                    'Les medias de saison ne peuvent etre '
+                    'remplaces que pendant l etat brouillon.'
+                )
+            })
+
+    def _upload_media(self, request, media_type):
+        season = self.get_object()
+
+        self._ensure_media_upload_allowed(season)
+
+        serializer = ContentMediaUploadSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        payload = store_season_media_temp(
+            season=season,
+            uploaded_file=(
+                serializer.validated_data['file']
+            ),
+            media_type=media_type,
+            uploader=request.user,
+        )
+
+        return Response(
+            payload,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='media-preview',
+    )
+    def media_preview(self, request, pk=None):
+        season = self.get_object()
+        content = season.content
+
+        if not request.user.is_staff:
+            if (
+                not getattr(request.user, 'is_producer', False)
+                or content.producer_id != request.user.id
+            ):
+                raise exceptions.PermissionDenied(
+                    'Cette saison appartient à un autre producteur.'
+                )
+
+        temporary_path = str(
+            request.query_params.get('path') or ''
+        ).strip()
+
+        allowed_paths = {
+            season.poster_temp_path,
+            season.backdrop_temp_path,
+            season.trailer_temp_path,
+        }
+
+        producer_id = content.producer_id or request.user.id
+
+        payload = _producer_temp_media_preview_url(
+            temporary_path=temporary_path,
+            allowed_paths=allowed_paths,
+            expected_prefix=f'uploads/producer_{producer_id}/',
+            expected_content_segment=f'content_{content.id}/',
+        )
+
+        return Response(payload)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='upload-poster',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_poster(self, request, pk=None):
+        return self._upload_media(
+            request,
+            'poster',
+        )
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='upload-backdrop',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_backdrop(self, request, pk=None):
+        return self._upload_media(
+            request,
+            'backdrop',
+        )
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='trailer-upload-session',
+    )
+    def trailer_upload_session(self, request, pk=None):
+        season = self.get_object()
+
+        self._ensure_media_upload_allowed(season)
+
+        content = season.content
+
+        filename = str(
+            request.data.get('filename') or ''
+        ).strip()
+        raw_size = request.data.get('size_bytes')
+
+        if not filename:
+            raise exceptions.ValidationError({
+                'filename': (
+                    'Le nom du fichier trailer '
+                    'est obligatoire.'
+                )
+            })
+
+        try:
+            size_bytes = int(raw_size)
+        except (TypeError, ValueError):
+            raise exceptions.ValidationError({
+                'size_bytes': (
+                    'La taille du trailer est invalide.'
+                )
+            })
+
+        if size_bytes <= 0:
+            raise exceptions.ValidationError({
+                'size_bytes': (
+                    'La taille du trailer doit etre '
+                    'superieure a zero.'
+                )
+            })
+
+        max_size = int(
+            getattr(
+                settings,
+                'PRODUCER_TRAILER_MAX_BYTES',
+                1073741824,
+            )
+        )
+
+        if size_bytes > max_size:
+            raise exceptions.ValidationError({
+                'size_bytes': (
+                    'Le trailer depasse la taille '
+                    'maximale autorisee.'
+                )
+            })
+
+        extension = Path(filename).suffix.lower()
+
+        allowed_extensions = {
+            '.mp4',
+            '.m4v',
+            '.mov',
+            '.webm',
+        }
+
+        if extension not in allowed_extensions:
+            raise exceptions.ValidationError({
+                'filename': (
+                    'Extension trailer non autorisee: '
+                    f'{extension or "aucune"}'
+                )
+            })
+
+        producer_id = (
+            content.producer_id
+            or request.user.id
+        )
+
+        object_key = (
+            f'uploads/producer_{producer_id}/'
+            f'content_{content.id}/'
+            f'season_{season.season_number:02d}/'
+            f'trailer_original{extension}'
+        )
+
+        bucket = settings.MINIO_BUCKET
+        expires_in = 3600
+
+        upload_url = (
+            minio_public_upload_client()
+            .generate_presigned_url(
+                ClientMethod='put_object',
+                Params={
+                    'Bucket': bucket,
+                    'Key': object_key,
+                },
+                ExpiresIn=expires_in,
+                HttpMethod='PUT',
+            )
+        )
+
+        completion_token = signing.dumps(
+            {
+                'season_id': str(season.id),
+                'content_id': str(content.id),
+                'producer_id': str(producer_id),
+                'user_id': str(request.user.id),
+                'media_type': 'season_trailer',
+                'bucket': bucket,
+                'object_key': object_key,
+                'size_bytes': size_bytes,
+            },
+            salt='catalog-season-trailer-upload',
+            compress=True,
+        )
+
+        return Response({
+            'upload_url': upload_url,
+            'completion_token': completion_token,
+            'expires_in': expires_in,
+            'size_bytes': size_bytes,
+        })
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='trailer-upload-complete',
+    )
+    def trailer_upload_complete(self, request, pk=None):
+        season = self.get_object()
+
+        self._ensure_media_upload_allowed(season)
+
+        content = season.content
+
+        completion_token = str(
+            request.data.get(
+                'completion_token'
+            ) or ''
+        ).strip()
+
+        if not completion_token:
+            raise exceptions.ValidationError({
+                'completion_token': (
+                    'Le jeton de confirmation '
+                    'est obligatoire.'
+                )
+            })
+
+        try:
+            payload = signing.loads(
+                completion_token,
+                salt=(
+                    'catalog-season-trailer-upload'
+                ),
+                max_age=3600,
+            )
+        except signing.SignatureExpired:
+            raise exceptions.ValidationError({
+                'completion_token': (
+                    'La session d upload a expire.'
+                )
+            })
+        except signing.BadSignature:
+            raise exceptions.ValidationError({
+                'completion_token': (
+                    'La session d upload est invalide.'
+                )
+            })
+
+        if (
+            str(payload.get('season_id'))
+            != str(season.id)
+        ):
+            raise exceptions.ValidationError({
+                'completion_token': (
+                    'La session ne correspond pas '
+                    'a cette saison.'
+                )
+            })
+
+        if (
+            str(payload.get('content_id'))
+            != str(content.id)
+        ):
+            raise exceptions.ValidationError({
+                'completion_token': (
+                    'La session ne correspond pas '
+                    'a ce contenu.'
+                )
+            })
+
+        if (
+            str(payload.get('user_id'))
+            != str(request.user.id)
+        ):
+            raise exceptions.PermissionDenied(
+                'Cette session appartient a '
+                'un autre utilisateur.'
+            )
+
+        producer_id = (
+            content.producer_id
+            or request.user.id
+        )
+
+        if (
+            str(payload.get('producer_id'))
+            != str(producer_id)
+        ):
+            raise exceptions.ValidationError({
+                'completion_token': (
+                    'Producteur de stockage invalide.'
+                )
+            })
+
+        if (
+            payload.get('media_type')
+            != 'season_trailer'
+        ):
+            raise exceptions.ValidationError({
+                'completion_token': (
+                    'Type de media invalide.'
+                )
+            })
+
+        bucket = str(
+            payload.get('bucket') or ''
+        )
+        object_key = str(
+            payload.get('object_key') or ''
+        )
+
+        try:
+            expected_size = int(
+                payload.get('size_bytes') or 0
+            )
+        except (TypeError, ValueError):
+            expected_size = 0
+
+        if (
+            bucket != settings.MINIO_BUCKET
+            or not object_key
+            or expected_size <= 0
+        ):
+            raise exceptions.ValidationError({
+                'completion_token': (
+                    'Reference de stockage invalide.'
+                )
+            })
+
+        expected_prefix = (
+            f'uploads/producer_{producer_id}/'
+            f'content_{content.id}/'
+            f'season_{season.season_number:02d}/'
+            f'trailer_original'
+        )
+
+        if not object_key.startswith(
+            expected_prefix
+        ):
+            raise exceptions.ValidationError({
+                'completion_token': (
+                    'Chemin de stockage invalide.'
+                )
+            })
+
+        client = minio_internal_client()
+
+        try:
+            metadata = client.head_object(
+                Bucket=bucket,
+                Key=object_key,
+            )
+        except Exception as exc:
+            raise exceptions.ValidationError({
+                'trailer': (
+                    'Le trailer envoye est introuvable '
+                    'dans le stockage temporaire.'
+                )
+            }) from exc
+
+        stored_size = int(
+            metadata.get('ContentLength') or 0
+        )
+
+        if stored_size <= 0:
+            raise exceptions.ValidationError({
+                'trailer': (
+                    'Le trailer stocke est vide.'
+                )
+            })
+
+        if stored_size != expected_size:
+            raise exceptions.ValidationError({
+                'trailer': (
+                    'La taille du trailer stocke '
+                    'ne correspond pas au fichier '
+                    'envoye.'
+                )
+            })
+
+        season.trailer_temp_path = object_key
+        season.trailer_url = ''
+
+        season.save(
+            update_fields=[
+                'trailer_temp_path',
+                'trailer_url',
+                'updated_at',
+            ]
+        )
+        _schedule_trailer_analysis(season)
+
+        # L upload d un media de saison constitue
+        # aussi une activite sur le brouillon parent.
+        content.save(
+            update_fields=['updated_at']
+        )
+
+        return Response({
+            'media_type': 'trailer',
+            'field': 'trailer_temp_path',
+            'temporary_path': object_key,
+            'final_field': 'trailer_url',
+            'url': '',
+            'storage': 'temporary',
+            'size_bytes': stored_size,
+        })
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='trailer-analysis-retry',
+    )
+    def trailer_analysis_retry(self, request, pk=None):
+        season = self.get_object()
+
+        self._ensure_media_upload_allowed(season)
+
+        if not season.trailer_temp_path:
+            raise exceptions.ValidationError({
+                'trailer': (
+                    'Aucun trailer temporaire '
+                    'n’est disponible pour cette analyse.'
+                )
+            })
+
+        try:
+            report = season.trailer_analysis_report
+        except ObjectDoesNotExist as exc:
+            raise exceptions.ValidationError({
+                'trailer_analysis_status': (
+                    'Aucune analyse trailer '
+                    'ne peut être relancée.'
+                )
+            }) from exc
+
+        if report.status != report.STATUS_FAILED:
+            raise exceptions.ValidationError({
+                'trailer_analysis_status': (
+                    'Seule une analyse trailer '
+                    'en échec peut être relancée.'
+                )
+            })
+
+        report = _retry_trailer_analysis(season)
+
+        if report is None:
+            raise exceptions.ValidationError({
+                'trailer': (
+                    'Le trailer ne peut pas être analysé.'
+                )
+            })
+
+        return Response({
+            'trailer_analysis_status': report.status,
+        })
 
 
 class EpisodeViewSet(ProducerContentOwnershipMixin, viewsets.ModelViewSet):
@@ -1047,3 +2813,14 @@ class EpisodeViewSet(ProducerContentOwnershipMixin, viewsets.ModelViewSet):
             content = season.content
         self._ensure_can_manage_content(content)
         serializer.save()
+
+    def perform_destroy(self, instance):
+        self._ensure_can_manage_content(instance.content)
+
+        # Best-effort : le stockage ne doit pas
+        # bloquer la suppression DB.
+        delete_video_asset_sources(
+            instance.video_assets.all()
+        )
+
+        instance.delete()

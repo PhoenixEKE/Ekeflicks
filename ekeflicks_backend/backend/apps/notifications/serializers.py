@@ -3,7 +3,7 @@ from rest_framework import serializers
 from core.models import Notification, NotificationType
 
 
-NOTIFICATION_CATEGORIES = ("security", "subscription", "catalog", "account")
+NOTIFICATION_CATEGORIES = ("security", "subscription", "catalog", "account", "social")
 
 
 def notification_preferences(user):

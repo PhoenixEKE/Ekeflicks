@@ -368,6 +368,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from core.models.producers import ProducerAccount, ProducerAgreement
+from apps.auth.producer_contract_versions import (
+    get_current_contract_version,
+    get_recognized_signed_versions,
+)
 
 
 class ProducerRegisterSerializer(serializers.Serializer):
@@ -547,16 +551,16 @@ class ProducerAccountSerializer(serializers.ModelSerializer):
         ]
 
     def get_current_contract_version(self, obj):
-        return settings.PRODUCER_AGREEMENT_CURRENT_VERSION
+        return get_current_contract_version()
 
     def _current_agreement(self, obj):
         return obj.agreements.filter(
-            contract_version=settings.PRODUCER_AGREEMENT_CURRENT_VERSION,
+            contract_version=get_current_contract_version(),
         ).first()
 
     def get_current_agreement_status(self, obj):
         signed_agreement = obj.agreements.filter(
-            contract_version__in=settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS,
+            contract_version__in=get_recognized_signed_versions(),
             status=ProducerAgreement.STATUS_SIGNED,
             signed_at__isnull=False,
         ).order_by(
@@ -619,6 +623,7 @@ class ProducerAgreementSerializer(serializers.ModelSerializer):
             'signer_name',
             'signer_role',
             'signature_method',
+            'ip_address',
             'accepted_at',
             'signed_at',
             'effective_date',

@@ -204,10 +204,39 @@ class Content(TimeStampedModel):
     )
     producer_notes = models.TextField(blank=True)
 
+    # Version du cahier des charges technique applicable
+    # lors de la soumission finale du contenu.
+    technical_specification = models.ForeignKey(
+        'TechnicalSpecification',
+        on_delete=models.PROTECT,
+        related_name='submitted_contents',
+        null=True,
+        blank=True,
+    )
+    technical_specification_version = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+    )
+
     # Métadonnées structurées du dépôt producteur.
     # Ces champs permettent de restaurer intégralement un brouillon.
     language = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True)
+
+    # Versions audio réellement disponibles pour le contenu.
+    # Exemple : ["Français", "Anglais"].
+    audio_languages = models.JSONField(
+        default=list,
+        blank=True,
+    )
+
+    # Langues de sous-titres réellement disponibles.
+    # Une liste vide signifie qu'aucun sous-titre n'est disponible.
+    subtitle_languages = models.JSONField(
+        default=list,
+        blank=True,
+    )
 
     director_name = models.CharField(max_length=255, blank=True)
     director_image_url = models.URLField(max_length=500, blank=True)

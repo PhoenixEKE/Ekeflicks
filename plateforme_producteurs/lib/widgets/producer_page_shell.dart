@@ -6,6 +6,7 @@ class ProducerPageShell extends StatelessWidget {
   const ProducerPageShell({
     super.key,
     required this.child,
+    this.title,
     this.actions = const [],
     this.showFaq = false,
     this.showBack = false,
@@ -17,6 +18,7 @@ class ProducerPageShell extends StatelessWidget {
   });
 
   final Widget child;
+  final String? title;
   final List<Widget> actions;
   final bool showFaq;
   final bool showBack;
@@ -122,11 +124,8 @@ class ProducerPageShell extends StatelessWidget {
       toolbarHeight: 68,
 
       // LOGO TOUJOURS A GAUCHE
-      titleSpacing: 20,
-      title: Row(
-        children: [
-          if (showBack) ...[
-            Tooltip(
+      leading: showBack
+          ? Tooltip(
               message: 'Retour',
               child: IconButton(
                 onPressed:
@@ -138,35 +137,44 @@ class ProducerPageShell extends StatelessWidget {
                     },
                 icon: const Icon(Icons.arrow_back),
               ),
-            ),
-            const SizedBox(width: 6),
-          ],
-
+            )
+          : null,
+      titleSpacing: 20,
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
           Image.asset(
             'assets/images/logo_dark.png',
-            height: 38,
+            height: 32,
             fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.movie_filter, color: _orange, size: 30),
-                  SizedBox(width: 8),
-                  Text(
-                    'EKEFLICKS',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+            errorBuilder: (_, __, ___) {
+              return const Text(
+                'EKEFLICKS',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.4,
+                ),
               );
             },
           ),
+          if (title != null && title!.trim().isNotEmpty) ...[
+            const SizedBox(width: 16),
+            Flexible(
+              child: Text(
+                title!.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
-
-      // ACTIONS TOUJOURS A DROITE
       actions: [
         if (showFaq)
           Tooltip(

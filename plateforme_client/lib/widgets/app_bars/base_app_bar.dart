@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:app_ekeflicks/ui/pages/eke_ai_search_page.dart';
 import 'package:provider/provider.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/providers/theme_provider.dart';
 import 'package:app_ekeflicks/providers/locale_provider.dart';
-import 'package:app_ekeflicks/widgets/search/ia_search_delegate.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
 
 abstract class BaseAppBar extends StatelessWidget
@@ -75,7 +75,10 @@ abstract class BaseAppBar extends StatelessWidget
       width: isDesktop(context) ? 250 : 200,
       child: TextField(
         readOnly: true,
-        onTap: () => showSearch(context: context, delegate: IASearchDelegate()),
+        onTap:
+            () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const EkeAISearchPage())),
         decoration: InputDecoration(
           hintText: loc.rechercher,
           prefixIcon: const Icon(Icons.search),

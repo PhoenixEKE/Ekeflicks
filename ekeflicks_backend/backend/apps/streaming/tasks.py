@@ -2,6 +2,8 @@ import json
 import re
 import subprocess
 import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from celery import shared_task
@@ -18,12 +20,22 @@ from apps.streaming.storage_paths import (
     build_processing_prefix,
 )
 from apps.streaming.ai_moderation import (
+    DEFAULT_SAMPLE_INTERVAL_SECONDS,
     analyze_moderation_frames,
-    extract_moderation_frames,
     load_moderation_session,
 )
 from apps.streaming.per_title import analyze_per_title_source_v2
-from core.models import MediaAnalysisReport, VideoAsset, VideoRendition
+from apps.streaming.technical_conformity import (
+    evaluate_master_conformity,
+    evaluate_trailer_conformity,
+)
+from core.models import (
+    MediaAnalysisReport,
+    TechnicalSpecification,
+    TrailerAnalysisReport,
+    VideoAsset,
+    VideoRendition,
+)
 from huggingface_hub import hf_hub_download
 
 
@@ -32,6 +44,54 @@ DEFAULT_RENDITIONS = [
     {'quality': '720p', 'width': 1280, 'height': 720, 'bandwidth': 2800000},
     {'quality': '1080p', 'width': 1920, 'height': 1080, 'bandwidth': 5000000},
 ]
+
+
+def _published_technical_specification():
+    return (
+        TechnicalSpecification.objects
+        .filter(is_published=True)
+        .order_by(
+            "-published_at",
+            "-created_at",
+        )
+        .first()
+    )
+
+
+def _content_technical_specification(content):
+    if (
+        content is not None
+        and content.technical_specification_id
+    ):
+        return content.technical_specification
+
+    return _published_technical_specification()
+
+
+def _master_technical_specification(asset):
+    content = (
+        asset.episode.content
+        if asset.episode_id
+        else asset.content
+    )
+
+    return _content_technical_specification(
+        content
+    )
+
+
+def _trailer_technical_specification(report):
+    if report.content_id:
+        content = report.content
+    elif report.season_id:
+        content = report.season.content
+    else:
+        content = None
+
+    return _content_technical_specification(
+        content
+    )
+
 
 
 def _final_video_storage():
@@ -48,17 +108,86 @@ def _storage_url(path, storage=None):
     return (storage or _final_video_storage()).url(path)
 
 
+def _materialize_storage_input(
+    storage_path,
+    work_root,
+    storage=None,
+):
+    """
+    Retourne un chemin local exploitable par FFprobe/FFmpeg
+    pour un objet stocke dans le storage Django.
+
+    - storage local : retourne directement storage.path().
+    - storage distant : copie temporairement l'objet dans
+      work_root puis retourne le chemin local.
+
+    Ce helper ne connait ni VideoAsset, ni Content, ni Season.
+    """
+    storage_path = str(storage_path or "").strip()
+
+    if not storage_path:
+        return None
+
+    selected_storage = storage or default_storage
+
+    try:
+        return selected_storage.path(storage_path)
+    except NotImplementedError:
+        local_source = (
+            Path(work_root)
+            / Path(storage_path).name
+        )
+
+        with selected_storage.open(
+            storage_path,
+            "rb",
+        ) as source_file:
+            with local_source.open(
+                "wb",
+            ) as destination:
+                for chunk in source_file.chunks():
+                    destination.write(chunk)
+
+        return str(local_source)
+
+
+def _video_asset_source_identity(asset):
+    uploaded_at = asset.source_uploaded_at
+
+    return {
+        "path": str(
+            asset.source_file_path or ""
+        ).strip(),
+        "url": str(
+            asset.source_file_url or ""
+        ).strip(),
+        "size_bytes": int(
+            asset.source_file_size_bytes or 0
+        ),
+        "uploaded_at": (
+            uploaded_at.isoformat()
+            if uploaded_at is not None
+            else None
+        ),
+    }
+
+
+def _video_asset_source_identity_matches(
+    asset,
+    expected,
+):
+    return (
+        _video_asset_source_identity(asset)
+        == expected
+    )
+
+
 def _source_input(asset, work_root):
     if asset.source_file_path:
-        try:
-            return default_storage.path(asset.source_file_path)
-        except NotImplementedError:
-            local_source = work_root / Path(asset.source_file_path).name
-            with default_storage.open(asset.source_file_path, 'rb') as source_file:
-                with local_source.open('wb') as destination:
-                    for chunk in source_file.chunks():
-                        destination.write(chunk)
-            return str(local_source)
+        return _materialize_storage_input(
+            asset.source_file_path,
+            work_root,
+        )
 
     return asset.source_file_url
 
@@ -189,6 +318,575 @@ def _frame_rate(value):
         except (TypeError, ValueError):
             return None
 
+
+
+
+
+def _probe_frame_timing(source_input):
+    """
+    Analyse temporelle du premier flux vidéo.
+
+    Le flux FFprobe est lu ligne par ligne afin de ne jamais
+    charger l'ensemble des frames en mémoire.
+
+    Le contrat historique est conservé :
+    - tous les timestamps valides participent au calcul ;
+    - seuls les 500 premiers sont conservés dans le rapport ;
+    - la médiane des deltas positifs reste exacte ;
+    - la tolérance CFR reste max(2 ms, 5 % de la médiane).
+    """
+    import heapq
+    import struct
+    import threading
+
+    timestamp_limit = 500
+    delta_chunk_size = 50000
+    double_struct = struct.Struct("d")
+
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_frames",
+        "-show_entries",
+        (
+            "frame="
+            "best_effort_timestamp_time,"
+            "pts_time"
+        ),
+        "-of",
+        "csv=p=0",
+        str(source_input),
+    ]
+
+    def unavailable(
+        frame_count=0,
+        timestamps=None,
+    ):
+        return {
+            "available": False,
+            "frame_count": frame_count,
+            "is_constant": None,
+            "median_delta_seconds": None,
+            "min_delta_seconds": None,
+            "max_delta_seconds": None,
+            "max_deviation_seconds": None,
+            "relative_max_deviation": None,
+            "timestamps": [
+                round(value, 6)
+                for value in (
+                    timestamps or []
+                )[:timestamp_limit]
+            ],
+        }
+
+    def write_chunk(
+        chunk,
+        directory,
+        index,
+    ):
+        chunk.sort()
+
+        chunk_path = (
+            Path(directory)
+            / f"delta-{index:06d}.bin"
+        )
+
+        with chunk_path.open("wb") as handle:
+            for value in chunk:
+                handle.write(
+                    double_struct.pack(value)
+                )
+
+        return chunk_path
+
+    def iter_chunk(chunk_path):
+        with chunk_path.open("rb") as handle:
+            while True:
+                raw = handle.read(
+                    double_struct.size
+                )
+
+                if not raw:
+                    return
+
+                if len(raw) != double_struct.size:
+                    raise OSError(
+                        "Incomplete frame timing "
+                        "delta chunk"
+                    )
+
+                yield double_struct.unpack(
+                    raw
+                )[0]
+
+    process = None
+    timeout_timer = None
+    timed_out = threading.Event()
+
+    def kill_on_timeout():
+        if (
+            process is not None
+            and process.poll() is None
+        ):
+            timed_out.set()
+            process.kill()
+
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix="ekeflicks-frame-timing-"
+        ) as tmp_dir:
+
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                bufsize=1,
+            )
+
+            timeout_timer = threading.Timer(
+                300.0,
+                kill_on_timeout,
+            )
+            timeout_timer.daemon = True
+            timeout_timer.start()
+
+            if process.stdout is None:
+                raise OSError(
+                    "FFprobe stdout unavailable"
+                )
+
+            frame_count = 0
+            report_timestamps = []
+            previous_timestamp = None
+
+            delta_count = 0
+            min_delta = None
+            max_delta = None
+
+            delta_chunk = []
+            chunk_paths = []
+
+            for raw_line in process.stdout:
+                line = raw_line.strip()
+
+                if not line:
+                    continue
+
+                values = [
+                    value.strip()
+                    for value in line.split(",")
+                ]
+
+                raw_timestamp = None
+
+                for candidate in values[:2]:
+                    if candidate not in {
+                        "",
+                        "N/A",
+                    }:
+                        raw_timestamp = candidate
+                        break
+
+                if raw_timestamp is None:
+                    continue
+
+                try:
+                    timestamp = float(
+                        raw_timestamp
+                    )
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    continue
+
+                frame_count += 1
+
+                if (
+                    len(report_timestamps)
+                    < timestamp_limit
+                ):
+                    report_timestamps.append(
+                        timestamp
+                    )
+
+                if previous_timestamp is not None:
+                    delta = (
+                        timestamp
+                        - previous_timestamp
+                    )
+
+                    if delta > 0:
+                        delta_count += 1
+
+                        if (
+                            min_delta is None
+                            or delta < min_delta
+                        ):
+                            min_delta = delta
+
+                        if (
+                            max_delta is None
+                            or delta > max_delta
+                        ):
+                            max_delta = delta
+
+                        delta_chunk.append(
+                            delta
+                        )
+
+                        if (
+                            len(delta_chunk)
+                            >= delta_chunk_size
+                        ):
+                            chunk_paths.append(
+                                write_chunk(
+                                    delta_chunk,
+                                    tmp_dir,
+                                    len(chunk_paths),
+                                )
+                            )
+                            delta_chunk = []
+
+                previous_timestamp = timestamp
+
+            process.stdout.close()
+
+            return_code = process.wait()
+
+            if timeout_timer is not None:
+                timeout_timer.cancel()
+
+            if timed_out.is_set():
+                raise subprocess.TimeoutExpired(
+                    command,
+                    300,
+                )
+
+            if return_code != 0:
+                raise subprocess.CalledProcessError(
+                    return_code,
+                    command,
+                )
+
+            if frame_count < 3:
+                return unavailable(
+                    frame_count,
+                    report_timestamps,
+                )
+
+            if delta_count < 2:
+                return unavailable(
+                    frame_count,
+                    report_timestamps,
+                )
+
+            if delta_chunk:
+                chunk_paths.append(
+                    write_chunk(
+                        delta_chunk,
+                        tmp_dir,
+                        len(chunk_paths),
+                    )
+                )
+                delta_chunk = []
+
+            iterators = [
+                iter_chunk(chunk_path)
+                for chunk_path in chunk_paths
+            ]
+
+            ordered = heapq.merge(
+                *iterators
+            )
+
+            left_index = (
+                (delta_count - 1) // 2
+            )
+            right_index = (
+                delta_count // 2
+            )
+
+            left_value = None
+            right_value = None
+
+            for index, value in enumerate(
+                ordered
+            ):
+                if index == left_index:
+                    left_value = value
+
+                if index == right_index:
+                    right_value = value
+                    break
+
+            if (
+                left_value is None
+                or right_value is None
+            ):
+                raise OSError(
+                    "Unable to compute exact "
+                    "frame timing median"
+                )
+
+            median_delta = (
+                left_value + right_value
+            ) / 2
+
+            tolerance_seconds = max(
+                0.002,
+                median_delta * 0.05,
+            )
+
+            max_deviation = 0.0
+            is_constant = True
+
+            for chunk_path in chunk_paths:
+                for delta in iter_chunk(
+                    chunk_path
+                ):
+                    deviation = abs(
+                        delta - median_delta
+                    )
+
+                    if deviation > max_deviation:
+                        max_deviation = deviation
+
+                    if (
+                        deviation
+                        > tolerance_seconds
+                    ):
+                        is_constant = False
+
+            relative_max_deviation = (
+                max_deviation / median_delta
+                if median_delta > 0
+                else None
+            )
+
+            return {
+                "available": True,
+                "frame_count": frame_count,
+                "is_constant": is_constant,
+                "median_delta_seconds": round(
+                    median_delta,
+                    6,
+                ),
+                "min_delta_seconds": round(
+                    min_delta,
+                    6,
+                ),
+                "max_delta_seconds": round(
+                    max_delta,
+                    6,
+                ),
+                "max_deviation_seconds": round(
+                    max_deviation,
+                    6,
+                ),
+                "relative_max_deviation": (
+                    round(
+                        relative_max_deviation,
+                        6,
+                    )
+                    if relative_max_deviation
+                    is not None
+                    else None
+                ),
+                "tolerance_seconds": round(
+                    tolerance_seconds,
+                    6,
+                ),
+                "timestamps": [
+                    round(value, 6)
+                    for value
+                    in report_timestamps
+                ],
+                "timestamps_truncated": (
+                    frame_count
+                    > timestamp_limit
+                ),
+            }
+
+    except (
+        subprocess.SubprocessError,
+        OSError,
+    ):
+        if timeout_timer is not None:
+            timeout_timer.cancel()
+
+        if (
+            process is not None
+            and process.poll() is None
+        ):
+            process.kill()
+            process.wait()
+
+        return unavailable()
+
+
+
+def _probe_keyframe_intervals(source_input):
+    """
+    Mesure les timestamps des images clés du premier flux vidéo.
+
+    Retour :
+    {
+        "available": bool,
+        "keyframe_count": int,
+        "timestamps": [...],
+        "max_interval_seconds": float | None,
+        "average_interval_seconds": float | None,
+    }
+
+    La commande ne décode pas toutes les images :
+    FFprobe ignore les frames non-key via skip_frame=nokey.
+    """
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-skip_frame",
+        "nokey",
+        "-show_frames",
+        "-show_entries",
+        (
+            "frame="
+            "best_effort_timestamp_time,"
+            "pts_time,"
+            "pkt_dts_time"
+        ),
+        "-of",
+        "json",
+        str(source_input),
+    ]
+
+    try:
+        result = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except (
+        subprocess.SubprocessError,
+        OSError,
+    ):
+        return {
+            "available": False,
+            "keyframe_count": 0,
+            "timestamps": [],
+            "max_interval_seconds": None,
+            "average_interval_seconds": None,
+        }
+
+    try:
+        payload = json.loads(
+            result.stdout or "{}"
+        )
+    except json.JSONDecodeError:
+        return {
+            "available": False,
+            "keyframe_count": 0,
+            "timestamps": [],
+            "max_interval_seconds": None,
+            "average_interval_seconds": None,
+        }
+
+    frames = payload.get("frames") or []
+
+    timestamps = []
+
+    for frame in frames:
+        if not isinstance(frame, dict):
+            continue
+
+        raw = (
+            frame.get(
+                "best_effort_timestamp_time"
+            )
+            or frame.get("pts_time")
+            or frame.get("pkt_dts_time")
+        )
+
+        if raw in (
+            None,
+            "",
+            "N/A",
+        ):
+            continue
+
+        try:
+            value = float(raw)
+        except (
+            TypeError,
+            ValueError,
+        ):
+            continue
+
+        if value < 0:
+            continue
+
+        timestamps.append(value)
+
+    timestamps = sorted(
+        set(timestamps)
+    )
+
+    intervals = [
+        round(
+            timestamps[index]
+            - timestamps[index - 1],
+            6,
+        )
+        for index in range(
+            1,
+            len(timestamps),
+        )
+        if (
+            timestamps[index]
+            - timestamps[index - 1]
+        ) >= 0
+    ]
+
+    max_interval = (
+        round(max(intervals), 6)
+        if intervals
+        else None
+    )
+
+    average_interval = (
+        round(
+            sum(intervals)
+            / len(intervals),
+            6,
+        )
+        if intervals
+        else None
+    )
+
+    return {
+        "available": bool(timestamps),
+        "keyframe_count": len(timestamps),
+        # Audit raisonnable : inutile de gonfler indéfiniment
+        # le JSON de MediaAnalysisReport.
+        "timestamps": [
+            round(value, 6)
+            for value in timestamps[:500]
+        ],
+        "timestamps_truncated": (
+            len(timestamps) > 500
+        ),
+        "max_interval_seconds": max_interval,
+        "average_interval_seconds": average_interval,
+    }
 
 
 def _probe_output_media(source_input):
@@ -543,34 +1241,51 @@ def _extract_loudnorm_metrics(stderr):
     }
 
 
-def _run_advanced_qc(source_input, has_video=True, has_audio=True):
-    events = []
-    qc = {
-        'black_events': 0,
-        'freeze_events': 0,
-        'silence_events': 0,
-        'integrated_lufs': None,
-        'true_peak_dbtp': None,
-        'lra': None,
-        'threshold': None,
-    }
+def _run_advanced_qc(
+    source_input,
+    has_video=True,
+    has_audio=True,
+    moderation_output_dir=None,
+):
+    """
+    Run full-resolution QC; optionally extract moderation frames in the
+    same video decode. Audio remains independent. Existing callers keep
+    the historical command and return contract.
+    """
 
-    if has_video:
+    def run_video_qc():
+        video_filters = (
+            'blackdetect=d=2.0:pix_th=0.10,'
+            'freezedetect=n=-50dB:d=3.0'
+        )
         video_command = [
-            'ffmpeg',
-            '-hide_banner',
-            '-nostats',
+            'ffmpeg', '-hide_banner', '-nostats',
             '-i', str(source_input),
-            '-map', '0:v:0',
-            '-vf',
-            (
-                'blackdetect=d=2.0:pix_th=0.10,'
-                'freezedetect=n=-50dB:d=3.0'
-            ),
-            '-an',
-            '-f', 'null',
-            '-',
         ]
+        if moderation_output_dir is None:
+            video_command += [
+                '-map', '0:v:0', '-vf', video_filters,
+                '-an', '-f', 'null', '-',
+            ]
+        else:
+            output_dir = Path(moderation_output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            # A fresh per-analysis directory avoids stale frames or prompts.
+            if any(output_dir.glob('frame_*.jpg')):
+                raise RuntimeError('Moderation output directory is not empty')
+            interval = DEFAULT_SAMPLE_INTERVAL_SECONDS
+            video_command += [
+                '-filter_complex',
+                (
+                    '[0:v:0]split=2[qc_input][moderation_input];'
+                    f'[qc_input]{video_filters}[qc_output];'
+                    '[moderation_input]'
+                    f'fps=1/{interval},scale=640:-2[moderation_output]'
+                ),
+                '-map', '[qc_output]', '-an', '-f', 'null', '-',
+                '-map', '[moderation_output]', '-an', '-q:v', '3',
+                str(output_dir / 'frame_%06d.jpg'),
+            ]
 
         video_result = subprocess.run(
             video_command,
@@ -578,21 +1293,18 @@ def _run_advanced_qc(source_input, has_video=True, has_audio=True):
             text=True,
             timeout=900,
         )
-
         if video_result.returncode != 0:
             raise RuntimeError(
                 'FFmpeg video QC failed: '
                 + (video_result.stderr or '')[-1500:]
             )
-
-        video_events = _parse_ffmpeg_events(video_result.stderr or '')
-        events.extend(
+        return [
             event
-            for event in video_events
+            for event in _parse_ffmpeg_events(video_result.stderr or '')
             if event.get('type') in {'black', 'freeze'}
-        )
+        ]
 
-    if has_audio:
+    def run_audio_qc():
         audio_command = [
             'ffmpeg',
             '-hide_banner',
@@ -602,7 +1314,8 @@ def _run_advanced_qc(source_input, has_video=True, has_audio=True):
             '-af',
             (
                 'silencedetect=noise=-50dB:d=5.0,'
-                'loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json'
+                'loudnorm=I=-16:TP=-1.5:LRA=11:'
+                'print_format=json'
             ),
             '-vn',
             '-f', 'null',
@@ -622,24 +1335,87 @@ def _run_advanced_qc(source_input, has_video=True, has_audio=True):
                 + (audio_result.stderr or '')[-1500:]
             )
 
-        audio_stderr = audio_result.stderr or ''
-
-        events.extend(
-            event
-            for event in _parse_ffmpeg_events(audio_stderr)
-            if event.get('type') == 'silence'
+        audio_stderr = (
+            audio_result.stderr or ''
         )
 
-        qc.update(_extract_loudnorm_metrics(audio_stderr))
+        audio_events = [
+            event
+            for event in _parse_ffmpeg_events(
+                audio_stderr
+            )
+            if event.get('type') == 'silence'
+        ]
+
+        metrics = _extract_loudnorm_metrics(
+            audio_stderr
+        )
+
+        return audio_events, metrics
+
+    events = []
+
+    qc = {
+        'black_events': 0,
+        'freeze_events': 0,
+        'silence_events': 0,
+        'integrated_lufs': None,
+        'true_peak_dbtp': None,
+        'lra': None,
+        'threshold': None,
+    }
+
+    if has_video and has_audio:
+        with ThreadPoolExecutor(
+            max_workers=2
+        ) as executor:
+            video_future = executor.submit(
+                run_video_qc
+            )
+            audio_future = executor.submit(
+                run_audio_qc
+            )
+
+            video_events = (
+                video_future.result()
+            )
+            audio_events, metrics = (
+                audio_future.result()
+            )
+
+        events.extend(video_events)
+        events.extend(audio_events)
+        qc.update(metrics)
+
+    elif has_video:
+        events.extend(
+            run_video_qc()
+        )
+
+    elif has_audio:
+        audio_events, metrics = (
+            run_audio_qc()
+        )
+
+        events.extend(audio_events)
+        qc.update(metrics)
 
     qc['black_events'] = sum(
-        1 for event in events if event.get('type') == 'black'
+        1
+        for event in events
+        if event.get('type') == 'black'
     )
+
     qc['freeze_events'] = sum(
-        1 for event in events if event.get('type') == 'freeze'
+        1
+        for event in events
+        if event.get('type') == 'freeze'
     )
+
     qc['silence_events'] = sum(
-        1 for event in events if event.get('type') == 'silence'
+        1
+        for event in events
+        if event.get('type') == 'silence'
     )
 
     return qc, events
@@ -647,7 +1423,22 @@ def _run_advanced_qc(source_input, has_video=True, has_audio=True):
 
 @shared_task(bind=True)
 def analyze_video_asset(self, asset_id):
+    _g5_total_started = time.monotonic()
+
+    def _g5_mark(stage, started):
+        elapsed = time.monotonic() - started
+        print(
+            f"G5_4_TIMING asset={asset_id} "
+            f"stage={stage} seconds={elapsed:.3f}",
+            flush=True,
+        )
+        return elapsed
+
     asset = VideoAsset.objects.get(pk=asset_id)
+
+    source_identity = (
+        _video_asset_source_identity(asset)
+    )
 
     report, _ = MediaAnalysisReport.objects.get_or_create(asset=asset)
 
@@ -666,7 +1457,13 @@ def analyze_video_asset(self, asset_id):
             prefix=f"ekeflicks-qc-{asset.id}-"
         ) as tmp_dir:
             work_root = Path(tmp_dir)
+
+            _g5_started = time.monotonic()
             source_input = _source_input(asset, work_root)
+            _g5_mark(
+                "source_materialization",
+                _g5_started,
+            )
 
             if not source_input:
                 raise ValueError(
@@ -682,12 +1479,17 @@ def analyze_video_asset(self, asset_id):
                 str(source_input),
             ]
 
+            _g5_started = time.monotonic()
             result = subprocess.run(
                 command,
                 capture_output=True,
                 text=True,
                 check=True,
                 timeout=300,
+            )
+            _g5_mark(
+                "initial_ffprobe",
+                _g5_started,
             )
 
             metadata = json.loads(result.stdout or '{}')
@@ -754,10 +1556,20 @@ def analyze_video_asset(self, asset_id):
                 (audio_stream or {}).get('bit_rate')
             )
 
+            _g5_started = time.monotonic()
+            moderation_output_dir = (
+                work_root / 'moderation_frames'
+                if video_stream is not None else None
+            )
             qc_v2, detected_events = _run_advanced_qc(
                 source_input,
                 has_video=video_stream is not None,
                 has_audio=audio_stream is not None,
+                moderation_output_dir=moderation_output_dir,
+            )
+            _g5_mark(
+                "advanced_qc_with_moderation_extraction",
+                _g5_started,
             )
 
             # ---------------------------------------------------------
@@ -766,21 +1578,50 @@ def analyze_video_asset(self, asset_id):
             moderation_scores = {}
 
             if video_stream is not None:
+                _g5_started = time.monotonic()
                 model_path = hf_hub_download(
                     repo_id='OwenElliott/image-safety-classifier-xs',
                     filename='onnx/image-safety-classifier-xs.onnx',
                 )
-
-                moderation_session = load_moderation_session(model_path)
-
-                moderation_frames = extract_moderation_frames(
-                    source_input,
-                    work_root / 'moderation_frames',
+                _g5_mark(
+                    "moderation_model_resolve",
+                    _g5_started,
                 )
 
+                _g5_started = time.monotonic()
+                moderation_session = load_moderation_session(model_path)
+                _g5_mark(
+                    "moderation_model_load",
+                    _g5_started,
+                )
+
+                _g5_started = time.monotonic()
+                # Images already produced by the QC video process.
+                # Preserve the historical sampling interval and timestamps.
+                moderation_frames = [
+                    {
+                        'path': frame_path,
+                        'timestamp': float(
+                            index * DEFAULT_SAMPLE_INTERVAL_SECONDS
+                        ),
+                    }
+                    for index, frame_path in enumerate(sorted(
+                        moderation_output_dir.glob('frame_*.jpg')
+                    ))
+                ]
+                _g5_mark(
+                    "moderation_frame_listing",
+                    _g5_started,
+                )
+
+                _g5_started = time.monotonic()
                 ai_result = analyze_moderation_frames(
                     moderation_session,
                     moderation_frames,
+                )
+                _g5_mark(
+                    "moderation_inference",
+                    _g5_started,
                 )
 
                 moderation_scores = ai_result['scores']
@@ -894,27 +1735,292 @@ def analyze_video_asset(self, asset_id):
             report.technical_score = technical_score
 
             metadata['qc_v2'] = qc_v2
-            report.technical_metadata = metadata
+            metadata['analysis_pipeline'] = {
+                'version': 'g5-4c-action5-shared-video-decode-v1',
+                'shared_qc_moderation_decode': video_stream is not None,
+                'moderation_interval_seconds': DEFAULT_SAMPLE_INTERVAL_SECONDS,
+            }
 
-            report.moderation_scores = moderation_scores
-            report.detected_events = detected_events
-            report.flags = flags
-            report.analysis_version = 'eke-qc-v2-ai-v1'
-            report.analyzed_at = timezone.now()
-            report.error_message = ''
+            if video_stream is not None:
+                _g5_probe_started = (
+                    time.monotonic()
+                )
 
-            report.save()
+                with ThreadPoolExecutor(
+                    max_workers=2
+                ) as executor:
+                    def timed_keyframe_probe():
+                        started = time.monotonic()
+                        result = _probe_keyframe_intervals(
+                            source_input
+                        )
+                        return (
+                            result,
+                            time.monotonic() - started,
+                        )
 
-            if duration_value > 0:
-                asset.duration_seconds = int(round(duration_value))
-                asset.save(update_fields=[
-                    'duration_seconds',
-                    'updated_at',
-                ])
+                    def timed_frame_timing_probe():
+                        started = time.monotonic()
+                        result = _probe_frame_timing(
+                            source_input
+                        )
+                        return (
+                            result,
+                            time.monotonic() - started,
+                        )
+
+                    keyframe_future = (
+                        executor.submit(
+                            timed_keyframe_probe
+                        )
+                    )
+
+                    frame_timing_future = (
+                        executor.submit(
+                            timed_frame_timing_probe
+                        )
+                    )
+
+                    (
+                        keyframe_qc,
+                        keyframe_elapsed,
+                    ) = keyframe_future.result()
+
+                    (
+                        frame_timing_qc,
+                        frame_timing_elapsed,
+                    ) = frame_timing_future.result()
+
+                _g5_probe_elapsed = (
+                    time.monotonic()
+                    - _g5_probe_started
+                )
+
+                print(
+                    f"G5_4_TIMING asset={asset_id} "
+                    "stage=keyframe_probe "
+                    "seconds="
+                    f"{keyframe_elapsed:.3f} "
+                    "mode=parallel_pair",
+                    flush=True,
+                )
+
+                print(
+                    f"G5_4_TIMING asset={asset_id} "
+                    "stage=frame_timing_probe "
+                    "seconds="
+                    f"{frame_timing_elapsed:.3f} "
+                    "mode=parallel_pair",
+                    flush=True,
+                )
+
+                print(
+                    f"G5_4_TIMING asset={asset_id} "
+                    "stage=probe_parallel_wall "
+                    "seconds="
+                    f"{_g5_probe_elapsed:.3f}",
+                    flush=True,
+                )
+
+            else:
+                keyframe_qc = {
+                    "available": False,
+                    "keyframe_count": 0,
+                    "timestamps": [],
+                    "max_interval_seconds": None,
+                    "average_interval_seconds": None,
+                }
+
+                frame_timing_qc = {
+                    "available": False,
+                    "frame_count": 0,
+                    "is_constant": None,
+                }
+
+            metadata[
+                'keyframe_qc'
+            ] = keyframe_qc
+
+            metadata[
+                'frame_timing_qc'
+            ] = frame_timing_qc
+
+            specification = (
+                _master_technical_specification(
+                    asset
+                )
+            )
+
+            if specification is None:
+                raise RuntimeError(
+                    "Aucune spécification technique "
+                    "publiée disponible."
+                )
+
+            _g5_started = time.monotonic()
+            conformity = evaluate_master_conformity(
+                metadata=metadata,
+                frame_rate=report.frame_rate,
+                delivery_level=asset.delivery_level,
+                specification=specification,
+            )
+            _g5_mark(
+                "technical_conformity",
+                _g5_started,
+            )
+
+            metadata[
+                'technical_specification_conformity'
+            ] = conformity
+
+            for conformity_error in (
+                conformity.get('blocking_errors') or []
+            ):
+                flag = (
+                    'technical_specification_non_conformity:'
+                    + str(conformity_error)
+                )
+                if flag not in flags:
+                    flags.append(flag)
+
+            metadata[
+                "source_identity"
+            ] = source_identity
+
+            values = {
+                "status": report_status,
+                "container": (
+                    format_data.get(
+                        "format_name",
+                        "",
+                    )[:50]
+                ),
+                "video_codec": (
+                    (
+                        video_stream
+                        or {}
+                    ).get(
+                        "codec_name",
+                        "",
+                    )[:50]
+                ),
+                "audio_codec": (
+                    (
+                        audio_stream
+                        or {}
+                    ).get(
+                        "codec_name",
+                        "",
+                    )[:50]
+                ),
+                "width": width,
+                "height": height,
+                "frame_rate": report.frame_rate,
+                "video_bitrate": video_bitrate,
+                "audio_bitrate": audio_bitrate,
+                "duration_seconds": duration_value,
+                "audio_channels": _safe_int(
+                    (
+                        audio_stream
+                        or {}
+                    ).get(
+                        "channels"
+                    )
+                ),
+                "sample_rate": _safe_int(
+                    (
+                        audio_stream
+                        or {}
+                    ).get(
+                        "sample_rate"
+                    )
+                ),
+                "black_frame_count": black_count,
+                "freeze_frame_count": freeze_count,
+                "loudness_lufs": loudness_lufs,
+                "technical_score": technical_score,
+                "technical_metadata": metadata,
+                "moderation_scores": moderation_scores,
+                "detected_events": detected_events,
+                "flags": flags,
+                "analysis_version": "eke-qc-v2-ai-v1",
+                "analyzed_at": timezone.now(),
+                "error_message": "",
+            }
+
+            from django.db import transaction
+
+            _g5_started = time.monotonic()
+            with transaction.atomic():
+                locked_asset = (
+                    VideoAsset.objects
+                    .select_for_update()
+                    .get(pk=asset.pk)
+                )
+
+                if not (
+                    _video_asset_source_identity_matches(
+                        locked_asset,
+                        source_identity,
+                    )
+                ):
+                    return {
+                        "asset_id": str(asset.id),
+                        "status": "stale",
+                        "stage": "before_commit",
+                        "source_identity": (
+                            source_identity
+                        ),
+                        "current_source_identity": (
+                            _video_asset_source_identity(
+                                locked_asset
+                            )
+                        ),
+                    }
+
+                locked_report = (
+                    MediaAnalysisReport.objects
+                    .select_for_update()
+                    .get(asset=locked_asset)
+                )
+
+                for field, value in values.items():
+                    setattr(
+                        locked_report,
+                        field,
+                        value,
+                    )
+
+                locked_report.save(
+                    update_fields=[
+                        *values.keys(),
+                        "updated_at",
+                    ]
+                )
+
+                if duration_value > 0:
+                    locked_asset.duration_seconds = (
+                        int(round(duration_value))
+                    )
+                    locked_asset.save(
+                        update_fields=[
+                            "duration_seconds",
+                            "updated_at",
+                        ]
+                    )
+
+            _g5_mark(
+                "database_commit",
+                _g5_started,
+            )
+            _g5_mark(
+                "total_analysis",
+                _g5_total_started,
+            )
 
             return {
                 'asset_id': str(asset.id),
-                'status': report.status,
+                'status': report_status,
                 'technical_score': technical_score,
                 'flags': flags,
                 'qc_v2': qc_v2,
@@ -922,16 +2028,57 @@ def analyze_video_asset(self, asset_id):
             }
 
     except Exception as exc:
-        report.status = 'failed'
-        report.error_message = str(exc)[:2000]
-        report.analyzed_at = timezone.now()
+        from django.db import transaction
 
-        report.save(update_fields=[
-            'status',
-            'error_message',
-            'analyzed_at',
-            'updated_at',
-        ])
+        with transaction.atomic():
+            locked_asset = (
+                VideoAsset.objects
+                .select_for_update()
+                .get(pk=asset.pk)
+            )
+
+            if not (
+                _video_asset_source_identity_matches(
+                    locked_asset,
+                    source_identity,
+                )
+            ):
+                return {
+                    "asset_id": str(asset.id),
+                    "status": "stale",
+                    "stage": "exception",
+                    "source_identity": (
+                        source_identity
+                    ),
+                    "current_source_identity": (
+                        _video_asset_source_identity(
+                            locked_asset
+                        )
+                    ),
+                }
+
+            locked_report = (
+                MediaAnalysisReport.objects
+                .select_for_update()
+                .get(asset=locked_asset)
+            )
+
+            locked_report.status = "failed"
+            locked_report.error_message = (
+                str(exc)[:2000]
+            )
+            locked_report.analyzed_at = (
+                timezone.now()
+            )
+
+            locked_report.save(
+                update_fields=[
+                    "status",
+                    "error_message",
+                    "analyzed_at",
+                    "updated_at",
+                ]
+            )
 
         raise
 
@@ -1018,7 +2165,7 @@ def transcode_video_asset_to_hls(self, asset_id):
         output_root = work_root / 'hls'
         output_root.mkdir(parents=True, exist_ok=True)
 
-        segment_duration = str(getattr(settings, 'HLS_SEGMENT_DURATION_SECONDS', 6))
+        segment_duration = str(getattr(settings, 'HLS_SEGMENT_DURATION_SECONDS', 4))
         master_lines = ['#EXTM3U', '#EXT-X-VERSION:3']
         rendition_payloads = []
 
@@ -1227,3 +2374,494 @@ def transcode_video_asset_to_hls(self, asset_id):
             asset.status = 'failed'
             asset.save(update_fields=['status', 'updated_at'])
             raise
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(),
+)
+def analyze_trailer(
+    self,
+    report_id,
+):
+    """
+    Analyse technique d'une bande-annonce TEMP.
+
+    Sécurité anti-race :
+    le résultat n'est enregistré que si le source_path
+    du rapport correspond toujours au trailer_temp_path
+    courant de la cible.
+
+    Le rapport référence soit Content, soit Season.
+    """
+
+    import tempfile
+    from pathlib import Path
+
+    from django.db import transaction
+    from django.utils import timezone
+
+    try:
+        report = (
+            TrailerAnalysisReport.objects
+            .select_related(
+                "content",
+                "season",
+            )
+            .get(pk=report_id)
+        )
+    except TrailerAnalysisReport.DoesNotExist:
+        return {
+            "status": "missing_report",
+            "report_id": str(report_id),
+        }
+
+    source_path = str(
+        report.source_path or ""
+    ).strip()
+
+    if not source_path:
+        report.status = (
+            TrailerAnalysisReport.STATUS_FAILED
+        )
+        report.error_message = (
+            "Aucun source_path trailer à analyser."
+        )
+        report.analyzed_at = timezone.now()
+
+        report.save(
+            update_fields=[
+                "status",
+                "error_message",
+                "analyzed_at",
+                "updated_at",
+            ]
+        )
+
+        return {
+            "status": "failed",
+            "reason": "empty_source_path",
+        }
+
+    target = (
+        report.content
+        if report.content_id
+        else report.season
+    )
+
+    if target is None:
+        return {
+            "status": "missing_target",
+        }
+
+    current_path = str(
+        target.trailer_temp_path or ""
+    ).strip()
+
+    # Tâche devenue obsolète avant même l'analyse.
+    if current_path != source_path:
+        return {
+            "status": "stale",
+            "stage": "before_analysis",
+            "source_path": source_path,
+            "current_path": current_path,
+        }
+
+    report.status = (
+        TrailerAnalysisReport.STATUS_ANALYZING
+    )
+    report.error_message = ""
+
+    report.save(
+        update_fields=[
+            "status",
+            "error_message",
+            "updated_at",
+        ]
+    )
+
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix="eke-trailer-qc-"
+        ) as tmp:
+            work_root = Path(tmp)
+
+            local_source = (
+                _materialize_storage_input(
+                    source_path,
+                    work_root,
+                )
+            )
+
+            if not local_source:
+                raise RuntimeError(
+                    "Impossible de matérialiser "
+                    "le trailer source."
+                )
+
+            metadata = _probe_output_media(
+                local_source
+            )
+
+            if not isinstance(metadata, dict):
+                raise RuntimeError(
+                    "FFprobe n'a retourné aucune "
+                    "métadonnée exploitable."
+                )
+
+            streams = metadata.get(
+                "streams"
+            ) or []
+
+            format_data = metadata.get(
+                "format"
+            ) or {}
+
+            video_stream = next(
+                (
+                    stream
+                    for stream in streams
+                    if isinstance(
+                        stream,
+                        dict,
+                    )
+                    and stream.get(
+                        "codec_type"
+                    ) == "video"
+                ),
+                None,
+            )
+
+            audio_stream = next(
+                (
+                    stream
+                    for stream in streams
+                    if isinstance(
+                        stream,
+                        dict,
+                    )
+                    and stream.get(
+                        "codec_type"
+                    ) == "audio"
+                ),
+                None,
+            )
+
+            if video_stream is None:
+                raise RuntimeError(
+                    "Aucun flux vidéo détecté "
+                    "dans le trailer."
+                )
+
+            frame_rate = _frame_rate(
+                video_stream.get(
+                    "avg_frame_rate"
+                )
+                or video_stream.get(
+                    "r_frame_rate"
+                )
+            )
+
+            metadata[
+                "frame_timing_qc"
+            ] = _probe_frame_timing(
+                local_source
+            )
+
+            specification = (
+                _trailer_technical_specification(
+                    report
+                )
+            )
+
+            if specification is None:
+                raise RuntimeError(
+                    "Aucune spécification technique "
+                    "publiée disponible."
+                )
+
+            conformity = (
+                evaluate_trailer_conformity(
+                    metadata=metadata,
+                    frame_rate=frame_rate,
+                    delivery_level=(
+                        "distribution"
+                    ),
+                    specification=specification,
+                )
+            )
+
+            metadata[
+                "technical_specification_conformity"
+            ] = conformity
+
+            flags = []
+
+            for error in (
+                conformity.get(
+                    "blocking_errors"
+                )
+                or []
+            ):
+                flags.append(
+                    "technical_specification_"
+                    "non_conformity:"
+                    + str(error)
+                )
+
+            try:
+                duration = float(
+                    format_data.get(
+                        "duration"
+                    )
+                    or 0
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
+                duration = None
+
+            try:
+                source_size = int(
+                    default_storage.size(
+                        source_path
+                    )
+                )
+            except Exception:
+                source_size = 0
+
+            values = {
+                "container": str(
+                    format_data.get(
+                        "format_name"
+                    )
+                    or ""
+                )[:100],
+                "video_codec": str(
+                    video_stream.get(
+                        "codec_name"
+                    )
+                    or ""
+                )[:100],
+                "audio_codec": str(
+                    (
+                        audio_stream
+                        or {}
+                    ).get(
+                        "codec_name"
+                    )
+                    or ""
+                )[:100],
+                "width": _safe_int(
+                    video_stream.get(
+                        "width"
+                    )
+                ),
+                "height": _safe_int(
+                    video_stream.get(
+                        "height"
+                    )
+                ),
+                "frame_rate": (
+                    frame_rate
+                    if frame_rate is not None
+                    else None
+                ),
+                "video_bitrate": _safe_int(
+                    video_stream.get(
+                        "bit_rate"
+                    )
+                    or format_data.get(
+                        "bit_rate"
+                    )
+                ),
+                "audio_bitrate": _safe_int(
+                    (
+                        audio_stream
+                        or {}
+                    ).get(
+                        "bit_rate"
+                    )
+                ),
+                "duration_seconds": duration,
+                "audio_channels": _safe_int(
+                    (
+                        audio_stream
+                        or {}
+                    ).get(
+                        "channels"
+                    )
+                ),
+                "sample_rate": _safe_int(
+                    (
+                        audio_stream
+                        or {}
+                    ).get(
+                        "sample_rate"
+                    )
+                ),
+                "source_size_bytes": source_size,
+                "technical_metadata": metadata,
+                "flags": flags,
+                "error_message": "",
+                "analyzed_at": timezone.now(),
+            }
+
+            conformity_status = str(
+                conformity.get(
+                    "status"
+                )
+                or ""
+            )
+
+            if conformity_status == "conform":
+                values["status"] = (
+                    TrailerAnalysisReport.STATUS_PASSED
+                )
+
+            elif conformity_status in {
+                "review_required",
+                "unavailable",
+            }:
+                values["status"] = (
+                    TrailerAnalysisReport
+                    .STATUS_REVIEW_REQUIRED
+                )
+
+            else:
+                values["status"] = (
+                    TrailerAnalysisReport.STATUS_FAILED
+                )
+
+            # ------------------------------------------------
+            # PROTECTION ANTI-RÉSULTAT OBSOLÈTE
+            # ------------------------------------------------
+            with transaction.atomic():
+                locked = (
+                    TrailerAnalysisReport.objects
+                    .select_for_update()
+                    .get(pk=report.pk)
+                )
+
+                locked_target = (
+                    locked.content
+                    if locked.content_id
+                    else locked.season
+                )
+
+                locked_current_path = str(
+                    (
+                        locked_target
+                        .trailer_temp_path
+                    )
+                    or ""
+                ).strip()
+
+                # Le rapport lui-même peut aussi avoir
+                # été reset pour une nouvelle source.
+                if (
+                    str(
+                        locked.source_path
+                        or ""
+                    ).strip()
+                    != source_path
+                    or locked_current_path
+                    != source_path
+                ):
+                    return {
+                        "status": "stale",
+                        "stage": "before_commit",
+                        "source_path": source_path,
+                        "current_path": (
+                            locked_current_path
+                        ),
+                    }
+
+                for field, value in values.items():
+                    setattr(
+                        locked,
+                        field,
+                        value,
+                    )
+
+                locked.save(
+                    update_fields=[
+                        *values.keys(),
+                        "updated_at",
+                    ]
+                )
+
+            return {
+                "status": values["status"],
+                "conformity_status": (
+                    conformity_status
+                ),
+                "report_id": str(report.pk),
+                "source_path": source_path,
+            }
+
+    except Exception as exc:
+        # Ne jamais écraser un nouveau rapport/source
+        # avec l'erreur d'une ancienne tâche.
+        with transaction.atomic():
+            try:
+                locked = (
+                    TrailerAnalysisReport.objects
+                    .select_for_update()
+                    .get(pk=report.pk)
+                )
+            except TrailerAnalysisReport.DoesNotExist:
+                return {
+                    "status": "missing_report",
+                }
+
+            locked_target = (
+                locked.content
+                if locked.content_id
+                else locked.season
+            )
+
+            locked_current_path = str(
+                locked_target.trailer_temp_path
+                or ""
+            ).strip()
+
+            if (
+                str(
+                    locked.source_path or ""
+                ).strip()
+                != source_path
+                or locked_current_path
+                != source_path
+            ):
+                return {
+                    "status": "stale",
+                    "stage": "error_commit",
+                    "source_path": source_path,
+                    "current_path": (
+                        locked_current_path
+                    ),
+                }
+
+            locked.status = (
+                TrailerAnalysisReport.STATUS_FAILED
+            )
+            locked.error_message = str(
+                exc
+            )[:2000]
+            locked.analyzed_at = timezone.now()
+
+            locked.save(
+                update_fields=[
+                    "status",
+                    "error_message",
+                    "analyzed_at",
+                    "updated_at",
+                ]
+            )
+
+        return {
+            "status": "failed",
+            "error": str(exc),
+        }

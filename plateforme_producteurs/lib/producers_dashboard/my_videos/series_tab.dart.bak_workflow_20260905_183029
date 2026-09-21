@@ -1,0 +1,440 @@
+import 'package:flutter/material.dart';
+
+import 'package:plateforme_producteurs/core/core.dart';
+import 'package:plateforme_producteurs/services/producer_service.dart';
+
+import '../upload/upload_page.dart';
+
+class SeriesTab extends StatefulWidget {
+  const SeriesTab({super.key});
+
+  @override
+  State<SeriesTab> createState() => _SeriesTabState();
+}
+
+class _SeriesTabState extends State<SeriesTab> {
+  static const Map<String, String?> _filters = {
+    'Tous': null,
+    'Brouillons': 'draft',
+    'En validation': 'pending',
+    'Validés': 'approved',
+    'Refusés': 'rejected',
+  };
+
+  bool _isLoading = true;
+  String? _error;
+  String _selectedFilter = 'Tous';
+  List<Map<String, dynamic>> _series = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSeries();
+  }
+
+  Future<void> _loadSeries() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final series = await ProducerService.instance.getMyContents(
+        type: 'series',
+        submissionStatus: _filters[_selectedFilter],
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _series = series;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _error = error.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _openContent(Map<String, dynamic> series) async {
+    final id = series['id']?.toString().trim() ?? '';
+    final status = _status(series);
+
+    if (id.isEmpty) return;
+
+    if (status != 'draft' && status != 'rejected') {
+      return;
+    }
+
+    await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => UploadPage(contentId: id)));
+
+    if (!mounted) return;
+    await _loadSeries();
+  }
+
+  String _status(Map<String, dynamic> series) {
+    return series['producer_submission_status']?.toString() ?? 'draft';
+  }
+
+  String _title(Map<String, dynamic> series) {
+    final title = series['title']?.toString().trim() ?? '';
+    return title.isEmpty ? 'Sans titre' : title;
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'draft':
+        return 'Brouillon';
+      case 'pending':
+        return 'En validation';
+      case 'approved':
+        return 'Validé';
+      case 'rejected':
+        return 'Refusé';
+      default:
+        return status;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'draft':
+        return AppTheme.disabled;
+      case 'pending':
+        return AppTheme.warning;
+      case 'approved':
+        return AppTheme.success;
+      case 'rejected':
+        return AppTheme.error;
+      default:
+        return AppTheme.disabled;
+    }
+  }
+
+  String _updatedAt(Map<String, dynamic> series) {
+    final raw = series['updated_at']?.toString();
+
+    if (raw == null || raw.isEmpty) {
+      return '';
+    }
+
+    final parsed = DateTime.tryParse(raw);
+
+    if (parsed == null) {
+      return '';
+    }
+
+    final local = parsed.toLocal();
+
+    String two(int value) => value.toString().padLeft(2, '0');
+
+    return '${two(local.day)}/${two(local.month)}/${local.year} '
+        'à ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final color = _statusColor(status);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(AppTheme.borderRadiusSmall),
+      ),
+      child: Text(
+        _statusLabel(status),
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilters() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.paddingMedium),
+      child: Row(
+        children: _filters.keys.map((label) {
+          final selected = label == _selectedFilter;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(label),
+              selected: selected,
+              onSelected: (_) {
+                if (selected) return;
+
+                setState(() {
+                  _selectedFilter = label;
+                });
+
+                _loadSeries();
+              },
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildSeriesCard(Map<String, dynamic> series) {
+    final status = _status(series);
+    final updatedAt = _updatedAt(series);
+    final editable = status == 'draft' || status == 'rejected';
+
+    final reviewReason = series['review_reason']?.toString().trim() ?? '';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppTheme.paddingMedium,
+        vertical: AppTheme.paddingSmall,
+      ),
+      elevation: 3,
+      color: AppTheme.cardBackground,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
+        onTap: editable ? () => _openContent(series) : null,
+        child: Padding(
+          padding: const EdgeInsets.all(AppTheme.paddingMedium),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 64,
+                height: 82,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.borderRadiusSmall,
+                  ),
+                ),
+                child: Icon(
+                  Icons.live_tv_rounded,
+                  color: AppTheme.primary,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _title(series),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.textSubtitle.copyWith(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        _buildStatusBadge(status),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        Text(
+                          'SÉRIE',
+                          style: TextStyle(
+                            color: AppTheme.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (updatedAt.isNotEmpty)
+                          Text(
+                            'Modifié le $updatedAt',
+                            style: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (status == 'pending') ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Votre série est en cours de validation par EKEFLICKS.',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                    if (status == 'approved') ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Votre série a été validée par EKEFLICKS.',
+                        style: TextStyle(color: AppTheme.success, fontSize: 13),
+                      ),
+                    ],
+                    if (status == 'rejected') ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.error.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.borderRadiusSmall,
+                          ),
+                        ),
+                        child: Text(
+                          reviewReason.isEmpty
+                              ? 'Ce contenu doit être corrigé avant une nouvelle soumission.'
+                              : 'Motif du refus : $reviewReason',
+                          style: TextStyle(color: AppTheme.error, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                    if (editable) ...[
+                      const SizedBox(height: 14),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _openContent(series),
+                          icon: Icon(
+                            status == 'rejected'
+                                ? Icons.build_outlined
+                                : Icons.edit_outlined,
+                            size: 18,
+                          ),
+                          label: Text(
+                            status == 'rejected' ? 'CORRIGER' : 'CONTINUER',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    final filter = _selectedFilter;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.live_tv_outlined, size: 54, color: AppTheme.primary),
+            const SizedBox(height: 16),
+            Text(
+              filter == 'Tous' ? 'Aucune série' : 'Aucune série — $filter',
+              textAlign: TextAlign.center,
+              style: AppTheme.textSubtitle.copyWith(fontSize: 18),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(AppTheme.paddingMedium),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Mes séries',
+                  style: AppTheme.textTitle.copyWith(fontSize: 24),
+                ),
+              ),
+              IconButton(
+                onPressed: _isLoading ? null : _loadSeries,
+                icon: const Icon(Icons.refresh_rounded),
+                color: AppTheme.primary,
+                tooltip: 'Actualiser',
+              ),
+            ],
+          ),
+        ),
+        _buildFilters(),
+        const SizedBox(height: 8),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadSeries,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      const SizedBox(height: 70),
+                      Icon(
+                        Icons.error_outline,
+                        size: 46,
+                        color: AppTheme.error,
+                      ),
+                      const SizedBox(height: 14),
+                      Center(
+                        child: Text(
+                          'Impossible de charger vos séries.',
+                          style: TextStyle(color: AppTheme.textPrimary),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Center(
+                        child: OutlinedButton.icon(
+                          onPressed: _loadSeries,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Réessayer'),
+                        ),
+                      ),
+                    ],
+                  )
+                : _series.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(height: 300, child: _buildEmptyState()),
+                    ],
+                  )
+                : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: _series.length,
+                    itemBuilder: (context, index) {
+                      return _buildSeriesCard(_series[index]);
+                    },
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}

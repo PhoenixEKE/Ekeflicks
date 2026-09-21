@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, When
 from django.utils import timezone
 
 from core.models import Content, Genre, Profile, Recommendation, TrendingCache, WatchHistory
@@ -85,12 +85,95 @@ def apply_advanced_search_filters(queryset, params):
     return queryset.distinct()
 
 
+def public_eligible_content_queryset():
+    today = timezone.localdate()
+
+    return (
+        base_content_queryset()
+        .filter(
+            producer_submission_status='approved',
+        )
+        .filter(
+            Q(available_from__isnull=True)
+            | Q(available_from__lte=today)
+        )
+        .filter(
+            Q(available_until__isnull=True)
+            | Q(available_until__gte=today)
+        )
+    )
+
+
 def top_10_queryset():
-    return base_content_queryset().order_by(
-        '-view_count',
-        '-popularity_score',
-        '-rating_avg',
-        '-created_at',
+    """
+    Return the current persisted global product Top10.
+
+    Contract:
+    - PostgreSQL Top10Snapshot/Top10Entry is authoritative;
+    - no published snapshot => empty Top10;
+    - published snapshot with zero entries => empty Top10;
+    - no legacy metric fallback;
+    - current public eligibility is re-checked at read time;
+    - missing/ineligible entries are never backfilled;
+    - persisted Top10Entry.position order is preserved;
+    - no ClickHouse query occurs on public reads.
+    """
+    from core.models.recommendations import Top10Snapshot
+
+    snapshot = (
+        Top10Snapshot.objects
+        .filter(
+            scope=Top10Snapshot.SCOPE_GLOBAL,
+            is_published=True,
+        )
+        .order_by(
+            '-generated_at',
+            '-id',
+        )
+        .first()
+    )
+
+    if snapshot is None:
+        return base_content_queryset().none()
+
+    content_ids = list(
+        snapshot.entries
+        .order_by(
+            'position',
+            'id',
+        )
+        .values_list(
+            'content_id',
+            flat=True,
+        )
+    )
+
+    if not content_ids:
+        return base_content_queryset().none()
+
+    preserved_order = Case(
+        *[
+            When(
+                id=content_id,
+                then=position,
+            )
+            for position, content_id
+            in enumerate(
+                content_ids,
+                start=1,
+            )
+        ],
+        output_field=IntegerField(),
+    )
+
+    return (
+        public_eligible_content_queryset()
+        .filter(
+            id__in=content_ids,
+        )
+        .order_by(
+            preserved_order
+        )
     )
 
 

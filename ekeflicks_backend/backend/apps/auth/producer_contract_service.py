@@ -17,6 +17,16 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfbase.ttfonts import TTFont
 
 from core.models.producers import ProducerAccount, ProducerAgreement
+from apps.auth.producer_contract_versions import (
+    get_current_contract_title,
+    get_current_contract_version,
+)
+from apps.auth.producer_contract_canonical_renderer import (
+    CanonicalContractRenderError,
+    append_signature_evidence_page,
+    render_db_presented_contract,
+    uses_db_canonical_renderer,
+)
 
 
 CONTRACT_TEMPLATE_PREFIX = "contrat-producteur-ekeflicks-"
@@ -74,9 +84,9 @@ def _clean(value) -> str:
     return "" if value is None else str(value).strip()
 
 
-def _template_path() -> Path:
+def _template_path(version=None) -> Path:
     version = _clean(
-        settings.PRODUCER_AGREEMENT_CURRENT_VERSION
+        version or get_current_contract_version()
     )
 
     if (
@@ -332,6 +342,8 @@ def _overlay_page_12(data):
 def _overlay_page_13(
     data,
     *,
+    contract_version,
+    contract_title,
     ekeflicks_signed_at,
     producer_signed_at=None,
     presented_hash="",
@@ -428,7 +440,7 @@ def _overlay_page_13(
         c,
         306.1,
         708.5,
-        settings.PRODUCER_AGREEMENT_CURRENT_VERSION,
+        contract_version,
         max_width=250,
         preferred_size=8.5,
         min_size=6.5,
@@ -438,7 +450,7 @@ def _overlay_page_13(
         c,
         306.1,
         693.5,
-        settings.PRODUCER_AGREEMENT_TITLE,
+        contract_title,
         max_width=250,
         preferred_size=8.5,
         min_size=6.5,
@@ -607,14 +619,55 @@ def _write(reader):
 def generate_presented_contract(
     account: ProducerAccount,
     *,
+    contract_version=None,
+    contract_title=None,
     ekeflicks_signed_at=None,
+    agreement=None,
 ) -> GeneratedProducerContract:
+    contract_version = (
+        contract_version or get_current_contract_version()
+    )
+
+    if uses_db_canonical_renderer(contract_version):
+        ekeflicks_signed_at = (
+            ekeflicks_signed_at or timezone.now()
+        )
+
+        try:
+            rendered = render_db_presented_contract(
+                account,
+                contract_version=contract_version,
+                ekeflicks_signed_at=ekeflicks_signed_at,
+                agreement=agreement,
+            )
+        except CanonicalContractRenderError as exc:
+            raise ProducerContractError(
+                str(exc)
+            ) from exc
+
+        return GeneratedProducerContract(
+            pdf_bytes=rendered.pdf_bytes,
+            sha256=rendered.sha256,
+            effective_date=rendered.effective_date,
+        )
+
+    # Legacy static-PDF renderer for historical contract versions.
     _register_contract_fonts()
     data = _producer_data(account)
+
+    contract_version = (
+        contract_version or get_current_contract_version()
+    )
+    contract_title = (
+        contract_title or get_current_contract_title()
+    )
+
     ekeflicks_signed_at = ekeflicks_signed_at or timezone.now()
     effective_date = timezone.localdate(ekeflicks_signed_at)
 
-    reader = PdfReader(str(_template_path()))
+    reader = PdfReader(
+        str(_template_path(contract_version))
+    )
 
     if len(reader.pages) != 13:
         raise ProducerContractError(
@@ -635,6 +688,8 @@ def generate_presented_contract(
         reader.pages[12],
         _overlay_page_13(
             data,
+            contract_version=contract_version,
+            contract_title=contract_title,
             ekeflicks_signed_at=ekeflicks_signed_at,
         ),
     )
@@ -652,18 +707,76 @@ def generate_signed_contract(
     account: ProducerAccount,
     *,
     presented_contract: GeneratedProducerContract,
+    contract_version=None,
+    contract_title=None,
     signed_at,
     ekeflicks_signed_at,
+    signer_ip="",
 ) -> GeneratedProducerContract:
+    contract_version = (
+        contract_version or get_current_contract_version()
+    )
+    contract_title = (
+        contract_title or get_current_contract_title()
+    )
+
+    if uses_db_canonical_renderer(contract_version):
+        actual_presented_hash = hashlib.sha256(
+            presented_contract.pdf_bytes
+        ).hexdigest()
+
+        if actual_presented_hash != presented_contract.sha256:
+            raise ProducerContractError(
+                "Le document présenté ne correspond pas "
+                "à son empreinte SHA-256 enregistrée."
+            )
+
+        try:
+            pdf_bytes = append_signature_evidence_page(
+                presented_contract.pdf_bytes,
+                contract_version=contract_version,
+                contract_title=contract_title,
+                producer_legal_name=account.legal_name,
+                signer_name=account.representative_name,
+                signer_role=account.representative_role,
+                signer_email=account.user.email,
+                signer_ip=signer_ip,
+                signed_at=signed_at,
+                contract_hash=presented_contract.sha256,
+                ekeflicks_signer_name=getattr(
+                    account,
+                    "_contract_ekeflicks_signer_name",
+                    "",
+                ),
+                ekeflicks_signer_role=getattr(
+                    account,
+                    "_contract_ekeflicks_signer_role",
+                    "",
+                ),
+            )
+        except CanonicalContractRenderError as exc:
+            raise ProducerContractError(str(exc)) from exc
+
+        return GeneratedProducerContract(
+            pdf_bytes=pdf_bytes,
+            sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+            effective_date=presented_contract.effective_date,
+        )
+
+    # Historical v1/v2 path — unchanged.
     _register_contract_fonts()
     data = _producer_data(account)
 
-    reader = PdfReader(io.BytesIO(presented_contract.pdf_bytes))
+    reader = PdfReader(
+        io.BytesIO(presented_contract.pdf_bytes)
+    )
 
     _merge(
         reader.pages[12],
         _overlay_page_13(
             data,
+            contract_version=contract_version,
+            contract_title=contract_title,
             ekeflicks_signed_at=ekeflicks_signed_at,
             producer_signed_at=signed_at,
             presented_hash=presented_contract.sha256,

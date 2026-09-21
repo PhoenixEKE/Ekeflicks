@@ -103,6 +103,152 @@ class ProducerAccount(TimeStampedModel):
         return f'{self.company_name} ({self.user_id})'
 
 
+class PlatformLegalIdentity(TimeStampedModel):
+    """
+    Current legal identity used when generating new EKEFLICKS
+    contractual documents.
+
+    Signed ProducerAgreement records remain immutable snapshots
+    and must never be regenerated when this identity changes.
+    """
+
+    legal_name = models.CharField(max_length=255)
+    legal_form = models.CharField(max_length=100, blank=True)
+    capital = models.CharField(max_length=100, blank=True)
+
+    registered_office = models.TextField()
+    postal_code = models.CharField(max_length=20, blank=True)
+    city = models.CharField(max_length=120)
+    country = models.CharField(max_length=120, default="France")
+
+    siret = models.CharField(max_length=32, blank=True)
+    rcs = models.CharField(max_length=120, blank=True)
+    vat_number = models.CharField(max_length=64, blank=True)
+
+    representative_name = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+    representative_role = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+
+    email = models.EmailField(blank=True)
+    website = models.URLField(blank=True)
+
+    is_active = models.BooleanField(default=False)
+    effective_from = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "platform_legal_identities"
+        ordering = ["-effective_from", "-created_at"]
+        indexes = [
+            models.Index(
+                fields=["is_active", "effective_from"],
+                name="platform_legal_active_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.legal_name} ({self.effective_from or 'draft'})"
+
+
+class ProducerContractVersion(TimeStampedModel):
+    """
+    Version administrable du contrat-cadre Producteur EKEFLICKS.
+
+    Une version publiee constitue une reference contractuelle immuable.
+    Toute evolution de fond doit creer une nouvelle version.
+    Les ProducerAgreement restent les preuves individualisees et signees.
+    """
+
+    STATUS_DRAFT = 'draft'
+    STATUS_PUBLISHED = 'published'
+    STATUS_ARCHIVED = 'archived'
+
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_PUBLISHED, 'Published'),
+        (STATUS_ARCHIVED, 'Archived'),
+    ]
+
+    version = models.CharField(
+        max_length=50,
+        unique=True,
+    )
+
+    title = models.CharField(
+        max_length=255,
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_DRAFT,
+        db_index=True,
+    )
+
+    effective_date = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    requires_reacceptance = models.BooleanField(
+        default=True,
+        help_text=(
+            'Si active, cette version doit etre acceptee par '
+            'les Producteurs meme si une ancienne version est signee.'
+        ),
+    )
+
+    canonical_content = models.TextField(
+        blank=True,
+        help_text=(
+            'Source contractuelle administrable de cette version. '
+            'Une fois publiee, elle ne doit plus etre modifiee.'
+        ),
+    )
+
+    content_sha256 = models.CharField(
+        max_length=64,
+        blank=True,
+        editable=False,
+        help_text='SHA-256 du contenu contractuel canonique.',
+    )
+
+    published_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    archived_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = 'producer_contract_versions'
+        ordering = [
+            '-published_at',
+            '-created_at',
+        ]
+        indexes = [
+            models.Index(
+                fields=['status', 'published_at'],
+                name='producer_contract_pub_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.version} - {self.status}'
+
+    @property
+    def is_published(self):
+        return self.status == self.STATUS_PUBLISHED
+
+
 class ProducerAgreement(TimeStampedModel):
     """
     Trace immuable du contrat présenté et signé par un producteur.
@@ -275,6 +421,82 @@ class ProducerAgreement(TimeStampedModel):
         max_length=64,
         blank=True,
         help_text="SHA-256 of the final personalized signed PDF.",
+    )
+
+    # --------------------------------------------------------
+    # Immutable EKEFLICKS legal identity snapshot used for
+    # this exact agreement.
+    #
+    # Later PlatformLegalIdentity changes must never alter
+    # historical agreements.
+    # --------------------------------------------------------
+
+    platform_legal_name = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    platform_legal_form = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+
+    platform_capital = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    platform_registered_office = models.TextField(
+        blank=True,
+    )
+
+    platform_postal_code = models.CharField(
+        max_length=30,
+        blank=True,
+    )
+
+    platform_city = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+
+    platform_country = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+
+    platform_siret = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+
+    platform_rcs = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    platform_vat_number = models.CharField(
+        max_length=120,
+        blank=True,
+    )
+
+    platform_representative_name = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    platform_representative_role = models.CharField(
+        max_length=150,
+        blank=True,
+    )
+
+    platform_email = models.EmailField(
+        blank=True,
+    )
+
+    platform_website = models.URLField(
+        max_length=1000,
+        blank=True,
     )
 
     ekeflicks_signer_name = models.CharField(

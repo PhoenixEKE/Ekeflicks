@@ -12,6 +12,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from apps.notifications.services import notify_user
+from apps.auth.producer_contract_context import (
+    agreement_has_platform_snapshot,
+    platform_agreement_snapshot_values,
+)
 from apps.auth.producer_contract_service import (
     GeneratedProducerContract,
     ProducerContractError,
@@ -50,6 +54,11 @@ from apps.auth.serializers import (
 from core.models.profiles import Profile
 from core.models.users import AccountClosureRequest, EmailChangeSupportRequest, User
 from core.models.producers import ProducerAccount, ProducerAgreement
+from apps.auth.producer_contract_versions import (
+    get_current_contract_title,
+    get_current_contract_version,
+    get_recognized_signed_versions,
+)
 
 
 WEB_REFRESH_COOKIE_NAME = 'ekeflicks_refresh'
@@ -729,13 +738,14 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
                 'Ce compte producteur a ete refuse.'
             )
 
-        version = settings.PRODUCER_AGREEMENT_CURRENT_VERSION
+        version = get_current_contract_version()
+        contract_title = get_current_contract_title()
 
         # Un contrat deja signe dans une version encore acceptee reste
         # juridiquement valable. Sa simple consultation ne doit donc pas
         # creer ni imposer automatiquement une nouvelle version.
         agreement = account.agreements.filter(
-            contract_version__in=settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS,
+            contract_version__in=get_recognized_signed_versions(),
             status=ProducerAgreement.STATUS_SIGNED,
             signed_at__isnull=False,
         ).order_by(
@@ -749,26 +759,42 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
             ).first()
 
             if agreement is None:
+                platform_snapshot = (
+                    platform_agreement_snapshot_values()
+                )
+
                 agreement = ProducerAgreement.objects.create(
                     producer_account=account,
                     contract_version=version,
-                    contract_title=settings.PRODUCER_AGREEMENT_TITLE,
+                    contract_title=contract_title,
                     contract_document_url=_agreement_document_url(
                         request,
                         version=version,
                     ),
                     status=ProducerAgreement.STATUS_PENDING,
                     signature_method=ProducerAgreement.SIGNATURE_CLICKWRAP,
-                    ekeflicks_signer_name=settings.EKEFLICKS_CONTRACT_SIGNER_NAME,
-                    ekeflicks_signer_role=settings.EKEFLICKS_CONTRACT_SIGNER_ROLE,
+                    ekeflicks_signer_name=(
+                        platform_snapshot[
+                            'platform_representative_name'
+                        ]
+                    ),
+                    ekeflicks_signer_role=(
+                        platform_snapshot[
+                            'platform_representative_role'
+                        ]
+                    ),
                     ekeflicks_signed_at=timezone.now(),
+                    **platform_snapshot,
                 )
 
         if agreement.status != ProducerAgreement.STATUS_SIGNED:
             try:
                 presented = generate_presented_contract(
                     account,
+                    contract_version=agreement.contract_version,
+                    contract_title=agreement.contract_title,
                     ekeflicks_signed_at=agreement.ekeflicks_signed_at,
+                    agreement=agreement,
                 )
             except ProducerContractError as exc:
                 raise exceptions.ValidationError(
@@ -877,7 +903,7 @@ class ProducerAgreementDocumentView(generics.GenericAPIView):
         elif signed_requested:
             agreement = account.agreements.filter(
                 contract_version__in=(
-                    settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS
+                    get_recognized_signed_versions()
                 ),
                 status=ProducerAgreement.STATUS_SIGNED,
                 signed_at__isnull=False,
@@ -896,7 +922,7 @@ class ProducerAgreementDocumentView(generics.GenericAPIView):
         else:
             agreement = account.agreements.filter(
                 contract_version=(
-                    settings.PRODUCER_AGREEMENT_CURRENT_VERSION
+                    get_current_contract_version()
                 ),
             ).first()
 
@@ -994,7 +1020,7 @@ class ProducerAgreementSignView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        version = settings.PRODUCER_AGREEMENT_CURRENT_VERSION
+        version = get_current_contract_version()
 
         agreement = account.agreements.filter(
             contract_version=version,
@@ -1034,7 +1060,10 @@ class ProducerAgreementSignView(generics.GenericAPIView):
         try:
             current_presented = generate_presented_contract(
                 account,
+                contract_version=agreement.contract_version,
+                contract_title=agreement.contract_title,
                 ekeflicks_signed_at=agreement.ekeflicks_signed_at,
+                agreement=agreement,
             )
         except ProducerContractError as exc:
             raise exceptions.ValidationError(
@@ -1104,11 +1133,30 @@ class ProducerAgreementSignView(generics.GenericAPIView):
 
         now = timezone.now()
 
+        # Evidence values come from the immutable legal snapshot
+        # captured on ProducerAgreement at presentation time.
+        account._contract_ekeflicks_signer_name = (
+            agreement.platform_representative_name
+            or agreement.ekeflicks_signer_name
+        )
+        account._contract_ekeflicks_signer_role = (
+            agreement.platform_representative_role
+            or agreement.ekeflicks_signer_role
+        )
+
+        ip_address = (
+            request.META.get('HTTP_CF_CONNECTING_IP')
+            or request.META.get('REMOTE_ADDR')
+        )
+
         final_contract = generate_signed_contract(
             account,
             presented_contract=presented_contract,
+            contract_version=agreement.contract_version,
+            contract_title=agreement.contract_title,
             signed_at=now,
             ekeflicks_signed_at=agreement.ekeflicks_signed_at,
+            signer_ip=ip_address or "",
         )
 
         # Le PDF final est stocké avant activation du compte.
@@ -1118,18 +1166,13 @@ class ProducerAgreementSignView(generics.GenericAPIView):
             final_contract,
         )
 
-        ip_address = (
-            request.META.get('HTTP_CF_CONNECTING_IP')
-            or request.META.get('REMOTE_ADDR')
-        )
-
         try:
             with transaction.atomic():
                 agreement = ProducerAgreement.objects.select_for_update().get(
                     pk=agreement.pk
                 )
 
-                agreement.contract_title = settings.PRODUCER_AGREEMENT_TITLE
+                
                 agreement.contract_document_url = _agreement_document_url(
                     request,
                     version=agreement.contract_version,
@@ -1179,10 +1222,12 @@ class ProducerAgreementSignView(generics.GenericAPIView):
                 agreement.signed_document_hash = final_contract.sha256
 
                 agreement.ekeflicks_signer_name = (
-                    settings.EKEFLICKS_CONTRACT_SIGNER_NAME
+                    agreement.platform_representative_name
+                    or agreement.ekeflicks_signer_name
                 )
                 agreement.ekeflicks_signer_role = (
-                    settings.EKEFLICKS_CONTRACT_SIGNER_ROLE
+                    agreement.platform_representative_role
+                    or agreement.ekeflicks_signer_role
                 )
 
                 agreement.save()

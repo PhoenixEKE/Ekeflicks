@@ -1,136 +1,372 @@
-//serie_tab.dart
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+
 import 'package:plateforme_producteurs/core/core.dart';
-import 'package:plateforme_producteurs/models/series_models.dart';
-// Import séparé pour éviter les conflits
-import 'add_season_modal.dart' as season_modal;
-import 'add_episode_modal.dart' as episode_modal;
-import 'series_details_modal.dart';
+import 'package:plateforme_producteurs/services/producer_service.dart';
+
+import 'content_details_modal.dart';
+
+import '../upload/upload_page.dart';
+import 'package:plateforme_producteurs/widgets/producer_modal_shell.dart';
 
 class SeriesTab extends StatefulWidget {
-  const SeriesTab({super.key});
+  const SeriesTab({super.key, this.onEditContent});
+
+  final void Function(String contentId)? onEditContent;
 
   @override
   State<SeriesTab> createState() => _SeriesTabState();
 }
 
 class _SeriesTabState extends State<SeriesTab> {
-  final List<Series> seriesList = [
-    Series(
-      title: "Série Test",
-      description: "Description de test pour la série",
-      genres: ["Drame", "Test"],
-      language: "Français",
-      releaseYear: 2023,
-      country: "France",
-      status: "Publié",
-      team: ProductionTeam(
-        director: "Réalisateur Test",
-        screenwriter: "Scénariste Test",
-        producers: ["Production Test"],
-        actors: {"Acteur Test": "Rôle Test"},
-      ),
-      media: SeriesMedia(
-        posterUrl: "assets/banners/film1.jpg",
-        bannerUrl: "assets/banners/film1.jpg",
-        trailerUrl: "",
-      ),
-      stats: SeriesStats(
-        views: 1000,
-        likes: 100,
-        comments: 10,
-        rating: 4.0,
-        publicationHistory: [PublicationEvent("Test", DateTime.now())],
-        recentComments: [
-          SeriesComment("Testeur", "Commentaire test", DateTime.now()),
-        ],
-      ),
-      seasons: [],
-    ),
-  ];
+  static const Map<String, String?> _filters = {
+    'Tous': null,
+    'Brouillons': 'draft',
+    'En validation': 'pending',
+    'Validés': 'approved',
+    'Refusés': 'rejected',
+  };
 
-  bool _areFiltersVisible = false;
-  int _selectedSeriesIndex = 0;
+  bool _isLoading = true;
+  String? _error;
+  String _selectedFilter = 'Tous';
+  List<Map<String, dynamic>> _series = const [];
+  String? _deletingDraftId;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _buildSearchBar(context),
-        if (_areFiltersVisible) _buildFiltersSection(context),
-        Expanded(
-          child: ListView.builder(
-            itemCount: seriesList.length,
-            itemBuilder: (context, index) =>
-                _buildSeriesCard(context, seriesList[index], index),
-          ),
-        ),
-      ],
-    );
+  void initState() {
+    super.initState();
+    _loadSeries();
   }
 
-  Widget _buildSearchBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: "Rechercher une série...",
-                prefixIcon: Icon(Icons.search, color: AppTheme.primary),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(
-                    AppTheme.borderRadiusMedium,
-                  ),
-                ),
-                filled: true,
-                fillColor: AppTheme.cardBackground,
-              ),
-              style: TextStyle(color: AppTheme.textPrimary),
+  Future<void> _loadSeries() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final series = await ProducerService.instance.getMyContents(
+        type: 'series',
+        submissionStatus: _filters[_selectedFilter],
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _series = series;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _error = error.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _deleteDraft(Map<String, dynamic> series) async {
+    if (_deletingDraftId != null || _status(series) != 'draft') {
+      return;
+    }
+
+    final id = series['id']?.toString().trim() ?? '';
+    if (id.isEmpty) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return ProducerModalShell(
+          title: 'Supprimer ce brouillon ?',
+          maxWidth: 560,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('ANNULER'),
             ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('SUPPRIMER'),
+            ),
+          ],
+          child: Text(
+            'La série « ${_title(series)} » sera supprimée définitivement. '
+            'Les fichiers temporaires associés seront également supprimés. '
+            'Cette action est irréversible.',
           ),
-          IconButton(
-            icon: Icon(Icons.filter_alt, color: AppTheme.primary),
-            onPressed: () {
-              setState(() {
-                _areFiltersVisible = !_areFiltersVisible;
-              });
-            },
-          ),
-        ],
-      ),
+        );
+      },
     );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _deletingDraftId = id;
+    });
+
+    try {
+      await ProducerService.instance.deleteDraft(id);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _series = _series
+            .where((item) => item['id']?.toString() != id)
+            .toList();
+        _deletingDraftId = null;
+      });
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return ProducerModalShell(
+            title: 'Brouillon supprimé',
+            maxWidth: 520,
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+            child: const Text('Le brouillon a été supprimé avec succès.'),
+          );
+        },
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _deletingDraftId = null;
+      });
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return ProducerModalShell(
+            title: 'Suppression impossible',
+            maxWidth: 560,
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+            child: Text(error.toString().replaceFirst('Exception: ', '')),
+          );
+        },
+      );
+    }
   }
 
-  Widget _buildFiltersSection(BuildContext context) {
+  Future<void> _openContent(Map<String, dynamic> content) async {
+    final id = content['id']?.toString().trim() ?? '';
+    final status = _status(content);
+
+    if (id.isEmpty) return;
+
+    // Brouillon / refus :
+    // ouverture dans l'onglet Dépôt du Dashboard.
+    if (status == 'draft' || status == 'rejected') {
+      final handler = widget.onEditContent;
+
+      if (handler != null) {
+        handler(id);
+        return;
+      }
+
+      await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => UploadPage(contentId: id)),
+      );
+
+      if (!mounted) return;
+      await _loadSeries();
+      return;
+    }
+
+    // Pending / approved : lecture seule avec les vraies
+    // données détaillées retournées par l'API.
+    try {
+      final detail = await ProducerService.instance.getContent(id);
+
+      if (!mounted) return;
+
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(builder: (_) => ContentDetailsModal(content: detail)),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Impossible de charger le contenu : $error')),
+      );
+    }
+  }
+
+  String _status(Map<String, dynamic> series) {
+    return series['producer_submission_status']?.toString() ?? 'draft';
+  }
+
+  String _title(Map<String, dynamic> series) {
+    final title = series['title']?.toString().trim() ?? '';
+    return title.isEmpty ? 'Sans titre' : title;
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'draft':
+        return 'Brouillon';
+      case 'pending':
+        return 'En validation';
+      case 'approved':
+        return 'Validé';
+      case 'rejected':
+        return 'Refusé';
+      default:
+        return status;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'draft':
+        return AppTheme.disabled;
+      case 'pending':
+        return AppTheme.warning;
+      case 'approved':
+        return AppTheme.success;
+      case 'rejected':
+        return AppTheme.error;
+      default:
+        return AppTheme.disabled;
+    }
+  }
+
+  String _updatedAt(Map<String, dynamic> series) {
+    final raw = series['updated_at']?.toString();
+
+    if (raw == null || raw.isEmpty) {
+      return '';
+    }
+
+    final parsed = DateTime.tryParse(raw);
+
+    if (parsed == null) {
+      return '';
+    }
+
+    final local = parsed.toLocal();
+
+    String two(int value) => value.toString().padLeft(2, '0');
+
+    return '${two(local.day)}/${two(local.month)}/${local.year} '
+        'à ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  String? _draftDeletionWarning(Map<String, dynamic> content) {
+    final raw = content['updated_at']?.toString().trim() ?? '';
+
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    final parsed = DateTime.tryParse(raw);
+
+    if (parsed == null) {
+      return null;
+    }
+
+    final age = DateTime.now().toUtc().difference(parsed.toUtc()).inDays;
+
+    if (age < 90) {
+      return null;
+    }
+
+    if (age >= 120) {
+      return 'Suppression automatique imminente';
+    }
+
+    final remainingDays = 120 - age;
+
+    return 'Suppression automatique dans $remainingDays '
+        '${remainingDays > 1 ? 'jours' : 'jour'}';
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final color = _statusColor(status);
+
     return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppTheme.cardBackground,
-        borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(AppTheme.borderRadiusSmall),
       ),
-      child: Column(
-        children: [
-          Text(
-            "Filtres à implémenter",
-            style: TextStyle(color: AppTheme.textPrimary),
-          ),
-        ],
+      child: Text(
+        _statusLabel(status),
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
 
-  Widget _buildSeriesCard(BuildContext context, Series series, int index) {
-    final publishedEpisodes = series.totalEpisodes
-        .where((e) => e.status == "Publié")
-        .length;
-    final totalEpisodes = series.totalEpisodes.length;
+  Widget _buildFilters() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.paddingMedium),
+      child: Row(
+        children: _filters.keys.map((label) {
+          final selected = label == _selectedFilter;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(label),
+              selected: selected,
+              onSelected: (_) {
+                if (selected) return;
+
+                setState(() {
+                  _selectedFilter = label;
+                });
+
+                _loadSeries();
+              },
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildSeriesCard(Map<String, dynamic> series) {
+    final status = _status(series);
+    final updatedAt = _updatedAt(series);
+    final deletionWarning = status == 'draft'
+        ? _draftDeletionWarning(series)
+        : null;
+    final editable = status == 'draft' || status == 'rejected';
+
+    final reviewReason = series['review_reason']?.toString().trim() ?? '';
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppTheme.paddingMedium,
+        vertical: AppTheme.paddingSmall,
+      ),
       elevation: 3,
       color: AppTheme.cardBackground,
       shape: RoundedRectangleBorder(
@@ -138,71 +374,204 @@ class _SeriesTabState extends State<SeriesTab> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppTheme.borderRadiusMedium),
-        onTap: () => _showSeriesDetails(context, series, index),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppTheme.borderRadiusMedium),
-              ),
-              child: Image.asset(
-                series.media.bannerUrl,
-                height: 150,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  height: 150,
-                  color: Colors.grey[200],
-                  child: Center(
-                    child: Icon(
-                      Icons.live_tv,
-                      size: 50,
-                      color: AppTheme.primary,
-                    ),
+        onTap: () => _openContent(series),
+        child: Padding(
+          padding: const EdgeInsets.all(AppTheme.paddingMedium),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 64,
+                height: 82,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.borderRadiusSmall,
                   ),
                 ),
+                child: Icon(
+                  Icons.live_tv_rounded,
+                  color: AppTheme.primary,
+                  size: 32,
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          series.title,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _title(series),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.textSubtitle.copyWith(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 12),
+                        _buildStatusBadge(status),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        Text(
+                          'SÉRIE',
+                          style: TextStyle(
+                            color: AppTheme.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (updatedAt.isNotEmpty)
+                          Text(
+                            'Modifié le $updatedAt',
+                            style: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (deletionWarning != null) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 17,
+                            color: AppTheme.warning,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              deletionWarning,
+                              style: TextStyle(
+                                color: AppTheme.warning,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      _buildStatusBadge(context, series.status),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      _buildMetaChip(
-                        Icons.calendar_today,
-                        '${series.releaseYear}',
-                      ),
-                      _buildMetaChip(Icons.language, series.language),
-                      _buildMetaChip(Icons.place, series.country),
-                      ...series.genres.map(
-                        (genre) => _buildMetaChip(Icons.category, genre),
+                    if (status == 'pending') ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Votre série est en cours de validation par EKEFLICKS.',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  _buildStatsRow(series, publishedEpisodes, totalEpisodes),
-                ],
+                    if (status == 'approved') ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Votre série a été validée par EKEFLICKS.',
+                        style: TextStyle(color: AppTheme.success, fontSize: 13),
+                      ),
+                    ],
+                    if (status == 'rejected') ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.error.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.borderRadiusSmall,
+                          ),
+                        ),
+                        child: Text(
+                          reviewReason.isEmpty
+                              ? 'Ce contenu doit être corrigé avant une nouvelle soumission.'
+                              : 'Motif du refus : $reviewReason',
+                          style: TextStyle(color: AppTheme.error, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                    if (editable) ...[
+                      const SizedBox(height: 14),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.end,
+                          children: [
+                            if (status == 'draft')
+                              OutlinedButton.icon(
+                                onPressed: _deletingDraftId != null
+                                    ? null
+                                    : () => _deleteDraft(series),
+                                icon:
+                                    _deletingDraftId == series['id']?.toString()
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.delete_outline,
+                                        size: 18,
+                                      ),
+                                label: const Text('SUPPRIMER'),
+                              ),
+                            ElevatedButton.icon(
+                              onPressed: _deletingDraftId != null
+                                  ? null
+                                  : () => _openContent(series),
+                              icon: Icon(
+                                status == 'rejected'
+                                    ? Icons.build_outlined
+                                    : Icons.edit_outlined,
+                                size: 18,
+                              ),
+                              label: Text(
+                                status == 'rejected' ? 'CORRIGER' : 'CONTINUER',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    final filter = _selectedFilter;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.live_tv_outlined, size: 54, color: AppTheme.primary),
+            const SizedBox(height: 16),
+            Text(
+              filter == 'Tous' ? 'Aucune série' : 'Aucune série — $filter',
+              textAlign: TextAlign.center,
+              style: AppTheme.textSubtitle.copyWith(fontSize: 18),
             ),
           ],
         ),
@@ -210,220 +579,80 @@ class _SeriesTabState extends State<SeriesTab> {
     );
   }
 
-  Widget _buildStatusBadge(BuildContext context, String status) {
-    Color color;
-    String statusText;
-
-    switch (status) {
-      case 'Publié':
-        color = AppTheme.success;
-        statusText = 'Publié';
-        break;
-      case 'En attente':
-        color = AppTheme.warning;
-        statusText = 'En attente';
-        break;
-      case 'Rejeté':
-        color = AppTheme.error;
-        statusText = 'Rejeté';
-        break;
-      default:
-        color = AppTheme.disabled;
-        statusText = status;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(AppTheme.borderRadiusSmall),
-      ),
-      child: Text(
-        statusText,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMetaChip(IconData icon, String text) {
-    return Chip(
-      avatar: Icon(icon, size: 16, color: AppTheme.primary),
-      label: Text(text, style: TextStyle(color: AppTheme.textPrimary)),
-      backgroundColor: AppTheme.cardBackground,
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
-  }
-
-  Widget _buildStatsRow(
-    Series series,
-    int publishedEpisodes,
-    int totalEpisodes,
-  ) {
-    final formatter = NumberFormat.compact();
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _buildStatItem(
-          Icons.remove_red_eye,
-          formatter.format(series.stats.views),
-        ),
-        _buildStatItem(Icons.thumb_up, formatter.format(series.stats.likes)),
-        _buildStatItem(Icons.comment, formatter.format(series.stats.comments)),
-        _buildStatItem(Icons.star, series.stats.rating.toString()),
-        _buildStatItem(
-          Icons.playlist_play,
-          '$publishedEpisodes/$totalEpisodes',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatItem(IconData icon, String value) {
+  @override
+  Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, size: 20, color: AppTheme.primary),
-        const SizedBox(height: 4),
-        Text(value, style: TextStyle(color: AppTheme.textPrimary)),
-      ],
-    );
-  }
-
-  void _showSeriesDetails(BuildContext context, Series series, int index) {
-    setState(() {
-      _selectedSeriesIndex = index;
-    });
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => SeriesDetailsModal(
-        series: seriesList[_selectedSeriesIndex],
-        onAddSeason: _showAddSeasonDialog,
-        onAddEpisode: _showAddEpisodeDialog,
-      ),
-    );
-  }
-
-  void _showAddSeasonDialog() {
-    final nextSeasonNumber = seriesList[_selectedSeriesIndex].seasons.isEmpty
-        ? 1
-        : seriesList[_selectedSeriesIndex].seasons.last.number + 1;
-
-    showDialog(
-      context: context,
-      builder: (context) => season_modal.AddSeasonModal(
-        nextSeasonNumber: nextSeasonNumber,
-        onAddSeason:
-            (title, description, posterPath, bannerPath, trailerPath) =>
-                _addSeason(
-                  title: title,
-                  description: description,
-                  posterPath: posterPath,
-                  bannerPath: bannerPath,
-                  trailerPath: trailerPath,
-                  seasonNumber: nextSeasonNumber,
+        Padding(
+          padding: const EdgeInsets.all(AppTheme.paddingMedium),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Mes séries',
+                  style: AppTheme.textTitle.copyWith(fontSize: 24),
                 ),
-      ),
-    ).then((_) {
-      setState(() {});
-    });
-  }
-
-  void _showAddEpisodeDialog(int seasonNumber) {
-    showDialog(
-      context: context,
-      builder: (context) => episode_modal.AddEpisodeModal(
-        seasonNumber: seasonNumber,
-        onAddEpisode: (title, description, duration, videoPath) => _addEpisode(
-          seasonNumber,
-          title: title,
-          description: description,
-          duration: duration,
-          videoPath: videoPath,
+              ),
+              IconButton(
+                onPressed: _isLoading ? null : _loadSeries,
+                icon: const Icon(Icons.refresh_rounded),
+                color: AppTheme.primary,
+                tooltip: 'Actualiser',
+              ),
+            ],
+          ),
         ),
-      ),
-    ).then((_) {
-      setState(() {});
-    });
-  }
-
-  void _addSeason({
-    required String title,
-    required String description,
-    required String posterPath,
-    required String bannerPath,
-    required String trailerPath,
-    required int seasonNumber,
-  }) {
-    setState(() {
-      seriesList[_selectedSeriesIndex].seasons.add(
-        Season(
-          number: seasonNumber,
-          title: title,
-          description: description,
-          posterUrl: posterPath.isNotEmpty
-              ? posterPath
-              : 'assets/placeholder_poster.jpg',
-          bannerUrl: bannerPath.isNotEmpty
-              ? bannerPath
-              : 'assets/placeholder_banner.jpg',
-          trailerUrl: trailerPath.isNotEmpty ? trailerPath : '',
-          episodes: [],
+        _buildFilters(),
+        const SizedBox(height: 8),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadSeries,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      const SizedBox(height: 70),
+                      Icon(
+                        Icons.error_outline,
+                        size: 46,
+                        color: AppTheme.error,
+                      ),
+                      const SizedBox(height: 14),
+                      Center(
+                        child: Text(
+                          'Impossible de charger vos séries.',
+                          style: TextStyle(color: AppTheme.textPrimary),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Center(
+                        child: OutlinedButton.icon(
+                          onPressed: _loadSeries,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Réessayer'),
+                        ),
+                      ),
+                    ],
+                  )
+                : _series.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(height: 300, child: _buildEmptyState()),
+                    ],
+                  )
+                : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: _series.length,
+                    itemBuilder: (context, index) {
+                      return _buildSeriesCard(_series[index]);
+                    },
+                  ),
+          ),
         ),
-      );
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Saison $seasonNumber ajoutée avec succès!'),
-        backgroundColor: AppTheme.success,
-      ),
-    );
-  }
-
-  void _addEpisode(
-    int seasonNumber, {
-    String title = '',
-    String description = '',
-    int duration = 0,
-    String videoPath = '',
-  }) {
-    setState(() {
-      final season = seriesList[_selectedSeriesIndex].seasons.firstWhere(
-        (s) => s.number == seasonNumber,
-      );
-
-      final episodes = season.episodes;
-      final newEpisodeNumber = episodes.isEmpty ? 1 : episodes.last.number + 1;
-
-      season.episodes.add(
-        Episode(
-          number: newEpisodeNumber,
-          title: title.isNotEmpty ? title : 'Épisode $newEpisodeNumber',
-          description: description.isNotEmpty
-              ? description
-              : 'Description à compléter',
-          duration: duration,
-          status: "En attente",
-          releaseDate: DateTime.now(),
-          videoUrl: videoPath,
-          thumbnailUrl: '',
-          views: 0,
-        ),
-      );
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Épisode ajouté avec succès à la saison $seasonNumber!'),
-        backgroundColor: AppTheme.success,
-      ),
+      ],
     );
   }
 }

@@ -108,6 +108,7 @@ class _ProducerRegisterPageState extends State<ProducerRegisterPage> {
     const orange = Color(0xFFF67F00);
 
     return ProducerAuthShell(
+      title: 'Devenir Producteur EKEFLICKS',
       maxWidth: 1080,
       child: Form(
         key: _formKey,

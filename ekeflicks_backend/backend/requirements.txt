@@ -93,3 +93,12 @@ reportlab==4.2.5
 pypdf==5.1.0
 
 PyMuPDF==1.24.14
+defusedxml==0.7.1
+
+# REALTIME / SALONS — G5-3C
+channels>=4.1,<5.0
+channels-redis>=4.2,<5.0
+daphne>=4.1,<5.0
+
+# WEBSOCKET TRANSPORT — G5-3C
+websockets>=12,<16

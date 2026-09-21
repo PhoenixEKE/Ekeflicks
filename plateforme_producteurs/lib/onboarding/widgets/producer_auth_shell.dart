@@ -5,17 +5,20 @@ class ProducerAuthShell extends StatelessWidget {
   const ProducerAuthShell({
     super.key,
     required this.child,
+    this.title,
     this.maxWidth = 1180,
     this.showFaqButton = true,
   });
 
   final Widget child;
+  final String? title;
   final double maxWidth;
   final bool showFaqButton;
 
   @override
   Widget build(BuildContext context) {
     return ProducerPageShell(
+      title: title,
       maxWidth: maxWidth,
       showFaq: showFaqButton,
       scrollable: true,

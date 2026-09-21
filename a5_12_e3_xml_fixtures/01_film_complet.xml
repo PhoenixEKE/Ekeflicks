@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ekeflicks-metadata version="1.0">
+  <content type="film">
+    <title>E3 Film XML</title>
+    <original-title>E3 Film Original</original-title>
+
+    <synopsis>Un test fonctionnel complet de l’import XML EKEFLICKS.</synopsis>
+
+    <long-synopsis>
+      Ce contenu est utilisé exclusivement pour vérifier le préremplissage
+      fonctionnel du formulaire producteur EKEFLICKS à partir d’un fichier XML.
+    </long-synopsis>
+
+    <genres>
+      <genre>Drame</genre>
+      <genre>Action</genre>
+    </genres>
+
+    <production-year>2026</production-year>
+
+    <directors>
+      <director>Réalisateur E3</director>
+    </directors>
+
+    <cast>
+      <person>Acteur E3 Alpha</person>
+      <person>Acteur E3 Beta</person>
+    </cast>
+
+    <screenwriters>
+      <screenwriter>Scénariste E3</screenwriter>
+    </screenwriters>
+
+    <producers>
+      <producer>Producteur E3</producer>
+    </producers>
+
+    <age-rating>12+</age-rating>
+    <duration-minutes>96</duration-minutes>
+
+    <original-language>fr</original-language>
+
+    <audio-languages>
+      <language>fr</language>
+      <language>en</language>
+    </audio-languages>
+
+    <subtitle-languages>
+      <language>en</language>
+    </subtitle-languages>
+
+    <country-of-origin>CI</country-of-origin>
+  </content>
+</ekeflicks-metadata>

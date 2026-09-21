@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
 from apps.profiles.serializers import ProfileSummarySerializer
@@ -92,6 +93,9 @@ class VideoAssetSerializer(serializers.ModelSerializer):
     source_uploaded_by_email = serializers.EmailField(source='source_uploaded_by.email', read_only=True)
     moderated_by_email = serializers.EmailField(source='moderated_by.email', read_only=True)
 
+    analysis_status = serializers.SerializerMethodField()
+    technical_conformity = serializers.SerializerMethodField()
+
     class Meta:
         model = VideoAsset
         fields = [
@@ -110,6 +114,9 @@ class VideoAssetSerializer(serializers.ModelSerializer):
             'dash_manifest_url',
             'thumbnail_url',
             'duration_seconds',
+            'delivery_level',
+            'analysis_status',
+            'technical_conformity',
             'status',
             'moderation_status',
             'moderation_reason',
@@ -140,6 +147,37 @@ class VideoAssetSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+    def get_analysis_status(self, obj):
+        try:
+            return obj.analysis_report.status
+        except ObjectDoesNotExist:
+            return 'not_started'
+
+    def get_technical_conformity(self, obj):
+        try:
+            report = obj.analysis_report
+        except ObjectDoesNotExist:
+            return None
+
+        metadata = (
+            report.technical_metadata
+            if isinstance(
+                report.technical_metadata,
+                dict,
+            )
+            else {}
+        )
+
+        conformity = metadata.get(
+            'technical_specification_conformity'
+        )
+
+        return (
+            conformity
+            if isinstance(conformity, dict)
+            else None
+        )
 
     def validate(self, attrs):
         episode = attrs.get('episode') or getattr(self.instance, 'episode', None)

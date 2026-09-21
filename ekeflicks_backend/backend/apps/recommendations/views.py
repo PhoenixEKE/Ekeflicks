@@ -8,8 +8,16 @@ from apps.recommendations.engine import (
     generate_recommendations,
     sync_profile_to_graph,
 )
+from apps.recommendations.eke_ai import (
+    eke_ai_foundation_status,
+)
 from apps.recommendations.serializers import RecommendationGenerateSerializer, RecommendationSerializer
 from core.models import Profile, Recommendation
+from apps.recommendations.intelligent_search import intelligent_search, IntelligentSearchError
+from apps.recommendations.user_context import build_user_context, EkeAIContextError
+from apps.recommendations.conversational_assistant import converse, ConversationalAssistantError
+from apps.recommendations.recommendation_explanations import explain_personalized_recommendation, RecommendationExplanationError
+from apps.recommendations.feedback_learning import record_feedback, FeedbackLearningError
 
 
 class RecommendationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
@@ -52,6 +60,7 @@ class RecommendationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, vi
     @action(detail=False, methods=['get'], url_path='engine-status')
     def engine_status(self, request):
         return Response(engine_status())
+
 
     @action(detail=False, methods=['post'], url_path='sync-graph')
     def sync_graph(self, request):

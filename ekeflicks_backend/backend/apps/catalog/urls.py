@@ -1,3 +1,7 @@
+from apps.catalog.technical_specifications import (
+    PublishedTechnicalSpecificationPdfView,
+    PublishedTechnicalSpecificationView,
+)
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
@@ -19,6 +23,16 @@ router.register('seasons', SeasonViewSet, basename='season')
 router.register('episodes', EpisodeViewSet, basename='episode')
 
 urlpatterns = [
+    path(
+        'technical-specification/',
+        PublishedTechnicalSpecificationView.as_view(),
+        name='technical-specification',
+    ),
+    path(
+        'technical-specification/pdf/',
+        PublishedTechnicalSpecificationPdfView.as_view(),
+        name='technical-specification-pdf',
+    ),
     # Compatibility route for the original web application's home feed URL.
     path(
         'catalog/home/',

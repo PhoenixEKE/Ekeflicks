@@ -1,5 +1,7 @@
 # core/admin.py
 from django.contrib import admin
+from django.db import transaction
+from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 
@@ -15,12 +17,15 @@ from core.models import (
     PasswordResetToken,
     PlaybackLicense,
     ProducerContentView,
+    ProducerContractVersion,
+    PlatformLegalIdentity,
     ProducerCountryCurrency,
     ProducerPayoutRequest,
     ProducerRevenueSetting,
     Profile,
     SubtitleTrack,
     SubscriptionPlan,
+    TechnicalSpecification,
     User,
     VideoAsset,
     VideoRendition,
@@ -75,6 +80,232 @@ class ContentAdmin(admin.ModelAdmin):
     search_fields = ('title', 'original_title', 'description', 'producer__email')
     filter_horizontal = ('genres', 'emissions')
     readonly_fields = ('created_at', 'updated_at', 'view_count', 'rating_avg', 'rating_count')
+
+
+@admin.register(ProducerContractVersion)
+class ProducerContractVersionAdmin(admin.ModelAdmin):
+    list_display = (
+        'version',
+        'title',
+        'status',
+        'effective_date',
+        'requires_reacceptance',
+        'published_at',
+        'updated_at',
+    )
+
+    list_filter = (
+        'status',
+        'requires_reacceptance',
+    )
+
+    search_fields = (
+        'version',
+        'title',
+    )
+
+    readonly_fields = (
+        'content_sha256',
+        'published_at',
+        'archived_at',
+        'created_at',
+        'updated_at',
+    )
+
+    fieldsets = (
+        (
+            'Version',
+            {
+                'fields': (
+                    'version',
+                    'title',
+                    'status',
+                    'effective_date',
+                    'requires_reacceptance',
+                )
+            },
+        ),
+        (
+            'Contenu contractuel',
+            {
+                'fields': (
+                    'canonical_content',
+                    'content_sha256',
+                )
+            },
+        ),
+        (
+            'Publication',
+            {
+                'fields': (
+                    'published_at',
+                    'archived_at',
+                    'created_at',
+                    'updated_at',
+                )
+            },
+        ),
+    )
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = list(super().get_readonly_fields(request, obj))
+
+        if (
+            obj is not None
+            and obj.status
+            in {
+                ProducerContractVersion.STATUS_PUBLISHED,
+                ProducerContractVersion.STATUS_ARCHIVED,
+            }
+        ):
+            fields.extend(
+                [
+                    'version',
+                    'title',
+                    'status',
+                    'effective_date',
+                    'requires_reacceptance',
+                    'canonical_content',
+                ]
+            )
+
+        return tuple(dict.fromkeys(fields))
+
+    def has_delete_permission(self, request, obj=None):
+        if (
+            obj is not None
+            and obj.status
+            in {
+                ProducerContractVersion.STATUS_PUBLISHED,
+                ProducerContractVersion.STATUS_ARCHIVED,
+            }
+        ):
+            return False
+
+        return super().has_delete_permission(
+            request,
+            obj,
+        )
+
+    def save_model(
+        self,
+        request,
+        obj,
+        form,
+        change,
+    ):
+        from apps.auth.producer_contract_versions import (
+            contract_content_sha256,
+            normalize_contract_content,
+            publish_contract_version,
+        )
+
+        previous_status = None
+
+        if obj.pk:
+            previous_status = (
+                ProducerContractVersion.objects
+                .filter(pk=obj.pk)
+                .values_list('status', flat=True)
+                .first()
+            )
+
+        if previous_status in {
+            ProducerContractVersion.STATUS_PUBLISHED,
+            ProducerContractVersion.STATUS_ARCHIVED,
+        }:
+            raise ValueError(
+                'Une version contractuelle publiee ou archivee '
+                'est immuable. Creez une nouvelle version.'
+            )
+
+        wants_publish = (
+            obj.status
+            == ProducerContractVersion.STATUS_PUBLISHED
+        )
+
+        if wants_publish:
+            # Save the draft first so the publication service can lock
+            # and publish the exact persisted version.
+            obj.status = ProducerContractVersion.STATUS_DRAFT
+            obj.canonical_content = normalize_contract_content(
+                obj.canonical_content
+            )
+            obj.content_sha256 = contract_content_sha256(
+                obj.canonical_content
+            )
+
+            super().save_model(
+                request,
+                obj,
+                form,
+                change,
+            )
+
+            publish_contract_version(obj)
+            obj.refresh_from_db()
+            return
+
+        obj.canonical_content = normalize_contract_content(
+            obj.canonical_content
+        )
+
+        obj.content_sha256 = (
+            contract_content_sha256(obj.canonical_content)
+            if obj.canonical_content
+            else ''
+        )
+
+        super().save_model(
+            request,
+            obj,
+            form,
+            change,
+        )
+
+
+@admin.register(TechnicalSpecification)
+class TechnicalSpecificationAdmin(admin.ModelAdmin):
+    list_display = (
+        'title',
+        'version',
+        'is_published',
+        'published_at',
+        'updated_at',
+    )
+    list_filter = ('is_published',)
+    search_fields = ('title', 'version')
+    readonly_fields = (
+        'created_at',
+        'updated_at',
+    )
+
+    def save_model(
+        self,
+        request,
+        obj,
+        form,
+        change,
+    ):
+        with transaction.atomic():
+            if obj.is_published:
+                TechnicalSpecification.objects.filter(
+                    is_published=True,
+                ).exclude(
+                    pk=obj.pk,
+                ).update(
+                    is_published=False,
+                )
+
+                if obj.published_at is None:
+                    obj.published_at = timezone.now()
+
+            super().save_model(
+                request,
+                obj,
+                form,
+                change,
+            )
 
 
 @admin.register(Genre)
@@ -216,3 +447,133 @@ class EmailChangeSupportRequestAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     search_fields = ('user__email', 'requested_email', 'reason', 'admin_reason')
     readonly_fields = ('created_at', 'updated_at', 'reviewed_at')
+
+
+@admin.register(PlatformLegalIdentity)
+class PlatformLegalIdentityAdmin(admin.ModelAdmin):
+    list_display = (
+        "legal_name",
+        "legal_form",
+        "siret",
+        "city",
+        "country",
+        "is_active",
+        "effective_from",
+        "updated_at",
+    )
+
+    list_filter = (
+        "is_active",
+        "country",
+    )
+
+    search_fields = (
+        "legal_name",
+        "siret",
+        "rcs",
+        "vat_number",
+        "city",
+    )
+
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+    )
+
+    fieldsets = (
+        (
+            "Entreprise",
+            {
+                "fields": (
+                    "legal_name",
+                    "legal_form",
+                    "capital",
+                )
+            },
+        ),
+        (
+            "Immatriculation",
+            {
+                "fields": (
+                    "siret",
+                    "rcs",
+                    "vat_number",
+                )
+            },
+        ),
+        (
+            "Siège social",
+            {
+                "fields": (
+                    "registered_office",
+                    "postal_code",
+                    "city",
+                    "country",
+                )
+            },
+        ),
+        (
+            "Représentation",
+            {
+                "fields": (
+                    "representative_name",
+                    "representative_role",
+                )
+            },
+        ),
+        (
+            "Contact",
+            {
+                "fields": (
+                    "email",
+                    "website",
+                )
+            },
+        ),
+        (
+            "Activation",
+            {
+                "fields": (
+                    "effective_from",
+                    "is_active",
+                )
+            },
+        ),
+        (
+            "Audit",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                )
+            },
+        ),
+    )
+
+    def save_model(
+        self,
+        request,
+        obj,
+        form,
+        change,
+    ):
+        from apps.auth.platform_legal_identity import (
+            activate_platform_legal_identity,
+        )
+
+        requested_active = bool(obj.is_active)
+
+        # Save as inactive first so two active identities
+        # cannot be introduced by a normal admin save.
+        if requested_active:
+            obj.is_active = False
+
+        super().save_model(
+            request,
+            obj,
+            form,
+            change,
+        )
+
+        if requested_active:
+            activate_platform_legal_identity(obj)

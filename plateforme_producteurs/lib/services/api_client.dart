@@ -140,6 +140,13 @@ class ApiClient {
     );
   }
 
+  Future<http.Response> delete(String path, {bool authenticated = false}) {
+    return _client.delete(
+      Uri.parse('$baseUrl$path'),
+      headers: _headers(authenticated: authenticated),
+    );
+  }
+
   dynamic decode(http.Response response) {
     if (response.body.isEmpty) {
       return null;
