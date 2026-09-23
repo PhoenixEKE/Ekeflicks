@@ -14,6 +14,7 @@ from django.core.files.storage import default_storage
 from django.core.files.storage import storages
 from django.utils import timezone
 
+from apps.streaming.source_download import copy_storage_source
 from apps.streaming.storage_paths import (
     build_final_dash_path,
     build_final_hls_path,
@@ -138,15 +139,16 @@ def _materialize_storage_input(
             / Path(storage_path).name
         )
 
-        with selected_storage.open(
-            storage_path,
-            "rb",
-        ) as source_file:
-            with local_source.open(
-                "wb",
-            ) as destination:
-                for chunk in source_file.chunks():
-                    destination.write(chunk)
+        try:
+            with selected_storage.open(storage_path, "rb") as source_file:
+                with local_source.open("wb") as destination:
+                    copy_storage_source(
+                        source_file, destination, selected_storage,
+                    )
+        except Exception:
+            # A failed transfer must never leave a usable-looking partial master.
+            local_source.unlink(missing_ok=True)
+            raise
 
         return str(local_source)
 
