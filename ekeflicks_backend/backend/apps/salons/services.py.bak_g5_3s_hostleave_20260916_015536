@@ -1,0 +1,444 @@
+import secrets
+from django.db import transaction
+from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied, ValidationError
+
+from .models import Salon, SalonMember
+
+
+def _active_members(salon):
+    return SalonMember.objects.filter(
+        salon=salon,
+        left_at__isnull=True,
+    )
+
+
+@transaction.atomic
+def create_salon(
+    *,
+    host,
+    name,
+    content=None,
+    visibility="private",
+    mode=Salon.MODE_SOCIAL,
+    capacity=10,
+    audio_enabled=True,
+    video_enabled=True,
+    host_leave_policy=Salon.HOST_LEAVE_CLOSE,
+):
+    salon = Salon.objects.create(
+        host=host,
+        name=name,
+        content=content,
+        visibility=visibility,
+        mode=mode,
+        capacity=capacity,
+        audio_enabled=audio_enabled,
+        video_enabled=video_enabled,
+        join_code=secrets.token_urlsafe(24),
+        host_leave_policy=host_leave_policy,
+    )
+
+    SalonMember.objects.create(
+        salon=salon,
+        user=host,
+        role=SalonMember.ROLE_HOST,
+    )
+
+    return salon
+
+
+@transaction.atomic
+def join_salon(*, salon, user):
+    salon = (
+        Salon.objects
+        .select_for_update()
+        .get(pk=salon.pk)
+    )
+
+    if salon.status != Salon.STATUS_OPEN:
+        raise ValidationError(
+            {"salon": "This salon is closed."}
+        )
+
+    existing = (
+        SalonMember.objects
+        .filter(
+            salon=salon,
+            user=user,
+            left_at__isnull=True,
+        )
+        .first()
+    )
+
+    if existing is not None:
+        return existing
+
+    active_count = _active_members(salon).count()
+
+    if active_count >= salon.capacity:
+        raise ValidationError(
+            {"salon": "This salon is full."}
+        )
+
+    return SalonMember.objects.create(
+        salon=salon,
+        user=user,
+        role=SalonMember.ROLE_MEMBER,
+    )
+
+
+
+@transaction.atomic
+def join_salon_by_code(
+    *,
+    join_code,
+    user,
+):
+    salon = (
+        Salon.objects
+        .select_for_update()
+        .filter(
+            join_code=join_code,
+        )
+        .first()
+    )
+
+    if salon is None:
+        raise ValidationError(
+            {
+                "join_code":
+                "Invalid Salon join code."
+            }
+        )
+
+    if salon.status != Salon.STATUS_OPEN:
+        raise ValidationError(
+            {"salon": "This salon is closed."}
+        )
+
+    return join_salon(
+        salon=salon,
+        user=user,
+    )
+
+
+@transaction.atomic
+def rotate_salon_join_code(
+    *,
+    salon,
+    user,
+):
+    salon = (
+        Salon.objects
+        .select_for_update()
+        .get(pk=salon.pk)
+    )
+
+    if salon.status != Salon.STATUS_OPEN:
+        raise ValidationError(
+            {"salon": "This salon is closed."}
+        )
+
+    if salon.host_id != user.pk:
+        raise PermissionDenied(
+            "Only the current host can manage "
+            "the Salon join code."
+        )
+
+    salon.join_code = secrets.token_urlsafe(24)
+
+    salon.save(
+        update_fields=(
+            "join_code",
+            "updated_at",
+        )
+    )
+
+    return salon
+
+@transaction.atomic
+def leave_salon(*, salon, user):
+    membership = (
+        SalonMember.objects
+        .select_for_update()
+        .filter(
+            salon=salon,
+            user=user,
+            left_at__isnull=True,
+        )
+        .first()
+    )
+
+    if membership is None:
+        raise ValidationError(
+            {"salon": "You are not an active member."}
+        )
+
+    if membership.role == SalonMember.ROLE_HOST:
+        raise ValidationError(
+            {"salon": "The host must close the salon."}
+        )
+
+    membership.left_at = timezone.now()
+    membership.save(
+        update_fields=("left_at",)
+    )
+
+    return membership
+
+@transaction.atomic
+def transfer_salon_host(
+    *,
+    salon,
+    user,
+    target_user,
+):
+    """
+    G5-3P — Transfer operational Salon host authority.
+
+    Commercial G5-3O quota ownership is deliberately
+    untouched: SalonSessionQuotaEntry.host continues
+    to identify the original entitled creator.
+    """
+
+    salon = (
+        Salon.objects
+        .select_for_update()
+        .get(pk=salon.pk)
+    )
+
+    if salon.status != Salon.STATUS_OPEN:
+        raise ValidationError(
+            {"salon": "This salon is closed."}
+        )
+
+    if salon.host_id != user.pk:
+        raise PermissionDenied(
+            "Only the current host can transfer "
+            "Salon ownership."
+        )
+
+    if target_user.pk == user.pk:
+        raise ValidationError(
+            {
+                "target_user_id":
+                "The target user is already the host."
+            }
+        )
+
+    memberships = list(
+        SalonMember.objects
+        .select_for_update()
+        .filter(
+            salon=salon,
+            user_id__in=(
+                user.pk,
+                target_user.pk,
+            ),
+            left_at__isnull=True,
+        )
+        .order_by("pk")
+    )
+
+    membership_by_user_id = {
+        membership.user_id: membership
+        for membership in memberships
+    }
+
+    current_host_membership = (
+        membership_by_user_id.get(
+            user.pk
+        )
+    )
+
+    if (
+        current_host_membership is None
+        or current_host_membership.role
+        != SalonMember.ROLE_HOST
+    ):
+        raise ValidationError(
+            {
+                "salon":
+                "The current host membership is invalid."
+            }
+        )
+
+    target_membership = (
+        membership_by_user_id.get(
+            target_user.pk
+        )
+    )
+
+    if target_membership is None:
+        raise ValidationError(
+            {
+                "target_user_id":
+                "The target user must be an active "
+                "Salon member."
+            }
+        )
+
+    if (
+        target_membership.role
+        != SalonMember.ROLE_MEMBER
+    ):
+        raise ValidationError(
+            {
+                "target_user_id":
+                "The target membership cannot become host."
+            }
+        )
+
+    # Order is intentional.
+    #
+    # PostgreSQL enforces salon_one_active_host.
+    # Demote first so the transaction never attempts
+    # to create two active host memberships.
+    current_host_membership.role = (
+        SalonMember.ROLE_MEMBER
+    )
+    current_host_membership.save(
+        update_fields=("role",)
+    )
+
+    target_membership.role = (
+        SalonMember.ROLE_HOST
+    )
+    target_membership.save(
+        update_fields=("role",)
+    )
+
+    salon.host = target_user
+    salon.save(
+        update_fields=(
+            "host",
+            "updated_at",
+        )
+    )
+
+    return salon
+
+@transaction.atomic
+def kick_salon_member(
+    *,
+    salon,
+    user,
+    target_user,
+):
+    """
+    G5-3Q — Expel one active non-host Salon member.
+
+    Membership history is preserved by setting left_at.
+
+    Commercial G5-3O quota ownership is deliberately
+    untouched. A completed guest presence interval remains
+    valid input for the existing quota reconciliation.
+    """
+    salon = (
+        Salon.objects
+        .select_for_update()
+        .get(pk=salon.pk)
+    )
+
+    if salon.status != Salon.STATUS_OPEN:
+        raise ValidationError(
+            {"salon": "This salon is closed."}
+        )
+
+    if salon.host_id != user.pk:
+        raise PermissionDenied(
+            "Only the current host can kick "
+            "a Salon member."
+        )
+
+    if target_user.pk == user.pk:
+        raise ValidationError(
+            {
+                "target_user_id":
+                "The host cannot kick themselves."
+            }
+        )
+
+    membership = (
+        SalonMember.objects
+        .select_for_update()
+        .filter(
+            salon=salon,
+            user=target_user,
+            left_at__isnull=True,
+        )
+        .first()
+    )
+
+    if membership is None:
+        raise ValidationError(
+            {
+                "target_user_id":
+                "The target user must be an active "
+                "Salon member."
+            }
+        )
+
+    if membership.role == SalonMember.ROLE_HOST:
+        raise ValidationError(
+            {
+                "target_user_id":
+                "The active Salon host cannot be kicked."
+            }
+        )
+
+    membership.left_at = timezone.now()
+    membership.save(
+        update_fields=("left_at",)
+    )
+
+    return membership
+
+@transaction.atomic
+def close_salon(*, salon, user):
+    salon = (
+        Salon.objects
+        .select_for_update()
+        .get(pk=salon.pk)
+    )
+
+    if salon.host_id != user.id:
+        raise PermissionDenied(
+            "Only the host can close this salon."
+        )
+
+    if salon.status == Salon.STATUS_CLOSED:
+        return salon
+
+    now = timezone.now()
+
+    salon.status = Salon.STATUS_CLOSED
+    salon.closed_at = now
+    salon.save(
+        update_fields=(
+            "status",
+            "closed_at",
+            "updated_at",
+        )
+    )
+
+    _active_members(salon).update(
+        left_at=now,
+    )
+
+    # G5-3O:
+    # Commercial accounting is intentionally
+    # layered on top of the existing domain
+    # close operation. Legacy/internal Salons
+    # without a quota ledger entry are ignored.
+    from .quota_services import (
+        record_salon_usage_if_qualified,
+    )
+
+    record_salon_usage_if_qualified(
+        salon=salon,
+        now=now,
+    )
+
+    return salon

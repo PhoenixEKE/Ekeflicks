@@ -1,0 +1,26 @@
+[
+{
+  "model": "core.platformlegalidentity",
+  "pk": "def654df-f363-4e11-b2af-5e68879fd596",
+  "fields": {
+    "created_at": "2026-09-19T16:16:29.339Z",
+    "updated_at": "2026-09-19T16:16:29.347Z",
+    "legal_name": "EKEFLICKS — IDENTITE DE PREPRODUCTION",
+    "legal_form": "Société en cours de configuration",
+    "capital": "À renseigner",
+    "registered_office": "Adresse de préproduction — à remplacer",
+    "postal_code": "00000",
+    "city": "Ville à renseigner",
+    "country": "France",
+    "siret": "À renseigner",
+    "rcs": "À renseigner",
+    "vat_number": "À renseigner",
+    "representative_name": "Représentant à renseigner",
+    "representative_role": "Représentant légal",
+    "email": "contact@ekeflicks.com",
+    "website": "https://ekeflicks.com",
+    "is_active": true,
+    "effective_from": "2026-09-19"
+  }
+}
+]

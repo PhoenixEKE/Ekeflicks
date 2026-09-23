@@ -1,0 +1,239 @@
+from datetime import datetime, timezone
+from unittest.mock import Mock, patch
+
+from django.test import SimpleTestCase
+
+from apps.analytics.services import (
+    audience_active_profiles,
+    audience_by_dimension,
+    audience_snapshot,
+)
+
+
+class AudienceAnalyticsTests(SimpleTestCase):
+    def setUp(self):
+        self.as_of = datetime(
+            2026,
+            9,
+            10,
+            12,
+            0,
+            tzinfo=timezone.utc,
+        )
+
+    def _result(self, rows):
+        result = Mock()
+        result.result_rows = rows
+        return result
+
+    def test_active_profiles_uses_distinct_profile(self):
+        client = Mock()
+        client.query.return_value = self._result(
+            [(17,)]
+        )
+
+        result = audience_active_profiles(
+            start_at=datetime(
+                2026,
+                9,
+                9,
+                12,
+                0,
+                tzinfo=timezone.utc,
+            ),
+            end_at=self.as_of,
+            client=client,
+        )
+
+        self.assertEqual(result, 17)
+
+        query = client.query.call_args.args[0]
+
+        self.assertIn(
+            'uniqExact(profile_id)',
+            query,
+        )
+        self.assertIn(
+            'profile_id IS NOT NULL',
+            query,
+        )
+        self.assertIn(
+            'is_internal = 0',
+            query,
+        )
+        self.assertIn(
+            'is_test = 0',
+            query,
+        )
+
+    @patch(
+        'apps.analytics.services.'
+        'audience_active_profiles'
+    )
+    def test_snapshot_computes_dau_wau_mau_and_stickiness(
+        self,
+        active_profiles,
+    ):
+        active_profiles.side_effect = [
+            10,
+            40,
+            100,
+        ]
+
+        result = audience_snapshot(
+            as_of=self.as_of,
+            client=Mock(),
+        )
+
+        self.assertEqual(
+            result['dau'],
+            10,
+        )
+        self.assertEqual(
+            result['wau'],
+            40,
+        )
+        self.assertEqual(
+            result['mau'],
+            100,
+        )
+        self.assertEqual(
+            result['stickiness_percent'],
+            10.0,
+        )
+
+        self.assertEqual(
+            active_profiles.call_count,
+            3,
+        )
+
+    @patch(
+        'apps.analytics.services.'
+        'audience_active_profiles'
+    )
+    def test_snapshot_handles_zero_mau(
+        self,
+        active_profiles,
+    ):
+        active_profiles.side_effect = [
+            0,
+            0,
+            0,
+        ]
+
+        result = audience_snapshot(
+            as_of=self.as_of,
+            client=Mock(),
+        )
+
+        self.assertEqual(
+            result['stickiness_percent'],
+            0.0,
+        )
+
+    def test_dimension_country(self):
+        client = Mock()
+        client.query.return_value = self._result(
+            [
+                ('CI', 12),
+                ('FR', 8),
+            ]
+        )
+
+        result = audience_by_dimension(
+            start_at=datetime(
+                2026,
+                9,
+                9,
+                12,
+                0,
+                tzinfo=timezone.utc,
+            ),
+            end_at=self.as_of,
+            dimension='country_code',
+            client=client,
+        )
+
+        self.assertEqual(
+            result,
+            [
+                {
+                    'country_code': 'CI',
+                    'active_profiles': 12,
+                },
+                {
+                    'country_code': 'FR',
+                    'active_profiles': 8,
+                },
+            ],
+        )
+
+    def test_dimension_profile_type(self):
+        client = Mock()
+        client.query.return_value = self._result(
+            [
+                ('main', 9),
+                ('child', 3),
+            ]
+        )
+
+        result = audience_by_dimension(
+            start_at=datetime(
+                2026,
+                9,
+                9,
+                12,
+                0,
+                tzinfo=timezone.utc,
+            ),
+            end_at=self.as_of,
+            dimension='profile_type',
+            client=client,
+        )
+
+        self.assertEqual(
+            result[0]['profile_type'],
+            'main',
+        )
+
+    def test_rejects_unknown_dimension(self):
+        with self.assertRaises(ValueError):
+            audience_by_dimension(
+                start_at=self.as_of,
+                end_at=self.as_of,
+                dimension='email',
+                client=Mock(),
+            )
+
+    def test_dimension_query_excludes_internal_and_test(self):
+        client = Mock()
+        client.query.return_value = self._result([])
+
+        audience_by_dimension(
+            start_at=datetime(
+                2026,
+                9,
+                9,
+                12,
+                0,
+                tzinfo=timezone.utc,
+            ),
+            end_at=self.as_of,
+            dimension='device_type',
+            client=client,
+        )
+
+        query = client.query.call_args.args[0]
+
+        self.assertIn(
+            'is_internal = 0',
+            query,
+        )
+        self.assertIn(
+            'is_test = 0',
+            query,
+        )
+        self.assertIn(
+            'uniqExact(profile_id)',
+            query,
+        )

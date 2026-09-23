@@ -1,0 +1,4 @@
+TIMESTAMP=20260920_112121
+ekeflicks_django=ekeflicks_backend:contract-ip-20260919_215128
+ekeflicks_celery=ekeflicks_backend:producer_ui_ip_20260919_202442
+ekeflicks_celery_beat=ekeflicks_backend:producer_ui_ip_20260919_202442

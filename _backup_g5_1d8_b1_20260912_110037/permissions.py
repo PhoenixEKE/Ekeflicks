@@ -1,0 +1,195 @@
+from django.conf import settings
+from rest_framework import permissions
+
+from core.models import ProducerAgreement
+
+
+class IsAdminOrReadOnly(permissions.BasePermission):
+    """Allow public reads, but reserve writes for staff users."""
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.is_staff
+        )
+
+
+class IsStaffWriteAuthenticatedRead(permissions.BasePermission):
+    """Allow authenticated reads, but reserve writes for staff users."""
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return bool(
+                request.user
+                and request.user.is_authenticated
+            )
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.is_staff
+        )
+
+
+def is_producer_user(user):
+    """
+    Role-level check.
+
+    Used for portal/dashboard access.
+    A producer may pass this check while still completing onboarding.
+    """
+    return bool(
+        user
+        and user.is_authenticated
+        and (
+            user.is_staff
+            or getattr(user, 'is_producer', False)
+        )
+    )
+
+
+def is_active_producer_user(user):
+    """
+    Business eligibility check for producer write operations.
+
+    Staff users always pass.
+
+    A producer must:
+    - have an active User account;
+    - have the producer role;
+    - have a verified email/account;
+    - have an active ProducerAccount;
+    - have signed the current EKEFLICKS producer agreement.
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    if user.is_staff:
+        return True
+
+    if not user.is_active:
+        return False
+
+    if not getattr(user, 'is_producer', False):
+        return False
+
+    if not getattr(user, 'is_verified', False):
+        return False
+
+    producer_account = getattr(user, 'producer_account', None)
+    if producer_account is None:
+        return False
+
+    if producer_account.status != 'active':
+        return False
+
+    accepted_versions = settings.PRODUCER_AGREEMENT_ACCEPTED_VERSIONS
+
+    return ProducerAgreement.objects.filter(
+        producer_account=producer_account,
+        contract_version__in=accepted_versions,
+        status=ProducerAgreement.STATUS_SIGNED,
+        signed_at__isnull=False,
+    ).exists()
+
+
+class IsAdminOrProducerOwnerOrReadOnly(permissions.BasePermission):
+    """
+    Public reads.
+
+    Producer writes require completed onboarding and a signed
+    current agreement.
+    """
+
+    message = (
+        "Votre compte producteur doit être actif, votre adresse e-mail "
+        "vérifiée et le contrat EKEFLICKS en vigueur signé."
+    )
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return is_active_producer_user(request.user)
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
+        if request.user.is_staff:
+            return True
+
+        if not is_active_producer_user(request.user):
+            return False
+
+        return getattr(obj, 'producer_id', None) == request.user.id
+
+
+class IsStaffOrProducerAssetOwner(permissions.BasePermission):
+    """
+    Authenticated reads.
+
+    Producer asset writes require completed producer onboarding.
+    """
+
+    message = (
+        "Votre compte producteur doit être actif, votre adresse e-mail "
+        "vérifiée et le contrat EKEFLICKS en vigueur signé."
+    )
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return bool(
+                request.user
+                and request.user.is_authenticated
+            )
+
+        return is_active_producer_user(request.user)
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return bool(
+                request.user
+                and request.user.is_authenticated
+            )
+
+        if request.user.is_staff:
+            return True
+
+        if not is_active_producer_user(request.user):
+            return False
+
+        return getattr(obj.content, 'producer_id', None) == request.user.id
+
+
+class IsAdminOrProducerRelatedContentOrReadOnly(permissions.BasePermission):
+    """
+    Public reads.
+
+    Producer writes on seasons/episodes require completed onboarding
+    and ownership of the related content.
+    """
+
+    message = (
+        "Votre compte producteur doit être actif, votre adresse e-mail "
+        "vérifiée et le contrat EKEFLICKS en vigueur signé."
+    )
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
+        return is_active_producer_user(request.user)
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
+        if request.user.is_staff:
+            return True
+
+        if not is_active_producer_user(request.user):
+            return False
+
+        return getattr(obj.content, 'producer_id', None) == request.user.id

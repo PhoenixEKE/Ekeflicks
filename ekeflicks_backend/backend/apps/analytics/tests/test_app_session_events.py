@@ -1,0 +1,334 @@
+import uuid
+from types import SimpleNamespace
+
+from django.test import SimpleTestCase
+
+from apps.analytics.services import (
+    APP_SESSION_EVENT_NAMES,
+    build_app_session_analytics_event,
+)
+
+
+class AppSessionAnalyticsEventTests(
+    SimpleTestCase
+):
+    def setUp(self):
+        self.user_id = uuid.uuid4()
+        self.profile_id = uuid.uuid4()
+        self.session_id = uuid.uuid4()
+
+        self.user = SimpleNamespace(
+            id=self.user_id,
+            country_code='fr',
+        )
+
+        self.profile_type = SimpleNamespace(
+            name='main',
+        )
+
+        self.profile = SimpleNamespace(
+            id=self.profile_id,
+            user_id=self.user_id,
+            user=self.user,
+            type=self.profile_type,
+            country_code='ci',
+        )
+
+    def build(
+        self,
+        event_name='app_session_start',
+        **kwargs,
+    ):
+        payload = {
+            'profile':
+                self.profile,
+
+            'session_id':
+                self.session_id,
+
+            'platform':
+                'android',
+
+            'device_type':
+                'mobile',
+
+            'app_version':
+                '1.0.0',
+
+            'timezone_name':
+                'Europe/Paris',
+        }
+
+        payload.update(
+            kwargs
+        )
+
+        return build_app_session_analytics_event(
+            event_name,
+            **payload,
+        )
+
+    def test_event_name_contract(self):
+        self.assertEqual(
+            APP_SESSION_EVENT_NAMES,
+            (
+                'app_session_start',
+                'app_session_end',
+            ),
+        )
+
+    def test_start_maps_identity(self):
+        event = self.build()
+
+        self.assertEqual(
+            event['event_name'],
+            'app_session_start',
+        )
+
+        self.assertEqual(
+            event['user_id'],
+            str(
+                self.user_id
+            ),
+        )
+
+        self.assertEqual(
+            event['profile_id'],
+            str(
+                self.profile_id
+            ),
+        )
+
+        self.assertEqual(
+            event['session_id'],
+            self.session_id,
+        )
+
+        self.assertIsNone(
+            event[
+                'viewing_session_id'
+            ]
+        )
+
+    def test_start_maps_profile_type(self):
+        event = self.build()
+
+        self.assertEqual(
+            event['profile_type'],
+            'main',
+        )
+
+    def test_start_maps_client_context(self):
+        event = self.build()
+
+        self.assertEqual(
+            event['platform'],
+            'android',
+        )
+
+        self.assertEqual(
+            event['device_type'],
+            'mobile',
+        )
+
+        self.assertEqual(
+            event['app_version'],
+            '1.0.0',
+        )
+
+        self.assertEqual(
+            event['timezone'],
+            'Europe/Paris',
+        )
+
+    def test_country_prefers_user_country(self):
+        event = self.build()
+
+        self.assertEqual(
+            event['country_code'],
+            'FR',
+        )
+
+    def test_country_falls_back_to_profile(self):
+        self.user.country_code = ''
+
+        event = self.build()
+
+        self.assertEqual(
+            event['country_code'],
+            'CI',
+        )
+
+    def test_end_accepts_duration(self):
+        event = self.build(
+            'app_session_end',
+            duration_seconds=321,
+        )
+
+        self.assertEqual(
+            event['event_name'],
+            'app_session_end',
+        )
+
+        self.assertEqual(
+            event['properties'][
+                'duration_seconds'
+            ],
+            321,
+        )
+
+    def test_end_does_not_invent_duration(self):
+        event = self.build(
+            'app_session_end'
+        )
+
+        self.assertNotIn(
+            'duration_seconds',
+            event['properties'],
+        )
+
+    def test_start_rejects_duration(self):
+        with self.assertRaises(
+            ValueError
+        ):
+            self.build(
+                'app_session_start',
+                duration_seconds=1,
+            )
+
+    def test_rejects_negative_duration(self):
+        with self.assertRaises(
+            ValueError
+        ):
+            self.build(
+                'app_session_end',
+                duration_seconds=-1,
+            )
+
+    def test_rejects_invalid_duration(self):
+        with self.assertRaises(
+            ValueError
+        ):
+            self.build(
+                'app_session_end',
+                duration_seconds='abc',
+            )
+
+    def test_rejects_unknown_event(self):
+        with self.assertRaises(
+            ValueError
+        ):
+            self.build(
+                'app_session_pause'
+            )
+
+    def test_rejects_missing_profile(self):
+        with self.assertRaises(
+            ValueError
+        ):
+            build_app_session_analytics_event(
+                'app_session_start',
+                profile=None,
+                session_id=self.session_id,
+            )
+
+    def test_rejects_missing_session_id(self):
+        with self.assertRaises(
+            ValueError
+        ):
+            self.build(
+                session_id=None,
+            )
+
+    def test_rejects_invalid_session_id(self):
+        with self.assertRaises(
+            ValueError
+        ):
+            self.build(
+                session_id='not-a-uuid',
+            )
+
+    def test_child_profile_supported(self):
+        self.profile_type.name = (
+            'child'
+        )
+
+        event = self.build()
+
+        self.assertEqual(
+            event['profile_type'],
+            'child',
+        )
+
+    def test_guest_profile_supported(self):
+        self.profile_type.name = (
+            'guest'
+        )
+
+        event = self.build()
+
+        self.assertEqual(
+            event['profile_type'],
+            'guest',
+        )
+
+    def test_rejects_unknown_profile_type(self):
+        self.profile_type.name = (
+            'admin'
+        )
+
+        with self.assertRaises(
+            ValueError
+        ):
+            self.build()
+
+    def test_event_id_is_generated(self):
+        event = self.build()
+
+        uuid.UUID(
+            event['event_id']
+        )
+
+    def test_same_session_can_have_distinct_events(self):
+        start = self.build(
+            'app_session_start'
+        )
+
+        end = self.build(
+            'app_session_end',
+            duration_seconds=120,
+        )
+
+        self.assertEqual(
+            start['session_id'],
+            end['session_id'],
+        )
+
+        self.assertNotEqual(
+            start['event_id'],
+            end['event_id'],
+        )
+
+    def test_custom_properties_preserved(self):
+        event = self.build(
+            'app_session_end',
+            duration_seconds=10,
+            properties={
+                'reason':
+                    'background',
+            },
+        )
+
+        self.assertEqual(
+            event['properties'][
+                'reason'
+            ],
+            'background',
+        )
+
+        self.assertEqual(
+            event['properties'][
+                'duration_seconds'
+            ],
+            10,
+        )

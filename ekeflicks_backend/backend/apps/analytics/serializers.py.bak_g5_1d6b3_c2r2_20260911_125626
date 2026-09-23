@@ -1,0 +1,478 @@
+from rest_framework import serializers
+
+from core.models import DailyStat, ProducerContentView, ProducerCountryCurrency, ProducerRevenueSetting
+
+
+class DailyStatSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DailyStat
+        fields = [
+            'id',
+            'stat_date',
+            'total_users',
+            'active_users',
+            'total_views',
+            'total_watch_time',
+            'new_subscriptions',
+            'revenue',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class ProducerRevenueSettingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProducerRevenueSetting
+        fields = [
+            'id',
+            'remuneration_enabled',
+            'eligible_progress_percent',
+            'rate_per_1000_views_eur',
+            'minimum_payout_eur',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'updated_at']
+
+
+class ProducerCountryCurrencySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProducerCountryCurrency
+        fields = [
+            'id',
+            'country_code',
+            'currency',
+            'eur_to_currency_rate',
+            'is_active',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'updated_at']
+
+
+class ProducerContentViewSerializer(serializers.ModelSerializer):
+    producer_email = serializers.EmailField(source='producer.email', read_only=True)
+    content_title = serializers.CharField(source='content.title', read_only=True)
+
+    class Meta:
+        model = ProducerContentView
+        fields = [
+            'id',
+            'producer',
+            'producer_email',
+            'content',
+            'content_title',
+            'episode',
+            'viewing_session',
+            'watched_seconds',
+            'total_seconds',
+            'progress_percent',
+            'viewer_country_code',
+            'amount_eur',
+            'currency',
+            'amount_local',
+            'status',
+            'counted_at',
+        ]
+        read_only_fields = fields
+
+
+
+class AudienceSnapshotQuerySerializer(
+    serializers.Serializer
+):
+    as_of = serializers.DateTimeField(
+        required=False,
+    )
+
+
+class AudienceDimensionQuerySerializer(
+    serializers.Serializer
+):
+    DIMENSION_CHOICES = (
+        'country_code',
+        'profile_type',
+        'platform',
+        'device_type',
+        'interface_language',
+    )
+
+    start_at = serializers.DateTimeField()
+    end_at = serializers.DateTimeField()
+
+    dimension = serializers.ChoiceField(
+        choices=DIMENSION_CHOICES,
+    )
+
+    def validate(self, attrs):
+        if (
+            attrs['end_at']
+            <= attrs['start_at']
+        ):
+            raise serializers.ValidationError(
+                {
+                    'end_at': (
+                        'end_at must be after '
+                        'start_at.'
+                    )
+                }
+            )
+
+        return attrs
+
+
+class AudienceRetentionQuerySerializer(
+    serializers.Serializer
+):
+    cohort_start = serializers.DateTimeField()
+    cohort_end = serializers.DateTimeField()
+
+    as_of = serializers.DateTimeField(
+        required=False,
+    )
+
+    def validate(self, attrs):
+        if (
+            attrs['cohort_end']
+            <= attrs['cohort_start']
+        ):
+            raise serializers.ValidationError(
+                {
+                    'cohort_end': (
+                        'cohort_end must be after '
+                        'cohort_start.'
+                    )
+                }
+            )
+
+        return attrs
+
+
+class AudiencePeakHoursQuerySerializer(
+    serializers.Serializer
+):
+    start_at = serializers.DateTimeField()
+    end_at = serializers.DateTimeField()
+
+    country_code = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        max_length=2,
+    )
+
+    limit = serializers.IntegerField(
+        required=False,
+        default=5,
+        min_value=1,
+        max_value=24,
+    )
+
+    def validate_country_code(
+        self,
+        value,
+    ):
+        return (
+            str(value)
+            .strip()
+            .upper()
+        )
+
+    def validate(self, attrs):
+        if (
+            attrs['end_at']
+            <= attrs['start_at']
+        ):
+            raise serializers.ValidationError(
+                {
+                    'end_at': (
+                        'end_at must be after '
+                        'start_at.'
+                    )
+                }
+            )
+
+        return attrs
+
+
+class AudienceCountryPeakHoursQuerySerializer(
+    serializers.Serializer
+):
+    start_at = serializers.DateTimeField()
+    end_at = serializers.DateTimeField()
+
+    limit_per_country = (
+        serializers.IntegerField(
+            required=False,
+            default=3,
+            min_value=1,
+            max_value=24,
+        )
+    )
+
+    def validate(self, attrs):
+        if (
+            attrs['end_at']
+            <= attrs['start_at']
+        ):
+            raise serializers.ValidationError(
+                {
+                    'end_at': (
+                        'end_at must be after '
+                        'start_at.'
+                    )
+                }
+            )
+
+        return attrs
+
+# ==========================================================
+# G5-1D4B4 — CONTENT ANALYTICS API
+# ==========================================================
+
+from apps.analytics.services import (
+    CONTENT_ANALYTICS_DIMENSIONS,
+)
+
+
+class ContentAnalyticsQuerySerializer(
+    serializers.Serializer
+):
+    start_at = serializers.DateTimeField(
+        required=True,
+    )
+
+    end_at = serializers.DateTimeField(
+        required=True,
+    )
+
+    dimension = serializers.ChoiceField(
+        choices=CONTENT_ANALYTICS_DIMENSIONS,
+        required=True,
+    )
+
+    limit = serializers.IntegerField(
+        required=False,
+        default=10,
+        min_value=1,
+        max_value=100,
+    )
+
+    def validate(self, attrs):
+        start_at = attrs['start_at']
+        end_at = attrs['end_at']
+
+        if end_at <= start_at:
+            raise serializers.ValidationError(
+                {
+                    'end_at': (
+                        'end_at must be after start_at'
+                    ),
+                }
+            )
+
+        return attrs
+
+
+
+# ==========================================================
+# G5-1D5B2 — APP SESSION INGESTION API
+# ==========================================================
+
+class AppSessionAnalyticsQuerySerializer(
+    serializers.Serializer
+):
+    """
+    Query contract for global application-session analytics.
+
+    The reporting window is explicit and follows the same
+    half-open [start_at, end_at) convention as D3/D4.
+    """
+
+    start_at = serializers.DateTimeField(
+        required=True,
+    )
+
+    end_at = serializers.DateTimeField(
+        required=True,
+    )
+
+    def validate(self, attrs):
+        start_at = attrs['start_at']
+        end_at = attrs['end_at']
+
+        if end_at <= start_at:
+            raise serializers.ValidationError(
+                {
+                    'end_at': (
+                        'end_at must be after start_at'
+                    ),
+                }
+            )
+
+        return attrs
+
+
+
+class AppSessionEventSerializer(serializers.Serializer):
+    EVENT_START = 'start'
+    EVENT_END = 'end'
+
+    EVENT_CHOICES = (
+        EVENT_START,
+        EVENT_END,
+    )
+
+    event = serializers.ChoiceField(
+        choices=EVENT_CHOICES,
+    )
+
+    profile_id = serializers.UUIDField()
+
+    session_id = serializers.UUIDField()
+
+    occurred_at = serializers.DateTimeField(
+        required=False,
+    )
+
+    platform = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=50,
+        default='',
+    )
+
+    device_type = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=50,
+        default='',
+    )
+
+    app_version = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=100,
+        default='',
+    )
+
+    timezone = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        max_length=100,
+        default='UTC',
+    )
+
+    duration_seconds = serializers.IntegerField(
+        required=False,
+        min_value=0,
+    )
+
+    properties = serializers.JSONField(
+        required=False,
+        default=dict,
+    )
+
+    def validate(self, attrs):
+        event = attrs.get(
+            'event'
+        )
+
+        duration_present = (
+            'duration_seconds'
+            in attrs
+        )
+
+        if (
+            event == self.EVENT_START
+            and duration_present
+        ):
+            raise serializers.ValidationError(
+                {
+                    'duration_seconds':
+                        'duration_seconds is not allowed '
+                        'for start events.'
+                }
+            )
+
+        return attrs
+
+
+# ==========================================================
+# G5-1D5B5 — APP SESSION DIMENSIONS API
+# ==========================================================
+
+class AppSessionDimensionQuerySerializer(
+    serializers.Serializer
+):
+    DIMENSION_CHOICES = (
+        'platform',
+        'device_type',
+        'profile_type',
+        'country_code',
+    )
+
+    start_at = serializers.DateTimeField(
+        required=True,
+    )
+
+    end_at = serializers.DateTimeField(
+        required=True,
+    )
+
+    dimension = serializers.ChoiceField(
+        choices=DIMENSION_CHOICES,
+        required=True,
+    )
+
+    def validate(self, attrs):
+        if (
+            attrs['end_at']
+            <= attrs['start_at']
+        ):
+            raise serializers.ValidationError(
+                {
+                    'end_at': (
+                        'end_at must be after start_at'
+                    ),
+                }
+            )
+
+        return attrs
+
+
+# ==========================================================
+# G5-1D6B2-C — LIKE / ENGAGEMENT ANALYTICS API
+# ==========================================================
+
+class LikeEngagementQuerySerializer(
+    serializers.Serializer
+):
+    """
+    Explicit reporting window for global engagement analytics.
+
+    Contract:
+    - required start_at/end_at;
+    - half-open period [start_at, end_at);
+    - producer-scoped analytics belongs to G5-1D8.
+    """
+
+    start_at = serializers.DateTimeField(
+        required=True,
+    )
+
+    end_at = serializers.DateTimeField(
+        required=True,
+    )
+
+    def validate(self, attrs):
+        start_at = attrs['start_at']
+        end_at = attrs['end_at']
+
+        if end_at <= start_at:
+            raise serializers.ValidationError(
+                {
+                    'end_at': (
+                        'end_at must be after start_at'
+                    ),
+                }
+            )
+
+        return attrs

@@ -1,0 +1,192 @@
+import 'dart:math';
+
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+
+class AppSessionAnalyticsService {
+  AppSessionAnalyticsService(this._dio);
+
+  final Dio _dio;
+
+  String? _sessionId;
+  String? _profileId;
+  DateTime? _startedAt;
+  bool _isForeground = true;
+  bool _requestInFlight = false;
+
+  String? get sessionId => _sessionId;
+  String? get profileId => _profileId;
+  bool get hasActiveSession => _sessionId != null && _profileId != null;
+
+  Future<void> setProfile(String? profileId) async {
+    final normalized = profileId?.trim();
+
+    if (normalized == null || normalized.isEmpty) {
+      await endSession();
+      return;
+    }
+
+    if (_profileId == normalized && hasActiveSession) {
+      return;
+    }
+
+    if (hasActiveSession) {
+      await endSession();
+    }
+
+    _profileId = normalized;
+
+    if (_isForeground) {
+      await startSession();
+    }
+  }
+
+  Future<void> onForeground() async {
+    _isForeground = true;
+
+    if (_profileId != null && !hasActiveSession) {
+      await startSession();
+    }
+  }
+
+  Future<void> onBackground() async {
+    _isForeground = false;
+    await endSession();
+  }
+
+  Future<void> startSession() async {
+    if (!_isForeground ||
+        _profileId == null ||
+        _profileId!.isEmpty ||
+        hasActiveSession ||
+        _requestInFlight) {
+      return;
+    }
+
+    final sessionId = _uuidV4();
+    final startedAt = DateTime.now().toUtc();
+
+    _requestInFlight = true;
+
+    try {
+      await _dio.post<Object>(
+        '/app-sessions/events/',
+        data: <String, dynamic>{
+          'event': 'start',
+          'profile_id': _profileId,
+          'session_id': sessionId,
+          'occurred_at': startedAt.toIso8601String(),
+          'platform': _platformName(),
+          'device_type': _deviceType(),
+          'timezone': DateTime.now().timeZoneName,
+          'properties': <String, dynamic>{},
+        },
+      );
+
+      _sessionId = sessionId;
+      _startedAt = startedAt;
+    } catch (error) {
+      debugPrint('App session start analytics failed: $error');
+    } finally {
+      _requestInFlight = false;
+    }
+  }
+
+  Future<void> endSession() async {
+    final sessionId = _sessionId;
+    final profileId = _profileId;
+    final startedAt = _startedAt;
+
+    if (sessionId == null ||
+        profileId == null ||
+        startedAt == null ||
+        _requestInFlight) {
+      _sessionId = null;
+      _startedAt = null;
+      return;
+    }
+
+    final endedAt = DateTime.now().toUtc();
+    final duration = endedAt.difference(startedAt).inSeconds;
+    final safeDuration = duration < 0 ? 0 : duration;
+
+    // Clear local state before the network request so duplicate lifecycle
+    // notifications cannot emit a second end for the same session.
+    _sessionId = null;
+    _startedAt = null;
+    _requestInFlight = true;
+
+    try {
+      await _dio.post<Object>(
+        '/app-sessions/events/',
+        data: <String, dynamic>{
+          'event': 'end',
+          'profile_id': profileId,
+          'session_id': sessionId,
+          'occurred_at': endedAt.toIso8601String(),
+          'platform': _platformName(),
+          'device_type': _deviceType(),
+          'timezone': DateTime.now().timeZoneName,
+          'duration_seconds': safeDuration,
+          'properties': <String, dynamic>{},
+        },
+      );
+    } catch (error) {
+      debugPrint('App session end analytics failed: $error');
+    } finally {
+      _requestInFlight = false;
+    }
+  }
+
+  String _platformName() {
+    if (kIsWeb) return 'web';
+
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.iOS:
+        return 'ios';
+      case TargetPlatform.macOS:
+        return 'macos';
+      case TargetPlatform.windows:
+        return 'windows';
+      case TargetPlatform.linux:
+        return 'linux';
+      case TargetPlatform.fuchsia:
+        return 'fuchsia';
+    }
+  }
+
+  String _deviceType() {
+    if (kIsWeb) return 'web';
+
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+        return 'mobile';
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return 'desktop';
+      case TargetPlatform.fuchsia:
+        return 'other';
+    }
+  }
+
+  String _uuidV4() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    final hex =
+        bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+
+    return '${hex.substring(0, 8)}-'
+        '${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-'
+        '${hex.substring(16, 20)}-'
+        '${hex.substring(20, 32)}';
+  }
+}

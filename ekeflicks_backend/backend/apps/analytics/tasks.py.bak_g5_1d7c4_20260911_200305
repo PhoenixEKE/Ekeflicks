@@ -1,0 +1,28 @@
+from celery import shared_task
+
+from apps.analytics.services import write_analytics_event
+
+
+@shared_task(
+    bind=True,
+    max_retries=5,
+)
+def write_analytics_event_task(self, payload):
+    try:
+        result = write_analytics_event(payload)
+
+        if result.get('status') == 'locked':
+            raise self.retry(
+                countdown=2,
+            )
+
+        return result
+
+    except Exception as exc:
+        raise self.retry(
+            exc=exc,
+            countdown=min(
+                60,
+                2 ** (self.request.retries + 1),
+            ),
+        )

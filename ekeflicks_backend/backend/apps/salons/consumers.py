@@ -1,0 +1,670 @@
+from __future__ import annotations
+
+from uuid import UUID
+
+from channels.db import database_sync_to_async
+from channels.generic.websocket import AsyncJsonWebsocketConsumer
+from rest_framework.exceptions import APIException
+
+from .models import Salon
+from .chat_serializers import SalonMessageSerializer
+from .chat_services import (
+    create_salon_message,
+    validate_reaction,
+)
+from .throttles import (
+    allow_salon_realtime_event,
+)
+from .playback_serializers import SalonPlaybackStateSerializer
+from .playback_services import (
+    get_playback_state,
+    update_playback_state,
+)
+
+
+@database_sync_to_async
+def _allow_realtime_mutation(
+    *,
+    salon_id,
+    user_id,
+):
+    return allow_salon_realtime_event(
+        user_id=user_id,
+        salon_id=salon_id,
+    )
+
+
+@database_sync_to_async
+def _get_salon(
+    salon_id,
+):
+    return Salon.objects.get(
+        pk=salon_id,
+    )
+
+
+@database_sync_to_async
+def _get_playback_payload(
+    *,
+    salon_id,
+    user,
+):
+    salon = Salon.objects.get(
+        pk=salon_id,
+    )
+
+    state = get_playback_state(
+        salon=salon,
+        user=user,
+    )
+
+    return dict(
+        SalonPlaybackStateSerializer(
+            state
+        ).data
+    )
+
+
+@database_sync_to_async
+def _update_playback_payload(
+    *,
+    salon_id,
+    user,
+    payload,
+):
+    salon = Salon.objects.get(
+        pk=salon_id,
+    )
+
+    state = update_playback_state(
+        salon=salon,
+        user=user,
+        expected_sequence=payload["expected_sequence"],
+        position_ms=payload.get("position_ms"),
+        is_playing=payload.get("is_playing"),
+        playback_rate=payload.get("playback_rate"),
+        event_type=payload.get("event_type"),
+    )
+
+    return dict(
+        SalonPlaybackStateSerializer(
+            state
+        ).data
+    )
+
+
+
+
+@database_sync_to_async
+def _create_chat_message_payload(
+    *,
+    salon_id,
+    user,
+    text,
+    mention_ids=None,
+):
+    salon = Salon.objects.get(
+        pk=salon_id,
+    )
+
+    message = create_salon_message(
+        salon=salon,
+        user=user,
+        text=text,
+        mention_ids=mention_ids,
+    )
+
+    payload = dict(
+        SalonMessageSerializer(
+            message
+        ).data
+    )
+
+    for field in (
+        "id",
+        "salon_id",
+        "author_id",
+        "deleted_by",
+    ):
+        value = payload.get(field)
+
+        if value is not None:
+            payload[field] = str(value)
+
+    payload["mentions"] = [
+        str(value)
+        for value in payload.get(
+            "mentions",
+            [],
+        )
+    ]
+
+    return payload
+
+
+@database_sync_to_async
+def _validate_reaction_payload(
+    *,
+    salon_id,
+    user,
+    reaction,
+):
+    salon = Salon.objects.get(
+        pk=salon_id,
+    )
+
+    from .realtime_services import (
+        require_realtime_member,
+    )
+
+    require_realtime_member(
+        salon=salon,
+        user=user,
+    )
+
+    return validate_reaction(
+        reaction=reaction,
+    )
+
+def _api_error_payload(exc):
+    detail = getattr(
+        exc,
+        "detail",
+        str(exc),
+    )
+
+    return {
+        "type": "error",
+        "code": (
+            "permission_denied"
+            if getattr(exc, "status_code", None) == 403
+            else "invalid_event"
+        ),
+        "detail": detail,
+    }
+
+
+class SalonConsumer(
+    AsyncJsonWebsocketConsumer
+):
+    async def connect(self):
+        self.salon_id = str(
+            self.scope["url_route"]["kwargs"][
+                "salon_id"
+            ]
+        )
+
+        user = self.scope.get("user")
+
+        if (
+            not user
+            or not user.is_authenticated
+        ):
+            await self.close(
+                code=4401,
+            )
+            return
+
+        try:
+            UUID(self.salon_id)
+            await _get_salon(
+                self.salon_id
+            )
+        except Exception:
+            await self.close(
+                code=4404,
+            )
+            return
+
+        self.group_name = (
+            "salon."
+            + self.salon_id.replace(
+                "-",
+                "",
+            )
+        )
+
+        await self.channel_layer.group_add(
+            self.group_name,
+            self.channel_name,
+        )
+
+        await self.accept()
+
+        try:
+            playback = (
+                await _get_playback_payload(
+                    salon_id=self.salon_id,
+                    user=user,
+                )
+            )
+        except APIException:
+            await self.channel_layer.group_discard(
+                self.group_name,
+                self.channel_name,
+            )
+            await self.close(
+                code=4403,
+            )
+            return
+
+        await self.send_json(
+            {
+                "type": "connection.ready",
+                "salon_id": self.salon_id,
+                "user_id": str(user.pk),
+                "playback": playback,
+            }
+        )
+
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "presence.event",
+                "event": "presence.joined",
+                "user_id": str(user.pk),
+            },
+        )
+
+    async def disconnect(
+        self,
+        close_code,
+    ):
+        group_name = getattr(
+            self,
+            "group_name",
+            None,
+        )
+
+        user = self.scope.get("user")
+
+        if group_name:
+            await self.channel_layer.group_discard(
+                group_name,
+                self.channel_name,
+            )
+
+            if (
+                user
+                and user.is_authenticated
+            ):
+                await self.channel_layer.group_send(
+                    group_name,
+                    {
+                        "type": "presence.event",
+                        "event": "presence.left",
+                        "user_id": str(user.pk),
+                    },
+                )
+
+    async def receive_json(
+        self,
+        content,
+        **kwargs,
+    ):
+        event_type = content.get(
+            "type"
+        )
+
+        mutating_events = {
+            "playback.update",
+            "webrtc.signal",
+            "chat.send",
+            "reaction.send",
+        }
+
+        if event_type in mutating_events:
+            allowed = await _allow_realtime_mutation(
+                salon_id=self.salon_id,
+                user_id=self.scope["user"].pk,
+            )
+
+            if not allowed:
+                await self.send_json(
+                    {
+                        "type": "error",
+                        "code": "rate_limited",
+                        "detail": (
+                            "Salon realtime rate "
+                            "limit exceeded."
+                        ),
+                    }
+                )
+                return
+
+        if event_type == "ping":
+            await self.send_json(
+                {
+                    "type": "pong",
+                }
+            )
+            return
+
+        if event_type == "playback.resync":
+            await self._playback_resync()
+            return
+
+        if event_type == "playback.update":
+            await self._playback_update(
+                content,
+            )
+            return
+
+        if event_type == "webrtc.signal":
+            await self._webrtc_signal(
+                content,
+            )
+            return
+
+        if event_type == "chat.send":
+            await self._chat_send(
+                content,
+            )
+            return
+
+        if event_type == "reaction.send":
+            await self._reaction_send(
+                content,
+            )
+            return
+
+        await self.send_json(
+            {
+                "type": "error",
+                "code": "unknown_event",
+                "detail": (
+                    "Unknown realtime event type."
+                ),
+            }
+        )
+
+    async def _playback_resync(self):
+        try:
+            payload = (
+                await _get_playback_payload(
+                    salon_id=self.salon_id,
+                    user=self.scope["user"],
+                )
+            )
+        except APIException as exc:
+            await self.send_json(
+                _api_error_payload(exc)
+            )
+            return
+
+        await self.send_json(
+            {
+                "type": "playback.state",
+                "playback": payload,
+            }
+        )
+
+    async def _playback_update(
+        self,
+        content,
+    ):
+        payload = content.get(
+            "playback",
+            {},
+        )
+
+        if (
+            "expected_sequence"
+            not in payload
+        ):
+            await self.send_json(
+                {
+                    "type": "error",
+                    "code": "invalid_event",
+                    "detail": (
+                        "expected_sequence "
+                        "is required."
+                    ),
+                }
+            )
+            return
+
+        try:
+            authoritative = (
+                await _update_playback_payload(
+                    salon_id=self.salon_id,
+                    user=self.scope["user"],
+                    payload=payload,
+                )
+            )
+        except APIException as exc:
+            await self.send_json(
+                _api_error_payload(exc)
+            )
+            return
+        except Exception as exc:
+            await self.send_json(
+                {
+                    "type": "error",
+                    "code": "invalid_event",
+                    "detail": str(exc),
+                }
+            )
+            return
+
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "playback.event",
+                "playback": authoritative,
+            },
+        )
+
+    async def _webrtc_signal(
+        self,
+        content,
+    ):
+        signal_type = content.get(
+            "signal_type"
+        )
+
+        if signal_type not in {
+            "offer",
+            "answer",
+            "ice_candidate",
+        }:
+            await self.send_json(
+                {
+                    "type": "error",
+                    "code": "invalid_webrtc_signal",
+                    "detail": (
+                        "signal_type must be "
+                        "offer, answer or "
+                        "ice_candidate."
+                    ),
+                }
+            )
+            return
+
+        target_user_id = content.get(
+            "target_user_id"
+        )
+
+        if not target_user_id:
+            await self.send_json(
+                {
+                    "type": "error",
+                    "code": "missing_target",
+                    "detail": (
+                        "target_user_id is required."
+                    ),
+                }
+            )
+            return
+
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "webrtc.event",
+                "sender_user_id": str(
+                    self.scope["user"].pk
+                ),
+                "target_user_id": str(
+                    target_user_id
+                ),
+                "signal_type": signal_type,
+                "payload": content.get(
+                    "payload",
+                    {},
+                ),
+            },
+        )
+
+
+    async def _chat_send(
+        self,
+        content,
+    ):
+        try:
+            message = (
+                await _create_chat_message_payload(
+                    salon_id=self.salon_id,
+                    user=self.scope["user"],
+                    text=content.get(
+                        "text",
+                        "",
+                    ),
+                    mention_ids=content.get(
+                        "mention_ids",
+                        [],
+                    ),
+                )
+            )
+        except APIException as exc:
+            await self.send_json(
+                _api_error_payload(exc)
+            )
+            return
+        except Exception as exc:
+            await self.send_json(
+                {
+                    "type": "error",
+                    "code": "invalid_event",
+                    "detail": str(exc),
+                }
+            )
+            return
+
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "chat.event",
+                "message": message,
+            },
+        )
+
+    async def _reaction_send(
+        self,
+        content,
+    ):
+        try:
+            reaction = (
+                await _validate_reaction_payload(
+                    salon_id=self.salon_id,
+                    user=self.scope["user"],
+                    reaction=content.get(
+                        "reaction",
+                        "",
+                    ),
+                )
+            )
+        except APIException as exc:
+            await self.send_json(
+                _api_error_payload(exc)
+            )
+            return
+        except Exception as exc:
+            await self.send_json(
+                {
+                    "type": "error",
+                    "code": "invalid_event",
+                    "detail": str(exc),
+                }
+            )
+            return
+
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "reaction.event",
+                "sender_user_id": str(
+                    self.scope["user"].pk
+                ),
+                "reaction": reaction,
+            },
+        )
+
+    async def chat_event(
+        self,
+        event,
+    ):
+        await self.send_json(
+            {
+                "type": "chat.message",
+                "message": event["message"],
+            }
+        )
+
+    async def reaction_event(
+        self,
+        event,
+    ):
+        await self.send_json(
+            {
+                "type": "reaction.received",
+                "user_id": (
+                    event["sender_user_id"]
+                ),
+                "reaction": event["reaction"],
+            }
+        )
+
+    async def presence_event(
+        self,
+        event,
+    ):
+        await self.send_json(
+            {
+                "type": event["event"],
+                "user_id": event["user_id"],
+            }
+        )
+
+    async def playback_event(
+        self,
+        event,
+    ):
+        await self.send_json(
+            {
+                "type": "playback.state",
+                "playback": event["playback"],
+            }
+        )
+
+    async def webrtc_event(
+        self,
+        event,
+    ):
+        if (
+            str(self.scope["user"].pk)
+            != event["target_user_id"]
+        ):
+            return
+
+        await self.send_json(
+            {
+                "type": "webrtc.signal",
+                "sender_user_id": (
+                    event["sender_user_id"]
+                ),
+                "signal_type": (
+                    event["signal_type"]
+                ),
+                "payload": event["payload"],
+            }
+        )

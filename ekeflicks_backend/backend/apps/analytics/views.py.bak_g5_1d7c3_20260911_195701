@@ -1,0 +1,1026 @@
+from rest_framework import status
+from rest_framework import permissions as drf_permissions
+from rest_framework import filters, permissions, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
+from apps.analytics.serializers import (
+    AudienceCountryPeakHoursQuerySerializer,
+    AudienceDimensionQuerySerializer,
+    AudiencePeakHoursQuerySerializer,
+    AudienceRetentionQuerySerializer,
+    AudienceSnapshotQuerySerializer,
+    DailyStatSerializer,
+    ProducerContentViewSerializer,
+    ProducerCountryCurrencySerializer,
+    ProducerRevenueSettingSerializer,
+)
+from apps.analytics.services import (
+    audience_by_dimension,
+    audience_peak_hours,
+    audience_peak_hours_by_country,
+    audience_retention,
+    audience_retention_summary,
+    audience_snapshot,
+    clickhouse_status,
+    dashboard_summary,
+    revenue_settings,
+    views_by_country,
+    views_by_minute,
+)
+from core.models import DailyStat, ProducerContentView, ProducerCountryCurrency, ProducerRevenueSetting
+
+
+class DailyStatViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = DailyStat.objects.all().order_by('-stat_date')
+    serializer_class = DailyStatSerializer
+    permission_classes = [permissions.IsAdminUser]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['stat_date', 'active_users', 'total_views', 'revenue']
+    ordering = ['-stat_date']
+
+    def get_permissions(self):
+        if self.action in {'dashboard', 'views_by_minute', 'views_by_country', 'clickhouse_status'}:
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+
+    @action(detail=False, methods=['get'])
+    def dashboard(self, request):
+        return Response(dashboard_summary(request))
+
+    @action(detail=False, methods=['get'], url_path='views-by-minute')
+    def views_by_minute(self, request):
+        return Response({'results': views_by_minute(request)})
+
+    @action(detail=False, methods=['get'], url_path='views-by-country')
+    def views_by_country(self, request):
+        return Response({'results': views_by_country(request)})
+
+    @action(detail=False, methods=['get'], url_path='clickhouse-status')
+    def clickhouse_status(self, request):
+        return Response(clickhouse_status())
+
+
+class ProducerRevenueSettingViewSet(viewsets.ModelViewSet):
+    serializer_class = ProducerRevenueSettingSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+    def get_queryset(self):
+        revenue_settings()
+        return ProducerRevenueSetting.objects.all().order_by('id')
+
+    @action(detail=False, methods=['get', 'patch'])
+    def current(self, request):
+        setting = revenue_settings()
+        if request.method.lower() == 'patch':
+            serializer = self.get_serializer(setting, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
+        return Response(self.get_serializer(setting).data)
+
+
+class ProducerCountryCurrencyViewSet(viewsets.ModelViewSet):
+    queryset = ProducerCountryCurrency.objects.all().order_by('country_code')
+    serializer_class = ProducerCountryCurrencySerializer
+    permission_classes = [permissions.IsAdminUser]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['country_code', 'currency']
+    ordering_fields = ['country_code', 'currency', 'updated_at']
+    ordering = ['country_code']
+
+
+class ProducerContentViewViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = ProducerContentViewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['counted_at', 'amount_eur', 'progress_percent']
+    ordering = ['-counted_at']
+
+    def get_queryset(self):
+        queryset = (
+            ProducerContentView.objects.select_related('producer', 'content', 'episode', 'viewing_session')
+            .order_by('-counted_at')
+        )
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(producer=self.request.user)
+        status_name = self.request.query_params.get('status')
+        content_id = self.request.query_params.get('content')
+        if status_name:
+            queryset = queryset.filter(status=status_name)
+        if content_id:
+            queryset = queryset.filter(content_id=content_id)
+        return queryset
+
+
+class AudienceAnalyticsViewSet(
+    viewsets.ViewSet
+):
+    """
+    Global EKEFLICKS audience analytics.
+
+    Administration only.
+
+    Producer-scoped analytics are intentionally not exposed
+    here and belong to the dedicated producer analytics API.
+    """
+
+    permission_classes = [
+        permissions.IsAdminUser,
+    ]
+
+    def list(
+        self,
+        request,
+    ):
+        return Response(
+            {
+                'scope': 'global',
+                'timezone': 'UTC',
+                'permissions': (
+                    'admin'
+                ),
+                'metrics': {
+                    'snapshot': {
+                        'dau': (
+                            'current UTC calendar day'
+                        ),
+                        'wau': (
+                            'current UTC day + '
+                            'previous 6 days'
+                        ),
+                        'mau': (
+                            'current UTC day + '
+                            'previous 29 days'
+                        ),
+                        'stickiness': (
+                            'DAU / MAU'
+                        ),
+                    },
+                    'retention': {
+                        'days': [
+                            1,
+                            3,
+                            7,
+                            14,
+                            30,
+                        ],
+                        'mode': (
+                            'exact-day'
+                        ),
+                        'maturity_aware': True,
+                    },
+                    'peak_hours': {
+                        'timezone_mode': (
+                            'event timezone'
+                        ),
+                        'dst_safe': True,
+                    },
+                },
+                'endpoints': {
+                    'snapshot': (
+                        'snapshot/'
+                    ),
+                    'dimensions': (
+                        'dimensions/'
+                    ),
+                    'retention': (
+                        'retention/'
+                    ),
+                    'peak_hours': (
+                        'peak-hours/'
+                    ),
+                    'peak_hours_by_country': (
+                        'peak-hours-by-country/'
+                    ),
+                },
+            }
+        )
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='snapshot',
+    )
+    def snapshot(
+        self,
+        request,
+    ):
+        from django.utils import timezone
+
+        serializer = (
+            AudienceSnapshotQuerySerializer(
+                data=request.query_params
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        as_of = (
+            serializer
+            .validated_data
+            .get(
+                'as_of'
+            )
+            or timezone.now()
+        )
+
+        return Response(
+            audience_snapshot(
+                as_of=as_of,
+            )
+        )
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='dimensions',
+    )
+    def dimensions(
+        self,
+        request,
+    ):
+        serializer = (
+            AudienceDimensionQuerySerializer(
+                data=request.query_params
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        data = serializer.validated_data
+
+        results = audience_by_dimension(
+            start_at=data['start_at'],
+            end_at=data['end_at'],
+            dimension=data['dimension'],
+        )
+
+        return Response(
+            {
+                'start_at': (
+                    data[
+                        'start_at'
+                    ].isoformat()
+                ),
+                'end_at': (
+                    data[
+                        'end_at'
+                    ].isoformat()
+                ),
+                'dimension': (
+                    data['dimension']
+                ),
+                'results': results,
+            }
+        )
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='retention',
+    )
+    def retention(
+        self,
+        request,
+    ):
+        from django.utils import timezone
+
+        serializer = (
+            AudienceRetentionQuerySerializer(
+                data=request.query_params
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        data = serializer.validated_data
+
+        as_of = (
+            data.get(
+                'as_of'
+            )
+            or timezone.now()
+        )
+
+        rows = audience_retention(
+            cohort_start=(
+                data[
+                    'cohort_start'
+                ]
+            ),
+            cohort_end=(
+                data[
+                    'cohort_end'
+                ]
+            ),
+            as_of=as_of,
+        )
+
+        return Response(
+            {
+                'cohort_start': (
+                    data[
+                        'cohort_start'
+                    ].isoformat()
+                ),
+                'cohort_end': (
+                    data[
+                        'cohort_end'
+                    ].isoformat()
+                ),
+                'as_of': (
+                    as_of.isoformat()
+                ),
+                'timezone': 'UTC',
+                'rows': rows,
+                'summary': (
+                    audience_retention_summary(
+                        rows
+                    )
+                ),
+            }
+        )
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='peak-hours',
+    )
+    def peak_hours(
+        self,
+        request,
+    ):
+        serializer = (
+            AudiencePeakHoursQuerySerializer(
+                data=request.query_params
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        data = serializer.validated_data
+
+        country_code = data.get(
+            'country_code'
+        )
+
+        results = audience_peak_hours(
+            start_at=data['start_at'],
+            end_at=data['end_at'],
+            country_code=country_code,
+            limit=data['limit'],
+        )
+
+        return Response(
+            {
+                'start_at': (
+                    data[
+                        'start_at'
+                    ].isoformat()
+                ),
+                'end_at': (
+                    data[
+                        'end_at'
+                    ].isoformat()
+                ),
+                'country_code': (
+                    country_code
+                ),
+                'limit': (
+                    data['limit']
+                ),
+                'results': results,
+            }
+        )
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='peak-hours-by-country',
+    )
+    def peak_hours_by_country(
+        self,
+        request,
+    ):
+        serializer = (
+            AudienceCountryPeakHoursQuerySerializer(
+                data=request.query_params
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        data = serializer.validated_data
+
+        results = (
+            audience_peak_hours_by_country(
+                start_at=data['start_at'],
+                end_at=data['end_at'],
+                limit_per_country=(
+                    data[
+                        'limit_per_country'
+                    ]
+                ),
+            )
+        )
+
+        return Response(
+            {
+                'start_at': (
+                    data[
+                        'start_at'
+                    ].isoformat()
+                ),
+                'end_at': (
+                    data[
+                        'end_at'
+                    ].isoformat()
+                ),
+                'limit_per_country': (
+                    data[
+                        'limit_per_country'
+                    ]
+                ),
+                'results': results,
+            }
+        )
+
+# ==========================================================
+# G5-1D4B4 — CONTENT ANALYTICS API
+# Global/admin analytics only.
+# Producer-scoped API belongs to G5-1D8.
+# ==========================================================
+
+from rest_framework import (
+    permissions as drf_permissions,
+    status as drf_status,
+    viewsets as drf_viewsets,
+)
+from rest_framework.decorators import (
+    action as drf_action,
+)
+from rest_framework.response import (
+    Response as DRFResponse,
+)
+
+from apps.analytics.serializers import (
+    ContentAnalyticsQuerySerializer,
+)
+from apps.analytics.services import (
+    CONTENT_ANALYTICS_DIMENSIONS,
+    CONTENT_ANALYTICS_RANKING_ORDER,
+    content_dimension_analytics,
+    content_dimension_ranking,
+)
+
+
+class ContentAnalyticsViewSet(
+    drf_viewsets.ViewSet
+):
+    """
+    Global content analytics API.
+
+    Admin-only.
+
+    This API exposes historical analytics dimensions
+    and deterministic period rankings.
+
+    It does not implement:
+    - producer-scoped analytics (G5-1D8);
+    - persisted/editorial Top10 history (G5-1D7);
+    - app sessions (G5-1D5);
+    - likes/engagement analytics (G5-1D6).
+    """
+
+    permission_classes = [
+        drf_permissions.IsAdminUser,
+    ]
+
+    def list(
+        self,
+        request,
+    ):
+        return DRFResponse(
+            {
+                'scope': 'global',
+                'permissions': 'admin',
+                'dimensions': list(
+                    CONTENT_ANALYTICS_DIMENSIONS
+                ),
+                'ranking_order': list(
+                    CONTENT_ANALYTICS_RANKING_ORDER
+                ),
+            },
+            status=drf_status.HTTP_200_OK,
+        )
+
+    def _validated_query(
+        self,
+        request,
+    ):
+        serializer = (
+            ContentAnalyticsQuerySerializer(
+                data=request.query_params,
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        return serializer.validated_data
+
+    @drf_action(
+        detail=False,
+        methods=['get'],
+        url_path='dimensions',
+    )
+    def dimensions(
+        self,
+        request,
+    ):
+        params = self._validated_query(
+            request
+        )
+
+        rows = content_dimension_analytics(
+            params['start_at'],
+            params['end_at'],
+            dimension=params['dimension'],
+            limit=params['limit'],
+        )
+
+        return DRFResponse(
+            {
+                'scope': 'global',
+                'start_at':
+                    params['start_at'],
+
+                'end_at':
+                    params['end_at'],
+
+                'dimension':
+                    params['dimension'],
+
+                'limit':
+                    params['limit'],
+
+                'results':
+                    rows,
+            },
+            status=drf_status.HTTP_200_OK,
+        )
+
+    @drf_action(
+        detail=False,
+        methods=['get'],
+        url_path='rankings',
+    )
+    def rankings(
+        self,
+        request,
+    ):
+        params = self._validated_query(
+            request
+        )
+
+        rows = content_dimension_ranking(
+            params['start_at'],
+            params['end_at'],
+            dimension=params['dimension'],
+            limit=params['limit'],
+        )
+
+        return DRFResponse(
+            {
+                'scope': 'global',
+                'start_at':
+                    params['start_at'],
+
+                'end_at':
+                    params['end_at'],
+
+                'dimension':
+                    params['dimension'],
+
+                'limit':
+                    params['limit'],
+
+                'ranking_order': list(
+                    CONTENT_ANALYTICS_RANKING_ORDER
+                ),
+
+                'results':
+                    rows,
+            },
+            status=drf_status.HTTP_200_OK,
+        )
+
+
+
+# ==========================================================
+# G5-1D5B2 — APP SESSION INGESTION API
+# ==========================================================
+
+class AppSessionAnalyticsViewSet(
+    viewsets.ViewSet
+):
+    """
+    Application session analytics.
+
+    Security contract:
+    - POST events/ is available to authenticated viewer clients;
+    - GET analytics/ is global analytics and admin-only.
+    """
+
+    permission_classes = [
+        drf_permissions.IsAuthenticated,
+    ]
+
+    def get_permissions(self):
+        if self.action in (
+            'analytics',
+            'dimensions',
+        ):
+            permission_classes = [
+                drf_permissions.IsAdminUser,
+            ]
+        else:
+            permission_classes = [
+                drf_permissions.IsAuthenticated,
+            ]
+
+        return [
+            permission()
+            for permission in permission_classes
+        ]
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='analytics',
+    )
+    def analytics(
+        self,
+        request,
+    ):
+        from apps.analytics.serializers import (
+            AppSessionAnalyticsQuerySerializer,
+        )
+
+        from apps.analytics.services import (
+            app_session_analytics,
+        )
+
+        serializer = (
+            AppSessionAnalyticsQuerySerializer(
+                data=request.query_params,
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        params = serializer.validated_data
+
+        metrics = app_session_analytics(
+            start_at=params['start_at'],
+            end_at=params['end_at'],
+        )
+
+        return DRFResponse(
+            {
+                'scope': 'global',
+                'timezone': 'UTC',
+                'start_at': params['start_at'],
+                'end_at': params['end_at'],
+                'metrics': metrics,
+            },
+            status=drf_status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='dimensions',
+    )
+    def dimensions(
+        self,
+        request,
+    ):
+        from apps.analytics.serializers import (
+            AppSessionDimensionQuerySerializer,
+        )
+
+        from apps.analytics.services import (
+            app_session_dimension_analytics,
+        )
+
+        serializer = (
+            AppSessionDimensionQuerySerializer(
+                data=request.query_params,
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        params = serializer.validated_data
+
+        rows = app_session_dimension_analytics(
+            start_at=params['start_at'],
+            end_at=params['end_at'],
+            dimension=params['dimension'],
+        )
+
+        return DRFResponse(
+            {
+                'scope': 'global',
+                'timezone': 'UTC',
+                'start_at':
+                    params['start_at'],
+                'end_at':
+                    params['end_at'],
+                'dimension':
+                    params['dimension'],
+                'results': rows,
+            },
+            status=drf_status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=False,
+        methods=['post'],
+        url_path='events',
+    )
+    def events(
+        self,
+        request,
+    ):
+        from core.models import Profile
+
+        from apps.analytics.serializers import (
+            AppSessionEventSerializer,
+        )
+
+        from apps.analytics.services import (
+            build_app_session_analytics_event,
+        )
+
+        from apps.analytics.tasks import (
+            write_analytics_event_task,
+        )
+
+        serializer = (
+            AppSessionEventSerializer(
+                data=request.data,
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        data = serializer.validated_data
+
+        try:
+            profile = (
+                Profile.objects
+                .select_related(
+                    'user',
+                    'type',
+                )
+                .get(
+                    id=data[
+                        'profile_id'
+                    ],
+                    user=request.user,
+                )
+            )
+
+        except Profile.DoesNotExist:
+            from rest_framework.exceptions import (
+                ValidationError,
+            )
+
+            raise ValidationError(
+                {
+                    'profile_id':
+                        'Profile not found '
+                        'for authenticated user.'
+                }
+            )
+
+        event_name = (
+            'app_session_start'
+            if data['event'] == 'start'
+            else 'app_session_end'
+        )
+
+        event = (
+            build_app_session_analytics_event(
+                event_name,
+                profile=profile,
+                session_id=data[
+                    'session_id'
+                ],
+                occurred_at=data.get(
+                    'occurred_at'
+                ),
+                platform=data.get(
+                    'platform',
+                    '',
+                ),
+                device_type=data.get(
+                    'device_type',
+                    '',
+                ),
+                app_version=data.get(
+                    'app_version',
+                    '',
+                ),
+                timezone_name=data.get(
+                    'timezone',
+                    'UTC',
+                ),
+                duration_seconds=data.get(
+                    'duration_seconds'
+                ),
+                properties=data.get(
+                    'properties',
+                    {},
+                ),
+            )
+        )
+
+        write_analytics_event_task.delay(
+            event
+        )
+
+        return Response(
+            {
+                'accepted': True,
+                'event_id': str(
+                    event['event_id']
+                ),
+                'event_name':
+                    event['event_name'],
+                'session_id': str(
+                    event['session_id']
+                ),
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+# ==========================================================
+# G5-1D6B2-C — LIKE / ENGAGEMENT ANALYTICS API
+# Global/admin only.
+# Producer-scoped analytics belongs to G5-1D8.
+# ==========================================================
+
+class EngagementAnalyticsViewSet(
+    drf_viewsets.ViewSet
+):
+    """
+    Global EKEFLICKS engagement analytics.
+
+    GET /api/v1/engagement-analytics/
+
+    Required query parameters:
+    - start_at
+    - end_at
+
+    Metrics:
+    - likes
+    - unlikes
+    - net_likes
+    - unique_likers
+    - unique_viewers
+    - engagement_rate_percent
+    - current_likes
+
+    PostgreSQL remains authoritative for current_likes.
+    ClickHouse remains authoritative for historical activity.
+    Favorite is intentionally independent.
+    """
+
+    permission_classes = [
+        drf_permissions.IsAdminUser,
+    ]
+
+    def list(
+        self,
+        request,
+    ):
+        from apps.analytics.serializers import (
+            LikeEngagementQuerySerializer,
+        )
+
+        from apps.analytics.services import (
+            like_engagement_analytics,
+        )
+
+        serializer = (
+            LikeEngagementQuerySerializer(
+                data=request.query_params,
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        params = (
+            serializer.validated_data
+        )
+
+        metrics = (
+            like_engagement_analytics(
+                params['start_at'],
+                params['end_at'],
+            )
+        )
+
+        return DRFResponse(
+            {
+                'scope': 'global',
+                'permissions': 'admin',
+                **metrics,
+            },
+            status=drf_status.HTTP_200_OK,
+        )
+
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='dimensions',
+    )
+    def dimensions(
+        self,
+        request,
+    ):
+        from apps.analytics.serializers import (
+            LikeEngagementDimensionQuerySerializer,
+        )
+
+        from apps.analytics.services import (
+            like_engagement_dimension_analytics,
+        )
+
+        serializer = (
+            LikeEngagementDimensionQuerySerializer(
+                data=request.query_params,
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        params = (
+            serializer.validated_data
+        )
+
+        results = (
+            like_engagement_dimension_analytics(
+                params['start_at'],
+                params['end_at'],
+                dimension=params['dimension'],
+                limit=params['limit'],
+            )
+        )
+
+        return DRFResponse(
+            {
+                'scope': 'global',
+                'permissions': 'admin',
+                'start_at':
+                    params['start_at']
+                    .isoformat(),
+                'end_at':
+                    params['end_at']
+                    .isoformat(),
+                'dimension':
+                    params['dimension'],
+                'limit':
+                    params['limit'],
+                'results':
+                    results,
+            },
+            status=drf_status.HTTP_200_OK,
+        )

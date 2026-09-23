@@ -1,0 +1,314 @@
+from django.test import TestCase
+
+from core.models import TechnicalSpecification
+
+from apps.streaming.technical_conformity import (
+    evaluate_master_conformity,
+)
+
+
+class G3ColorimetryTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.spec = (
+            TechnicalSpecification.objects.create(
+                title=(
+                    "Technical specification "
+                    "G3 color test"
+                ),
+                version="g3-color-test",
+                introduction="",
+                is_published=False,
+                sections=[
+                    {
+                        "key": "program_video",
+                        "items": [
+                            {
+                                "label": (
+                                    "Colorimétrie SDR"
+                                ),
+                                "value": (
+                                    "Rec.709 pour un "
+                                    "master SDR."
+                                ),
+                                "expected": {
+                                    "color_space": [
+                                        "bt709",
+                                    ],
+                                    "color_primaries": [
+                                        "bt709",
+                                    ],
+                                },
+                                "required": False,
+                                "rule_key": (
+                                    "master.color.sdr"
+                                ),
+                                "severity": "warning",
+                                "rule_type": (
+                                    "color_space_sdr"
+                                ),
+                                "auto_validation": True,
+                                "delivery_levels": [
+                                    "premium",
+                                    "standard",
+                                    "distribution",
+                                ],
+                            },
+                            {
+                                "label": (
+                                    "Colorimétrie HDR"
+                                ),
+                                "value": (
+                                    "Rec.2020 ou P3 pour "
+                                    "un master HDR."
+                                ),
+                                "expected": {
+                                    "color_primaries": [
+                                        "bt2020",
+                                        "smpte432",
+                                    ],
+                                },
+                                "required": False,
+                                "rule_key": (
+                                    "master.color.hdr"
+                                ),
+                                "severity": "warning",
+                                "rule_type": (
+                                    "color_space_hdr"
+                                ),
+                                "auto_validation": True,
+                                "delivery_levels": [
+                                    "premium",
+                                    "standard",
+                                    "distribution",
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            )
+        )
+
+    def _evaluate(
+        self,
+        *,
+        primaries,
+        transfer,
+        color_space,
+    ):
+        return evaluate_master_conformity(
+            metadata={
+                "format": {
+                    "format_name": "mp4",
+                    "filename": "color.mp4",
+                },
+                "streams": [
+                    {
+                        "codec_type": "video",
+                        "codec_name": "h264",
+                        "profile": "High",
+                        "width": 1920,
+                        "height": 1080,
+                        "pix_fmt": "yuv420p",
+                        "r_frame_rate": "25/1",
+                        "avg_frame_rate": "25/1",
+                        "field_order": "progressive",
+                        "color_primaries": primaries,
+                        "color_transfer": transfer,
+                        "color_space": color_space,
+                        "bit_rate": "32000000",
+                    },
+                    {
+                        "codec_type": "audio",
+                        "codec_name": "aac",
+                        "sample_rate": "48000",
+                        "channels": 2,
+                        "channel_layout": "stereo",
+                        "bit_rate": "256000",
+                    },
+                ],
+                "frame_timing_qc": {
+                    "available": True,
+                    "is_constant": True,
+                },
+                "keyframe_qc": {
+                    "available": True,
+                    "max_interval_seconds": 2.0,
+                },
+            },
+            frame_rate=25.0,
+            delivery_level="distribution",
+            specification=self.spec,
+        )
+
+    def _color_check(
+        self,
+        result,
+    ):
+        checks = [
+            item
+            for item in result["checks"]
+            if item["rule_key"]
+            in {
+                "master.color.sdr",
+                "master.color.hdr",
+            }
+        ]
+
+        self.assertEqual(
+            len(checks),
+            1,
+        )
+
+        return checks[0]
+
+    def test_sdr_bt709_is_conform(self):
+        result = self._evaluate(
+            primaries="bt709",
+            transfer="bt709",
+            color_space="bt709",
+        )
+
+        self.assertEqual(
+            result["status"],
+            "conform",
+        )
+
+        self.assertEqual(
+            self._color_check(
+                result
+            )["status"],
+            "passed",
+        )
+
+    def test_missing_sdr_metadata_requires_review(
+        self
+    ):
+        result = self._evaluate(
+            primaries=None,
+            transfer=None,
+            color_space=None,
+        )
+
+        self.assertEqual(
+            result["status"],
+            "review_required",
+        )
+
+        self.assertEqual(
+            self._color_check(
+                result
+            )["status"],
+            "review",
+        )
+
+    def test_smpte170m_is_not_silently_accepted(
+        self
+    ):
+        result = self._evaluate(
+            primaries="smpte170m",
+            transfer="smpte170m",
+            color_space="smpte170m",
+        )
+
+        self.assertEqual(
+            result["status"],
+            "review_required",
+        )
+
+        self.assertEqual(
+            self._color_check(
+                result
+            )["status"],
+            "failed",
+        )
+
+    def test_hdr_bt2020_pq_is_conform(self):
+        result = self._evaluate(
+            primaries="bt2020",
+            transfer="smpte2084",
+            color_space="bt2020nc",
+        )
+
+        self.assertEqual(
+            result["status"],
+            "conform",
+        )
+
+        self.assertEqual(
+            self._color_check(
+                result
+            )["status"],
+            "passed",
+        )
+
+    def test_hdr_bt2020_hlg_is_conform(self):
+        result = self._evaluate(
+            primaries="bt2020",
+            transfer="arib-std-b67",
+            color_space="bt2020nc",
+        )
+
+        self.assertEqual(
+            result["status"],
+            "conform",
+        )
+
+    def test_hdr_p3_pq_is_conform(self):
+        result = self._evaluate(
+            primaries="smpte432",
+            transfer="smpte2084",
+            color_space="bt2020nc",
+        )
+
+        self.assertEqual(
+            result["status"],
+            "conform",
+        )
+
+        check = self._color_check(
+            result
+        )
+
+        self.assertEqual(
+            check["rule_key"],
+            "master.color.hdr",
+        )
+
+        self.assertEqual(
+            check["status"],
+            "passed",
+        )
+
+    def test_hdr_p3_hlg_is_conform(self):
+        result = self._evaluate(
+            primaries="smpte432",
+            transfer="arib-std-b67",
+            color_space="bt2020nc",
+        )
+
+        self.assertEqual(
+            result["status"],
+            "conform",
+        )
+
+    def test_hdr_without_primaries_requires_review(
+        self
+    ):
+        result = self._evaluate(
+            primaries=None,
+            transfer="smpte2084",
+            color_space=None,
+        )
+
+        self.assertEqual(
+            result["status"],
+            "review_required",
+        )
+
+        self.assertEqual(
+            self._color_check(
+                result
+            )["status"],
+            "review",
+        )

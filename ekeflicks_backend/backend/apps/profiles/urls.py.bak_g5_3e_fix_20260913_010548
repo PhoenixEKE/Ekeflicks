@@ -1,0 +1,28 @@
+from django.urls import path
+from apps.profiles.social_views import OwnSocialProfileView, PublicSocialProfileView
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
+
+from apps.profiles.views import ProfileTypeViewSet, ProfileViewSet
+
+router = DefaultRouter()
+router.register('profile-types', ProfileTypeViewSet, basename='profile-type')
+router.register('profiles', ProfileViewSet, basename='profile')
+
+
+social_urlpatterns = social_urlpatterns + [
+    path(
+        "social-profile/",
+        OwnSocialProfileView.as_view(),
+        name="own-social-profile",
+    ),
+    path(
+        "social-profiles/<uuid:profile_id>/",
+        PublicSocialProfileView.as_view(),
+        name="public-social-profile",
+    ),
+]
+
+urlpatterns = [
+    path('', include(router.urls)),
+]

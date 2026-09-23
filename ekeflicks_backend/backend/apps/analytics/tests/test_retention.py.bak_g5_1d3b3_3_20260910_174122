@@ -1,0 +1,244 @@
+from datetime import date, datetime, timezone
+from unittest.mock import Mock
+
+from django.test import SimpleTestCase
+
+from apps.analytics.services import (
+    AUDIENCE_RETENTION_DAYS,
+    audience_retention,
+    audience_retention_summary,
+)
+
+
+class AudienceRetentionTests(SimpleTestCase):
+    def _result(self, rows):
+        result = Mock()
+        result.result_rows = rows
+        return result
+
+    def test_retention_days_contract(self):
+        self.assertEqual(
+            AUDIENCE_RETENTION_DAYS,
+            (
+                1,
+                3,
+                7,
+                14,
+                30,
+            ),
+        )
+
+    def test_retention_builds_exact_day_cohort_metrics(self):
+        client = Mock()
+
+        client.query.return_value = self._result(
+            [
+                (
+                    date(2026, 9, 1),
+                    10,
+                    6,
+                    5,
+                    4,
+                    3,
+                    2,
+                ),
+            ]
+        )
+
+        rows = audience_retention(
+            cohort_start=datetime(
+                2026,
+                9,
+                1,
+                tzinfo=timezone.utc,
+            ),
+            cohort_end=datetime(
+                2026,
+                9,
+                2,
+                tzinfo=timezone.utc,
+            ),
+            client=client,
+        )
+
+        self.assertEqual(
+            rows,
+            [
+                {
+                    'cohort_date': '2026-09-01',
+                    'cohort_size': 10,
+                    'd1': 6,
+                    'd1_percent': 60.0,
+                    'd3': 5,
+                    'd3_percent': 50.0,
+                    'd7': 4,
+                    'd7_percent': 40.0,
+                    'd14': 3,
+                    'd14_percent': 30.0,
+                    'd30': 2,
+                    'd30_percent': 20.0,
+                }
+            ],
+        )
+
+    def test_query_uses_first_real_activity(self):
+        client = Mock()
+
+        client.query.return_value = self._result([])
+
+        audience_retention(
+            cohort_start=datetime(
+                2026,
+                9,
+                1,
+                tzinfo=timezone.utc,
+            ),
+            cohort_end=datetime(
+                2026,
+                9,
+                10,
+                tzinfo=timezone.utc,
+            ),
+            client=client,
+        )
+
+        query = client.query.call_args.args[0]
+
+        self.assertIn(
+            'min(toDate(occurred_at)) AS cohort_date',
+            query,
+        )
+
+        self.assertIn(
+            'profile_id IS NOT NULL',
+            query,
+        )
+
+        self.assertIn(
+            'is_internal = 0',
+            query,
+        )
+
+        self.assertIn(
+            'is_test = 0',
+            query,
+        )
+
+    def test_query_uses_exact_retention_days(self):
+        client = Mock()
+
+        client.query.return_value = self._result([])
+
+        audience_retention(
+            cohort_start=datetime(
+                2026,
+                9,
+                1,
+                tzinfo=timezone.utc,
+            ),
+            cohort_end=datetime(
+                2026,
+                9,
+                2,
+                tzinfo=timezone.utc,
+            ),
+            client=client,
+        )
+
+        query = client.query.call_args.args[0]
+
+        for day in (
+            1,
+            3,
+            7,
+            14,
+            30,
+        ):
+            self.assertIn(
+                f'addDays(c.cohort_date, {day})',
+                query,
+            )
+
+    def test_invalid_cohort_range_is_rejected(self):
+        with self.assertRaises(ValueError):
+            audience_retention(
+                cohort_start=datetime(
+                    2026,
+                    9,
+                    10,
+                    tzinfo=timezone.utc,
+                ),
+                cohort_end=datetime(
+                    2026,
+                    9,
+                    10,
+                    tzinfo=timezone.utc,
+                ),
+                client=Mock(),
+            )
+
+    def test_retention_summary_is_weighted(self):
+        rows = [
+            {
+                'cohort_size': 100,
+                'd1': 50,
+                'd3': 30,
+                'd7': 20,
+                'd14': 10,
+                'd30': 5,
+            },
+            {
+                'cohort_size': 20,
+                'd1': 20,
+                'd3': 10,
+                'd7': 5,
+                'd14': 2,
+                'd30': 1,
+            },
+        ]
+
+        result = audience_retention_summary(rows)
+
+        self.assertEqual(
+            result['cohort_size'],
+            120,
+        )
+
+        self.assertEqual(
+            result['d1'],
+            70,
+        )
+
+        self.assertEqual(
+            result['d1_percent'],
+            58.33,
+        )
+
+        self.assertEqual(
+            result['d30'],
+            6,
+        )
+
+        self.assertEqual(
+            result['d30_percent'],
+            5.0,
+        )
+
+    def test_empty_retention_summary(self):
+        result = audience_retention_summary([])
+
+        self.assertEqual(
+            result['cohort_size'],
+            0,
+        )
+
+        for day in AUDIENCE_RETENTION_DAYS:
+            self.assertEqual(
+                result[f'd{day}'],
+                0,
+            )
+
+            self.assertEqual(
+                result[f'd{day}_percent'],
+                0.0,
+            )

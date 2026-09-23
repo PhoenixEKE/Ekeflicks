@@ -34,7 +34,26 @@ class _FakeProcess:
         self.stderr = _FakePipe([])
         self._returncode = returncode
 
+    def communicate(
+        self,
+        input=None,
+        timeout=None,
+    ):
+        stdout = "".join(
+            list(self.stdout)
+        )
+
+        stderr = "".join(
+            list(self.stderr)
+        )
+
+        return stdout, stderr
+
     def wait(self, timeout=None):
+        return self._returncode
+
+    @property
+    def returncode(self):
         return self._returncode
 
     def poll(self):
@@ -67,7 +86,24 @@ class FrameTimingProbeTests(
         command = mocked.call_args.args[0]
 
         self.assertIn(
+            "-show_packets",
+            command,
+        )
+        self.assertNotIn(
             "-show_frames",
+            command,
+        )
+        self.assertIn(
+            "-show_entries",
+            command,
+        )
+        self.assertIn(
+            (
+                "packet="
+                "pts_time,"
+                "dts_time,"
+                "duration_time"
+            ),
             command,
         )
         self.assertIn(
@@ -512,4 +548,71 @@ class FrameTimingBoundaryTests(
         self.assertEqual(
             len(result["timestamps"]),
             500,
+        )
+
+
+class PacketDurationCfrRegressionTests(
+    SimpleTestCase
+):
+    """
+    Packet PTS can be non-monotonic for B-frame video.
+
+    CFR classification must use complete packet-duration
+    observations rather than decode-order PTS gaps.
+    """
+
+    def test_b_frame_packet_order_does_not_create_false_vfr(
+        self,
+    ):
+        stdout = "\n".join(
+            [
+                "0.000000,0.000000,0.041667",
+                "0.166667,0.041667,0.041667",
+                "0.041667,0.083333,0.041667",
+                "0.083333,0.125000,0.041667",
+                "0.125000,0.166667,0.041667",
+                "0.250000,0.208333,0.041667",
+            ]
+        )
+
+        process = _FakeProcess(
+            [stdout]
+        )
+
+        with patch(
+            "apps.streaming.tasks."
+            "subprocess.Popen",
+            return_value=process,
+        ):
+            result = _probe_frame_timing(
+                "/tmp/master.mp4"
+            )
+
+        self.assertTrue(
+            result["available"]
+        )
+
+        self.assertTrue(
+            result["is_constant"]
+        )
+
+        self.assertEqual(
+            result[
+                "timing_observation_source"
+            ],
+            "packet_duration",
+        )
+
+        self.assertEqual(
+            result[
+                "packet_duration_samples"
+            ],
+            6,
+        )
+
+        self.assertEqual(
+            result[
+                "median_delta_seconds"
+            ],
+            0.041667,
         )

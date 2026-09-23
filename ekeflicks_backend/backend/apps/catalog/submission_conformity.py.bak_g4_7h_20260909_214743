@@ -1,0 +1,394 @@
+from apps.streaming.technical_conformity import (
+    evaluate_master_conformity,
+)
+
+
+READY_ANALYSIS_STATUSES = {
+    "passed",
+}
+
+
+def _uploaded_source(asset):
+    return bool(
+        asset.source_uploaded_at is not None
+        and (asset.source_file_size_bytes or 0) > 0
+        and (
+            str(
+                asset.source_file_path or ""
+            ).strip()
+            or str(
+                asset.source_file_url or ""
+            ).strip()
+        )
+    )
+
+
+def _source_identity(asset):
+    uploaded_at = asset.source_uploaded_at
+
+    return {
+        "path": str(
+            asset.source_file_path or ""
+        ).strip(),
+        "url": str(
+            asset.source_file_url or ""
+        ).strip(),
+        "size_bytes": int(
+            asset.source_file_size_bytes or 0
+        ),
+        "uploaded_at": (
+            uploaded_at.isoformat()
+            if uploaded_at is not None
+            else None
+        ),
+    }
+
+
+def _report_matches_current_source(
+    report,
+    asset,
+):
+    if report is None:
+        return False
+
+    metadata = (
+        report.technical_metadata
+        if isinstance(
+            report.technical_metadata,
+            dict,
+        )
+        else {}
+    )
+
+    report_identity = metadata.get(
+        "source_identity"
+    )
+
+    if not isinstance(
+        report_identity,
+        dict,
+    ):
+        return False
+
+    return (
+        report_identity
+        == _source_identity(asset)
+    )
+
+
+def _analysis_report(asset):
+    try:
+        return asset.analysis_report
+    except Exception as exc:
+        # OneToOneField.related access raises
+        # MediaAnalysisReport.DoesNotExist.
+        if exc.__class__.__name__ == "RelatedObjectDoesNotExist":
+            return None
+
+        if exc.__class__.__name__ == "DoesNotExist":
+            return None
+
+        raise
+
+
+def _conformity_from_report(
+    report,
+    technical_specification,
+    asset,
+):
+    if report is None:
+        return {
+            "status": "analysis_missing",
+            "blocking": True,
+            "blocking_errors": [
+                "L'analyse technique du master est absente."
+            ],
+            "warnings": [],
+        }
+
+    if (
+        report.status
+        in READY_ANALYSIS_STATUSES
+        and not _report_matches_current_source(
+            report,
+            asset,
+        )
+    ):
+        return {
+            "status": "analysis_stale",
+            "blocking": True,
+            "blocking_errors": [
+                (
+                    "L'analyse technique du master "
+                    "ne correspond pas au fichier "
+                    "actuellement déposé."
+                )
+            ],
+            "warnings": [],
+        }
+
+    if report.status in {
+        "pending",
+        "analyzing",
+    }:
+        return {
+            "status": report.status,
+            "blocking": True,
+            "blocking_errors": [
+                (
+                    "L'analyse technique du master "
+                    "n'est pas encore terminée."
+                )
+            ],
+            "warnings": [],
+        }
+
+    if report.status == "review_required":
+        return {
+            "status": "review_required",
+            "blocking": True,
+            "blocking_errors": [
+                (
+                    "Le master nécessite une vérification "
+                    "technique avant la soumission."
+                )
+            ],
+            "warnings": [],
+        }
+
+    if report.status == "failed":
+        return {
+            "status": "analysis_failed",
+            "blocking": True,
+            "blocking_errors": [
+                (
+                    "L'analyse technique du master "
+                    "a échoué."
+                )
+            ],
+            "warnings": [
+                str(
+                    report.error_message or ""
+                ).strip()
+            ] if report.error_message else [],
+        }
+
+    metadata = (
+        report.technical_metadata
+        if isinstance(
+            report.technical_metadata,
+            dict,
+        )
+        else {}
+    )
+
+    conformity = metadata.get(
+        "technical_specification_conformity"
+    )
+
+    # Les masters analysés avant A5.11C peuvent déjà
+    # contenir toutes les données FFprobe nécessaires.
+    # On les réévalue donc sans réencoder ni relancer
+    # FFprobe si le bloc de conformité n'existe pas
+    # ou appartient à une ancienne version de spec.
+    conformity_version = ""
+
+    if isinstance(conformity, dict):
+        conformity_version = str(
+            conformity.get(
+                "specification_version"
+            )
+            or ""
+        ).strip()
+
+    expected_version = str(
+        technical_specification.version or ""
+    ).strip()
+
+    if (
+        not isinstance(conformity, dict)
+        or conformity_version != expected_version
+    ):
+        conformity = evaluate_master_conformity(
+            metadata=metadata,
+            frame_rate=report.frame_rate,
+            delivery_level=asset.delivery_level,
+            specification=technical_specification,
+        )
+
+    if not isinstance(conformity, dict):
+        return {
+            "status": "analysis_invalid",
+            "blocking": True,
+            "blocking_errors": [
+                (
+                    "Le rapport de conformité "
+                    "technique est invalide."
+                )
+            ],
+            "warnings": [],
+        }
+
+    return conformity
+
+
+def _asset_result(
+    asset,
+    technical_specification,
+):
+    report = _analysis_report(asset)
+
+    conformity = _conformity_from_report(
+        report,
+        technical_specification,
+        asset,
+    )
+
+    return {
+        "asset_id": str(asset.id),
+        "analysis_status": (
+            report.status
+            if report is not None
+            else "not_started"
+        ),
+        "conformity": conformity,
+        "acceptable": (
+            report is not None
+            and report.status
+            in READY_ANALYSIS_STATUSES
+            and not bool(
+                conformity.get("blocking")
+            )
+            and conformity.get("status")
+            in {
+                "conform",
+                "review_required",
+            }
+        ),
+    }
+
+
+def validate_content_video_conformity_for_submission(
+    content,
+    technical_specification,
+):
+    """
+    Retourne None si la conformité vidéo permet
+    la soumission.
+
+    Sinon retourne un payload sérialisable destiné
+    directement à l'API producteur.
+    """
+    if content.type == "series":
+        episodes = (
+            content.episodes
+            .prefetch_related(
+                "video_assets__analysis_report"
+            )
+            .select_related("season")
+            .order_by(
+                "season__season_number",
+                "episode_number",
+            )
+        )
+
+        failures = []
+
+        for episode in episodes:
+            assets = [
+                asset
+                for asset
+                in episode.video_assets.all()
+                if _uploaded_source(asset)
+            ]
+
+            if not assets:
+                # L'absence elle-même est déjà contrôlée
+                # par submit(). On ne double pas le message.
+                continue
+
+            asset_results = [
+                _asset_result(
+                    asset,
+                    technical_specification,
+                )
+                for asset in assets
+            ]
+
+            if any(
+                result["acceptable"]
+                for result in asset_results
+            ):
+                continue
+
+            failures.append({
+                "season_number": (
+                    episode.season.season_number
+                ),
+                "episode_number": (
+                    episode.episode_number
+                ),
+                "episode_id": str(episode.id),
+                "assets": asset_results,
+            })
+
+        if failures:
+            return {
+                "status": "non_conform",
+                "blocking": True,
+                "technical_specification_version": (
+                    technical_specification.version
+                ),
+                "message": (
+                    "La soumission est bloquée : "
+                    "un ou plusieurs masters d'épisode "
+                    "ne disposent pas d'une conformité "
+                    "technique valide."
+                ),
+                "episodes": failures,
+            }
+
+        return None
+
+    # Film :
+    # A5.11C-2 contrôle les masters présents,
+    # sans rendre encore leur présence obligatoire.
+    assets = [
+        asset
+        for asset
+        in content.video_assets
+        .select_related("analysis_report")
+        .all()
+        if _uploaded_source(asset)
+    ]
+
+    if not assets:
+        return None
+
+    results = [
+        _asset_result(
+            asset,
+            technical_specification,
+        )
+        for asset in assets
+    ]
+
+    if any(
+        result["acceptable"]
+        for result in results
+    ):
+        return None
+
+    return {
+        "status": "non_conform",
+        "blocking": True,
+        "technical_specification_version": (
+            technical_specification.version
+        ),
+        "message": (
+            "La soumission est bloquée : "
+            "aucun master vidéo du film ne dispose "
+            "d'une conformité technique valide."
+        ),
+        "assets": results,
+    }

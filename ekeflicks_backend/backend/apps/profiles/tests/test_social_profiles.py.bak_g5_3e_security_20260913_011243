@@ -1,0 +1,333 @@
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from apps.profiles.models import SocialProfile
+from core.models.profiles import (
+    Profile,
+    ProfileType,
+)
+
+
+User = get_user_model()
+
+
+class SocialProfileTests(APITestCase):
+    def setUp(self):
+        self.profile_type, _ = (
+            ProfileType.objects.get_or_create(
+                name="Adult",
+            )
+        )
+
+    def make_user(
+        self,
+        *,
+        email,
+        profile_name,
+    ):
+        user = User.objects.create_user(
+            email=email,
+            password="StrongPass123!",
+        )
+
+        profile = (
+            Profile.objects
+            .filter(
+                user=user,
+                is_active=True,
+            )
+            .order_by(
+                "created_at",
+                "pk",
+            )
+            .first()
+        )
+
+        if profile is None:
+            profile = Profile.objects.create(
+                user=user,
+                type=self.profile_type,
+                name=profile_name,
+                is_active=True,
+            )
+
+        else:
+            profile.name = profile_name
+            profile.type = self.profile_type
+            profile.is_active = True
+
+            profile.save(
+                update_fields=(
+                    "name",
+                    "type",
+                    "is_active",
+                    "updated_at",
+                )
+            )
+
+        return user, profile
+
+    def test_own_social_profile_requires_auth(self):
+        response = self.client.get(
+            reverse(
+                "own-social-profile",
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_owner_get_creates_social_profile(self):
+        user, profile = self.make_user(
+            email="owner@example.com",
+            profile_name="Owner",
+        )
+
+        self.client.force_authenticate(
+            user,
+        )
+
+        response = self.client.get(
+            reverse(
+                "own-social-profile",
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        social = (
+            SocialProfile.objects.get(
+                profile=profile,
+            )
+        )
+
+        self.assertEqual(
+            social.display_name,
+            "Owner",
+        )
+
+    def test_owner_can_update_social_fields(self):
+        user, profile = self.make_user(
+            email="edit@example.com",
+            profile_name="Original",
+        )
+
+        self.client.force_authenticate(
+            user,
+        )
+
+        response = self.client.patch(
+            reverse(
+                "own-social-profile",
+            ),
+            {
+                "display_name":
+                    "  Eke Fan  ",
+                "bio":
+                    "  Cinema et series  ",
+                "is_discoverable":
+                    False,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        social = (
+            SocialProfile.objects.get(
+                profile=profile,
+            )
+        )
+
+        self.assertEqual(
+            social.display_name,
+            "Eke Fan",
+        )
+
+        self.assertEqual(
+            social.bio,
+            "Cinema et series",
+        )
+
+        self.assertFalse(
+            social.is_discoverable,
+        )
+
+    def test_public_contract_excludes_private_fields(
+        self,
+    ):
+        owner, profile = self.make_user(
+            email="private@example.com",
+            profile_name="Public Name",
+        )
+
+        owner.phone = "+2250102030405"
+        owner.country_code = "CI"
+
+        owner.save(
+            update_fields=(
+                "phone",
+                "country_code",
+                "updated_at",
+            )
+        )
+
+        SocialProfile.objects.create(
+            profile=profile,
+            display_name="Social Name",
+            bio="Hello",
+        )
+
+        viewer, _ = self.make_user(
+            email="viewer@example.com",
+            profile_name="Viewer",
+        )
+
+        self.client.force_authenticate(
+            viewer,
+        )
+
+        response = self.client.get(
+            reverse(
+                "public-social-profile",
+                kwargs={
+                    "profile_id":
+                        profile.pk,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            set(response.data.keys()),
+            {
+                "user_id",
+                "profile_id",
+                "display_name",
+                "avatar_url",
+                "bio",
+            },
+        )
+
+        forbidden = {
+            "email",
+            "phone",
+            "country_code",
+            "age",
+            "pin_code",
+            "allowed_min_age",
+            "allowed_max_age",
+            "adult_profiles_locked",
+            "child_history_enabled",
+            "safe_search_enabled",
+        }
+
+        self.assertTrue(
+            forbidden.isdisjoint(
+                response.data.keys(),
+            )
+        )
+
+    def test_hidden_profile_returns_404(self):
+        _, profile = self.make_user(
+            email="hidden@example.com",
+            profile_name="Hidden",
+        )
+
+        SocialProfile.objects.create(
+            profile=profile,
+            display_name="Hidden",
+            is_discoverable=False,
+        )
+
+        viewer, _ = self.make_user(
+            email="viewer2@example.com",
+            profile_name="Viewer",
+        )
+
+        self.client.force_authenticate(
+            viewer,
+        )
+
+        response = self.client.get(
+            reverse(
+                "public-social-profile",
+                kwargs={
+                    "profile_id":
+                        profile.pk,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_existing_avatar_is_reused(self):
+        _, profile = self.make_user(
+            email="avatar@example.com",
+            profile_name="Avatar",
+        )
+
+        profile.avatar_url = (
+            "https://cdn.example.com/avatar.png"
+        )
+
+        profile.save(
+            update_fields=(
+                "avatar_url",
+                "updated_at",
+            )
+        )
+
+        SocialProfile.objects.create(
+            profile=profile,
+            display_name="Avatar",
+        )
+
+        viewer, _ = self.make_user(
+            email="viewer3@example.com",
+            profile_name="Viewer",
+        )
+
+        self.client.force_authenticate(
+            viewer,
+        )
+
+        response = self.client.get(
+            reverse(
+                "public-social-profile",
+                kwargs={
+                    "profile_id":
+                        profile.pk,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            response.data[
+                "avatar_url"
+            ],
+            profile.avatar_url,
+        )

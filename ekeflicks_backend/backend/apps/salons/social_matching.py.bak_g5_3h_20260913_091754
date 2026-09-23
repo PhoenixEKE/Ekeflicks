@@ -1,0 +1,201 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from django.contrib.auth import get_user_model
+
+from apps.profiles.social_models import (
+    SocialProfile,
+)
+from apps.profiles.social_safety import (
+    is_social_match_allowed,
+)
+from core.models.profiles import Profile
+
+from .eke_social_matching import (
+    build_social_context,
+    calculate_social_compatibility,
+)
+from .models import Salon, SalonMember
+
+
+User = get_user_model()
+
+MAX_MATCH_RESULTS = 20
+
+
+@dataclass(frozen=True)
+class SocialMatch:
+    user: Any
+    profile: Profile
+    score: int
+    reasons: tuple[str, ...]
+
+
+def _active_profile(user):
+    return (
+        Profile.objects
+        .filter(
+            user=user,
+            is_active=True,
+        )
+        .order_by(
+            "created_at",
+            "pk",
+        )
+        .first()
+    )
+
+
+def _eligible_users(
+    *,
+    salon,
+    requester,
+):
+    """
+    PostgreSQL owns social eligibility.
+
+    EKE IA receives only candidates that have already passed the
+    hard account/profile/Salon eligibility boundary.
+    """
+
+    excluded_user_ids = set(
+        SalonMember.objects
+        .filter(
+            salon=salon,
+            left_at__isnull=True,
+        )
+        .values_list(
+            "user_id",
+            flat=True,
+        )
+    )
+
+    excluded_user_ids.add(
+        requester.pk
+    )
+
+    active_profile_user_ids = (
+        Profile.objects
+        .filter(
+            is_active=True,
+        )
+        .values_list(
+            "user_id",
+            flat=True,
+        )
+    )
+
+    return (
+        User.objects
+        .filter(
+            is_active=True,
+            pk__in=active_profile_user_ids,
+        )
+        .exclude(
+            pk__in=excluded_user_ids,
+        )
+        .distinct()
+        .order_by("pk")
+    )
+
+
+def match_users_for_salon(
+    *,
+    salon,
+    requester,
+    limit=10,
+):
+    if salon.status != Salon.STATUS_OPEN:
+        return tuple()
+
+    limit = max(
+        1,
+        min(
+            int(limit),
+            MAX_MATCH_RESULTS,
+        ),
+    )
+
+    requester_profile = _active_profile(
+        requester
+    )
+
+    if requester_profile is None:
+        return tuple()
+
+    try:
+        requester_social = (
+            requester_profile.social_profile
+        )
+    except SocialProfile.DoesNotExist:
+        return tuple()
+
+    requester_context = build_social_context(
+        user=requester,
+        profile=requester_profile,
+    )
+
+    results = []
+
+    for candidate in _eligible_users(
+        salon=salon,
+        requester=requester,
+    ):
+        candidate_profile = _active_profile(
+            candidate
+        )
+
+        if candidate_profile is None:
+            continue
+
+        # Privacy + safety are hard PostgreSQL gates.
+        # Rejected candidates never reach EKE IA behavioral processing.
+        try:
+            candidate_social = (
+                candidate_profile.social_profile
+            )
+        except SocialProfile.DoesNotExist:
+            continue
+
+        if not candidate_social.is_discoverable:
+            continue
+
+        if not is_social_match_allowed(
+            requester_social=requester_social,
+            candidate_social=candidate_social,
+        ):
+            continue
+
+        candidate_context = build_social_context(
+            user=candidate,
+            profile=candidate_profile,
+        )
+
+        compatibility = (
+            calculate_social_compatibility(
+                requester_context=requester_context,
+                candidate_context=candidate_context,
+            )
+        )
+
+        results.append(
+            SocialMatch(
+                user=candidate,
+                profile=candidate_profile,
+                score=compatibility.score,
+                reasons=compatibility.reasons,
+            )
+        )
+
+    results.sort(
+        key=lambda item: (
+            -item.score,
+            str(item.user.pk),
+        )
+    )
+
+    return tuple(
+        results[:limit]
+    )

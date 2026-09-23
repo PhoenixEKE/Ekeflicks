@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+from django.db.models import Q
+
+from .social_models import (
+    SocialBlock,
+    SocialMute,
+    SocialProfile,
+    SocialReputation,
+)
+from .social_moderation import (
+    is_social_moderation_allowed,
+)
+
+
+SOCIAL_SAFETY_VERSION = "g5_3g_v1"
+
+
+def get_social_profile(profile):
+    try:
+        return profile.social_profile
+    except SocialProfile.DoesNotExist:
+        return None
+
+
+def ensure_social_reputation(social_profile):
+    reputation, _ = SocialReputation.objects.get_or_create(
+        profile=social_profile,
+        defaults={"score": 100},
+    )
+    return reputation
+
+
+def is_blocked_pair(
+    *,
+    requester_social,
+    candidate_social,
+):
+    """
+    A block in either direction is a hard exclusion.
+    """
+
+    return SocialBlock.objects.filter(
+        Q(
+            blocker=requester_social,
+            blocked=candidate_social,
+        )
+        | Q(
+            blocker=candidate_social,
+            blocked=requester_social,
+        )
+    ).exists()
+
+
+def is_muted_by_requester(
+    *,
+    requester_social,
+    candidate_social,
+):
+    """
+    Mute is directional.
+    """
+
+    return SocialMute.objects.filter(
+        muter=requester_social,
+        muted=candidate_social,
+    ).exists()
+
+
+def is_social_match_allowed(
+    *,
+    requester_social,
+    candidate_social,
+):
+    """
+    PostgreSQL hard social eligibility gate.
+
+    Order:
+    1. moderation;
+    2. block;
+    3. requester mute.
+
+    Rejected candidates never reach EKE IA.
+    """
+
+    if not is_social_moderation_allowed(
+        requester_social
+    ):
+        return False
+
+    if not is_social_moderation_allowed(
+        candidate_social
+    ):
+        return False
+
+    if is_blocked_pair(
+        requester_social=requester_social,
+        candidate_social=candidate_social,
+    ):
+        return False
+
+    if is_muted_by_requester(
+        requester_social=requester_social,
+        candidate_social=candidate_social,
+    ):
+        return False
+
+    return True

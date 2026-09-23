@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ekeflicks-metadata version="1.0">
+  <content type="film">
+
+    <title>Titre du film</title>
+    <original-title>Titre original du film</original-title>
+
+    <synopsis>Synopsis court du film</synopsis>
+    <long-synopsis>Synopsis détaillé du film</long-synopsis>
+
+    <genres>
+      <genre>Drame</genre>
+      <genre>Action</genre>
+    </genres>
+
+    <production-year>2026</production-year>
+
+    <directors>
+      <director>Nom du réalisateur</director>
+    </directors>
+
+    <cast>
+      <person>Nom acteur 1</person>
+      <person>Nom acteur 2</person>
+    </cast>
+
+    <screenwriters>
+      <screenwriter>Nom du scénariste</screenwriter>
+    </screenwriters>
+
+    <producers>
+      <producer>Nom du producteur</producer>
+    </producers>
+
+    <age-rating>12+</age-rating>
+    <duration-minutes>90</duration-minutes>
+
+    <original-language>fr</original-language>
+
+    <audio-languages>
+      <language>fr</language>
+      <language>en</language>
+    </audio-languages>
+
+    <subtitle-languages>
+      <language>en</language>
+    </subtitle-languages>
+
+    <country-of-origin>CI</country-of-origin>
+
+  </content>
+</ekeflicks-metadata>

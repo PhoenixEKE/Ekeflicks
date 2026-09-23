@@ -1,0 +1,409 @@
+from datetime import (
+    datetime,
+    timezone,
+)
+from unittest.mock import Mock
+
+from django.test import SimpleTestCase
+
+from apps.analytics.services import (
+    CONTENT_ANALYTICS_DIMENSIONS,
+    content_dimension_analytics,
+)
+
+
+class ContentDimensionAnalyticsTests(
+    SimpleTestCase
+):
+    def setUp(self):
+        self.start = datetime(
+            2026,
+            9,
+            1,
+            tzinfo=timezone.utc,
+        )
+
+        self.end = datetime(
+            2026,
+            9,
+            10,
+            tzinfo=timezone.utc,
+        )
+
+    def _client(
+        self,
+        rows=None,
+    ):
+        client = Mock()
+
+        result = Mock()
+        result.result_rows = (
+            rows
+            if rows is not None
+            else []
+        )
+
+        client.query.return_value = result
+
+        return client
+
+    def test_dimensions_contract(self):
+        self.assertEqual(
+            CONTENT_ANALYTICS_DIMENSIONS,
+            {
+                'content',
+                'producer',
+                'content_type',
+                'genre',
+            },
+        )
+
+    def test_rejects_unknown_dimension(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            'dimension must be one of',
+        ):
+            content_dimension_analytics(
+                self.start,
+                self.end,
+                dimension='country',
+                client=self._client(),
+            )
+
+    def test_rejects_invalid_window(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            'start_at must be before end_at',
+        ):
+            content_dimension_analytics(
+                self.end,
+                self.start,
+                dimension='content',
+                client=self._client(),
+            )
+
+    def test_rejects_non_integer_limit(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            'limit must be an integer',
+        ):
+            content_dimension_analytics(
+                self.start,
+                self.end,
+                dimension='content',
+                limit='abc',
+                client=self._client(),
+            )
+
+    def test_rejects_limit_below_one(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            'limit must be between 1 and 1000',
+        ):
+            content_dimension_analytics(
+                self.start,
+                self.end,
+                dimension='content',
+                limit=0,
+                client=self._client(),
+            )
+
+    def test_rejects_limit_above_maximum(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            'limit must be between 1 and 1000',
+        ):
+            content_dimension_analytics(
+                self.start,
+                self.end,
+                dimension='content',
+                limit=1001,
+                client=self._client(),
+            )
+
+    def test_content_query_contract(self):
+        client = self._client()
+
+        content_dimension_analytics(
+            self.start,
+            self.end,
+            dimension='content',
+            client=client,
+        )
+
+        query = (
+            client.query.call_args.args[0]
+        )
+
+        self.assertIn(
+            'toString(content_id)',
+            query,
+        )
+
+        self.assertIn(
+            'content_id IS NOT NULL',
+            query,
+        )
+
+        self.assertNotIn(
+            'ARRAY JOIN genres',
+            query,
+        )
+
+    def test_producer_query_contract(self):
+        client = self._client()
+
+        content_dimension_analytics(
+            self.start,
+            self.end,
+            dimension='producer',
+            client=client,
+        )
+
+        query = (
+            client.query.call_args.args[0]
+        )
+
+        self.assertIn(
+            'toString(producer_id)',
+            query,
+        )
+
+        self.assertIn(
+            'producer_id IS NOT NULL',
+            query,
+        )
+
+    def test_content_type_query_contract(self):
+        client = self._client()
+
+        content_dimension_analytics(
+            self.start,
+            self.end,
+            dimension='content_type',
+            client=client,
+        )
+
+        query = (
+            client.query.call_args.args[0]
+        )
+
+        self.assertIn(
+            "content_type IN ('movie', 'series')",
+            query,
+        )
+
+    def test_genre_uses_array_join(self):
+        client = self._client()
+
+        content_dimension_analytics(
+            self.start,
+            self.end,
+            dimension='genre',
+            client=client,
+        )
+
+        query = (
+            client.query.call_args.args[0]
+        )
+
+        self.assertIn(
+            'ARRAY JOIN genres AS genre',
+            query,
+        )
+
+        self.assertIn(
+            "genre != ''",
+            query,
+        )
+
+    def test_only_video_lifecycle_events(self):
+        client = self._client()
+
+        content_dimension_analytics(
+            self.start,
+            self.end,
+            dimension='content',
+            client=client,
+        )
+
+        query = (
+            client.query.call_args.args[0]
+        )
+
+        for name in (
+            'video_start',
+            'video_progress',
+            'video_complete',
+            'video_abandon',
+        ):
+            self.assertIn(
+                name,
+                query,
+            )
+
+        self.assertIn(
+            'is_internal = 0',
+            query,
+        )
+
+        self.assertIn(
+            'is_test = 0',
+            query,
+        )
+
+    def test_completed_views_uses_explicit_complete_event(self):
+        client = self._client()
+
+        content_dimension_analytics(
+            self.start,
+            self.end,
+            dimension='content',
+            client=client,
+        )
+
+        query = (
+            client.query.call_args.args[0]
+        )
+
+        self.assertIn(
+            "event_name = 'video_complete'",
+            query,
+        )
+
+        self.assertNotIn(
+            'completion_percent = 100',
+            query,
+        )
+
+    def test_completion_average_requires_known_duration(self):
+        client = self._client()
+
+        content_dimension_analytics(
+            self.start,
+            self.end,
+            dimension='content',
+            client=client,
+        )
+
+        query = (
+            client.query.call_args.args[0]
+        )
+
+        self.assertIn(
+            'duration_seconds > 0',
+            query,
+        )
+
+    def test_parameters_use_half_open_window(self):
+        client = self._client()
+
+        content_dimension_analytics(
+            self.start,
+            self.end,
+            dimension='content',
+            limit=25,
+            client=client,
+        )
+
+        query = (
+            client.query.call_args.args[0]
+        )
+
+        params = (
+            client.query
+            .call_args
+            .kwargs['parameters']
+        )
+
+        self.assertIn(
+            'occurred_at >= '
+            '{start_at:DateTime64(3)}',
+            query,
+        )
+
+        self.assertIn(
+            'occurred_at < '
+            '{end_at:DateTime64(3)}',
+            query,
+        )
+
+        self.assertEqual(
+            params['start_at'],
+            self.start,
+        )
+
+        self.assertEqual(
+            params['end_at'],
+            self.end,
+        )
+
+        self.assertEqual(
+            params['limit'],
+            25,
+        )
+
+    def test_result_normalization(self):
+        client = self._client(
+            rows=[
+                (
+                    'movie',
+                    9,
+                    4,
+                    3,
+                    2,
+                    720,
+                    2,
+                    75.0,
+                    78.456,
+                ),
+            ]
+        )
+
+        rows = content_dimension_analytics(
+            self.start,
+            self.end,
+            dimension='content_type',
+            client=client,
+        )
+
+        self.assertEqual(
+            rows,
+            [
+                {
+                    'dimension':
+                        'content_type',
+                    'value':
+                        'movie',
+                    'events':
+                        9,
+                    'play_starts':
+                        4,
+                    'qualified_views':
+                        3,
+                    'unique_viewers':
+                        2,
+                    'watch_seconds':
+                        720,
+                    'completed_views':
+                        2,
+                    'qualification_rate_percent':
+                        75.0,
+                    'completion_percent_avg':
+                        78.46,
+                },
+            ],
+        )
+
+    def test_empty_result(self):
+        rows = content_dimension_analytics(
+            self.start,
+            self.end,
+            dimension='genre',
+            client=self._client(),
+        )
+
+        self.assertEqual(
+            rows,
+            [],
+        )
