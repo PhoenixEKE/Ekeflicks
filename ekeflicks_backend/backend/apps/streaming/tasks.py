@@ -51,6 +51,11 @@ DEFAULT_RENDITIONS = [
     {'quality': '1080p', 'width': 1920, 'height': 1080, 'bandwidth': 5000000},
 ]
 
+# Black/freeze decisions target long events (2s / 3s). Sampling the detection
+# filters at 5fps caps timestamp quantization at 0.2s and leaves the full source
+# decode plus independent 5s moderation sampling intact.
+QC_DETECTION_FPS = 5
+
 
 def _published_technical_specification():
     return (
@@ -578,6 +583,7 @@ def _run_advanced_qc(
 
     def run_video_qc():
         video_filters = (
+            f'fps={QC_DETECTION_FPS},'
             'blackdetect=d=2.0:pix_th=0.10,'
             'freezedetect=n=-50dB:d=3.0'
         )
@@ -1097,6 +1103,7 @@ def analyze_video_asset(self, asset_id):
                 'version': 'g5-4c-action5-shared-video-decode-v1',
                 'shared_qc_moderation_decode': video_stream is not None,
                 'moderation_interval_seconds': DEFAULT_SAMPLE_INTERVAL_SECONDS,
+                'qc_detection_fps': QC_DETECTION_FPS,
                 'packet_probe_mode': 'shared_scan' if video_stream is not None else 'not_applicable',
             }
 

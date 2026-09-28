@@ -1,0 +1,33 @@
+{
+  "date": "2026-09-28",
+  "fixture": {
+    "synthetic": true,
+    "codec": "H.264",
+    "width": 1920,
+    "height": 1080,
+    "duration_seconds": 29,
+    "size_bytes": 25631212
+  },
+  "repetitions": 5,
+  "measurement": "FFmpeg video QC and moderation-frame extraction process wall time",
+  "full_resolution_qc_median_seconds": 1.026086509,
+  "qc_detection_fps": 5,
+  "sampled_qc_median_seconds": 0.531790242,
+  "median_reduction_percent": 48.17,
+  "event_results": {
+    "event_counts_preserved": true,
+    "event_boundaries_identical": false,
+    "maximum_observed_boundary_delta_seconds": 0.2,
+    "examples": [
+      {"event": "black_end", "full_resolution_seconds": 9.03333, "sampled_seconds": 9.0},
+      {"event": "freeze_start", "full_resolution_seconds": 23.9667, "sampled_seconds": 24.0},
+      {"event": "freeze_end", "full_resolution_seconds": 9.03333, "sampled_seconds": 9.0}
+    ]
+  },
+  "limitations": [
+    "Synthetic short clip; not a production master or VPS measurement.",
+    "Source decoding continues at its native cadence.",
+    "Events close to duration/threshold cutoffs may change classification.",
+    "Does not measure upload time or prove the under-180-second end-to-end target."
+  ]
+}

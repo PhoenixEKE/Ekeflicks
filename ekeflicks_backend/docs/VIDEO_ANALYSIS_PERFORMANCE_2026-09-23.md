@@ -17,8 +17,7 @@ Checkpoint précédent : `0a48aee` (« G5-4C video analysis performance »).
 | Cadence et images clés | Lecture des paquets sans décodage complet, deux sondes lancées en parallèle. |
 | Mesures | Logs `G5_4_TIMING` par asset et étape ; logs `G5_4_QC_BRANCH` audio/vidéo. |
 
-Ces constats décrivent le code GitHub, pas une vérification de l'image actuellement
-déployée. Aucun temps de production récent n'a été fourni ou mesuré dans cette session.
+Les constats de code décrivent la branche proposée. Le 28 septembre, les logs fournis depuis le VPS ont mesuré une tâche à 675,607 s ; cela documente l'ancienne version déployée, pas la branche de cette PR. L'upload navigateur vers le stockage n'est pas chronométré dans ces logs.
 
 ## Correctif proposé : téléchargement S3 direct vers le fichier de travail
 
@@ -120,10 +119,36 @@ sur le VPS. Elle ne modifie ni le fichier vidéo ni la base. Elle refuse les
 résultats QC différents ou indisponibles. Elle mesure les sondes, sans uploader,
 relancer une tâche Celery ni modifier un rapport de production.
 
+## Troisième optimisation : sous-échantillonner la détection des événements QC
+
+Les mesures Celery partagées le 28 septembre montrent 675,607 s de tâche totale
+(11 min 15 s), dont 493,946 s pour QC vidéo et extraction de modération. Le
+matérialisation de la source a pris 93,588 s ; les sondes FFprobe parallèles
+53,455 s ; l'inférence de modération 20,149 s. L'entrée comptait 688 images
+pour la modération à raison d'une image toutes les 5 s, ce qui suggère environ
+57 minutes, mais la durée réelle du fichier n'a pas été confirmée. Cette mesure
+ne comprend pas l'envoi initial du producteur.
+
+Sur une fixture synthétique H.264 1920×1080, le filtre complet
+`blackdetect`/`freezedetect` a été limité à 5 images/s. Comparaison de cinq
+exécutions sur la même fixture : temps médian du segment FFmpeg QC et extraction
+modération de 1,0261 s à 0,5318 s, soit −48,17 % sur ce segment de cette fixture.
+Le décodage source continue à lire le flux ; l'extraction des images de
+modération à une image toutes les 5 s reste inchangée. Cette mesure ne permet
+pas d'extrapoler un temps total sur un master de production ni d'affirmer que la
+cible de 3 minutes est atteinte.
+
+Les événements longs de la fixture restent détectés avec les mêmes nombres.
+Leurs bornes peuvent être quantifiées à 0,2 s ; des événements proches des seuils
+2 s (noir) ou 3 s (freeze) peuvent changer de classification. À valider sur des
+masters réels et avec les équipes de contrôle avant déploiement. Le débit vidéo,
+le coût de décodage et l'inférence ne sont pas supprimés par ce changement.
+Le champ `analysis_pipeline.qc_detection_fps` enregistre la cadence de contrôle.
+
 ### Validation consolidée et état GitHub
 
-- 43 tests ciblés : téléchargement direct, matérialisation (dont nettoyage du
-  fichier partiel), cadence et nouvelle sonde commune.
+- 44 tests ciblés : téléchargement direct, matérialisation (dont nettoyage du
+  fichier partiel), cadence, sonde commune et comparaison de la détection QC à 5 fps.
 - Comparaison avec de vrais fichiers FFmpeg : CFR, VFR, B-frames et UHD 3840×2160.
 - Comparaison exacte des rapports sur la fixture longue de 100 025 images.
 - La suite complète avec PostgreSQL et le déploiement VPS restent à valider.
@@ -133,9 +158,11 @@ relancer une tâche Celery ni modifier un rapport de production.
   5 échecs concernant `review_required` ; clients et administrateurs passent.
   Les fichiers à l'origine de ces blocages ne sont pas modifiés par cette PR.
 
-La prochaine mesure doit porter sur un même master de production et identifier
-le poids du téléchargement, du décodage QC et de l'inférence IA. La réduction de
-copie S3 et la lecture commune sont proposées dans la PR ; aucun gain global
-n'est annoncé avant cette comparaison.
+La prochaine mesure doit porter sur le même master d'environ 40 minutes, en
+comparant la branche actuellement déployée et cette branche candidate sous une
+charge similaire. Chronométrer séparément l'upload, l'attente Celery, le
+téléchargement, le QC, l'inférence et le temps total ; vérifier aussi les écarts
+d'événements. Le seuil de moins de 3 minutes n'est pas démontré par les mesures
+disponibles.
 
 Cette proposition n'effectue ni migration, ni fusion dans main, ni déploiement.
