@@ -352,7 +352,7 @@ class ProducerPayoutRequest(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name='payout_requests'
     )
-    amount_eur = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    amount_eur = models.DecimalField(max_digits=14, decimal_places=6, default=0)
     currency = models.CharField(max_length=3, default='EUR')
     amount_local = models.DecimalField(max_digits=12, decimal_places=4, default=0)
     eligible_views = models.PositiveIntegerField(default=0)

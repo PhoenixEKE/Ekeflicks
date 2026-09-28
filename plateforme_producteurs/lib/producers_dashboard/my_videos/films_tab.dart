@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'package:plateforme_producteurs/core/core.dart';
+import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:plateforme_producteurs/services/producer_service.dart';
 
 import 'content_details_modal.dart';
@@ -19,18 +21,19 @@ class FilmsTab extends StatefulWidget {
 
 class _FilmsTabState extends State<FilmsTab> {
   static const Map<String, String?> _filters = {
-    'Tous': null,
-    'Brouillons': 'draft',
-    'En validation': 'pending',
-    'Validés': 'approved',
-    'Refusés': 'rejected',
+    'all': null,
+    'drafts': 'draft',
+    'pending': 'pending',
+    'approved': 'approved',
+    'rejected': 'rejected',
   };
 
   bool _isLoading = true;
   String? _error;
-  String _selectedFilter = 'Tous';
+  String _selectedFilter = 'all';
   List<Map<String, dynamic>> _films = const [];
   String? _deletingDraftId;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -40,6 +43,8 @@ class _FilmsTabState extends State<FilmsTab> {
 
   Future<void> _loadFilms() async {
     if (!mounted) return;
+    final generation = ++_loadGeneration;
+    final requestedFilter = _selectedFilter;
 
     setState(() {
       _isLoading = true;
@@ -49,17 +54,17 @@ class _FilmsTabState extends State<FilmsTab> {
     try {
       final films = await ProducerService.instance.getMyContents(
         type: 'movie',
-        submissionStatus: _filters[_selectedFilter],
+        submissionStatus: _filters[requestedFilter],
       );
 
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
 
       setState(() {
         _films = films;
         _isLoading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
 
       setState(() {
         _error = error.toString();
@@ -82,23 +87,21 @@ class _FilmsTabState extends State<FilmsTab> {
       context: context,
       builder: (dialogContext) {
         return ProducerModalShell(
-          title: 'Supprimer ce brouillon ?',
+          title: AppLocalizations.of(context)!.deleteDraftQuestion,
           maxWidth: 560,
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('ANNULER'),
+              child: Text(AppLocalizations.of(context)!.cancel.toUpperCase()),
             ),
             FilledButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               icon: const Icon(Icons.delete_outline),
-              label: const Text('SUPPRIMER'),
+              label: Text(AppLocalizations.of(context)!.deleteDraftConfirm.toUpperCase()),
             ),
           ],
           child: Text(
-            'Le film « ${_title(film)} » sera supprimé définitivement. '
-            'Les fichiers temporaires associés seront également supprimés. '
-            'Cette action est irréversible.',
+            AppLocalizations.of(context)!.deleteDraftMovieBody(_title(film)),
           ),
         );
       },
@@ -128,7 +131,7 @@ class _FilmsTabState extends State<FilmsTab> {
         context: context,
         builder: (dialogContext) {
           return ProducerModalShell(
-            title: 'Brouillon supprimé',
+            title: AppLocalizations.of(context)!.draftDeleted,
             maxWidth: 520,
             actions: [
               FilledButton(
@@ -136,7 +139,7 @@ class _FilmsTabState extends State<FilmsTab> {
                 child: const Text('OK'),
               ),
             ],
-            child: const Text('Le brouillon a été supprimé avec succès.'),
+            child: Text(AppLocalizations.of(context)!.draftDeletedSuccess),
           );
         },
       );
@@ -153,7 +156,7 @@ class _FilmsTabState extends State<FilmsTab> {
         context: context,
         builder: (dialogContext) {
           return ProducerModalShell(
-            title: 'Suppression impossible',
+            title: AppLocalizations.of(context)!.deleteFailed,
             maxWidth: 560,
             actions: [
               FilledButton(
@@ -213,26 +216,39 @@ class _FilmsTabState extends State<FilmsTab> {
   }
 
   String _status(Map<String, dynamic> film) {
-    return film['producer_submission_status']?.toString() ?? 'draft';
+    return film['producer_submission_status']?.toString().trim().toLowerCase() ?? 'draft';
   }
 
   String _title(Map<String, dynamic> film) {
-    final title = film['title']?.toString().trim() ?? '';
-    return title.isEmpty ? 'Sans titre' : title;
+    final display = film['display_text'];
+    final title = (display is Map ? display['title'] : null)?.toString().trim()
+            ?? film['title']?.toString().trim()
+            ?? '';
+    return title.isEmpty
+        ? AppLocalizations.of(context)!.analyticsContentFallback
+        : title;
   }
 
   String _statusLabel(String status) {
+    final l10n = AppLocalizations.of(context)!;
     switch (status) {
-      case 'draft':
-        return 'Brouillon';
-      case 'pending':
-        return 'En validation';
-      case 'approved':
-        return 'Validé';
-      case 'rejected':
-        return 'Refusé';
-      default:
-        return status;
+      case 'draft': return l10n.contentStatusDraft;
+      case 'pending': return l10n.contentStatusPending;
+      case 'approved': return l10n.contentStatusApproved;
+      case 'rejected': return l10n.contentStatusRejected;
+      default: return l10n.contentStatusUnknown;
+    }
+  }
+
+  String _filterLabel(String key) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (key) {
+      case 'all': return l10n.filterAll;
+      case 'drafts': return l10n.filterDrafts;
+      case 'pending': return l10n.filterPending;
+      case 'approved': return l10n.filterApproved;
+      case 'rejected': return l10n.filterRejected;
+      default: return key;
     }
   }
 
@@ -265,11 +281,9 @@ class _FilmsTabState extends State<FilmsTab> {
     }
 
     final local = parsed.toLocal();
-
-    String two(int value) => value.toString().padLeft(2, '0');
-
-    return '${two(local.day)}/${two(local.month)}/${local.year} '
-        'à ${two(local.hour)}:${two(local.minute)}';
+    final locale = AppLocalizations.of(context)!.localeName;
+    final formatted = DateFormat.yMd(locale).add_Hm().format(local);
+    return AppLocalizations.of(context)!.contentUpdatedOn(formatted);
   }
 
   String? _draftDeletionWarning(Map<String, dynamic> content) {
@@ -291,14 +305,9 @@ class _FilmsTabState extends State<FilmsTab> {
       return null;
     }
 
-    if (age >= 120) {
-      return 'Suppression automatique imminente';
-    }
-
-    final remainingDays = 120 - age;
-
-    return 'Suppression automatique dans $remainingDays '
-        '${remainingDays > 1 ? 'jours' : 'jour'}';
+    final l10n = AppLocalizations.of(context)!;
+    if (age >= 120) return l10n.draftDeleteSoon;
+    return l10n.draftDeleteWarning(120 - age);
   }
 
   Widget _buildStatusBadge(String status) {
@@ -326,19 +335,19 @@ class _FilmsTabState extends State<FilmsTab> {
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.paddingMedium),
       child: Row(
-        children: _filters.keys.map((label) {
-          final selected = label == _selectedFilter;
+        children: _filters.keys.map((key) {
+          final selected = key == _selectedFilter;
 
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(label),
+              label: Text(_filterLabel(key)),
               selected: selected,
               onSelected: (_) {
                 if (selected) return;
 
                 setState(() {
-                  _selectedFilter = label;
+                  _selectedFilter = key;
                 });
 
                 _loadFilms();
@@ -422,7 +431,7 @@ class _FilmsTabState extends State<FilmsTab> {
                       runSpacing: 6,
                       children: [
                         Text(
-                          'FILM',
+                          AppLocalizations.of(context)!.moviesTab.toUpperCase(),
                           style: TextStyle(
                             color: AppTheme.primary,
                             fontSize: 12,
@@ -431,7 +440,7 @@ class _FilmsTabState extends State<FilmsTab> {
                         ),
                         if (updatedAt.isNotEmpty)
                           Text(
-                            'Modifié le $updatedAt',
+                            AppLocalizations.of(context)!.contentUpdatedOn(updatedAt),
                             style: TextStyle(
                               color: AppTheme.textSecondary,
                               fontSize: 13,
@@ -465,7 +474,7 @@ class _FilmsTabState extends State<FilmsTab> {
                     if (status == 'pending') ...[
                       const SizedBox(height: 10),
                       Text(
-                        'Votre film est en cours de validation par EKEFLICKS.',
+                        AppLocalizations.of(context)!.contentPendingReviewFilm,
                         style: TextStyle(
                           color: AppTheme.textSecondary,
                           fontSize: 13,
@@ -475,7 +484,7 @@ class _FilmsTabState extends State<FilmsTab> {
                     if (status == 'approved') ...[
                       const SizedBox(height: 10),
                       Text(
-                        'Votre film a été validé par EKEFLICKS.',
+                        AppLocalizations.of(context)!.contentApprovedFilm,
                         style: TextStyle(color: AppTheme.success, fontSize: 13),
                       ),
                     ],
@@ -492,7 +501,7 @@ class _FilmsTabState extends State<FilmsTab> {
                         ),
                         child: Text(
                           reviewReason.isEmpty
-                              ? 'Ce contenu doit être corrigé avant une nouvelle soumission.'
+                              ? AppLocalizations.of(context)!.contentNeedsCorrection
                               : 'Motif du refus : $reviewReason',
                           style: TextStyle(color: AppTheme.error, fontSize: 13),
                         ),
@@ -524,7 +533,7 @@ class _FilmsTabState extends State<FilmsTab> {
                                         Icons.delete_outline,
                                         size: 18,
                                       ),
-                                label: const Text('SUPPRIMER'),
+                                label: Text(AppLocalizations.of(context)!.deleteDraftConfirm.toUpperCase()),
                               ),
                             ElevatedButton.icon(
                               onPressed: _deletingDraftId != null
@@ -537,7 +546,9 @@ class _FilmsTabState extends State<FilmsTab> {
                                 size: 18,
                               ),
                               label: Text(
-                                status == 'rejected' ? 'CORRIGER' : 'CONTINUER',
+                                status == 'rejected'
+                                    ? AppLocalizations.of(context)!.correctContent.toUpperCase()
+                                    : AppLocalizations.of(context)!.continueEditing.toUpperCase(),
                               ),
                             ),
                           ],
@@ -566,7 +577,7 @@ class _FilmsTabState extends State<FilmsTab> {
             Icon(Icons.movie_outlined, size: 54, color: AppTheme.primary),
             const SizedBox(height: 16),
             Text(
-              filter == 'Tous' ? 'Aucun film' : 'Aucun film — $filter',
+              filter == 'all' ? AppLocalizations.of(context)!.contentNoMovies : '${AppLocalizations.of(context)!.contentNoMovies} — ${_filterLabel(filter)}',
               textAlign: TextAlign.center,
               style: AppTheme.textSubtitle.copyWith(fontSize: 18),
             ),
@@ -586,7 +597,7 @@ class _FilmsTabState extends State<FilmsTab> {
             children: [
               Expanded(
                 child: Text(
-                  'Mes films',
+                  AppLocalizations.of(context)!.moviesPageTitle,
                   style: AppTheme.textTitle.copyWith(fontSize: 24),
                 ),
               ),
@@ -594,19 +605,29 @@ class _FilmsTabState extends State<FilmsTab> {
                 onPressed: _isLoading ? null : _loadFilms,
                 icon: const Icon(Icons.refresh_rounded),
                 color: AppTheme.primary,
-                tooltip: 'Actualiser',
+                tooltip: AppLocalizations.of(context)!.refresh,
               ),
             ],
           ),
         ),
         _buildFilters(),
+        if (_isLoading && _films.isNotEmpty)
+          const LinearProgressIndicator(minHeight: 2),
+        if (_error != null && _films.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(
+              AppLocalizations.of(context)!.dashboardPartialLoadError,
+              style: AppTheme.textCaption.copyWith(color: AppTheme.warning),
+            ),
+          ),
         const SizedBox(height: 8),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _loadFilms,
-            child: _isLoading
+            child: _isLoading && _films.isEmpty
                 ? const Center(child: CircularProgressIndicator())
-                : _error != null
+                : _error != null && _films.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
@@ -619,7 +640,7 @@ class _FilmsTabState extends State<FilmsTab> {
                       const SizedBox(height: 14),
                       Center(
                         child: Text(
-                          'Impossible de charger vos films.',
+                          AppLocalizations.of(context)!.contentLoadingMoviesError,
                           style: TextStyle(color: AppTheme.textPrimary),
                         ),
                       ),
@@ -628,7 +649,7 @@ class _FilmsTabState extends State<FilmsTab> {
                         child: OutlinedButton.icon(
                           onPressed: _loadFilms,
                           icon: const Icon(Icons.refresh),
-                          label: const Text('Réessayer'),
+                          label: Text(AppLocalizations.of(context)!.retry),
                         ),
                       ),
                     ],

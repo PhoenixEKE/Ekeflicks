@@ -1,5 +1,12 @@
 import json
+import secrets
+import re
+from datetime import timedelta
 
+from django.conf import settings
+from django.contrib.auth.hashers import check_password, make_password
+from django.core.mail import send_mail
+from django.core.cache import cache
 from django.utils import timezone
 from django.db import IntegrityError, models, transaction
 from rest_framework import exceptions, filters, permissions, status, views, viewsets
@@ -33,7 +40,51 @@ from apps.billing.serializers import (
     SubscriptionSerializer,
 )
 from apps.common.permissions import IsAdminOrReadOnly
-from core.models import Payment, PaymentWebhookEvent, ProducerPayoutRequest, Subscription, SubscriptionPlan, SubscriptionPlanOffer
+from core.models import Payment, PaymentWebhookEvent, ProducerFinanceAccess, ProducerPayoutRequest, Subscription, SubscriptionPlan, SubscriptionPlanOffer
+
+
+def _producer_finance_access(user):
+    if not getattr(user, 'is_producer', False):
+        raise exceptions.PermissionDenied('Un compte producteur est requis.')
+    access, _ = ProducerFinanceAccess.objects.get_or_create(producer=user)
+    return access
+
+
+def _require_finance_unlock(user):
+    access = _producer_finance_access(user)
+    if not access.unlocked_until or access.unlocked_until <= timezone.now():
+        raise exceptions.PermissionDenied(
+            'Validez votre code et la confirmation envoyée par e-mail pour consulter Finance.'
+        )
+    return access
+
+
+def _send_finance_challenge(access, purpose):
+    user = access.producer
+    if not user.email or not user.is_verified:
+        raise exceptions.ValidationError({
+            'detail': 'Une adresse e-mail vérifiée est nécessaire pour sécuriser Finance.'
+        })
+    code = f'{secrets.randbelow(1_000_000):06d}'
+    access.challenge_hash = make_password(code)
+    access.challenge_purpose = purpose
+    access.challenge_expires_at = timezone.now() + timedelta(minutes=10)
+    access.challenge_attempts = 0
+    access.save(update_fields=[
+        'challenge_hash', 'challenge_purpose',
+        'challenge_expires_at', 'challenge_attempts', 'updated_at',
+    ])
+    send_mail(
+        'Code de sécurité Finance EKEFLICKS',
+        f'Votre code de sécurité est {code}. Il expire dans 10 minutes.',
+        settings.DEFAULT_FROM_EMAIL,
+        [user.email],
+        fail_silently=False,
+    )
+
+
+def _valid_pin(value):
+    return bool(re.fullmatch(r'\d{4}', str(value or '')))
 
 
 class SubscriptionPlanViewSet(viewsets.ModelViewSet):
@@ -307,6 +358,8 @@ class ProducerPayoutRequestViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
+        if self.request.user.is_authenticated and getattr(self.request.user, 'is_producer', False):
+            _require_finance_unlock(self.request.user)
         queryset = (
             ProducerPayoutRequest.objects.select_related('producer', 'reviewed_by')
             .order_by('-created_at')
@@ -318,9 +371,110 @@ class ProducerPayoutRequestViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status_name)
         return queryset
 
+    @action(detail=False, methods=['get', 'post'], url_path='finance-access')
+    def finance_access(self, request):
+        access = _producer_finance_access(request.user)
+        if request.method == 'GET':
+            return Response({
+                'pin_configured': bool(access.pin_hash),
+                'email_verified': bool(request.user.email and request.user.is_verified),
+                'email_hint': (
+                    request.user.email[:2] + '***@' + request.user.email.split('@')[-1]
+                    if request.user.email and '@' in request.user.email else ''
+                ),
+                'unlocked': bool(access.unlocked_until and access.unlocked_until > timezone.now()),
+            })
+
+        operation = str(request.data.get('operation', '')).strip().lower()
+        throttle_key = f'finance-access:{request.user.pk}:{operation}'
+        attempts = cache.get(throttle_key, 0)
+        if attempts >= 8:
+            raise exceptions.Throttled(detail='Trop de tentatives. Réessayez dans une minute.')
+        cache.set(throttle_key, attempts + 1, timeout=60)
+
+        if operation == 'setup':
+            pin = str(request.data.get('pin', ''))
+            if access.pin_hash:
+                raise exceptions.ValidationError({'detail': 'Un code Finance existe déjà. Utilisez « code oublié » pour le réinitialiser.'})
+            if not _valid_pin(pin):
+                raise exceptions.ValidationError({'pin': 'Le code doit contenir exactement 4 chiffres.'})
+            access.pending_pin_hash = make_password(pin)
+            access.save(update_fields=['pending_pin_hash', 'updated_at'])
+            _send_finance_challenge(access, 'setup')
+            return Response({'status': 'code_sent', 'detail': 'Un code de confirmation a été envoyé à votre adresse e-mail.'})
+
+        if operation == 'verify':
+            if not access.pin_hash:
+                raise exceptions.ValidationError({'detail': 'Créez d’abord votre code Finance.'})
+            if access.pin_locked_until and access.pin_locked_until > timezone.now():
+                raise exceptions.Throttled(
+                    detail='Code temporairement bloqué après plusieurs tentatives. Utilisez « code oublié » ou réessayez plus tard.'
+                )
+            if not check_password(str(request.data.get('pin', '')), access.pin_hash):
+                access.pin_attempts += 1
+                if access.pin_attempts >= 5:
+                    access.pin_locked_until = timezone.now() + timedelta(minutes=15)
+                access.save(update_fields=['pin_attempts', 'pin_locked_until', 'updated_at'])
+                raise exceptions.PermissionDenied('Code Finance incorrect.')
+            access.pin_attempts = 0
+            access.pin_locked_until = None
+            access.save(update_fields=['pin_attempts', 'pin_locked_until', 'updated_at'])
+            _send_finance_challenge(access, 'login')
+            return Response({'status': 'code_sent', 'detail': 'Le code de confirmation a été envoyé par e-mail.'})
+
+        if operation == 'forgot':
+            access.pending_pin_hash = ''
+            access.save(update_fields=['pending_pin_hash', 'updated_at'])
+            _send_finance_challenge(access, 'reset')
+            return Response({'status': 'code_sent', 'detail': 'Un code de réinitialisation a été envoyé par e-mail.'})
+
+        if operation in {'confirm_setup', 'confirm_login', 'reset'}:
+            purpose = {'confirm_setup': 'setup', 'confirm_login': 'login', 'reset': 'reset'}[operation]
+            code = str(request.data.get('code', '')).strip()
+            if (
+                access.challenge_purpose != purpose
+                or not access.challenge_expires_at
+                or access.challenge_expires_at <= timezone.now()
+                or access.challenge_attempts >= 5
+                or not check_password(code, access.challenge_hash)
+            ):
+                access.challenge_attempts += 1
+                access.save(update_fields=['challenge_attempts', 'updated_at'])
+                raise exceptions.ValidationError({'code': 'Code invalide ou expiré.'})
+
+            if operation == 'confirm_setup':
+                access.pin_hash = access.pending_pin_hash
+                access.pending_pin_hash = ''
+                access.unlocked_until = timezone.now() + timedelta(minutes=15)
+                access.pin_attempts = 0
+                access.pin_locked_until = None
+            elif operation == 'reset':
+                pin = str(request.data.get('pin', ''))
+                if not _valid_pin(pin):
+                    raise exceptions.ValidationError({'pin': 'Le code doit contenir exactement 4 chiffres.'})
+                access.pin_hash = make_password(pin)
+                access.pending_pin_hash = ''
+                access.pin_attempts = 0
+                access.pin_locked_until = None
+            else:
+                access.unlocked_until = timezone.now() + timedelta(minutes=15)
+
+            access.challenge_hash = ''
+            access.challenge_purpose = ''
+            access.challenge_expires_at = None
+            access.challenge_attempts = 0
+            access.save()
+            return Response({
+                'status': 'unlocked' if operation in {'confirm_login', 'confirm_setup'} else 'pin_configured',
+                'unlocked_until': access.unlocked_until,
+            })
+
+        raise exceptions.ValidationError({'operation': 'Opération inconnue.'})
+
     def perform_create(self, serializer):
         if not getattr(self.request.user, 'is_producer', False):
             raise exceptions.PermissionDenied('Un compte producteur est requis.')
+        _require_finance_unlock(self.request.user)
         payout = create_payout_request(
             producer=self.request.user,
             payout_method=serializer.validated_data.get('payout_method', ''),
@@ -338,6 +492,8 @@ class ProducerPayoutRequestViewSet(viewsets.ModelViewSet):
             producer = User.objects.get(pk=request.query_params['producer'], is_producer=True)
         if not getattr(producer, 'is_producer', False):
             raise exceptions.PermissionDenied('Un compte producteur est requis.')
+        if producer.pk == request.user.pk:
+            _require_finance_unlock(request.user)
         return Response(producer_balance(producer))
 
     @action(detail=True, methods=['post'])
@@ -627,4 +783,3 @@ class PaymentWebhookView(views.APIView):
                 },
                 status=status.HTTP_409_CONFLICT,
             )
-

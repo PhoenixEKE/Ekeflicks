@@ -27,6 +27,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.models import TechnicalSpecification
+from apps.catalog.translations import language_for_request, source_hash, translated_payload
+
+
+def _spec_source(specification):
+    return {
+        'title': specification.title,
+        'introduction': specification.introduction,
+        'sections': specification.sections,
+    }
 
 
 class TechnicalSpecificationSerializer(
@@ -42,8 +51,23 @@ class TechnicalSpecificationSerializer(
             "sections",
             "published_at",
             "updated_at",
+            "display_text",
         ]
         read_only_fields = fields
+
+    display_text = serializers.SerializerMethodField()
+
+    def get_display_text(self, obj):
+        request = self.context.get('request')
+        language = language_for_request(request) if request else 'fr'
+        source = _spec_source(obj)
+        value = translated_payload(obj.translations, language, source)
+        return {
+            **value,
+            'translation_language': language if value is not source else None,
+            'translation_pending': value is source,
+            'source_hash': source_hash(source),
+        }
 
 
 def _published_specification():
@@ -517,11 +541,25 @@ class PublishedTechnicalSpecificationPdfView(
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        buffer = _build_pdf(specification)
+        language = language_for_request(request)
+        source = _spec_source(specification)
+        localized = translated_payload(
+            specification.translations,
+            language,
+            source,
+        )
+        pdf_specification = type('LocalizedSpecification', (), {
+            'title': localized.get('title', specification.title),
+            'version': specification.version,
+            'published_at': specification.published_at,
+            'introduction': localized.get('introduction', specification.introduction),
+            'sections': localized.get('sections', specification.sections),
+        })()
+        buffer = _build_pdf(pdf_specification)
 
         filename = (
             "cahier-des-charges-technique-"
-            f"{specification.version}.pdf"
+            f"{specification.version}-{language}.pdf"
         )
 
         return FileResponse(

@@ -400,7 +400,7 @@ class ProducerEngagementAnalyticsTests(
 
         self.assertGreaterEqual(
             query.count(
-                'is_test = 0'
+                '(is_test = 0 OR ({include_test:Bool} AND is_test = 1))'
             ),
             2,
         )

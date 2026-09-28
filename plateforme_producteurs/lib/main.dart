@@ -4,6 +4,7 @@ import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:plateforme_producteurs/providers/locale_provider.dart';
+import 'package:plateforme_producteurs/services/api_client.dart';
 import 'routes.dart';
 
 void main() {
@@ -23,6 +24,7 @@ class ProducerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final localeProvider = Provider.of<LocaleProvider>(context);
+    ApiClient.instance.setLanguageCode(localeProvider.locale.languageCode);
 
     return MaterialApp.router(
       title: 'Ekeflicks Producteurs',

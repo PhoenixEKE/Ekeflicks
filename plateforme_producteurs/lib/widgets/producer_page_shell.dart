@@ -8,7 +8,8 @@ class ProducerPageShell extends StatelessWidget {
     required this.child,
     this.title,
     this.actions = const [],
-    this.showFaq = false,
+    this.showFaq = true,
+    this.showEkeAssistant = true,
     this.showBack = false,
     this.onBack,
     this.maxWidth,
@@ -21,6 +22,7 @@ class ProducerPageShell extends StatelessWidget {
   final String? title;
   final List<Widget> actions;
   final bool showFaq;
+  final bool showEkeAssistant;
   final bool showBack;
   final VoidCallback? onBack;
   final double? maxWidth;
@@ -176,6 +178,14 @@ class ProducerPageShell extends StatelessWidget {
         ],
       ),
       actions: [
+        if (showEkeAssistant)
+          Tooltip(
+            message: 'Eke, assistant producteur',
+            child: IconButton(
+              onPressed: () => context.push('/eke'),
+              icon: const Icon(Icons.support_agent_rounded),
+            ),
+          ),
         if (showFaq)
           Tooltip(
             message: 'Questions fréquentes',

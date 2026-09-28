@@ -204,6 +204,38 @@ class _ProducerAgreementPageState extends State<ProducerAgreementPage> {
     );
   }
 
+  Widget _localRemunerationSummary(ProducerAgreement agreement) {
+    final currency = agreement.remunerationCurrency;
+    if (currency == null || agreement.remunerationRateLocal == null) {
+      return const SizedBox.shrink();
+    }
+    final locale = Localizations.localeOf(context).languageCode;
+    final numberFormat = NumberFormat.currency(
+      locale: locale,
+      name: currency,
+      decimalDigits: currency == 'XOF' || currency == 'XAF' ? 0 : 2,
+    );
+    final rate = double.tryParse(agreement.remunerationRateLocal!) ?? 0;
+    final minimum = double.tryParse(agreement.minimumPayoutLocal ?? '') ?? 0;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(locale == 'en' ? 'Remuneration in your currency' : 'Rémunération dans votre devise', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(locale == 'en'
+              ? '${numberFormat.format(rate)} per 1,000 eligible views. Minimum payout: ${numberFormat.format(minimum)}.'
+              : '${numberFormat.format(rate)} pour 1 000 vues éligibles. Seuil minimum de paiement : ${numberFormat.format(minimum)}.'),
+          const SizedBox(height: 6),
+          Text(locale == 'en'
+              ? 'Indicative conversion based on the configured rate. The signed contract remains denominated in EUR; payout conversion follows the rate applicable to the payment period.'
+              : 'Conversion indicative selon le taux configuré. Le contrat signé reste libellé en EUR ; la conversion du paiement suit le taux applicable à la période de règlement.',
+              style: Theme.of(context).textTheme.bodySmall),
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -245,6 +277,9 @@ class _ProducerAgreementPageState extends State<ProducerAgreementPage> {
           const SizedBox(height: 20),
 
           _statusCard(agreement),
+
+          const SizedBox(height: 12),
+          _localRemunerationSummary(agreement),
 
           const SizedBox(height: 16),
 

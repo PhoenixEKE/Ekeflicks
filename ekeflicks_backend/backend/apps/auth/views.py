@@ -7,11 +7,12 @@ from django.http import FileResponse
 from rest_framework import exceptions, generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from apps.notifications.services import notify_user
+from apps.notifications.services import notify_staff, notify_user
 from apps.auth.producer_contract_context import (
     agreement_has_platform_snapshot,
     platform_agreement_snapshot_values,
@@ -38,6 +39,7 @@ from apps.auth.serializers import (
     AccountClosureRequestSerializer,
     AccountClosureReviewSerializer,
     EmailChangeSupportRequestSerializer,
+    ProducerSupportRequestSerializer,
     EmailVerificationSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
@@ -52,7 +54,7 @@ from apps.auth.serializers import (
     ProducerAgreementSignSerializer,
 )
 from core.models.profiles import Profile
-from core.models.users import AccountClosureRequest, EmailChangeSupportRequest, User
+from core.models.users import AccountClosureRequest, EmailChangeSupportRequest, ProducerSupportRequest, User
 from core.models.producers import ProducerAccount, ProducerAgreement
 from apps.auth.producer_contract_versions import (
     get_current_contract_title,
@@ -278,6 +280,70 @@ class PersonalInfoView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class ProducerPrivacyPreferencesView(APIView):
+    """Store narrow producer consent/preferences in the authenticated user's profile."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    _DEFAULTS = {
+        'microphone_enabled': False,
+        'camera_enabled': False,
+        'automatic_geolocation': False,
+        'eke_voice_gender': 'female',
+    }
+
+    def _payload(self, user):
+        current = (user.preferences or {}).get('producer_privacy', {})
+        current = current if isinstance(current, dict) else {}
+        payload = {key: current.get(key, value) for key, value in self._DEFAULTS.items()}
+        if payload['eke_voice_gender'] not in {'female', 'male'}:
+            payload['eke_voice_gender'] = self._DEFAULTS['eke_voice_gender']
+        for key in ('microphone_enabled', 'camera_enabled', 'automatic_geolocation'):
+            payload[key] = payload[key] is True
+        return payload
+
+    @staticmethod
+    def _require_producer(user):
+        if not getattr(user, 'is_producer', False):
+            raise exceptions.PermissionDenied('Un compte Producteur est requis.')
+
+    def get(self, request):
+        self._require_producer(request.user)
+        return Response(self._payload(request.user), status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        self._require_producer(request.user)
+        allowed = set(self._DEFAULTS)
+        unknown = set(request.data.keys()) - allowed
+        if unknown:
+            raise exceptions.ValidationError({'preferences': 'Champ non autorisé.'})
+
+        current = self._payload(request.user)
+        changed_consents = []
+        for key, value in request.data.items():
+            if key == 'eke_voice_gender':
+                if not isinstance(value, str) or value not in {'female', 'male'}:
+                    raise exceptions.ValidationError({key: 'Choisissez female ou male.'})
+                current[key] = value
+            else:
+                if not isinstance(value, bool):
+                    raise exceptions.ValidationError({key: 'Une valeur booléenne est requise.'})
+                if current[key] != value:
+                    changed_consents.append((key, value))
+                current[key] = value
+
+        preferences = dict(request.user.preferences or {})
+        preferences['producer_privacy'] = current
+        if changed_consents:
+            history = preferences.get('producer_privacy_history', [])
+            history = history if isinstance(history, list) else []
+            changed_at = timezone.now().isoformat()
+            history.extend({'key': key, 'enabled': value, 'changed_at': changed_at} for key, value in changed_consents)
+            preferences['producer_privacy_history'] = history[-100:]
+        request.user.preferences = preferences
+        request.user.save(update_fields=['preferences', 'updated_at'])
+        return Response(current, status=status.HTTP_200_OK)
 
 
 class VerifyEmailView(generics.GenericAPIView):
@@ -513,6 +579,7 @@ class EmailChangeSupportRequestViewSet(viewsets.ModelViewSet):
         support_request.save(update_fields=['status', 'updated_at'])
         return Response(self.get_serializer(support_request).data)
 
+
     @action(detail=True, methods=['post'])
     def resolve(self, request, pk=None):
         serializer = AccountClosureReviewSerializer(data=request.data)
@@ -522,19 +589,10 @@ class EmailChangeSupportRequestViewSet(viewsets.ModelViewSet):
         support_request.admin_reason = serializer.validated_data.get('reason', '')
         support_request.reviewed_by = request.user
         support_request.reviewed_at = timezone.now()
-        support_request.save(update_fields=[
-            'status',
-            'admin_reason',
-            'reviewed_by',
-            'reviewed_at',
-            'updated_at',
-        ])
-        notify_user(
-            support_request.user,
-            'email_change_support_resolved',
-            message=support_request.admin_reason or 'Votre demande de changement email a ete traitee.',
-            data={'email_change_request_id': str(support_request.id)},
-        )
+        support_request.save(update_fields=['status', 'admin_reason', 'reviewed_by', 'reviewed_at', 'updated_at'])
+        notify_user(support_request.user, 'email_change_support_resolved',
+                    message=support_request.admin_reason or 'Votre demande de changement email a ete traitee.',
+                    data={'email_change_request_id': str(support_request.id)})
         return Response(self.get_serializer(support_request).data)
 
     @action(detail=True, methods=['post'])
@@ -546,20 +604,32 @@ class EmailChangeSupportRequestViewSet(viewsets.ModelViewSet):
         support_request.admin_reason = serializer.validated_data.get('reason', '')
         support_request.reviewed_by = request.user
         support_request.reviewed_at = timezone.now()
-        support_request.save(update_fields=[
-            'status',
-            'admin_reason',
-            'reviewed_by',
-            'reviewed_at',
-            'updated_at',
-        ])
-        notify_user(
-            support_request.user,
-            'email_change_support_rejected',
-            message=support_request.admin_reason or 'Votre demande de changement email a ete refusee.',
-            data={'email_change_request_id': str(support_request.id)},
-        )
+        support_request.save(update_fields=['status', 'admin_reason', 'reviewed_by', 'reviewed_at', 'updated_at'])
+        notify_user(support_request.user, 'email_change_support_rejected',
+                    message=support_request.admin_reason or 'Votre demande de changement email a ete refusee.',
+                    data={'email_change_request_id': str(support_request.id)})
         return Response(self.get_serializer(support_request).data)
+
+
+class ProducerSupportRequestViewSet(viewsets.ModelViewSet):
+    serializer_class = ProducerSupportRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def get_queryset(self):
+        queryset = ProducerSupportRequest.objects.select_related('user')
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(user=self.request.user)
+        return queryset
+
+    def perform_create(self, serializer):
+        support_request = serializer.save(user=self.request.user)
+        notify_staff(
+            'producer_support_request_created',
+            title='Nouvelle demande au support producteur',
+            message=support_request.subject,
+            data={'support_request_id': str(support_request.id)},
+        )
 
 
 # ============================================================
@@ -740,6 +810,12 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
 
         version = get_current_contract_version()
         contract_title = get_current_contract_title()
+        language = (
+            request.query_params.get('language')
+            or request.headers.get('Accept-Language', 'fr')
+        ).split(',', 1)[0].split('-', 1)[0].lower()
+        if language not in {'fr', 'en'}:
+            language = 'fr'
 
         # Un contrat deja signe dans une version encore acceptee reste
         # juridiquement valable. Sa simple consultation ne doit donc pas
@@ -767,6 +843,7 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
                     producer_account=account,
                     contract_version=version,
                     contract_title=contract_title,
+                    contract_language=language,
                     contract_document_url=_agreement_document_url(
                         request,
                         version=version,
@@ -788,6 +865,9 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
                 )
 
         if agreement.status != ProducerAgreement.STATUS_SIGNED:
+            if agreement.contract_language != language:
+                agreement.contract_language = language
+                agreement.save(update_fields=['contract_language', 'updated_at'])
             try:
                 presented = generate_presented_contract(
                     account,
@@ -795,6 +875,7 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
                     contract_title=agreement.contract_title,
                     ekeflicks_signed_at=agreement.ekeflicks_signed_at,
                     agreement=agreement,
+                    language=agreement.contract_language,
                 )
             except ProducerContractError as exc:
                 raise exceptions.ValidationError(
@@ -812,6 +893,25 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
                     presented,
                 )
 
+        localized_title = agreement.contract_title
+        if agreement.contract_language == 'en':
+            from core.models import ProducerContractVersion
+            from apps.auth.producer_contract_versions import contract_content_sha256
+            contract_version_row = ProducerContractVersion.objects.filter(
+                version=agreement.contract_version,
+            ).first()
+            entry = (
+                (contract_version_row.canonical_content_translations or {}).get('en')
+                if contract_version_row else None
+            )
+            if (
+                isinstance(entry, dict)
+                and entry.get('source_hash') == contract_content_sha256(contract_version_row.canonical_content)
+                and entry.get('title_source_hash') == contract_content_sha256(contract_version_row.title)
+                and entry.get('reviewed') is True
+            ):
+                localized_title = entry.get('title') or localized_title
+
         agreement.contract_document_url = _agreement_document_url(
             request,
             version=agreement.contract_version,
@@ -824,6 +924,12 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
                 download=True,
             )
 
+        from apps.analytics.services import convert_eur_for_producer, producer_currency, revenue_settings
+        revenue = revenue_settings()
+        producer_currency_code, _ = producer_currency(account)
+        _, local_rate_per_1000 = convert_eur_for_producer(revenue.rate_per_1000_views_eur, account)
+        _, local_minimum_payout = convert_eur_for_producer(revenue.minimum_payout_eur, account)
+
         agreement.save(
             update_fields=[
                 'contract_document_url',
@@ -835,7 +941,8 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
         return Response(
             {
                 'contract_version': agreement.contract_version,
-                'contract_title': agreement.contract_title,
+                'contract_title': localized_title,
+                'contract_language': agreement.contract_language,
                 'contract_document_url': agreement.contract_document_url,
                 'download_url': (
                     agreement.signed_document_url
@@ -843,6 +950,14 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
                     else agreement.contract_document_url + '?download=1'
                 ),
                 'contract_hash': agreement.contract_hash,
+                'local_currency_summary': {
+                    'currency': producer_currency_code,
+                    'rate_per_1000_views': str(local_rate_per_1000),
+                    'minimum_payout': str(local_minimum_payout),
+                    'eligible_progress_percent': str(revenue.eligible_progress_percent),
+                    'advertising_share_percent': str(revenue.advertising_share_percent),
+                    'reference_currency': 'EUR',
+                },
                 'status': agreement.status,
                 'signed_at': agreement.signed_at,
                 'agreement': ProducerAgreementSerializer(agreement).data,
@@ -1263,4 +1378,3 @@ class ProducerAgreementSignView(generics.GenericAPIView):
             },
             status=status.HTTP_200_OK,
         )
-

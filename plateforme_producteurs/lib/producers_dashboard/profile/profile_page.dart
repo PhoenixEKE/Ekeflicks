@@ -5,6 +5,7 @@ import 'package:plateforme_producteurs/models/producer_onboarding.dart';
 import 'package:plateforme_producteurs/services/api_client.dart';
 import 'package:plateforme_producteurs/services/producer_service.dart';
 import 'package:plateforme_producteurs/core/web_helpers.dart';
+import 'package:geolocator/geolocator.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -18,6 +19,14 @@ class _ProfilePageState extends State<ProfilePage> {
   ProducerAgreement? _agreement;
 
   bool _loading = true;
+  bool _privacyLoading = true;
+  bool _privacySaving = false;
+  Map<String, dynamic> _privacyPreferences = const {
+    'microphone_enabled': false,
+    'camera_enabled': false,
+    'automatic_geolocation': false,
+    'eke_voice_gender': 'female',
+  };
 
   @override
   void initState() {
@@ -37,6 +46,14 @@ class _ProfilePageState extends State<ProfilePage> {
         agreement = null;
       }
 
+      try {
+        _privacyPreferences = await ProducerService.instance.getProducerPrivacyPreferences();
+      } catch (_) {
+        // Profile details remain available if this optional endpoint is unavailable.
+      } finally {
+        _privacyLoading = false;
+      }
+
       if (!mounted) return;
 
       setState(() {
@@ -54,6 +71,125 @@ class _ProfilePageState extends State<ProfilePage> {
         setState(() => _loading = false);
       }
     }
+  }
+
+  Future<void> _setPrivacyPreference(String key, bool enabled) async {
+    if (_privacySaving) return;
+    setState(() => _privacySaving = true);
+    try {
+      if (key == 'automatic_geolocation' && enabled) {
+        final permission = await Geolocator.requestPermission();
+        if (permission != LocationPermission.whileInUse && permission != LocationPermission.always) {
+          throw Exception(Localizations.localeOf(context).languageCode == 'en'
+              ? 'Location permission was not granted. You can enable it later in your browser or device settings.'
+              : 'L’autorisation de localisation n’a pas été accordée. Vous pourrez l’activer plus tard dans les réglages du navigateur ou de l’appareil.');
+        }
+      }
+      final updated = await ProducerService.instance.updateProducerPrivacyPreferences({key: enabled});
+      if (mounted) setState(() => _privacyPreferences = updated);
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _privacySaving = false);
+    }
+  }
+
+  Widget _privacySettings() {
+    final english = Localizations.localeOf(context).languageCode == 'en';
+    Widget consent(String key, String title, String subtitle, IconData icon) => CheckboxListTile(
+      value: _privacyPreferences[key] == true,
+      onChanged: _privacySaving || _privacyLoading ? null : (value) => _setPrivacyPreference(key, value == true),
+      controlAffinity: ListTileControlAffinity.leading,
+      secondary: Icon(icon, color: AppTheme.primaryOrange),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      contentPadding: EdgeInsets.zero,
+    );
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(english ? 'Privacy and permissions' : 'Confidentialité et autorisations', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text(english
+              ? 'These choices are optional. You can withdraw them here; your browser or device may also ask separately when a feature is used.'
+              : 'Ces choix sont facultatifs. Vous pouvez les retirer ici; le navigateur ou l’appareil peut aussi demander une autorisation distincte au moment d’utiliser une fonction.'),
+          if (_privacyLoading) const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: LinearProgressIndicator()),
+          consent('microphone_enabled', english ? 'Allow microphone for Eke voice input' : 'Autoriser le micro pour dicter à Eke', english ? 'Audio is used only after you tap the microphone.' : 'Le micro est utilisé uniquement lorsque vous appuyez sur le bouton de dictée.', Icons.mic_none),
+          consent('camera_enabled', english ? 'Allow camera for content images' : 'Autoriser la caméra pour les images de contenu', english ? 'Camera access is requested only when you choose Camera in an upload form.' : 'L’accès caméra sera demandé uniquement si vous choisissez Caméra dans un formulaire de dépôt.', Icons.photo_camera_outlined),
+          consent('automatic_geolocation', english ? 'Allow automatic geolocation' : 'Autoriser la géolocalisation automatique', english ? 'Location is optional and requested only while using a feature that needs it. EKEFLICKS does not track your location in the background.' : 'La localisation est facultative et ne sera demandée que pendant l’usage d’une fonction qui en a besoin. EKEFLICKS ne suit pas votre position en arrière-plan.', Icons.location_searching),
+          if (_privacySaving) const Align(alignment: Alignment.centerRight, child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _editAccount(ProducerAccount account) async {
+    final fields = <String, TextEditingController>{
+      'firstname': TextEditingController(text: account.firstname),
+      'lastname': TextEditingController(text: account.lastname),
+      'company': TextEditingController(text: account.companyName),
+      'legal': TextEditingController(text: account.legalName ?? ''),
+      'form': TextEditingController(text: account.legalForm ?? ''),
+      'registration': TextEditingController(text: account.registrationNumber ?? ''),
+      'tax': TextEditingController(text: account.taxNumber ?? ''),
+      'country': TextEditingController(text: account.countryCode ?? ''),
+      'address': TextEditingController(text: account.address ?? ''),
+      'city': TextEditingController(text: account.city ?? ''),
+      'phone': TextEditingController(text: account.phone ?? ''),
+      'representative': TextEditingController(text: account.representativeName ?? ''),
+      'role': TextEditingController(text: account.representativeRole ?? ''),
+    };
+    var saving = false;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(builder: (context, setDialogState) {
+        final labels = <String, String>{
+          'firstname': 'Prénom', 'lastname': 'Nom', 'company': 'Nom de la société',
+          'legal': 'Raison sociale', 'form': 'Forme juridique',
+          'registration': 'Immatriculation', 'tax': 'Numéro fiscal',
+          'country': 'Pays (code ISO)', 'address': 'Adresse', 'city': 'Ville',
+          'phone': 'Téléphone', 'representative': 'Représentant légal', 'role': 'Fonction',
+        };
+        return AlertDialog(
+          title: const Text('Modifier mes informations'),
+          content: SingleChildScrollView(child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [for (final entry in fields.entries) Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: TextField(controller: entry.value, decoration: InputDecoration(labelText: labels[entry.key], border: const OutlineInputBorder())),
+            )],
+          )),
+          actions: [
+            TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false), child: const Text('Annuler')),
+            FilledButton(onPressed: saving ? null : () async {
+              setDialogState(() => saving = true);
+              try {
+                await ProducerService.instance.updateOnboarding(
+                  companyName: fields['company']!.text, legalName: fields['legal']!.text,
+                  legalForm: fields['form']!.text, registrationNumber: fields['registration']!.text,
+                  taxNumber: fields['tax']!.text, countryCode: fields['country']!.text,
+                  address: fields['address']!.text, city: fields['city']!.text,
+                  phone: fields['phone']!.text, representativeName: fields['representative']!.text,
+                  representativeRole: fields['role']!.text,
+                );
+                await ProducerService.instance.updatePersonalInfo(
+                  firstname: fields['firstname']!.text, lastname: fields['lastname']!.text,
+                  phone: fields['phone']!.text, countryCode: fields['country']!.text,
+                );
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } catch (error) {
+                setDialogState(() => saving = false);
+                if (dialogContext.mounted) ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text(error.toString())));
+              }
+            }, child: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Enregistrer')),
+          ],
+        );
+      }),
+    );
+    for (final controller in fields.values) { controller.dispose(); }
+    if (saved == true) await _load();
   }
 
   Widget _info(
@@ -102,6 +238,22 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
+
+  Widget _emailInfo(String? email) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _info('Email', email, icon: Icons.email_outlined),
+      TextButton.icon(
+        onPressed: () => context.push('/support'),
+        icon: const Icon(Icons.support_agent_outlined, size: 18),
+        label: Text(
+          Localizations.localeOf(context).languageCode == 'en'
+              ? 'Request a change through Support'
+              : 'Envoyer une demande depuis Support',
+        ),
+      ),
+    ],
+  );
 
   Future<void> _downloadSignedContract(ProducerAgreement agreement) async {
     try {
@@ -215,7 +367,12 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+      padding: EdgeInsets.fromLTRB(
+        MediaQuery.sizeOf(context).width < 600 ? 12 : 24,
+        18,
+        MediaQuery.sizeOf(context).width < 600 ? 12 : 24,
+        24,
+      ),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1280),
@@ -229,7 +386,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     horizontal: 24,
                     vertical: 18,
                   ),
-                  child: Row(
+                  child: Wrap(
+                    spacing: 18,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       CircleAvatar(
                         radius: 32,
@@ -243,7 +403,8 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
                       const SizedBox(width: 18),
-                      Expanded(
+                      SizedBox(
+                        width: 280,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -277,6 +438,11 @@ class _ProfilePageState extends State<ProfilePage> {
                               : account.status,
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _editAccount(account),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('Modifier mes informations'),
                       ),
                     ],
                   ),
@@ -327,13 +493,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             spacing: spacing,
                             runSpacing: spacing,
                             children: [
-                              cell(
-                                _info(
-                                  'Email',
-                                  account.email,
-                                  icon: Icons.email_outlined,
-                                ),
-                              ),
+                              cell(_emailInfo(account.email)),
                               cell(
                                 _info(
                                   'Raison sociale',
@@ -412,6 +572,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
               ),
+              const SizedBox(height: 14),
+              _privacySettings(),
             ],
           ),
         ),

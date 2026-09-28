@@ -118,7 +118,9 @@ class _TechnicalSpecificationPageState
   }
 
   List<Map<String, dynamic>> _sections() {
-    final raw = _specification?['sections'];
+    final display = _specification?['display_text'];
+    final localizedSections = display is Map ? display['sections'] : null;
+    final raw = localizedSections ?? _specification?['sections'];
 
     if (raw is! List) {
       return const [];
@@ -175,9 +177,16 @@ class _TechnicalSpecificationPageState
       );
     }
 
-    final title = _text(specification['title']);
+    final display = specification['display_text'];
+    final title = _text(display is Map ? display['title'] : null).isNotEmpty
+        ? _text(display is Map ? display['title'] : null)
+        : _text(specification['title']);
     final version = _text(specification['version']);
-    final introduction = _text(specification['introduction']);
+    final localizedIntroduction =
+        display is Map ? display['introduction'] : null;
+    final introduction = _text(localizedIntroduction).isNotEmpty
+        ? _text(localizedIntroduction)
+        : _text(specification['introduction']);
     final publication = _publicationDate(specification['published_at']);
     final sections = _sections();
 

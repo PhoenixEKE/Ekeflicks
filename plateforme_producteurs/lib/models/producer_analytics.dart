@@ -143,12 +143,14 @@ class ProducerAnalyticsOverview {
   final DateTime? endAt;
   final List<ProducerContentAnalytics> contents;
   final ProducerAnalyticsEngagement engagement;
+  final bool demoDataIncluded;
 
   const ProducerAnalyticsOverview({
     required this.startAt,
     required this.endAt,
     required this.contents,
     required this.engagement,
+    this.demoDataIncluded = false,
   });
 
   factory ProducerAnalyticsOverview.fromJson(Map<String, dynamic> json) {
@@ -180,6 +182,7 @@ class ProducerAnalyticsOverview {
       engagement: ProducerAnalyticsEngagement.fromJson(
         engagementRaw is Map ? Map<String, dynamic>.from(engagementRaw) : null,
       ),
+      demoDataIncluded: json['demo_data_included'] == true,
     );
   }
 }

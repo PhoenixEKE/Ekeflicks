@@ -157,6 +157,22 @@ def publish_contract_version(instance):
             "Le titre contractuel est obligatoire."
         )
 
+    translations = instance.canonical_content_translations or {}
+    title_hash = contract_content_sha256(instance.title)
+    for language in ('en', 'fr'):
+        translated = translations.get(language)
+        if (
+            not isinstance(translated, dict)
+            or translated.get('source_hash') != contract_content_sha256(content)
+            or translated.get('title_source_hash') != title_hash
+            or not str(translated.get('title') or '').strip()
+            or not str(translated.get('value') or '').strip()
+            or translated.get('reviewed') is not True
+        ):
+            raise ProducerContractVersionError(
+                f"La traduction {language.upper()} doit être générée, vérifiée et liée au texte contractuel courant avant publication."
+            )
+
     now = timezone.now()
 
     (

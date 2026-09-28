@@ -11,12 +11,27 @@ from core.models import (
     Season,
 )
 from core.models.streaming import VideoAsset
+from apps.catalog.translations import content_source, translated_payload, language_for_request, source_hash
 
 
 class GenreSerializer(serializers.ModelSerializer):
+    display_name = serializers.SerializerMethodField()
+    display_description = serializers.SerializerMethodField()
+
+    def _translated(self, obj):
+        language = language_for_request(self.context["request"]) if self.context.get("request") else "fr"
+        source = {"name": obj.name, "description": obj.description}
+        return translated_payload(obj.translations, language, source)
+
+    def get_display_name(self, obj):
+        return self._translated(obj).get("name", obj.name)
+
+    def get_display_description(self, obj):
+        return self._translated(obj).get("description", obj.description)
+
     class Meta:
         model = Genre
-        fields = ['id', 'name', 'slug', 'description', 'created_at']
+        fields = ['id', 'name', 'slug', 'description', 'created_at', 'display_name', 'display_description']
         read_only_fields = ['id', 'created_at']
 
 
@@ -189,6 +204,19 @@ class ContentListSerializer(serializers.ModelSerializer):
     status = serializers.StringRelatedField()
     producer = serializers.PrimaryKeyRelatedField(read_only=True)
     producer_email = serializers.EmailField(source='producer.email', read_only=True)
+    display_text = serializers.SerializerMethodField()
+
+    def get_display_text(self, obj):
+        request = self.context.get('request')
+        language = language_for_request(request) if request else 'fr'
+        source = content_source(obj)
+        result = translated_payload(obj.translations, language, source)
+        return {
+            **result,
+            'translation_language': language if result is not source else None,
+            'translation_pending': result is source,
+            'source_hash': source_hash(source),
+        }
 
     class Meta:
         model = Content
@@ -228,6 +256,7 @@ class ContentListSerializer(serializers.ModelSerializer):
             'trailer_analysis_status',
             'trailer_analyzed_at',
             'trailer_technical_conformity',
+            'display_text',
         ]
         read_only_fields = [
             'id',

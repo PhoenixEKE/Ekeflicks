@@ -1,4 +1,5 @@
 from django.db.models.signals import post_save
+from django.db import transaction
 from django.dispatch import receiver
 from apps.analytics.services import record_producer_viewing_session
 from apps.notifications.services import notify_user
@@ -6,6 +7,60 @@ from core.models.analytics import ViewingSession
 from core.models.subscriptions import Subscription
 from core.models.users import User
 from core.models.profiles import Profile, ProfileType
+from core.models.content import Content, Genre
+from core.models.technical_specification import TechnicalSpecification
+from core.models.producers import ProducerContractVersion
+from apps.catalog.translations import content_source, source_hash
+
+
+@receiver(post_save, sender=Content)
+def schedule_content_translation(sender, instance, **kwargs):
+    source = content_source(instance)
+    revision = source_hash(source)
+    translations = instance.translations or {}
+    if all(
+        isinstance(translations.get(language), dict)
+        and translations[language].get('source_hash') == revision
+        for language in ('en', 'fr')
+    ):
+        return
+    from apps.catalog.tasks import translate_content_fields
+    transaction.on_commit(
+        lambda: translate_content_fields.delay(str(instance.pk))
+    )
+
+
+@receiver(post_save, sender=Genre)
+def schedule_genre_translation(sender, instance, **kwargs):
+    from apps.catalog.tasks import translate_reference_texts
+    transaction.on_commit(
+        lambda: translate_reference_texts.delay('genre', str(instance.pk))
+    )
+
+
+@receiver(post_save, sender=TechnicalSpecification)
+def schedule_specification_translation(sender, instance, **kwargs):
+    from apps.catalog.tasks import translate_reference_texts
+    transaction.on_commit(
+        lambda: translate_reference_texts.delay(
+            'technical_specification', str(instance.pk)
+        )
+    )
+
+
+@receiver(post_save, sender=ProducerContractVersion)
+def schedule_contract_translation(sender, instance, **kwargs):
+    # Published and archived contract text is immutable. Draft edits create
+    # fresh translations and publication checks their source hash and review.
+    if instance.status not in {
+        ProducerContractVersion.STATUS_DRAFT,
+        ProducerContractVersion.STATUS_PUBLISHED,
+    }:
+        return
+    from apps.auth.tasks import translate_contract_version
+    transaction.on_commit(
+        lambda: translate_contract_version.delay(str(instance.pk))
+    )
 
 
 @receiver(post_save, sender=User)

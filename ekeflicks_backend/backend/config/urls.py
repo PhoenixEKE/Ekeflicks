@@ -23,6 +23,7 @@ def health_check(_request):
 
 
 urlpatterns = [
+    path('api/v1/', include('apps.common.faq_urls')),
     path('api/v1/', include('apps.salons.urls')),
     path('', health_check, name='health_check'),
     path('health/', health_check, name='health'),

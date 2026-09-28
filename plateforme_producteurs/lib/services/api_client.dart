@@ -23,8 +23,10 @@ class ApiClient {
   final BrowserClient _client = BrowserClient()..withCredentials = true;
 
   String? _accessToken;
+  String _languageCode = 'fr';
 
   String? get accessToken => _accessToken;
+  String get languageCode => _languageCode;
 
   bool get hasAccessToken => _accessToken != null && _accessToken!.isNotEmpty;
 
@@ -32,10 +34,15 @@ class ApiClient {
     _accessToken = token;
   }
 
+  void setLanguageCode(String code) {
+    _languageCode = code == 'en' ? 'en' : 'fr';
+  }
+
   Map<String, String> _headers({bool authenticated = false}) {
     final headers = <String, String>{
       'Accept': 'application/json',
       'Content-Type': 'application/json',
+      'Accept-Language': _languageCode,
     };
 
     if (authenticated && hasAccessToken) {

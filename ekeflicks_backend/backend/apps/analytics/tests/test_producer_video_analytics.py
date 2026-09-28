@@ -141,7 +141,7 @@ class ProducerContentVideoAnalyticsTests(
         )
 
     def test_uses_only_video_lifecycle_events(self):
-        _, query, _ = self._query()
+        _, query, params = self._query()
 
         for name in (
             'video_start',
@@ -160,9 +160,23 @@ class ProducerContentVideoAnalyticsTests(
         )
 
         self.assertIn(
-            'is_test = 0',
+            '(is_test = 0 OR ({include_test:Bool} AND is_test = 1))',
             query,
         )
+
+        self.assertFalse(params['include_test'])
+
+    def test_demo_events_are_an_explicit_opt_in(self):
+        client = self._client()
+        producer_content_video_analytics(
+            self.start,
+            self.end,
+            allowed_content_ids=[self.content_id],
+            client=client,
+            include_test=True,
+        )
+
+        self.assertTrue(client.query.call_args.kwargs['parameters']['include_test'])
 
     def test_requires_viewing_session(self):
         _, query, _ = self._query()

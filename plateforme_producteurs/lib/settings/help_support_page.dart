@@ -1,40 +1,80 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:plateforme_producteurs/widgets/producer_page_shell.dart';
+import 'package:plateforme_producteurs/services/producer_service.dart';
 
 class HelpSupportPage extends StatefulWidget {
-  const HelpSupportPage({super.key});
+  const HelpSupportPage({super.key, this.embedded = false});
+  final bool embedded;
 
   @override
   State<HelpSupportPage> createState() => _HelpSupportPageState();
 }
 
 class _HelpSupportPageState extends State<HelpSupportPage> {
-  late YoutubePlayerController _ytController;
+  final _subjectController = TextEditingController();
+  final _messageController = TextEditingController();
+  final _newEmailController = TextEditingController();
+  final _emailReasonController = TextEditingController();
+  List<Map<String, dynamic>> _requests = const [];
+  List<Map<String, dynamic>> _emailRequests = const [];
+  List<Map<String, dynamic>> _faqEntries = const [];
+  bool _sending = false;
+  bool _sendingEmailChange = false;
+  bool _loadingRequests = true;
+  bool _loadingFaq = true;
 
-  final List<Map<String, String>> _videoTutorials = const [
-    {"id": "video1", "icon": "account_circle"},
-    {"id": "video2", "icon": "inventory_2"},
-    {"id": "video3", "icon": "receipt_long"},
-  ];
-
-  final List<String> _faqIds = const ["faq1", "faq2"];
+  @override
+  void dispose() {
+    _subjectController.dispose();
+    _messageController.dispose();
+    _newEmailController.dispose();
+    _emailReasonController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
-    _ytController = YoutubePlayerController(
-      initialVideoId: 'EXEMPLE1',
-      flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
-    );
+    _loadRequests();
+    _loadFaq();
   }
 
-  @override
-  void dispose() {
-    _ytController.dispose();
-    super.dispose();
+  Future<void> _loadRequests() async {
+    try {
+      final requests = await ProducerService.instance.getSupportRequests();
+      final emailRequests = await ProducerService.instance.getEmailChangeRequests();
+      if (mounted) setState(() { _requests = requests; _emailRequests = emailRequests; });
+    } catch (_) {
+      // Support contact remains available even if request history is offline.
+    } finally {
+      if (mounted) setState(() => _loadingRequests = false);
+    }
+  }
+
+  Future<void> _loadFaq() async {
+    try {
+      final rows = await ProducerService.instance.getProducerFaq();
+      if (mounted) setState(() => _faqEntries = rows);
+    } catch (_) {
+      // Support remains available if the FAQ service is temporarily offline.
+    } finally {
+      if (mounted) setState(() => _loadingFaq = false);
+    }
+  }
+
+  String _statusLabel(String value) {
+    final english = Localizations.localeOf(context).languageCode == 'en';
+    switch (value) {
+      case 'pending': return english ? 'Pending' : 'En attente';
+      case 'in_progress': return english ? 'In progress' : 'En cours';
+      case 'resolved': return english ? 'Resolved' : 'Résolue';
+      case 'closed': return english ? 'Closed' : 'Fermée';
+      case 'rejected': return english ? 'Rejected' : 'Refusée';
+      case 'cancelled': return english ? 'Cancelled' : 'Annulée';
+      default: return value;
+    }
   }
 
   Future<void> _launchUrl(String url) async {
@@ -44,46 +84,55 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     }
   }
 
-  void _playVideo(String videoId) {
-    _ytController.load(videoId);
-    _ytController.play();
-  }
-
-  // Méthode pour obtenir les traductions des vidéos
-  String _getVideoTitle(AppLocalizations l10n, String videoId) {
-    switch (videoId) {
-      case 'video1':
-        return l10n.helpSupportVideo1Title;
-      case 'video2':
-        return l10n.helpSupportVideo2Title;
-      case 'video3':
-        return l10n.helpSupportVideo3Title;
-      default:
-        return '';
+  Future<void> _sendSupportMessage() async {
+    final subject = _subjectController.text.trim();
+    final message = _messageController.text.trim();
+    if (subject.isEmpty || message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez renseigner le sujet et votre message.')),
+      );
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      await ProducerService.instance.createSupportRequest(subject: subject, message: message);
+      _subjectController.clear();
+      _messageController.clear();
+      await _loadRequests();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'en' ? 'Your request was sent.' : 'Votre demande a été envoyée.')),
+      );
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 
-  // Méthode pour obtenir les questions FAQ
-  String _getFaqQuestion(AppLocalizations l10n, String faqId) {
-    switch (faqId) {
-      case 'faq1':
-        return l10n.helpSupportFaq1Question;
-      case 'faq2':
-        return l10n.helpSupportFaq2Question;
-      default:
-        return '';
+  Future<void> _sendEmailChangeRequest() async {
+    final email = _newEmailController.text.trim();
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(Localizations.localeOf(context).languageCode == 'en' ? 'Enter a valid new email address.' : 'Saisissez une nouvelle adresse e-mail valide.'),
+      ));
+      return;
     }
-  }
-
-  // Méthode pour obtenir les réponses FAQ
-  String _getFaqAnswer(AppLocalizations l10n, String faqId) {
-    switch (faqId) {
-      case 'faq1':
-        return l10n.helpSupportFaq1Answer;
-      case 'faq2':
-        return l10n.helpSupportFaq2Answer;
-      default:
-        return '';
+    setState(() => _sendingEmailChange = true);
+    try {
+      await ProducerService.instance.createEmailChangeRequest(
+        requestedEmail: email,
+        reason: _emailReasonController.text,
+      );
+      _newEmailController.clear();
+      _emailReasonController.clear();
+      await _loadRequests();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(Localizations.localeOf(context).languageCode == 'en' ? 'Your request was sent to EKEFLICKS Support.' : 'Votre demande a été envoyée au support EKEFLICKS.'),
+      ));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _sendingEmailChange = false);
     }
   }
 
@@ -93,12 +142,10 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return ProducerPageShell(
-      title: l10n.helpCenterTitle,
-      showBack: true,
-      maxWidth: 1280,
-      padding: EdgeInsets.zero,
-      child: CustomScrollView(
+    final content = RefreshIndicator(
+        onRefresh: _loadRequests,
+        child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           // Section Hero
           SliverToBoxAdapter(
@@ -133,41 +180,6 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
             ),
           ),
 
-          // Player YouTube intégré
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: YoutubePlayer(
-                  controller: _ytController,
-                  showVideoProgressIndicator: true,
-                  progressIndicatorColor: Colors.blueAccent,
-                ),
-              ),
-            ),
-          ),
-
-          // Section Tutoriels vidéo
-          SliverPadding(
-            padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
-            sliver: SliverToBoxAdapter(
-              child: Text(
-                l10n.videoTutorialsTitle,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) =>
-                  _buildVideoItem(context, _videoTutorials[index], l10n),
-              childCount: _videoTutorials.length,
-            ),
-          ),
-
           // Section FAQ
           SliverPadding(
             padding: const EdgeInsets.only(top: 24, left: 16, right: 16),
@@ -182,10 +194,27 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
           ),
           SliverList(
             delegate: SliverChildBuilderDelegate(
-              (context, index) => _buildFaqItem(context, _faqIds[index], l10n),
-              childCount: _faqIds.length,
+              (context, index) {
+                final item = _faqEntries[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: ExpansionTile(
+                    title: Text(item['question']?.toString() ?? ''),
+                    subtitle: Text(item['category']?.toString() ?? ''),
+                    children: [Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                      child: Align(alignment: Alignment.centerLeft, child: Text(item['answer']?.toString() ?? '')),
+                    )],
+                  ),
+                );
+              },
+              childCount: _faqEntries.length,
             ),
           ),
+          if (_loadingFaq)
+            const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()))),
+          if (!_loadingFaq && _faqEntries.isEmpty)
+            SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.all(16), child: Text(Localizations.localeOf(context).languageCode == 'en' ? 'The FAQ could not be loaded.' : 'La FAQ n’a pas pu être chargée.'))),
 
           // Section Contact
           SliverPadding(
@@ -200,6 +229,79 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _subjectController,
+                    decoration: InputDecoration(
+                      labelText: Localizations.localeOf(context).languageCode == 'en' ? 'Subject' : 'Sujet',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _messageController,
+                    minLines: 4,
+                    maxLines: 8,
+                    decoration: InputDecoration(
+                      labelText: Localizations.localeOf(context).languageCode == 'en' ? 'Your message' : 'Votre message',
+                      alignLabelWithHint: true,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: _sending ? null : _sendSupportMessage,
+                    icon: const Icon(Icons.send_outlined),
+                    label: Text(_sending ? (Localizations.localeOf(context).languageCode == 'en' ? 'Sending…' : 'Envoi…') : (Localizations.localeOf(context).languageCode == 'en' ? 'Send request' : 'Envoyer la demande')),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(Localizations.localeOf(context).languageCode == 'en' ? 'Request an email address change' : 'Demander un changement d’adresse e-mail', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(Localizations.localeOf(context).languageCode == 'en'
+                      ? 'Your current address will not change until EKEFLICKS Support reviews your request.'
+                      : 'Votre adresse actuelle ne change pas pendant l’examen de la demande par le support EKEFLICKS.'),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _newEmailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(labelText: Localizations.localeOf(context).languageCode == 'en' ? 'New email address' : 'Nouvelle adresse e-mail', border: const OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _emailReasonController,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: InputDecoration(labelText: Localizations.localeOf(context).languageCode == 'en' ? 'Additional details (optional)' : 'Précisions (facultatif)', border: const OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _sendingEmailChange ? null : _sendEmailChangeRequest,
+                    icon: const Icon(Icons.mark_email_read_outlined),
+                    label: Text(_sendingEmailChange ? (Localizations.localeOf(context).languageCode == 'en' ? 'Sending…' : 'Envoi…') : (Localizations.localeOf(context).languageCode == 'en' ? 'Send request to Support' : 'Envoyer la demande au support')),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(Localizations.localeOf(context).languageCode == 'en' ? 'My requests' : 'Mes demandes', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  if (_loadingRequests) const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+                  if (!_loadingRequests && _requests.isEmpty) Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(Localizations.localeOf(context).languageCode == 'en' ? 'No support requests yet.' : 'Aucune demande au support pour le moment.'),
+                  ),
+                  ..._requests.map((request) => Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.support_agent_outlined),
+                      title: Text(request['subject']?.toString() ?? ''),
+                      subtitle: Text([_statusLabel(request['status']?.toString() ?? ''), if ((request['staff_reply']?.toString() ?? '').isNotEmpty) request['staff_reply'].toString()].join(' • ')),
+                      trailing: Text((request['created_at']?.toString() ?? '').split('T').first),
+                    ),
+                  )),
+                  ..._emailRequests.map((request) => Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.alternate_email),
+                      title: Text(Localizations.localeOf(context).languageCode == 'en' ? 'Email change: ${request['requested_email'] ?? ''}' : 'Changement d’e-mail : ${request['requested_email'] ?? ''}'),
+                      subtitle: Text(_statusLabel(request['status']?.toString() ?? '')),
+                      trailing: Text((request['created_at']?.toString() ?? '').split('T').first),
+                    ),
+                  )),
                   const SizedBox(height: 16),
                   _buildContactInfo(
                     icon: Icons.email,
@@ -237,63 +339,14 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildVideoItem(
-    BuildContext context,
-    Map<String, String> video,
-    AppLocalizations l10n,
-  ) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _playVideo(
-          'EXEMPLE${video['id']?.substring(video['id']!.length - 1)}',
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(
-                _getIconData(video['icon']!),
-                size: 32,
-                color: Theme.of(context).primaryColor,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  _getVideoTitle(l10n, video['id']!),
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              const Icon(Icons.play_circle_filled, color: Colors.red),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFaqItem(
-    BuildContext context,
-    String faqId,
-    AppLocalizations l10n,
-  ) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: ExpansionTile(
-        title: Text(_getFaqQuestion(l10n, faqId)),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(_getFaqAnswer(l10n, faqId)),
-          ),
-        ],
-      ),
+      );
+    if (widget.embedded) return content;
+    return ProducerPageShell(
+      title: l10n.helpCenterTitle,
+      showBack: true,
+      maxWidth: 1280,
+      padding: EdgeInsets.zero,
+      child: content,
     );
   }
 
@@ -329,18 +382,5 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         ),
       ),
     );
-  }
-
-  IconData _getIconData(String iconName) {
-    switch (iconName) {
-      case 'account_circle':
-        return Icons.account_circle;
-      case 'inventory_2':
-        return Icons.inventory_2;
-      case 'receipt_long':
-        return Icons.receipt_long;
-      default:
-        return Icons.help_outline;
-    }
   }
 }

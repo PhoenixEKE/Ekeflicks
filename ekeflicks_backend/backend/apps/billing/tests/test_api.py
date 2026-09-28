@@ -1,10 +1,13 @@
 import hashlib
 import hmac
 import json
+import re
 
 from django.test import override_settings
 from django.core import mail
 from django.urls import reverse
+from django.utils import timezone
+from datetime import timedelta
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -13,12 +16,16 @@ from core.models import (
     Payment,
     PaymentWebhookEvent,
     ProducerContentView,
+    ProducerFinanceAccess,
+    ProducerAdvertisingRevenue,
+    ProducerRevenueSetting,
     SubscriptionPlan,
     SubscriptionPlanOffer,
     User,
     ViewingSession,
 )
 from core.models import Profile
+from apps.billing.payout_services import producer_balance
 
 
 class BillingApiTests(APITestCase):
@@ -199,6 +206,15 @@ class BillingApiTests(APITestCase):
             duration_watched=3000,
         )
         self.assertEqual(ProducerContentView.objects.filter(producer=producer).count(), 1)
+        ProducerFinanceAccess.objects.create(
+            producer=producer,
+            pin_hash='test-only',
+            unlocked_until=timezone.now() + timedelta(minutes=15),
+        )
+        ProducerRevenueSetting.objects.update_or_create(
+            pk=1,
+            defaults={'minimum_payout_eur': '0'},
+        )
         self.client.force_authenticate(user=producer)
 
         balance_response = self.client.get(reverse('producer-payout-request-balance'))
@@ -226,6 +242,77 @@ class BillingApiTests(APITestCase):
 
         self.assertEqual(approve_response.status_code, status.HTTP_200_OK)
         self.assertEqual(approve_response.data['status'], 'approved')
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_finance_pin_setup_and_email_confirmation(self):
+        producer = User.objects.create_user(
+            email='finance-pin@example.com',
+            password='StrongPass123',
+            is_producer=True,
+            is_verified=True,
+        )
+        self.client.force_authenticate(user=producer)
+        endpoint = '/api/v1/producer-payout-requests/finance-access/'
+
+        started = self.client.post(
+            endpoint,
+            {'operation': 'setup', 'pin': '2468'},
+            format='json',
+        )
+        self.assertEqual(started.status_code, status.HTTP_200_OK)
+        code = re.search(r'\b(\d{6})\b', mail.outbox[-1].body).group(1)
+        confirmed = self.client.post(
+            endpoint,
+            {'operation': 'confirm_setup', 'code': code},
+            format='json',
+        )
+        self.assertEqual(confirmed.status_code, status.HTTP_200_OK)
+        access = ProducerFinanceAccess.objects.get(producer=producer)
+        self.assertTrue(access.pin_hash)
+        self.assertFalse(access.pending_pin_hash)
+        self.assertGreater(access.unlocked_until, timezone.now())
+
+        self.client.force_authenticate(user=producer)
+        self.client.post(endpoint, {'operation': 'forgot'}, format='json')
+        reset_code = re.search(r'\b(\d{6})\b', mail.outbox[-1].body).group(1)
+        reset = self.client.post(
+            endpoint,
+            {'operation': 'reset', 'code': reset_code, 'pin': '9753'},
+            format='json',
+        )
+        self.assertEqual(reset.status_code, status.HTTP_200_OK)
+
+    def test_advertising_revenue_is_snapshotted_and_totalled_by_content(self):
+        producer = User.objects.create_user(
+            email='advertising-producer@example.com',
+            password='StrongPass123',
+            is_producer=True,
+        )
+        content = Content.objects.create(
+            title='Ad-supported film',
+            type='movie',
+            producer=producer,
+        )
+        ProducerRevenueSetting.objects.update_or_create(
+            pk=1,
+            defaults={
+                'advertising_share_percent': '60',
+                'minimum_payout_eur': '0',
+            },
+        )
+        earning = ProducerAdvertisingRevenue.objects.create(
+            producer=producer,
+            content=content,
+            period=timezone.localdate(),
+            external_reference='campaign-2026-09',
+            net_revenue_eur='50.00',
+        )
+        self.assertEqual(earning.share_percent, 60)
+        self.assertEqual(earning.producer_share_eur, 30)
+        balance = producer_balance(producer)
+        self.assertEqual(balance['amount_eur'], 30)
+        self.assertEqual(balance['content_earnings'][0]['title'], content.title)
+        self.assertEqual(balance['content_earnings'][0]['advertising_revenue_eur'], 30)
 
     def test_admin_can_disable_global_producer_remuneration(self):
         staff = User.objects.create_user(

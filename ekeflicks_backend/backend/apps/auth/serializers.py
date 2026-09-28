@@ -5,6 +5,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from core.models.users import (
     AccountClosureRequest,
     EmailChangeSupportRequest,
+    ProducerSupportRequest,
     User,
     normalize_phone_number,
 )
@@ -204,6 +205,27 @@ class EmailChangeSupportRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Cet email est deja utilise.')
 
         return requested_email
+
+
+class ProducerSupportRequestSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+
+    class Meta:
+        model = ProducerSupportRequest
+        fields = ['id', 'user_email', 'subject', 'message', 'status', 'staff_reply', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'user_email', 'status', 'staff_reply', 'created_at', 'updated_at']
+
+    def validate_subject(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Indiquez le sujet de votre demande.')
+        return value
+
+    def validate_message(self, value):
+        value = value.strip()
+        if len(value) < 10:
+            raise serializers.ValidationError('Le message doit contenir au moins 10 caractères.')
+        return value
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -617,6 +639,7 @@ class ProducerAgreementSerializer(serializers.ModelSerializer):
             'id',
             'contract_version',
             'contract_title',
+            'contract_language',
             'contract_hash',
             'contract_document_url',
             'status',
@@ -656,5 +679,3 @@ class ProducerAgreementSignSerializer(serializers.Serializer):
                 'Vous devez accepter le contrat EKEFLICKS avant de le signer.'
             )
         return value
-
-

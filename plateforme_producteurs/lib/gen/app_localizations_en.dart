@@ -902,4 +902,347 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get supportedFormats => 'Supported formats: MP4, AVI, MOV, etc.';
+
+  @override
+  String get dashboardApprovedContents => 'Approved content';
+
+  @override
+  String get dashboardPendingReview => 'Awaiting review';
+
+  @override
+  String get dashboardDraftContents => 'Drafts';
+
+  @override
+  String get dashboardEligibleBalance => 'Eligible-view balance';
+
+  @override
+  String get dashboardQualifiedViews => 'Qualified views (30 days)';
+
+  @override
+  String get dashboardUniqueViewers => 'Unique viewers (30 days)';
+
+  @override
+  String get dashboardEngagementRate => 'Engagement rate (30 days)';
+
+  @override
+  String get dashboardLast30Days =>
+      '30-day audience · current content status and eligible balance';
+
+  @override
+  String get dashboardPartialLoadError => 'Some data could not be refreshed.';
+
+  @override
+  String get dashboardLoadError => 'The dashboard could not be loaded.';
+
+  @override
+  String get dashboardNoRecentActivity => 'No recent activity.';
+
+  @override
+  String get notificationsMarkAllRead => 'Mark all as read';
+
+  @override
+  String get notificationsLoadError => 'Notifications could not be loaded.';
+
+  @override
+  String get notificationsUpdateError =>
+      'The update failed. Please try again.';
+
+  @override
+  String get notificationsEmpty => 'No notifications yet.';
+
+  @override
+  String get retry => 'Retry';
+
+  @override
+  String get analyticsTitle => 'Analytics';
+  @override
+  String get analyticsSubtitle => 'Real performance of your content';
+  @override
+  String get analyticsLoadError => 'Could not load analytics data.';
+  @override
+  String get analyticsUnavailable => 'Analytics data is unavailable.';
+  @override
+  String get analyticsRefreshError => 'The data could not be refreshed.';
+  @override
+  String get analyticsNoData => 'No analytics data is available for this period.';
+  @override
+  String get analyticsQualifiedViews => 'Qualified views';
+  @override
+  String get analyticsUniqueViewers => 'Unique viewers';
+  @override
+  String get analyticsWatchTime => 'Watch time';
+  @override
+  String get analyticsCompletedViews => 'Completed plays';
+  @override
+  String get analyticsEngagement => 'Engagement';
+  @override
+  String get analyticsLikes => 'Likes';
+  @override
+  String get analyticsUnlikes => 'Unlikes';
+  @override
+  String get analyticsNetLikes => 'Net likes';
+  @override
+  String get analyticsCurrentLikes => 'Current likes';
+  @override
+  String get analyticsEngagedUsers => 'Engaged users';
+  @override
+  String get analyticsEngagementRate => 'Engagement rate';
+  @override
+  String get analyticsQualifiedViewsByContent => 'Qualified views by content';
+  @override
+  String get analyticsContentPerformance => 'Content performance';
+  @override
+  String get analyticsViews => 'Views';
+  @override
+  String get analyticsQualification => 'Qualification';
+  @override
+  String get analyticsContentFallback => 'Content';
+  @override
+  String get analyticsStarts => 'Starts';
+
+  @override
+  String get contentDetailsTitle => 'Content details';
+
+  @override
+  String get closeContentDetails => 'Close';
+
+  @override
+  String get contentStatusDraft => 'Draft';
+
+  @override
+  String get contentStatusPending => 'Under review';
+
+  @override
+  String get contentStatusApproved => 'Approved';
+
+  @override
+  String get contentStatusRejected => 'Rejected';
+
+  @override
+  String get contentStatusUnknown => 'Unknown status';
+
+  @override
+  String get contentTabOverview => 'Overview';
+
+  @override
+  String get contentTabAudience => 'Audience';
+
+  @override
+  String get contentTabMedia => 'Media';
+
+  @override
+  String get contentTabTechnical => 'Technical';
+
+  @override
+  String get contentTabSeasons => 'Seasons';
+
+  @override
+  String get contentInfoSection => 'Information';
+
+  @override
+  String get contentTeamSection => 'Team';
+
+  @override
+  String get contentPublicationSection => 'Publication and review';
+
+  @override
+  String get contentDirector => 'Director';
+
+  @override
+  String get contentScreenwriter => 'Screenwriter';
+
+  @override
+  String get contentProducers => 'Producers';
+
+  @override
+  String get contentCast => 'Cast';
+
+  @override
+  String get contentCreatedAt => 'Created';
+
+  @override
+  String get contentUpdatedAt => 'Updated';
+
+  @override
+  String get contentPublishedAt => 'Published';
+
+  @override
+  String get contentReviewReason => 'Reason';
+
+  @override
+  String get contentViewing => 'Viewing';
+
+  @override
+  String get contentPerformance => 'Performance';
+
+  @override
+  String get contentStarts => 'Starts';
+
+  @override
+  String get contentCompletionRate => 'Qualification rate';
+
+  @override
+  String get contentAverageCompletion => 'Average completion';
+
+  @override
+  String get contentLikedUsers => 'Users who liked';
+
+  @override
+  String get contentNoMedia => 'No media available for this content.';
+
+  @override
+  String get contentPoster => 'Poster';
+
+  @override
+  String get contentBanner => 'Banner';
+
+  @override
+  String get contentTrailer => 'Trailer';
+
+  @override
+  String get contentMasterLoading => 'Master — loading…';
+
+  @override
+  String get contentMaster => 'Master';
+
+  @override
+  String get filterAll => 'All';
+
+  @override
+  String get filterDrafts => 'Drafts';
+
+  @override
+  String get filterPending => 'Under review';
+
+  @override
+  String get filterApproved => 'Approved';
+
+  @override
+  String get filterRejected => 'Rejected';
+
+  @override
+  String get moviesPageTitle => 'My movies';
+
+  @override
+  String get seriesPageTitle => 'My series';
+
+  @override
+  String get contentNoMovies => 'No movies';
+
+  @override
+  String get contentNoSeries => 'No series';
+
+  @override
+  String get contentLoadingMoviesError => 'Could not load your movies.';
+
+  @override
+  String get contentLoadingSeriesError => 'Could not load your series.';
+
+  @override
+  String contentUpdatedOn(Object date) => 'Updated $date';
+
+  @override
+  String get deleteDraftQuestion => 'Delete this draft?';
+
+  @override
+  String get deleteDraftConfirm => 'Delete';
+
+  @override
+  String get draftDeleted => 'Draft deleted';
+
+  @override
+  String get draftDeletedSuccess => 'The draft was deleted successfully.';
+
+  @override
+  String get deleteFailed => 'Could not delete';
+
+  @override
+  String draftDeleteWarning(Object days) => 'This draft will be automatically deleted in $days days.';
+
+  @override
+  String get draftDeleteSoon => 'Automatic deletion is imminent';
+
+  @override
+  String get contentNeedsCorrection => 'This content must be corrected before it can be submitted again.';
+
+  @override
+  String get contentPendingReviewFilm => 'Your movie is being reviewed by EKEFLICKS.';
+
+  @override
+  String get contentApprovedFilm => 'Your movie has been approved by EKEFLICKS.';
+
+  @override
+  String get continueEditing => 'Continue';
+
+  @override
+  String get correctContent => 'Correct';
+
+  @override
+  String get refresh => 'Refresh';
+
+  @override
+  String get addContent => 'Add content';
+
+  @override
+  String get myDrafts => 'My drafts';
+
+  @override
+  String get originalTitle => 'Original title';
+
+  @override
+  String get originalTitleHelp => 'Title in the programme’s original language.';
+
+  @override
+  String get shortSynopsis => 'Short synopsis';
+
+  @override
+  String get shortSynopsisHelp => '150 to 300 characters when submitting.';
+
+  @override
+  String get longSynopsis => 'Long synopsis';
+
+  @override
+  String get longSynopsisHelp => 'Optional — 500 to 1,000 characters recommended.';
+
+  @override
+  String get xmlImportTitle => 'Import XML metadata';
+
+  @override
+  String get xmlPreviewNotice => 'The file is analyzed without saving or changing the content.';
+
+  @override
+  String get xmlChooseTypeNotice => 'Select the content type (Movie or Series) first. The XML template will match your selection.';
+
+  @override
+  String get xmlDownloadTemplate => 'Download XML template';
+
+  @override
+  String get xmlAnalyzing => 'Analyzing…';
+
+  @override
+  String get xmlImport => 'Import XML';
+
+  @override
+  String deleteDraftMovieBody(Object title) => 'The movie “$title” will be permanently deleted. Related temporary files will also be deleted. This action cannot be undone.';
+
+  @override
+  String deleteDraftSeriesBody(Object title) => 'The series “$title” will be permanently deleted. Related temporary files will also be deleted. This action cannot be undone.';
+
+  @override
+  String get contentPendingReviewSeries => 'Your series is being reviewed by EKEFLICKS.';
+
+  @override
+  String get contentApprovedSeries => 'Your series has been approved by EKEFLICKS.';
+
+  @override
+  String get notProvided => 'Not provided';
+
+  @override
+  String get contentNoSynopsis => 'No synopsis provided.';
+
+  @override
+  String get contentDuration => 'Duration';
+
+  @override
+  String get contentClassification => 'Rating';
 }

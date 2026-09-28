@@ -75,5 +75,8 @@ jobs:
           cache: true
       - name: Install dependencies
         run: flutter pub get
+      - name: Build producer web application
+        if: matrix.application == 'plateforme_producteurs'
+        run: flutter build web --release
       - name: Run Flutter tests
         run: flutter test
