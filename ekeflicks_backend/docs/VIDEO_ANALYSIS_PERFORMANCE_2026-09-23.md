@@ -119,6 +119,18 @@ sur le VPS. Elle ne modifie ni le fichier vidéo ni la base. Elle refuse les
 résultats QC différents ou indisponibles. Elle mesure les sondes, sans uploader,
 relancer une tâche Celery ni modifier un rapport de production.
 
+## Mesure de secours sans master réel : benchmark synthétique
+
+La commande `python manage.py benchmark_video_pipeline --synthetic --duration-seconds 2400` génère temporairement une mire mobile H.264 1080p de 40 minutes, avec son, une plage noire, une plage silencieuse et une image figée en fin de vidéo. Elle exécute les fonctions QC de production, l’extraction des images de modération, l’inférence IA et la sonde FFprobe commune. Le fichier est supprimé à la fin, aucun asset ni rapport n’est créé, et aucune écriture en base n’est faite.
+
+Sur le VPS, après déploiement du commit candidat et lorsque le worker est libre :
+
+```bash
+docker compose exec -T celery python manage.py benchmark_video_pipeline --synthetic --duration-seconds 2400 --width 1920 --height 1080 --fps 25
+```
+
+La sortie JSON sépare le temps de génération (exclu du total d’analyse), le QC, la résolution/chargement du modèle, l’inférence et les sondes. Le test utilise la CPU du VPS et peut prendre plusieurs minutes ; le lancer sans autre analyse vidéo en cours. Il mesure le décodage/QC sur la durée visée, mais pas l’envoi producteur, le téléchargement depuis le stockage, la matérialisation de la source ni le commit DB. Le contenu synthétique ne reproduit pas exactement le poids, le mouvement ou la complexité d’un master réel ; il sert à comparer les versions sur la même machine, pas à confirmer le délai de bout en bout sous 3 minutes.
+
 ## Troisième optimisation : sous-échantillonner la détection des événements QC
 
 Les mesures Celery partagées le 28 septembre montrent 675,607 s de tâche totale
