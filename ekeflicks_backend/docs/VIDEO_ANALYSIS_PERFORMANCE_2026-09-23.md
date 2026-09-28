@@ -1,5 +1,7 @@
 # EKEFLICKS — point téléchargement et analyse vidéo
 
+Finalisation de la proposition : 28 septembre 2026. Mesures locales réalisées le 23 septembre 2026.
+
 Base inspectée : `PhoenixEKE/Ekeflicks`, branche `main`, commit
 `227e557e9228943ef4afffa895743468b6f9c349` du 23 septembre 2026.
 Checkpoint précédent : `0a48aee` (« G5-4C video analysis performance »).
@@ -43,8 +45,8 @@ Six tests unitaires du helper exécutés avec succès localement : S3 direct,
 paramètres/configuration conservés, copie générique, gzip, lecteur personnalisé,
 erreur de transfert et objet vide (certains regroupés dans un même test).
 Compilation Python et `git diff --check` réussis.
-Un test de suppression du fichier partiel est ajouté à la suite existante de
-matérialisation ; cette suite Django complète n'a pas été exécutée localement.
+Le test de suppression du fichier partiel et la suite de matérialisation ont
+ensuite été exécutés avec succès (voir validation consolidée ci-dessous).
 
 Avant déploiement, exécuter les suites ciblées dans l'environnement backend :
 
@@ -68,14 +70,72 @@ attribuer un master si plusieurs analyses tournent simultanément.
 Vérifier aussi l'identité du master et l'égalité des résultats de conformité,
 des événements QC et des décisions de modération.
 
-## Suite à prioriser après les mesures
+## Deuxième optimisation : une lecture de paquets commune
 
-Les sondes cadence et images clés parcourent encore séparément le même fichier.
-Une lecture commune des paquets pourrait réduire les lectures et la sortie
-FFprobe ; elle nécessite des tests d'équivalence CFR/VFR, B-frames, timestamps
-manquants, durées partielles et timeouts. Leur sortie est actuellement capturée
-entièrement en mémoire : le plafond de 500 timestamps concerne seulement le
-rapport final. Prioriser cette piste si `probe_parallel_wall` reste significatif.
-Sinon, cibler l'étape dominante mesurée, sans diminuer les contrôles qualité.
+La proposition remplace, pour les masters, les deux processus FFprobe parallèles
+par un seul processus lisant cadence et images clés. Les calculs QC existants
+sont partagés avec les anciens helpers, conservés pour les trailers et la
+comparaison. Les résultats et les tolérances CFR/VFR ne changent pas.
+
+La sortie FFprobe est écrite dans un fichier temporaire automatiquement supprimé,
+au lieu de conserver deux grandes chaînes stdout en mémoire. Les champs CSV sont
+analysés une seule fois ; seules les lignes d'images clés sont gardées pour leur
+calcul. Les échantillons numériques restent en mémoire pour la médiane exacte :
+il ne s'agit pas d'une garantie de mémoire constante. Un scan échoué ou expiré
+invalide les deux rapports et ignore les données partielles.
+
+Le nouveau log `packet_probe_shared_wall` remplace les trois temps de la paire
+pour les masters ; `analysis_pipeline.packet_probe_mode` indique `shared_scan`.
+Comparer ce temps à l'ancien `probe_parallel_wall`, pas à la somme des deux sondes.
+
+### Benchmark local reproductible
+
+Fixture synthétique : 4 001 secondes, 25 fps, 160×90, H.264, **100 025 images**,
+2 001 images clés, 1 511 866 octets ; FFprobe 6.1.1. Elle vérifie surtout le coût
+CPU du parsing sur une longue séquence très compressible. Elle ne représente pas
+un gros master UHD de production, ni le téléchargement depuis MinIO.
+
+Résultat final sur **10 répétitions par méthode**, ordre alterné :
+
+| Mesure | Ancienne paire parallèle | Lecture commune |
+| --- | ---: | ---: |
+| Temps médian des sondes | 0,491157 s | 0,434443 s |
+| Résultats QC | Identiques | Identiques |
+
+Réduction médiane locale : **11,55 % sur les sondes uniquement**. Cela représente
+ici environ 0,057 seconde, pas 11,55 % du temps total d'analyse.
+Une première variante à champs nommés et une variante qui découpait chaque ligne
+deux fois ont été écartées après des mesures défavorables ou instables.
+Les échantillons finaux sont dans `benchmarks/packet_probe_100025_frames.json`.
+
+Reproduire la fixture dans un dossier temporaire :
+
+```bash
+ffmpeg -v error -f lavfi -i color=size=160x90:rate=25 -t 4001 -c:v libx264 -preset ultrafast -threads 1 -g 50 -bf 0 /tmp/packet-benchmark-100025.mp4
+python manage.py benchmark_video_probes /tmp/packet-benchmark-100025.mp4 --repetitions 10 --settings=config.settings_test
+```
+
+La même commande accepte un master local existant pour mesurer les deux méthodes
+sur le VPS. Elle ne modifie ni le fichier vidéo ni la base. Elle refuse les
+résultats QC différents ou indisponibles. Elle mesure les sondes, sans uploader,
+relancer une tâche Celery ni modifier un rapport de production.
+
+### Validation consolidée et état GitHub
+
+- 43 tests ciblés : téléchargement direct, matérialisation (dont nettoyage du
+  fichier partiel), cadence et nouvelle sonde commune.
+- Comparaison avec de vrais fichiers FFmpeg : CFR, VFR, B-frames et UHD 3840×2160.
+- Comparaison exacte des rapports sur la fixture longue de 100 025 images.
+- La suite complète avec PostgreSQL et le déploiement VPS restent à valider.
+- Le run CI `35834671258` de la première version de la PR échoue avant les tests
+  backend : `phonenumbers` manque dans `requirements.lock.txt`, alors qu'il est
+  déclaré dans `requirements.txt`. Le job producteurs a 22 tests réussis et
+  5 échecs concernant `review_required` ; clients et administrateurs passent.
+  Les fichiers à l'origine de ces blocages ne sont pas modifiés par cette PR.
+
+La prochaine mesure doit porter sur un même master de production et identifier
+le poids du téléchargement, du décodage QC et de l'inférence IA. La réduction de
+copie S3 et la lecture commune sont proposées dans la PR ; aucun gain global
+n'est annoncé avant cette comparaison.
 
 Cette proposition n'effectue ni migration, ni fusion dans main, ni déploiement.
