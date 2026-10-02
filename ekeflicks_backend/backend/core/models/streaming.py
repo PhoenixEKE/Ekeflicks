@@ -105,6 +105,8 @@ class VideoAsset(TimeStampedModel):
 
     drm_provider = models.CharField(max_length=20, choices=DRM_CHOICES, default='none')
     encryption_key_id = models.CharField(max_length=255, blank=True)
+    # Public DRM IDs and audit/validation metadata only; content keys are never persisted.
+    drm_metadata = models.JSONField(default=dict, blank=True)
 
     published_at = models.DateTimeField(null=True, blank=True)
 
