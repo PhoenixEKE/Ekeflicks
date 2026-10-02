@@ -14,7 +14,7 @@ class ProducerService {
 
   Future<Map<String, dynamic>> getTechnicalSpecification() async {
     final response = await _api.get(
-      '/api/v1/technical-specification/',
+      '/api/v1/technical-specification/?language=${_api.languageCode}',
       authenticated: true,
     );
 
@@ -39,9 +39,193 @@ class ProducerService {
     return Map<String, dynamic>.from(data);
   }
 
+  Future<List<Map<String, dynamic>>> getSupportRequests() async {
+    final response = await _api.get('/api/v1/auth/producer-support-requests/', authenticated: true);
+    if (response.statusCode != 200) {
+      throw ApiException(_api.errorMessage(response, fallback: 'Impossible de récupérer les demandes au support.'), statusCode: response.statusCode);
+    }
+    final data = _api.decode(response);
+    if (data is List) {
+      return data.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
+    }
+    if (data is Map && data['results'] is List) {
+      return (data['results'] as List).whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
+    }
+    throw const ApiException('Réponse du support invalide.');
+  }
+
+  Future<Map<String, dynamic>> createSupportRequest({required String subject, required String message}) async {
+    final response = await _api.post(
+      '/api/v1/auth/producer-support-requests/',
+      authenticated: true,
+      body: {'subject': subject.trim(), 'message': message.trim()},
+    );
+    if (response.statusCode != 201) {
+      throw ApiException(_api.errorMessage(response, fallback: 'Impossible d’envoyer la demande au support.'), statusCode: response.statusCode);
+    }
+    final data = _api.decode(response);
+    if (data is! Map) throw const ApiException('Réponse du support invalide.');
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<List<Map<String, dynamic>>> getEmailChangeRequests() async {
+    final response = await _api.get('/api/v1/auth/email-change-support-requests/', authenticated: true);
+    if (response.statusCode != 200) {
+      throw ApiException(_api.errorMessage(response, fallback: 'Impossible de récupérer les demandes de changement d’e-mail.'), statusCode: response.statusCode);
+    }
+    final data = _api.decode(response);
+    final rows = data is List ? data : (data is Map ? data['results'] : null);
+    if (rows is! List) throw const ApiException('Réponse des demandes d’e-mail invalide.');
+    return rows.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
+  }
+
+  Future<void> createEmailChangeRequest({required String requestedEmail, String reason = ''}) async {
+    final response = await _api.post(
+      '/api/v1/auth/email-change-support-requests/',
+      authenticated: true,
+      body: {'requested_email': requestedEmail.trim(), 'reason': reason.trim()},
+    );
+    if (response.statusCode != 201) {
+      throw ApiException(_api.errorMessage(response, fallback: 'Impossible d’envoyer la demande de changement d’e-mail.'), statusCode: response.statusCode);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getProducerFaq({String audience = 'producer'}) async {
+    final response = await _api.get('/api/v1/faq/?audience=$audience&language=${_api.languageCode}', authenticated: false);
+    if (response.statusCode != 200) {
+      throw ApiException(_api.errorMessage(response, fallback: 'Impossible de charger la FAQ.'), statusCode: response.statusCode);
+    }
+    final data = _api.decode(response);
+    if (data is! Map || data['results'] is! List) throw const ApiException('Réponse FAQ invalide.');
+    return (data['results'] as List).whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
+  }
+
+  Future<Map<String, dynamic>> getProducerPrivacyPreferences() async {
+    final response = await _api.get('/api/v1/auth/producer/privacy-preferences/', authenticated: true);
+    if (response.statusCode != 200) {
+      throw ApiException(_api.errorMessage(response, fallback: 'Impossible de charger les préférences de confidentialité.'), statusCode: response.statusCode);
+    }
+    final data = _api.decode(response);
+    if (data is! Map) throw const ApiException('Réponse de confidentialité invalide.');
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<Map<String, dynamic>> updateProducerPrivacyPreferences(Map<String, dynamic> changes) async {
+    final response = await _api.patch('/api/v1/auth/producer/privacy-preferences/', authenticated: true, body: changes);
+    if (response.statusCode != 200) {
+      throw ApiException(_api.errorMessage(response, fallback: 'Impossible de mettre à jour les préférences de confidentialité.'), statusCode: response.statusCode);
+    }
+    final data = _api.decode(response);
+    if (data is! Map) throw const ApiException('Réponse de confidentialité invalide.');
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<Map<String, dynamic>> askEkeProducer(String message) async {
+    final response = await _api.post(
+      '/api/v1/producer-assistant/chat/',
+      authenticated: true,
+      body: {'message': message.trim(), 'language': _api.languageCode},
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(_api.errorMessage(response, fallback: 'Eke ne peut pas répondre pour le moment.'), statusCode: response.statusCode);
+    }
+    final data = _api.decode(response);
+    if (data is! Map) throw const ApiException('Réponse Eke invalide.');
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<Map<String, dynamic>> getProducerBalance() async {
+    final response = await _api.get(
+      '/api/v1/producer-payout-requests/balance/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de récupérer le solde producteur.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+    if (data is! Map) {
+      throw const ApiException('Réponse de solde producteur invalide.');
+    }
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<Map<String, dynamic>> getFinanceAccess() async {
+    final response = await _api.get(
+      '/api/v1/producer-payout-requests/finance-access/',
+      authenticated: true,
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(_api.errorMessage(response, fallback: 'Impossible de vérifier la sécurité Finance.'), statusCode: response.statusCode);
+    }
+    final data = _api.decode(response);
+    if (data is! Map) throw const ApiException('Réponse Finance invalide.');
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<Map<String, dynamic>> financeAccessAction(
+    String operation, {
+    String? pin,
+    String? code,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/producer-payout-requests/finance-access/',
+      authenticated: true,
+      body: {
+        'operation': operation,
+        if (pin != null) 'pin': pin,
+        if (code != null) 'code': code,
+      },
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(_api.errorMessage(response, fallback: 'La vérification Finance a échoué.'), statusCode: response.statusCode);
+    }
+    final data = _api.decode(response);
+    if (data is! Map) throw const ApiException('Réponse Finance invalide.');
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<List<Map<String, dynamic>>> getPayoutRequests() async {
+    final response = await _api.get(
+      '/api/v1/producer-payout-requests/',
+      authenticated: true,
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(_api.errorMessage(response, fallback: 'Impossible de récupérer les paiements.'), statusCode: response.statusCode);
+    }
+    final data = _api.decode(response);
+    final rows = data is Map ? data['results'] : data;
+    if (rows is! List) return const [];
+    return rows.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
+  }
+
+  Future<Map<String, dynamic>> requestPayout({
+    required String method,
+    required String account,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/producer-payout-requests/',
+      authenticated: true,
+      body: {'payout_method': method, 'payout_account': account},
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(_api.errorMessage(response, fallback: 'La demande de paiement a échoué.'), statusCode: response.statusCode);
+    }
+    final data = _api.decode(response);
+    if (data is! Map) throw const ApiException('Réponse de paiement invalide.');
+    return Map<String, dynamic>.from(data);
+  }
+
   Future<List<int>> downloadTechnicalSpecification() async {
     final response = await _api.getBytes(
-      '/api/v1/technical-specification/pdf/',
+      '/api/v1/technical-specification/pdf/?language=${_api.languageCode}',
       authenticated: true,
     );
 
@@ -135,6 +319,33 @@ class ProducerService {
     return ProducerAccount.fromJson(data);
   }
 
+  Future<void> updatePersonalInfo({
+    required String firstname,
+    required String lastname,
+    String? phone,
+    String? countryCode,
+  }) async {
+    final body = <String, dynamic>{
+      'firstname': firstname.trim(),
+      'lastname': lastname.trim(),
+    };
+    if ((phone ?? '').trim().isNotEmpty) body['phone'] = phone!.trim();
+    if ((countryCode ?? '').trim().isNotEmpty) {
+      body['country_code'] = countryCode!.trim().toUpperCase();
+    }
+    final response = await _api.patch(
+      '/api/v1/auth/personal-info/',
+      authenticated: true,
+      body: body,
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(response, fallback: 'Impossible de mettre à jour vos informations personnelles.'),
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
   Future<void> resendEmailVerification() async {
     final response = await _api.post(
       '/api/v1/auth/resend-email-verification/',
@@ -170,7 +381,7 @@ class ProducerService {
 
   Future<ProducerAgreement> getCurrentAgreement() async {
     final response = await _api.get(
-      '/api/v1/auth/producer/agreement/',
+      '/api/v1/auth/producer/agreement/?language=${_api.languageCode}',
       authenticated: true,
     );
 
@@ -609,6 +820,29 @@ class ProducerService {
     }
 
     throw const ApiException('Réponse contenus invalide.');
+  }
+
+  Future<Map<String, dynamic>> getProducerDashboard() async {
+    final response = await _api.get(
+      '/api/v1/contents/producer-dashboard/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de récupérer les indicateurs producteur.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+    if (data is! Map) {
+      throw const ApiException('Réponse du tableau de bord invalide.');
+    }
+    return Map<String, dynamic>.from(data);
   }
 
   Future<Map<String, dynamic>> getContent(String contentId) async {

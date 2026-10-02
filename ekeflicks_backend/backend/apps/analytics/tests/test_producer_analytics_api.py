@@ -187,6 +187,16 @@ class ProducerAnalyticsAPITests(
             0,
         )
 
+    def test_active_account_can_read_analytics_after_contract_version_rollover(self):
+        producer = self._active_producer('active-no-current-agreement@example.com')
+        ProducerAgreement.objects.filter(producer_account=producer.producer_account).delete()
+        self.client.force_authenticate(producer)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['content_count'], 0)
+
         self.assertEqual(
             response.data.get(
                 'results',

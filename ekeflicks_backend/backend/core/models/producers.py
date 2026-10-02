@@ -210,6 +210,9 @@ class ProducerContractVersion(TimeStampedModel):
         ),
     )
 
+    # Bilingual contract copies are separate from the canonical signed source.
+    canonical_content_translations = models.JSONField(default=dict, blank=True)
+
     content_sha256 = models.CharField(
         max_length=64,
         blank=True,
@@ -289,6 +292,11 @@ class ProducerAgreement(TimeStampedModel):
 
     contract_title = models.CharField(
         max_length=255,
+    )
+    contract_language = models.CharField(
+        max_length=2,
+        choices=(('fr', 'Français'), ('en', 'English')),
+        default='fr',
     )
 
     contract_hash = models.CharField(

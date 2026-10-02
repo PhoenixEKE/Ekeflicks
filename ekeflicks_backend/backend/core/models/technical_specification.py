@@ -22,6 +22,7 @@ class TechnicalSpecification(TimeStampedModel):
     )
     introduction = models.TextField(blank=True)
     sections = models.JSONField(default=list, blank=True)
+    translations = models.JSONField(default=dict, blank=True)
     is_published = models.BooleanField(default=False, db_index=True)
     published_at = models.DateTimeField(null=True, blank=True)
 

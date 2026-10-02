@@ -1304,7 +1304,7 @@ class Top10AnalyticsViewSet(
 # ==========================================================
 
 from apps.common.permissions import (
-    is_active_producer_user,
+    is_active_producer_analytics_user,
 )
 
 from apps.analytics.services import (
@@ -1330,7 +1330,7 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
     ]
 
     def _producer_allowed(self, request):
-        return is_active_producer_user(
+        return is_active_producer_analytics_user(
             request.user
         )
 
@@ -1570,7 +1570,11 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
         from apps.analytics.services import (
             producer_content_video_analytics,
             producer_engagement_analytics,
+            producer_demo_analytics_enabled,
         )
+
+        include_test = producer_demo_analytics_enabled(request.user)
+        demo_options = {'include_test': True} if include_test else {}
 
         allowed_content_ids = [
             content.id,
@@ -1587,6 +1591,7 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
                 allowed_content_ids=
                     allowed_content_ids,
                 limit=1,
+                **demo_options,
             )
         )
 
@@ -1600,6 +1605,7 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
                 ],
                 allowed_content_ids=
                     allowed_content_ids,
+                **demo_options,
             )
         )
 
@@ -1647,8 +1653,7 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
                         )
                     )
 
-        return Response(
-            {
+        payload = {
                 'scope':
                     'producer',
 
@@ -1685,9 +1690,10 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
 
                 'engagement':
                     engagement,
-            },
-            status=status.HTTP_200_OK,
-        )
+            }
+        if include_test:
+            payload['demo_data_included'] = True
+        return Response(payload, status=status.HTTP_200_OK)
 
     def list(self, request):
         if not self._producer_allowed(
@@ -1730,7 +1736,11 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
 
         from apps.analytics.services import (
             producer_engagement_analytics,
+            producer_demo_analytics_enabled,
         )
+
+        include_test = producer_demo_analytics_enabled(request.user)
+        demo_options = {'include_test': True} if include_test else {}
 
         # B5 owns the zero-scope guard. Passing [] is safe:
         # it returns zero metrics without opening ClickHouse.
@@ -1744,12 +1754,12 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
                 ],
                 allowed_content_ids=
                     content_ids,
+                **demo_options,
             )
         )
 
         if not content_ids:
-            return Response(
-                {
+            payload = {
                     'scope':
                         'producer',
 
@@ -1779,9 +1789,10 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
 
                     'engagement':
                         engagement,
-                },
-                status=status.HTTP_200_OK,
-            )
+                }
+            if include_test:
+                payload['demo_data_included'] = True
+            return Response(payload, status=status.HTTP_200_OK)
 
         from core.models import Content
 
@@ -1802,6 +1813,7 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
                 limit=params[
                     'limit'
                 ],
+                **demo_options,
             )
         )
 
@@ -1864,8 +1876,7 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
                 item
             )
 
-        return Response(
-            {
+        payload = {
                 'scope':
                     'producer',
 
@@ -1899,6 +1910,7 @@ class ProducerAnalyticsViewSet(viewsets.ViewSet):
 
                 'engagement':
                     engagement,
-            },
-            status=status.HTTP_200_OK,
-        )
+            }
+        if include_test:
+            payload['demo_data_included'] = True
+        return Response(payload, status=status.HTTP_200_OK)

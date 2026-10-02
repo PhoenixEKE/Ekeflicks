@@ -139,8 +139,7 @@ class TechnicalConformityReport {
       return true;
     }
 
-    return displayStatus != TechnicalConformityDisplayStatus.conform &&
-        displayStatus != TechnicalConformityDisplayStatus.reviewRequired;
+    return displayStatus != TechnicalConformityDisplayStatus.conform;
   }
 
   bool get submissionAllowed => !submissionBlocking;

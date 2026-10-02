@@ -623,6 +623,7 @@ def generate_presented_contract(
     contract_title=None,
     ekeflicks_signed_at=None,
     agreement=None,
+    language='fr',
 ) -> GeneratedProducerContract:
     contract_version = (
         contract_version or get_current_contract_version()
@@ -639,6 +640,7 @@ def generate_presented_contract(
                 contract_version=contract_version,
                 ekeflicks_signed_at=ekeflicks_signed_at,
                 agreement=agreement,
+                language=language,
             )
         except CanonicalContractRenderError as exc:
             raise ProducerContractError(

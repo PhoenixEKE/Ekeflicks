@@ -51,7 +51,11 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Need to capture videos</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Need to record audio</string>
+	<string>Autoriser Eke à écouter votre question lorsque vous utilisez la saisie vocale.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>La reconnaissance vocale transforme votre question en texte pour Eke.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>La localisation peut être utilisée à votre demande par les fonctions automatiques du portail, uniquement lorsque vous les utilisez.</string>
 
 	<key>LSApplicationQueriesSchemes</key>
 	<array>

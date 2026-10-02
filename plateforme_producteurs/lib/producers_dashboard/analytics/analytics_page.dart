@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
 import 'package:plateforme_producteurs/core/core.dart';
+import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:plateforme_producteurs/models/producer_analytics.dart';
 import 'package:plateforme_producteurs/services/producer_service.dart';
 import 'package:plateforme_producteurs/widgets/producer_modal_shell.dart';
@@ -18,6 +20,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   Object? _error;
   bool _loading = true;
   int _days = 30;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -26,6 +29,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
+    final requestedDays = _days;
     setState(() {
       _loading = true;
       _error = null;
@@ -33,17 +38,17 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
     try {
       final result = await ProducerService.instance.getProducerAnalytics(
-        days: _days,
+        days: requestedDays,
       );
 
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
 
       setState(() {
         _analytics = result;
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
 
       setState(() {
         _error = error;
@@ -61,19 +66,20 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    final l10n = AppLocalizations.of(context)!;
+    if (_loading && _analytics == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_error != null) {
-      return _ErrorState(message: _error.toString(), onRetry: _load);
+    if (_error != null && _analytics == null) {
+      return _ErrorState(message: l10n.analyticsLoadError, onRetry: _load);
     }
 
     final analytics = _analytics;
 
     if (analytics == null) {
       return _ErrorState(
-        message: 'Données Analytics indisponibles.',
+        message: l10n.analyticsUnavailable,
         onRetry: _load,
       );
     }
@@ -89,18 +95,47 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               vertical: 24,
             ),
             children: [
-              _Header(days: _days, onChanged: _changePeriod),
+              _Header(
+                days: _days,
+                loading: _loading,
+                onChanged: _changePeriod,
+              ),
+              if (analytics.demoDataIncluded) ...[
+                const SizedBox(height: 16),
+                Card(
+                  color: Theme.of(context).colorScheme.tertiaryContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Text(
+                      Localizations.localeOf(context).languageCode == 'en'
+                          ? 'Demo analytics are included. These figures are synthetic and are not real audience or remuneration data.'
+                          : 'Les statistiques de démonstration sont incluses. Ces chiffres sont fictifs et ne représentent ni une audience réelle ni une rémunération.',
+                    ),
+                  ),
+                ),
+              ],
+              if (_loading) const LinearProgressIndicator(minHeight: 2),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    l10n.analyticsRefreshError,
+                    style: AppTheme.textCaption.copyWith(
+                      color: AppTheme.warning,
+                    ),
+                  ),
+                ),
               const SizedBox(height: 24),
-              _KpiGrid(analytics: analytics),
+              _KpiGrid(analytics: analytics, days: _days),
               const SizedBox(height: 24),
               _EngagementCard(engagement: analytics.engagement),
               const SizedBox(height: 24),
               if (analytics.contents.isEmpty)
-                const _EmptyState()
+                _EmptyState(message: l10n.analyticsNoData)
               else ...[
                 _PerformanceChart(contents: analytics.contents),
                 const SizedBox(height: 24),
-                _ContentRanking(contents: analytics.contents),
+                _ContentRanking(contents: analytics.contents, days: _days),
               ],
             ],
           );
@@ -112,12 +147,18 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
 class _Header extends StatelessWidget {
   final int days;
+  final bool loading;
   final ValueChanged<int> onChanged;
 
-  const _Header({required this.days, required this.onChanged});
+  const _Header({
+    required this.days,
+    required this.loading,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
       crossAxisAlignment: WrapCrossAlignment.center,
@@ -127,10 +168,13 @@ class _Header extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Analytics', style: AppTheme.textTitle.copyWith(fontSize: 28)),
+            Text(
+              l10n.analyticsTitle,
+              style: AppTheme.textTitle.copyWith(fontSize: 28),
+            ),
             const SizedBox(height: 6),
             Text(
-              'Performance réelle de vos contenus',
+              l10n.analyticsSubtitle,
               style: AppTheme.textCaption,
             ),
           ],
@@ -142,7 +186,7 @@ class _Header extends StatelessWidget {
             ButtonSegment(value: 90, label: Text('90 j')),
           ],
           selected: {days},
-          onSelectionChanged: (selection) {
+          onSelectionChanged: loading ? null : (selection) {
             if (selection.isNotEmpty) {
               onChanged(selection.first);
             }
@@ -155,8 +199,9 @@ class _Header extends StatelessWidget {
 
 class _KpiGrid extends StatelessWidget {
   final ProducerAnalyticsOverview analytics;
+  final int days;
 
-  const _KpiGrid({required this.analytics});
+  const _KpiGrid({required this.analytics, required this.days});
 
   @override
   Widget build(BuildContext context) {
@@ -181,11 +226,12 @@ class _KpiGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final l10n = AppLocalizations.of(context)!;
         final width = constraints.maxWidth;
 
         final count = width >= 1100
             ? 4
-            : width >= 650
+            : width >= 360
             ? 2
             : 1;
 
@@ -198,26 +244,26 @@ class _KpiGrid extends StatelessWidget {
             _KpiCard(
               width: cardWidth,
               icon: Icons.visibility_rounded,
-              label: 'Vues qualifiées',
-              value: '$qualifiedViews',
+              label: l10n.analyticsQualifiedViews,
+              value: _number(context, qualifiedViews),
             ),
             _KpiCard(
               width: cardWidth,
               icon: Icons.people_alt_rounded,
-              label: 'Spectateurs uniques',
-              value: '$uniqueViewers',
+              label: l10n.analyticsUniqueViewers,
+              value: _number(context, uniqueViewers),
             ),
             _KpiCard(
               width: cardWidth,
               icon: Icons.schedule_rounded,
-              label: 'Temps de visionnage',
-              value: _watchTime(watchSeconds),
+              label: l10n.analyticsWatchTime,
+              value: _watchTime(watchSeconds, context),
             ),
             _KpiCard(
               width: cardWidth,
               icon: Icons.task_alt_rounded,
-              label: 'Lectures terminées',
-              value: '$completedViews',
+              label: l10n.analyticsCompletedViews,
+              value: _number(context, completedViews),
             ),
           ],
         );
@@ -294,27 +340,26 @@ class _EngagementCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Engagement', style: AppTheme.textTitle),
+          Text(AppLocalizations.of(context)!.analyticsEngagement, style: AppTheme.textTitle),
           const SizedBox(height: 18),
           Wrap(
             spacing: 28,
             runSpacing: 18,
             children: [
-              _MiniMetric(label: 'Likes', value: '${engagement.likes}'),
-              _MiniMetric(label: 'Unlikes', value: '${engagement.unlikes}'),
-              _MiniMetric(label: 'Net likes', value: '${engagement.netLikes}'),
+              _MiniMetric(label: AppLocalizations.of(context)!.analyticsLikes, value: _number(context, engagement.likes)),
+              _MiniMetric(label: AppLocalizations.of(context)!.analyticsUnlikes, value: _number(context, engagement.unlikes)),
+              _MiniMetric(label: AppLocalizations.of(context)!.analyticsNetLikes, value: _number(context, engagement.netLikes)),
               _MiniMetric(
-                label: 'Likes actuels',
-                value: '${engagement.currentLikes}',
+                label: AppLocalizations.of(context)!.analyticsCurrentLikes,
+                value: _number(context, engagement.currentLikes),
               ),
               _MiniMetric(
-                label: 'Utilisateurs engagés',
-                value: '${engagement.uniqueLikers}',
+                label: AppLocalizations.of(context)!.analyticsEngagedUsers,
+                value: _number(context, engagement.uniqueLikers),
               ),
               _MiniMetric(
-                label: 'Taux d’engagement',
-                value:
-                    '${engagement.engagementRatePercent.toStringAsFixed(1)} %',
+                label: AppLocalizations.of(context)!.analyticsEngagementRate,
+                value: NumberFormat.percentPattern(Localizations.localeOf(context).toString()).format(engagement.engagementRatePercent / 100),
               ),
             ],
           ),
@@ -365,7 +410,10 @@ class _PerformanceChart extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Vues qualifiées par contenu', style: AppTheme.textTitle),
+          Text(
+            AppLocalizations.of(context)!.analyticsQualifiedViewsByContent,
+            style: AppTheme.textTitle,
+          ),
           const SizedBox(height: 16),
           SizedBox(
             height: 320,
@@ -390,8 +438,9 @@ class _PerformanceChart extends StatelessWidget {
 
 class _ContentRanking extends StatelessWidget {
   final List<ProducerContentAnalytics> contents;
+  final int days;
 
-  const _ContentRanking({required this.contents});
+  const _ContentRanking({required this.contents, required this.days});
 
   @override
   Widget build(BuildContext context) {
@@ -406,11 +455,18 @@ class _ContentRanking extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(22),
-            child: Text('Performance des contenus', style: AppTheme.textTitle),
+            child: Text(
+              AppLocalizations.of(context)!.analyticsContentPerformance,
+              style: AppTheme.textTitle,
+            ),
           ),
           const Divider(height: 1),
           ...contents.asMap().entries.map(
-            (entry) => _ContentRow(rank: entry.key + 1, content: entry.value),
+            (entry) => _ContentRow(
+              rank: entry.key + 1,
+              content: entry.value,
+              days: days,
+            ),
           ),
         ],
       ),
@@ -421,16 +477,82 @@ class _ContentRanking extends StatelessWidget {
 class _ContentRow extends StatelessWidget {
   final int rank;
   final ProducerContentAnalytics content;
+  final int days;
 
-  const _ContentRow({required this.rank, required this.content});
+  const _ContentRow({
+    required this.rank,
+    required this.content,
+    required this.days,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 1050;
+    final title = content.title.isEmpty
+        ? l10n.analyticsContentFallback
+        : content.title;
+
     return InkWell(
       onTap: content.contentId.isEmpty ? null : () => _openDetail(context),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-        child: Row(
+        padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 22, vertical: 16),
+        child: compact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 36,
+                        child: Text('#$rank', style: AppTheme.textBodyBold),
+                      ),
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.textBodyBold,
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ],
+                  ),
+                  if (content.contentType.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 36, top: 3),
+                      child: Text(
+                        content.contentType,
+                        style: AppTheme.textCaption,
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 18,
+                    runSpacing: 12,
+                    children: [
+                      _TableMetric(
+                        label: l10n.analyticsViews,
+                        value: _number(context, content.qualifiedViews),
+                      ),
+                      _TableMetric(
+                        label: l10n.analyticsWatchTime,
+                        value: _watchTime(content.watchSeconds, context),
+                      ),
+                      _TableMetric(
+                        label: l10n.analyticsQualification,
+                        value:
+                            '${content.qualificationRatePercent.toStringAsFixed(1)} %',
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : Row(
           children: [
             SizedBox(
               width: 36,
@@ -442,7 +564,7 @@ class _ContentRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    content.title.isEmpty ? 'Contenu' : content.title,
+                    title,
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.textBodyBold,
                   ),
@@ -451,13 +573,16 @@ class _ContentRow extends StatelessWidget {
                 ],
               ),
             ),
-            _TableMetric(label: 'Vues', value: '${content.qualifiedViews}'),
             _TableMetric(
-              label: 'Watch time',
-              value: _watchTime(content.watchSeconds),
+              label: l10n.analyticsViews,
+              value: _number(context, content.qualifiedViews),
             ),
             _TableMetric(
-              label: 'Qualification',
+              label: l10n.analyticsWatchTime,
+              value: _watchTime(content.watchSeconds, context),
+            ),
+            _TableMetric(
+              label: l10n.analyticsQualification,
               value: '${content.qualificationRatePercent.toStringAsFixed(1)} %',
             ),
             const SizedBox(width: 8),
@@ -477,6 +602,7 @@ class _ContentRow extends StatelessWidget {
       builder: (_) => _AnalyticsDetailDialog(
         contentId: content.contentId,
         initialContent: content,
+        days: days,
       ),
     );
   }
@@ -506,10 +632,12 @@ class _TableMetric extends StatelessWidget {
 class _AnalyticsDetailDialog extends StatefulWidget {
   final String contentId;
   final ProducerContentAnalytics initialContent;
+  final int days;
 
   const _AnalyticsDetailDialog({
     required this.contentId,
     required this.initialContent,
+    required this.days,
   });
 
   @override
@@ -530,6 +658,7 @@ class _AnalyticsDetailDialogState extends State<_AnalyticsDetailDialog> {
     try {
       final detail = await ProducerService.instance.getProducerContentAnalytics(
         widget.contentId,
+        days: widget.days,
       );
 
       if (!mounted) return;
@@ -571,38 +700,44 @@ class _AnalyticsDetailDialogState extends State<_AnalyticsDetailDialog> {
   Widget _detailBody(ProducerAnalyticsDetail detail) {
     final content = detail.content;
 
-    return ListView(
-      children: [
-        Wrap(
-          spacing: 16,
-          runSpacing: 16,
-          children: [
-            _DetailMetric(label: 'Démarrages', value: '${content.playStarts}'),
+    final l10n = AppLocalizations.of(context)!;
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
             _DetailMetric(
-              label: 'Vues qualifiées',
-              value: '${content.qualifiedViews}',
+              label: l10n.analyticsStarts,
+              value: _number(context, content.playStarts),
             ),
             _DetailMetric(
-              label: 'Spectateurs uniques',
-              value: '${content.uniqueViewers}',
+              label: l10n.analyticsQualifiedViews,
+              value: _number(context, content.qualifiedViews),
             ),
             _DetailMetric(
-              label: 'Watch time',
-              value: _watchTime(content.watchSeconds),
+              label: l10n.analyticsUniqueViewers,
+              value: _number(context, content.uniqueViewers),
             ),
             _DetailMetric(
-              label: 'Terminées',
-              value: '${content.completedViews}',
+              label: l10n.analyticsWatchTime,
+              value: _watchTime(content.watchSeconds, context),
             ),
             _DetailMetric(
-              label: 'Qualification',
+              label: l10n.analyticsCompletedViews,
+              value: _number(context, content.completedViews),
+            ),
+            _DetailMetric(
+              label: l10n.analyticsQualification,
               value: '${content.qualificationRatePercent.toStringAsFixed(1)} %',
             ),
-          ],
-        ),
-        const SizedBox(height: 28),
-        _EngagementCard(engagement: detail.engagement),
-      ],
+            ],
+          ),
+          const SizedBox(height: 28),
+          _EngagementCard(engagement: detail.engagement),
+        ],
+      ),
     );
   }
 }
@@ -635,7 +770,9 @@ class _DetailMetric extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  final String message;
+
+  const _EmptyState({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -645,7 +782,7 @@ class _EmptyState extends StatelessWidget {
         color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Column(
+      child: Column(
         children: [
           Icon(
             Icons.analytics_outlined,
@@ -653,11 +790,7 @@ class _EmptyState extends StatelessWidget {
             color: AppTheme.textSecondary,
           ),
           SizedBox(height: 16),
-          Text(
-            'Aucune donnée Analytics disponible '
-            'pour cette période.',
-            textAlign: TextAlign.center,
-          ),
+          Text(message, textAlign: TextAlign.center),
         ],
       ),
     );
@@ -693,7 +826,7 @@ class _ErrorState extends StatelessWidget {
             FilledButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: const Text('Réessayer'),
+              label: Text(AppLocalizations.of(context)!.retry),
             ),
           ],
         ),
@@ -702,18 +835,21 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-String _watchTime(double seconds) {
+String _watchTime(double seconds, BuildContext context) {
   final duration = Duration(seconds: seconds.round());
 
   final hours = duration.inHours;
   final minutes = duration.inMinutes.remainder(60);
 
   if (hours > 0) {
-    return '${hours}h ${minutes}min';
+    return '${hours} h ${minutes} min';
   }
 
   return '${duration.inMinutes} min';
 }
+
+String _number(BuildContext context, num value) =>
+    NumberFormat.decimalPattern(Localizations.localeOf(context).toString()).format(value);
 
 String _shortTitle(String title) {
   if (title.length <= 16) {

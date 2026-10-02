@@ -11,6 +11,8 @@ import 'onboarding/faq_page.dart';
 import 'onboarding/onboarding_page.dart';
 import 'onboarding/register_page.dart';
 import 'onboarding/verify_email_page.dart';
+import 'settings/help_support_page.dart';
+import 'assistant/producer_eke_page.dart';
 import 'producers_dashboard/dashboard_page.dart';
 import 'producers_dashboard/profile/profile_page.dart';
 
@@ -24,7 +26,8 @@ final appRouter = GoRouter(
         location == '/' ||
         location == '/register' ||
         location == '/verify-email' ||
-        location == '/faq';
+        location == '/faq' ||
+        location == '/eke';
 
     if (!auth.isAuthenticated) {
       await auth.restoreSession();
@@ -36,9 +39,12 @@ final appRouter = GoRouter(
 
     // Les liens publics doivent pouvoir s'exécuter avant les règles
     // d'onboarding et de contrat.
-    if (location == '/verify-email' || location == '/faq') {
+    if (location == '/verify-email' || location == '/faq' || location == '/eke') {
       return null;
     }
+
+    // Support remains reachable for account and email recovery requests.
+    if (location == '/support') return null;
 
     final account = await ProducerService.instance.getOnboarding();
 
@@ -58,9 +64,15 @@ final appRouter = GoRouter(
 
     if (account.status == 'contract_pending' ||
         account.currentAgreementStatus != 'signed') {
-      if (location != '/agreement') {
-        return '/agreement';
+      if (account.status == 'active') {
+        // Renewed agreements gate contractual actions while active producers
+        // retain read access to their dashboard and owned Analytics.
+        if ({'/', '/register', '/onboarding'}.contains(location)) {
+          return '/dashboard';
+        }
+        return null;
       }
+      if (location != '/agreement') return '/agreement';
       return null;
     }
 
@@ -95,6 +107,20 @@ final appRouter = GoRouter(
       path: '/faq',
       pageBuilder: (context, state) =>
           MaterialPage(key: state.pageKey, child: const ProducerFaqPage()),
+    ),
+    GoRoute(
+      path: '/support',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const HelpSupportPage(),
+      ),
+    ),
+    GoRoute(
+      path: '/eke',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const ProducerEkePage(),
+      ),
     ),
     GoRoute(
       path: '/verify-email',

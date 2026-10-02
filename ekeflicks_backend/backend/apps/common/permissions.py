@@ -95,6 +95,28 @@ def is_active_producer_user(user):
     ).exists()
 
 
+def is_active_producer_analytics_user(user):
+    """Allow an active producer to read their own analytics.
+
+    Analytics are scoped to content owned by the authenticated producer. The
+    dashboard should remain available when an otherwise active account is
+    asked to accept a newly published agreement; agreement gating belongs on
+    upload and finance operations, not read-only reporting.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_staff:
+        return True
+    account = getattr(user, 'producer_account', None)
+    return bool(
+        user.is_active
+        and getattr(user, 'is_verified', False)
+        and getattr(user, 'is_producer', False)
+        and account is not None
+        and account.status == 'active'
+    )
+
+
 class IsAdminOrProducerOwnerOrReadOnly(permissions.BasePermission):
     """
     Public reads.

@@ -908,4 +908,349 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get supportedFormats => 'Formats supportés: MP4, AVI, MOV, etc.';
+
+  @override
+  String get dashboardApprovedContents => 'Contenus approuvés';
+
+  @override
+  String get dashboardPendingReview => 'En attente de validation';
+
+  @override
+  String get dashboardDraftContents => 'Brouillons';
+
+  @override
+  String get dashboardEligibleBalance => 'Solde des vues éligibles';
+
+  @override
+  String get dashboardQualifiedViews => 'Vues qualifiées (30 j)';
+
+  @override
+  String get dashboardUniqueViewers => 'Spectateurs uniques (30 j)';
+
+  @override
+  String get dashboardEngagementRate => 'Taux d’engagement (30 j)';
+
+  @override
+  String get dashboardLast30Days =>
+      'Audience sur 30 jours · statut actuel des contenus et solde éligible';
+
+  @override
+  String get dashboardPartialLoadError =>
+      'Certaines données n’ont pas pu être actualisées.';
+
+  @override
+  String get dashboardLoadError => 'Impossible de charger le tableau de bord.';
+
+  @override
+  String get dashboardNoRecentActivity => 'Aucune activité récente.';
+
+  @override
+  String get notificationsMarkAllRead => 'Tout marquer comme lu';
+
+  @override
+  String get notificationsLoadError =>
+      'Impossible de charger les notifications.';
+
+  @override
+  String get notificationsUpdateError =>
+      'La mise à jour n’a pas abouti. Réessayez.';
+
+  @override
+  String get notificationsEmpty => 'Aucune notification pour le moment.';
+
+  @override
+  String get retry => 'Réessayer';
+
+  @override
+  String get analyticsTitle => 'Analytics';
+  @override
+  String get analyticsSubtitle => 'Performance réelle de vos contenus';
+  @override
+  String get analyticsLoadError => 'Impossible de charger les données Analytics.';
+  @override
+  String get analyticsUnavailable => 'Données Analytics indisponibles.';
+  @override
+  String get analyticsRefreshError => 'Les données n’ont pas pu être actualisées.';
+  @override
+  String get analyticsNoData => 'Aucune donnée Analytics disponible pour cette période.';
+  @override
+  String get analyticsQualifiedViews => 'Vues qualifiées';
+  @override
+  String get analyticsUniqueViewers => 'Spectateurs uniques';
+  @override
+  String get analyticsWatchTime => 'Temps de visionnage';
+  @override
+  String get analyticsCompletedViews => 'Lectures terminées';
+  @override
+  String get analyticsEngagement => 'Engagement';
+  @override
+  String get analyticsLikes => 'J’aime';
+  @override
+  String get analyticsUnlikes => 'Je n’aime pas';
+  @override
+  String get analyticsNetLikes => 'J’aime nets';
+  @override
+  String get analyticsCurrentLikes => 'J’aime actuels';
+  @override
+  String get analyticsEngagedUsers => 'Utilisateurs engagés';
+  @override
+  String get analyticsEngagementRate => 'Taux d’engagement';
+  @override
+  String get analyticsQualifiedViewsByContent => 'Vues qualifiées par contenu';
+  @override
+  String get analyticsContentPerformance => 'Performance des contenus';
+  @override
+  String get analyticsViews => 'Vues';
+  @override
+  String get analyticsQualification => 'Qualification';
+  @override
+  String get analyticsContentFallback => 'Contenu';
+  @override
+  String get analyticsStarts => 'Démarrages';
+
+  @override
+  String get contentDetailsTitle => 'Détails du contenu';
+
+  @override
+  String get closeContentDetails => 'Fermer';
+
+  @override
+  String get contentStatusDraft => 'Brouillon';
+
+  @override
+  String get contentStatusPending => 'En validation';
+
+  @override
+  String get contentStatusApproved => 'Validé';
+
+  @override
+  String get contentStatusRejected => 'Refusé';
+
+  @override
+  String get contentStatusUnknown => 'Statut inconnu';
+
+  @override
+  String get contentTabOverview => 'Vue d’ensemble';
+
+  @override
+  String get contentTabAudience => 'Audience';
+
+  @override
+  String get contentTabMedia => 'Médias';
+
+  @override
+  String get contentTabTechnical => 'Technique';
+
+  @override
+  String get contentTabSeasons => 'Saisons';
+
+  @override
+  String get contentInfoSection => 'Informations';
+
+  @override
+  String get contentTeamSection => 'Équipe';
+
+  @override
+  String get contentPublicationSection => 'Publication et validation';
+
+  @override
+  String get contentDirector => 'Réalisateur';
+
+  @override
+  String get contentScreenwriter => 'Scénariste';
+
+  @override
+  String get contentProducers => 'Producteurs';
+
+  @override
+  String get contentCast => 'Casting';
+
+  @override
+  String get contentCreatedAt => 'Créé';
+
+  @override
+  String get contentUpdatedAt => 'Mis à jour';
+
+  @override
+  String get contentPublishedAt => 'Publication';
+
+  @override
+  String get contentReviewReason => 'Motif';
+
+  @override
+  String get contentViewing => 'Visionnage';
+
+  @override
+  String get contentPerformance => 'Performance';
+
+  @override
+  String get contentStarts => 'Démarrages';
+
+  @override
+  String get contentCompletionRate => 'Taux de qualification';
+
+  @override
+  String get contentAverageCompletion => 'Complétion moyenne';
+
+  @override
+  String get contentLikedUsers => 'Utilisateurs ayant aimé';
+
+  @override
+  String get contentNoMedia => 'Aucun média disponible pour ce contenu.';
+
+  @override
+  String get contentPoster => 'Affiche';
+
+  @override
+  String get contentBanner => 'Bannière';
+
+  @override
+  String get contentTrailer => 'Bande-annonce';
+
+  @override
+  String get contentMasterLoading => 'Master — chargement…';
+
+  @override
+  String get contentMaster => 'Master';
+
+  @override
+  String get filterAll => 'Tous';
+
+  @override
+  String get filterDrafts => 'Brouillons';
+
+  @override
+  String get filterPending => 'En validation';
+
+  @override
+  String get filterApproved => 'Validés';
+
+  @override
+  String get filterRejected => 'Refusés';
+
+  @override
+  String get moviesPageTitle => 'Mes films';
+
+  @override
+  String get seriesPageTitle => 'Mes séries';
+
+  @override
+  String get contentNoMovies => 'Aucun film';
+
+  @override
+  String get contentNoSeries => 'Aucune série';
+
+  @override
+  String get contentLoadingMoviesError => 'Impossible de charger vos films.';
+
+  @override
+  String get contentLoadingSeriesError => 'Impossible de charger vos séries.';
+
+  @override
+  String contentUpdatedOn(Object date) => 'Modifié le $date';
+
+  @override
+  String get deleteDraftQuestion => 'Supprimer ce brouillon ?';
+
+  @override
+  String get deleteDraftConfirm => 'Supprimer';
+
+  @override
+  String get draftDeleted => 'Brouillon supprimé';
+
+  @override
+  String get draftDeletedSuccess => 'Le brouillon a été supprimé avec succès.';
+
+  @override
+  String get deleteFailed => 'Suppression impossible';
+
+  @override
+  String draftDeleteWarning(Object days) => 'Ce brouillon sera supprimé automatiquement dans $days jours.';
+
+  @override
+  String get draftDeleteSoon => 'Suppression automatique imminente';
+
+  @override
+  String get contentNeedsCorrection => 'Ce contenu doit être corrigé avant une nouvelle soumission.';
+
+  @override
+  String get contentPendingReviewFilm => 'Votre film est en cours de validation par EKEFLICKS.';
+
+  @override
+  String get contentApprovedFilm => 'Votre film a été validé par EKEFLICKS.';
+
+  @override
+  String get continueEditing => 'Continuer';
+
+  @override
+  String get correctContent => 'Corriger';
+
+  @override
+  String get refresh => 'Actualiser';
+
+  @override
+  String get addContent => 'Ajouter un contenu';
+
+  @override
+  String get myDrafts => 'Mes brouillons';
+
+  @override
+  String get originalTitle => 'Titre original';
+
+  @override
+  String get originalTitleHelp => 'Titre dans la langue originale du programme.';
+
+  @override
+  String get shortSynopsis => 'Synopsis court';
+
+  @override
+  String get shortSynopsisHelp => '150 à 300 caractères à la soumission finale.';
+
+  @override
+  String get longSynopsis => 'Synopsis long';
+
+  @override
+  String get longSynopsisHelp => 'Facultatif — recommandé entre 500 et 1000 caractères.';
+
+  @override
+  String get xmlImportTitle => 'Importer les métadonnées XML';
+
+  @override
+  String get xmlPreviewNotice => 'Le fichier est analysé sans enregistrer ni modifier le contenu.';
+
+  @override
+  String get xmlChooseTypeNotice => 'Sélectionnez d’abord le type de contenu (Film ou Série). Le modèle XML sera adapté au type choisi.';
+
+  @override
+  String get xmlDownloadTemplate => 'Télécharger le modèle XML';
+
+  @override
+  String get xmlAnalyzing => 'Analyse…';
+
+  @override
+  String get xmlImport => 'Importer un XML';
+
+  @override
+  String deleteDraftMovieBody(Object title) => 'Le film « $title » sera supprimé définitivement. Les fichiers temporaires associés seront également supprimés. Cette action est irréversible.';
+
+  @override
+  String deleteDraftSeriesBody(Object title) => 'La série « $title » sera supprimée définitivement. Les fichiers temporaires associés seront également supprimés. Cette action est irréversible.';
+
+  @override
+  String get contentPendingReviewSeries => 'Votre série est en cours de validation par EKEFLICKS.';
+
+  @override
+  String get contentApprovedSeries => 'Votre série a été validée par EKEFLICKS.';
+
+  @override
+  String get notProvided => 'Non renseigné';
+
+  @override
+  String get contentNoSynopsis => 'Aucun synopsis renseigné.';
+
+  @override
+  String get contentDuration => 'Durée';
+
+  @override
+  String get contentClassification => 'Classification';
 }

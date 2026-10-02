@@ -3,6 +3,7 @@ from .base import TimeStampedModel
 from .users import (
     AccountClosureRequest,
     EmailChangeSupportRequest,
+    ProducerSupportRequest,
     EmailVerificationToken,
     PasswordResetToken,
     User,
@@ -19,7 +20,7 @@ from .recommendations import Recommendation, TrendingCache, ContentSimilarity
 from .subscriptions import SubscriptionPlan, SubscriptionPlanOffer, Subscription, Payment, PaymentWebhookEvent, ProducerPayoutRequest
 from .streaming import VideoAsset, VideoRendition, SubtitleTrack, OfflineDownloadLicense, PlaybackLicense, MediaAnalysisReport
 from .trailer_analysis import TrailerAnalysisReport
-from .analytics import DailyStat, ProducerContentView, ProducerCountryCurrency, ProducerRevenueSetting, ViewingSession
+from .analytics import DailyStat, ProducerAdvertisingRevenue, ProducerContentView, ProducerCountryCurrency, ProducerRevenueSetting, ViewingSession
 from .notifications import NotificationType, Notification
 from .producers import (
     ProducerAccount,
@@ -32,7 +33,7 @@ from .users import User
 __all__ = [
     'TimeStampedModel',
     'User', 'UserSession', 'AdminMFADevice', 'AdminAuditLog', 'AccountClosureRequest',
-    'EmailVerificationToken', 'PasswordResetToken', 'EmailChangeSupportRequest',
+    'EmailVerificationToken', 'PasswordResetToken', 'EmailChangeSupportRequest', 'ProducerSupportRequest',
     'ProfileType', 'Profile', 'ParentalPinResetToken',
     'Genre', 'Emission', 'ContentStatus', 'Content', 'ContentGenre', 'ContentEmission',
     'Season', 'Episode',
@@ -42,7 +43,12 @@ __all__ = [
     'SubscriptionPlan', 'SubscriptionPlanOffer', 'Subscription', 'Payment', 'PaymentWebhookEvent', 'ProducerPayoutRequest',
     'VideoAsset', 'VideoRendition', 'SubtitleTrack', 'OfflineDownloadLicense', 'PlaybackLicense', 'MediaAnalysisReport', 'TrailerAnalysisReport',
     'ViewingSession', 'DailyStat', 'ProducerRevenueSetting', 'ProducerCountryCurrency', 'ProducerContentView',
+    'ProducerAdvertisingRevenue',
     'NotificationType', 'Notification',
     'ProducerAccount', 'ProducerContractVersion', 'ProducerAgreement',
 ]
 from .technical_specification import TechnicalSpecification
+from .finance_security import ProducerFinanceAccess
+from .faq import FrequentlyAskedQuestion
+__all__.append('ProducerFinanceAccess')
+__all__.append('FrequentlyAskedQuestion')

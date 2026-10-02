@@ -78,7 +78,7 @@ def record_producer_viewing_session(session):
         return None
 
     amount_eur = (Decimal(setting.rate_per_1000_views_eur) / Decimal('1000')).quantize(
-        Decimal('0.000001'),
+        Decimal('0.000000001'),
         rounding=ROUND_HALF_UP,
     )
     currency, amount_local = convert_eur_for_producer(amount_eur, producer)
@@ -4476,6 +4476,13 @@ def producer_analytics_content_ids(user):
     )
 
 
+def producer_demo_analytics_enabled(user):
+    """Return the explicit, per-account switch for isolated demo events."""
+    preferences = getattr(user, 'preferences', None) or {}
+    demo = preferences.get('producer_demo_data', {}) if isinstance(preferences, dict) else {}
+    return isinstance(demo, dict) and demo.get('analytics_enabled') is True
+
+
 # ---------------------------------------------------------------------------
 # G5-1D8-B2 — Producer-owned video KPI analytics
 # ---------------------------------------------------------------------------
@@ -4487,6 +4494,7 @@ def producer_content_video_analytics(
     allowed_content_ids,
     limit=100,
     client=None,
+    include_test=False,
 ):
     """
     Aggregate D4 video KPIs only for PostgreSQL-authorized producer contents.
@@ -4667,7 +4675,7 @@ def producer_content_video_analytics(
                 )
 
                 AND is_internal = 0
-                AND is_test = 0
+                AND (is_test = 0 OR ({include_test:Bool} AND is_test = 1))
 
                 AND viewing_session_id
                     IS NOT NULL
@@ -4712,6 +4720,9 @@ def producer_content_video_analytics(
 
             'limit':
                 limit,
+
+            'include_test':
+                bool(include_test),
         },
     )
 
@@ -4797,6 +4808,7 @@ def producer_engagement_analytics(
     *,
     allowed_content_ids,
     client=None,
+    include_test=False,
 ):
     """
     Producer-owned like / engagement KPIs.
@@ -4929,7 +4941,7 @@ def producer_engagement_analytics(
                 )
 
                 AND is_internal = 0
-                AND is_test = 0
+                AND (is_test = 0 OR ({include_test:Bool} AND is_test = 1))
 
                 AND content_id IS NOT NULL
 
@@ -4970,7 +4982,7 @@ def producer_engagement_analytics(
                 )
 
                 AND is_internal = 0
-                AND is_test = 0
+                AND (is_test = 0 OR ({include_test:Bool} AND is_test = 1))
 
                 AND viewing_session_id
                     IS NOT NULL
@@ -5034,6 +5046,9 @@ def producer_engagement_analytics(
 
             'allowed_content_ids':
                 normalized_ids,
+
+            'include_test':
+                bool(include_test),
         },
     )
 

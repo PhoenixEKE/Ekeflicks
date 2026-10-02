@@ -272,3 +272,25 @@ class EmailChangeSupportRequest(TimeStampedModel):
 
     def __str__(self):
         return f"{self.user.email} -> {self.requested_email} ({self.status})"
+
+
+class ProducerSupportRequest(TimeStampedModel):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('in_progress', 'In progress'),
+        ('resolved', 'Resolved'),
+        ('closed', 'Closed'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='producer_support_requests')
+    subject = models.CharField(max_length=180)
+    message = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    staff_reply = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'producer_support_requests'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.subject} ({self.status})'

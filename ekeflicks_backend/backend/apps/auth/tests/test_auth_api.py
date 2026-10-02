@@ -10,6 +10,7 @@ from core.models import (
     EmailChangeSupportRequest,
     EmailVerificationToken,
     PasswordResetToken,
+    ProducerSupportRequest,
     Profile,
     User,
     Subscription,
@@ -17,6 +18,25 @@ from core.models import (
 
 
 class AuthApiTests(APITestCase):
+    def test_producer_support_requests_are_saved_and_scoped_to_request_user(self):
+        user = User.objects.create_user(email='producer.support@example.com', password='StrongPass123')
+        other = User.objects.create_user(email='other.support@example.com', password='StrongPass123')
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse('producer-support-request-list'),
+            {'subject': 'Paiement', 'message': 'Je souhaite des informations sur mon prochain paiement.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(ProducerSupportRequest.objects.get().user, user)
+        ProducerSupportRequest.objects.create(user=other, subject='Autre', message='Demande privée d’un autre compte.')
+
+        listing = self.client.get(reverse('producer-support-request-list'))
+        self.assertEqual(listing.status_code, status.HTTP_200_OK)
+        self.assertEqual(listing.data['count'], 1)
+
     def test_login_accepts_phone_number(self):
         User.objects.create_user(
             email='phone.viewer@example.com',

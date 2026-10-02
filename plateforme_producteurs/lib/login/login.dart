@@ -83,6 +83,7 @@ class _LoginPageState extends State<LoginPage> {
       maxWidth: 500,
       scrollable: true,
       contentDecoration: true,
+      showEkeAssistant: false,
       actions: [
         IconButton(
           icon: const Icon(Icons.language),

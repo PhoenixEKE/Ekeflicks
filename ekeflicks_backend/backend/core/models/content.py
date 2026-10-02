@@ -11,6 +11,7 @@ class Genre(models.Model):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
     description = models.TextField(blank=True)
+    translations = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -73,6 +74,9 @@ class Content(TimeStampedModel):
     original_title = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True)
     synopsis = models.TextField(blank=True)
+    # Cached machine translations keyed by target language.  Source fields
+    # remain authoritative; entries are used only while their source hash matches.
+    translations = models.JSONField(default=dict, blank=True)
 
     type = models.CharField(
         max_length=20,

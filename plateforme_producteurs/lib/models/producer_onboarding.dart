@@ -121,6 +121,11 @@ class ProducerAgreement {
   final String? ekeflicksSignerName;
   final String? ekeflicksSignerRole;
   final DateTime? ekeflicksSignedAt;
+  final String? remunerationCurrency;
+  final String? remunerationRateLocal;
+  final String? minimumPayoutLocal;
+  final String? eligibleProgressPercent;
+  final String? advertisingSharePercent;
 
   const ProducerAgreement({
     this.id,
@@ -150,9 +155,17 @@ class ProducerAgreement {
     this.ekeflicksSignerName,
     this.ekeflicksSignerRole,
     this.ekeflicksSignedAt,
+    this.remunerationCurrency,
+    this.remunerationRateLocal,
+    this.minimumPayoutLocal,
+    this.eligibleProgressPercent,
+    this.advertisingSharePercent,
   });
 
   factory ProducerAgreement.fromJson(Map<String, dynamic> json) {
+    final localSummary = json['local_currency_summary'] is Map
+        ? Map<String, dynamic>.from(json['local_currency_summary'] as Map)
+        : <String, dynamic>{};
     DateTime? parseDate(dynamic value) {
       if (value == null) return null;
 
@@ -197,6 +210,11 @@ class ProducerAgreement {
       ekeflicksSignerName: json['ekeflicks_signer_name']?.toString(),
       ekeflicksSignerRole: json['ekeflicks_signer_role']?.toString(),
       ekeflicksSignedAt: parseDate(json['ekeflicks_signed_at']),
+      remunerationCurrency: localSummary['currency']?.toString(),
+      remunerationRateLocal: localSummary['rate_per_1000_views']?.toString(),
+      minimumPayoutLocal: localSummary['minimum_payout']?.toString(),
+      eligibleProgressPercent: localSummary['eligible_progress_percent']?.toString(),
+      advertisingSharePercent: localSummary['advertising_share_percent']?.toString(),
     );
   }
 

@@ -14,6 +14,12 @@ from django.core.files.storage import default_storage
 from django.core.files.storage import storages
 from django.utils import timezone
 
+from apps.streaming.packet_probe import (
+    frame_timing_from_lines,
+    keyframes_from_lines,
+    probe_video_packets,
+)
+from apps.streaming.source_download import copy_storage_source
 from apps.streaming.storage_paths import (
     build_final_dash_path,
     build_final_hls_path,
@@ -44,6 +50,11 @@ DEFAULT_RENDITIONS = [
     {'quality': '720p', 'width': 1280, 'height': 720, 'bandwidth': 2800000},
     {'quality': '1080p', 'width': 1920, 'height': 1080, 'bandwidth': 5000000},
 ]
+
+# Black/freeze decisions target long events (2s / 3s). Sampling the detection
+# filters at 5fps caps timestamp quantization at 0.2s and leaves the full source
+# decode plus independent 5s moderation sampling intact.
+QC_DETECTION_FPS = 5
 
 
 def _published_technical_specification():
@@ -138,15 +149,16 @@ def _materialize_storage_input(
             / Path(storage_path).name
         )
 
-        with selected_storage.open(
-            storage_path,
-            "rb",
-        ) as source_file:
-            with local_source.open(
-                "wb",
-            ) as destination:
-                for chunk in source_file.chunks():
-                    destination.write(chunk)
+        try:
+            with selected_storage.open(storage_path, "rb") as source_file:
+                with local_source.open("wb") as destination:
+                    copy_storage_source(
+                        source_file, destination, selected_storage,
+                    )
+        except Exception:
+            # A failed transfer must never leave a usable-looking partial master.
+            local_source.unlink(missing_ok=True)
+            raise
 
         return str(local_source)
 
@@ -358,33 +370,6 @@ def _probe_frame_timing(source_input):
         str(source_input),
     ]
 
-    timestamp_limit = 500
-
-    def unavailable(
-        frame_count=0,
-        timestamps=None,
-    ):
-        return {
-            "available": False,
-            "frame_count": frame_count,
-            "is_constant": None,
-            "median_delta_seconds": None,
-            "min_delta_seconds": None,
-            "max_delta_seconds": None,
-            "max_deviation_seconds": None,
-            "relative_max_deviation": None,
-            "timestamps": [
-                round(value, 6)
-                for value in (
-                    timestamps or []
-                )[:timestamp_limit]
-            ],
-            "timestamps_truncated": (
-                frame_count > timestamp_limit
-            ),
-            "probe_source": "packets",
-        }
-
     process = None
 
     try:
@@ -400,7 +385,7 @@ def _probe_frame_timing(source_input):
         )
 
         if process.returncode != 0:
-            return unavailable()
+            return frame_timing_from_lines(())
 
     except subprocess.TimeoutExpired:
         if (
@@ -410,7 +395,7 @@ def _probe_frame_timing(source_input):
             process.kill()
             process.communicate()
 
-        return unavailable()
+        return frame_timing_from_lines(())
 
     except (
         subprocess.SubprocessError,
@@ -423,227 +408,9 @@ def _probe_frame_timing(source_input):
             process.kill()
             process.communicate()
 
-        return unavailable()
+        return frame_timing_from_lines(())
 
-    timestamps = []
-    durations = []
-
-    for raw_line in (
-        stdout or ""
-    ).splitlines():
-        line = raw_line.strip()
-
-        if not line:
-            continue
-
-        values = [
-            value.strip()
-            for value in line.split(",")
-        ]
-
-        while len(values) < 3:
-            values.append("")
-
-        raw_pts = values[0]
-        raw_dts = values[1]
-        raw_duration = values[2]
-
-        timestamp = None
-
-        for candidate in (
-            raw_pts,
-            raw_dts,
-        ):
-            if candidate in {
-                "",
-                "N/A",
-            }:
-                continue
-
-            try:
-                timestamp = float(
-                    candidate
-                )
-                break
-            except (
-                TypeError,
-                ValueError,
-            ):
-                continue
-
-        if timestamp is not None:
-            timestamps.append(
-                timestamp
-            )
-
-        if raw_duration not in {
-            "",
-            "N/A",
-        }:
-            try:
-                duration = float(
-                    raw_duration
-                )
-            except (
-                TypeError,
-                ValueError,
-            ):
-                duration = None
-
-            if (
-                duration is not None
-                and duration > 0
-            ):
-                durations.append(
-                    duration
-                )
-
-    frame_count = len(timestamps)
-
-    if frame_count < 3:
-        return unavailable(
-            frame_count,
-            timestamps,
-        )
-
-    # Packet PTS/DTS may be emitted in decode order.
-    # With B-frames this order is legitimately non-monotonic,
-    # so adjacent packet timestamps must not be interpreted as
-    # presentation-frame intervals.
-    #
-    # When FFprobe provides a positive duration for every
-    # observed video packet, packet duration is the direct
-    # temporal observation used for CFR/VFR verification.
-    #
-    # The historical timestamp-delta path remains the fallback
-    # for inputs where packet durations are incomplete.
-    ordered = timestamps
-
-    complete_packet_durations = (
-        len(durations) == frame_count
-        and frame_count >= 3
-    )
-
-    if complete_packet_durations:
-        deltas = durations
-        timing_observation_source = (
-            "packet_duration"
-        )
-    else:
-        deltas = [
-            ordered[index]
-            - ordered[index - 1]
-            for index in range(
-                1,
-                len(ordered),
-            )
-            if (
-                ordered[index]
-                - ordered[index - 1]
-            ) > 0
-        ]
-        timing_observation_source = (
-            "timestamp_delta"
-        )
-
-    if len(deltas) < 2:
-        return unavailable(
-            frame_count,
-            ordered,
-        )
-
-    sorted_deltas = sorted(deltas)
-    count = len(sorted_deltas)
-    middle = count // 2
-
-    if count % 2:
-        median_delta = (
-            sorted_deltas[middle]
-        )
-    else:
-        median_delta = (
-            sorted_deltas[middle - 1]
-            + sorted_deltas[middle]
-        ) / 2.0
-
-    tolerance_seconds = max(
-        0.002,
-        median_delta * 0.05,
-    )
-
-    min_delta = min(deltas)
-    max_delta = max(deltas)
-
-    max_deviation = max(
-        abs(
-            delta - median_delta
-        )
-        for delta in deltas
-    )
-
-    is_constant = (
-        max_deviation
-        <= tolerance_seconds
-    )
-
-    relative_max_deviation = (
-        max_deviation
-        / median_delta
-        if median_delta > 0
-        else None
-    )
-
-    return {
-        "available": True,
-        "frame_count": frame_count,
-        "is_constant": is_constant,
-        "median_delta_seconds": round(
-            median_delta,
-            6,
-        ),
-        "min_delta_seconds": round(
-            min_delta,
-            6,
-        ),
-        "max_delta_seconds": round(
-            max_delta,
-            6,
-        ),
-        "max_deviation_seconds": round(
-            max_deviation,
-            6,
-        ),
-        "relative_max_deviation": (
-            round(
-                relative_max_deviation,
-                6,
-            )
-            if relative_max_deviation
-            is not None
-            else None
-        ),
-        "tolerance_seconds": round(
-            tolerance_seconds,
-            6,
-        ),
-        "timestamps": [
-            round(value, 6)
-            for value in ordered[
-                :timestamp_limit
-            ]
-        ],
-        "timestamps_truncated": (
-            len(ordered)
-            > timestamp_limit
-        ),
-        "probe_source": "packets",
-        "timing_observation_source": (
-            timing_observation_source
-        ),
-        "packet_duration_samples": (
-            len(durations)
-        ),
-    }
+    return frame_timing_from_lines((stdout or "").splitlines())
 
 
 def _probe_keyframe_intervals(source_input):
@@ -695,123 +462,7 @@ def _probe_keyframe_intervals(source_input):
             "probe_source": "packets",
         }
 
-    timestamps = []
-
-    for raw_line in (
-        result.stdout or ""
-    ).splitlines():
-        line = raw_line.strip()
-
-        if not line:
-            continue
-
-        values = [
-            value.strip()
-            for value in line.split(",")
-        ]
-
-        while len(values) < 3:
-            values.append("")
-
-        raw_pts = values[0]
-        raw_dts = values[1]
-        flags = values[2]
-
-        if "K" not in flags:
-            continue
-
-        raw_timestamp = None
-
-        for candidate in (
-            raw_pts,
-            raw_dts,
-        ):
-            if candidate not in {
-                "",
-                "N/A",
-            }:
-                raw_timestamp = candidate
-                break
-
-        if raw_timestamp is None:
-            continue
-
-        try:
-            value = float(
-                raw_timestamp
-            )
-        except (
-            TypeError,
-            ValueError,
-        ):
-            continue
-
-        if value < 0:
-            continue
-
-        timestamps.append(value)
-
-    timestamps = sorted(
-        set(timestamps)
-    )
-
-    intervals = [
-        round(
-            timestamps[index]
-            - timestamps[index - 1],
-            6,
-        )
-        for index in range(
-            1,
-            len(timestamps),
-        )
-        if (
-            timestamps[index]
-            - timestamps[index - 1]
-        ) >= 0
-    ]
-
-    max_interval = (
-        round(
-            max(intervals),
-            6,
-        )
-        if intervals
-        else None
-    )
-
-    average_interval = (
-        round(
-            sum(intervals)
-            / len(intervals),
-            6,
-        )
-        if intervals
-        else None
-    )
-
-    return {
-        "available": bool(
-            timestamps
-        ),
-        "keyframe_count": len(
-            timestamps
-        ),
-        "timestamps": [
-            round(value, 6)
-            for value in timestamps[:500]
-        ],
-        "timestamps_truncated": (
-            len(timestamps) > 500
-        ),
-        "max_interval_seconds": (
-            max_interval
-        ),
-        "average_interval_seconds": (
-            average_interval
-        ),
-        "probe_source": "packets",
-    }
+    return keyframes_from_lines((result.stdout or "").splitlines())
 
 
 def _parse_ffmpeg_events(stderr):
@@ -932,6 +583,7 @@ def _run_advanced_qc(
 
     def run_video_qc():
         video_filters = (
+            f'fps={QC_DETECTION_FPS},'
             'blackdetect=d=2.0:pix_th=0.10,'
             'freezedetect=n=-50dB:d=3.0'
         )
@@ -1451,88 +1103,14 @@ def analyze_video_asset(self, asset_id):
                 'version': 'g5-4c-action5-shared-video-decode-v1',
                 'shared_qc_moderation_decode': video_stream is not None,
                 'moderation_interval_seconds': DEFAULT_SAMPLE_INTERVAL_SECONDS,
+                'qc_detection_fps': QC_DETECTION_FPS,
+                'packet_probe_mode': 'shared_scan' if video_stream is not None else 'not_applicable',
             }
 
             if video_stream is not None:
-                _g5_probe_started = (
-                    time.monotonic()
-                )
-
-                with ThreadPoolExecutor(
-                    max_workers=2
-                ) as executor:
-                    def timed_keyframe_probe():
-                        started = time.monotonic()
-                        result = _probe_keyframe_intervals(
-                            source_input
-                        )
-                        return (
-                            result,
-                            time.monotonic() - started,
-                        )
-
-                    def timed_frame_timing_probe():
-                        started = time.monotonic()
-                        result = _probe_frame_timing(
-                            source_input
-                        )
-                        return (
-                            result,
-                            time.monotonic() - started,
-                        )
-
-                    keyframe_future = (
-                        executor.submit(
-                            timed_keyframe_probe
-                        )
-                    )
-
-                    frame_timing_future = (
-                        executor.submit(
-                            timed_frame_timing_probe
-                        )
-                    )
-
-                    (
-                        keyframe_qc,
-                        keyframe_elapsed,
-                    ) = keyframe_future.result()
-
-                    (
-                        frame_timing_qc,
-                        frame_timing_elapsed,
-                    ) = frame_timing_future.result()
-
-                _g5_probe_elapsed = (
-                    time.monotonic()
-                    - _g5_probe_started
-                )
-
-                print(
-                    f"G5_4_TIMING asset={asset_id} "
-                    "stage=keyframe_probe "
-                    "seconds="
-                    f"{keyframe_elapsed:.3f} "
-                    "mode=parallel_pair",
-                    flush=True,
-                )
-
-                print(
-                    f"G5_4_TIMING asset={asset_id} "
-                    "stage=frame_timing_probe "
-                    "seconds="
-                    f"{frame_timing_elapsed:.3f} "
-                    "mode=parallel_pair",
-                    flush=True,
-                )
-
-                print(
-                    f"G5_4_TIMING asset={asset_id} "
-                    "stage=probe_parallel_wall "
-                    "seconds="
-                    f"{_g5_probe_elapsed:.3f}",
-                    flush=True,
-                )
+                _g5_probe_started = time.monotonic()
+                keyframe_qc, frame_timing_qc = probe_video_packets(source_input)
+                _g5_mark("packet_probe_shared_wall", _g5_probe_started)
 
             else:
                 keyframe_qc = {

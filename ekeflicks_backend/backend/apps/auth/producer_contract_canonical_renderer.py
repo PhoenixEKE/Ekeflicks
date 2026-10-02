@@ -698,6 +698,7 @@ def render_db_presented_contract(
     contract_version,
     ekeflicks_signed_at,
     agreement=None,
+    language='fr',
 ):
     version = get_db_contract_version(
         contract_version
@@ -717,8 +718,23 @@ def render_db_presented_contract(
         agreement=agreement,
     )
 
+    canonical_text = version.canonical_content
+    if language not in {'fr', 'en'}:
+        language = 'fr'
+    if language != 'fr':
+        from apps.auth.producer_contract_versions import contract_content_sha256
+        entry = (version.canonical_content_translations or {}).get(language)
+        if (
+            not isinstance(entry, dict)
+            or entry.get('source_hash') != contract_content_sha256(version.canonical_content)
+            or entry.get('reviewed') is not True
+        ):
+            raise CanonicalContractRenderError(
+                "La version anglaise du contrat n'est pas publiée et vérifiée."
+            )
+        canonical_text = entry.get('value') or ''
     rendered_text = render_canonical_text(
-        version.canonical_content,
+        canonical_text,
         context,
     )
 

@@ -8,6 +8,8 @@ from django.utils.translation import gettext_lazy as _
 from core.models import (
     AccountClosureRequest,
     EmailChangeSupportRequest,
+    ProducerSupportRequest,
+    FrequentlyAskedQuestion,
     EmailVerificationToken,
     Genre,
     Content,
@@ -17,6 +19,7 @@ from core.models import (
     PasswordResetToken,
     PlaybackLicense,
     ProducerContentView,
+    ProducerAdvertisingRevenue,
     ProducerContractVersion,
     PlatformLegalIdentity,
     ProducerCountryCurrency,
@@ -84,6 +87,7 @@ class ContentAdmin(admin.ModelAdmin):
 
 @admin.register(ProducerContractVersion)
 class ProducerContractVersionAdmin(admin.ModelAdmin):
+    actions = ('queue_contract_translations',)
     list_display = (
         'version',
         'title',
@@ -135,6 +139,18 @@ class ProducerContractVersionAdmin(admin.ModelAdmin):
             },
         ),
         (
+            'Traductions contractuelles',
+            {
+                'fields': (
+                    'canonical_content_translations',
+                ),
+                'description': (
+                    'Traductions générées en brouillon. Vérifiez le texte et '
+                    'marquez reviewed=true en conservant le source_hash avant publication.'
+                ),
+            },
+        ),
+        (
             'Publication',
             {
                 'fields': (
@@ -170,6 +186,20 @@ class ProducerContractVersionAdmin(admin.ModelAdmin):
             )
 
         return tuple(dict.fromkeys(fields))
+
+    @admin.action(description='Generate or refresh bilingual draft translation')
+    def queue_contract_translations(self, request, queryset):
+        from apps.auth.tasks import translate_contract_version
+        queued = 0
+        for version in queryset.filter(
+            status__in=[
+                ProducerContractVersion.STATUS_DRAFT,
+                ProducerContractVersion.STATUS_PUBLISHED,
+            ]
+        ):
+            translate_contract_version.delay(str(version.pk))
+            queued += 1
+        self.message_user(request, f'{queued} contract translation task(s) queued.')
 
     def has_delete_permission(self, request, obj=None):
         if (
@@ -214,10 +244,25 @@ class ProducerContractVersionAdmin(admin.ModelAdmin):
             ProducerContractVersion.STATUS_PUBLISHED,
             ProducerContractVersion.STATUS_ARCHIVED,
         }:
-            raise ValueError(
-                'Une version contractuelle publiee ou archivee '
-                'est immuable. Creez une nouvelle version.'
-            )
+            previous = ProducerContractVersion.objects.filter(pk=obj.pk).values(
+                'version', 'title', 'status', 'effective_date',
+                'requires_reacceptance', 'canonical_content',
+            ).first()
+            immutable_values = {
+                'version': obj.version,
+                'title': obj.title,
+                'status': obj.status,
+                'effective_date': obj.effective_date,
+                'requires_reacceptance': obj.requires_reacceptance,
+                'canonical_content': normalize_contract_content(obj.canonical_content),
+            }
+            if previous != immutable_values:
+                raise ValueError(
+                    'Le texte et les paramètres publiés sont immuables; '
+                    'seules les traductions peuvent être complétées.'
+                )
+            super().save_model(request, obj, form, change)
+            return
 
         wants_publish = (
             obj.status
@@ -391,7 +436,7 @@ class PaymentWebhookEventAdmin(admin.ModelAdmin):
 
 @admin.register(ProducerRevenueSetting)
 class ProducerRevenueSettingAdmin(admin.ModelAdmin):
-    list_display = ('remuneration_enabled', 'eligible_progress_percent', 'rate_per_1000_views_eur', 'minimum_payout_eur', 'updated_at')
+    list_display = ('remuneration_enabled', 'eligible_progress_percent', 'rate_per_1000_views_eur', 'advertising_share_percent', 'minimum_payout_eur', 'updated_at')
 
 
 @admin.register(ProducerCountryCurrency)
@@ -407,6 +452,14 @@ class ProducerContentViewAdmin(admin.ModelAdmin):
     list_filter = ('status', 'currency', 'viewer_country_code')
     search_fields = ('content__title', 'producer__email')
     readonly_fields = ('counted_at',)
+
+
+@admin.register(ProducerAdvertisingRevenue)
+class ProducerAdvertisingRevenueAdmin(admin.ModelAdmin):
+    list_display = ('content', 'producer', 'period', 'net_revenue_eur', 'share_percent', 'producer_share_eur', 'status')
+    list_filter = ('status', 'period')
+    search_fields = ('content__title', 'producer__email', 'external_reference')
+    readonly_fields = ('producer_share_eur', 'created_at', 'updated_at')
 
 
 @admin.register(ProducerPayoutRequest)
@@ -447,6 +500,23 @@ class EmailChangeSupportRequestAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     search_fields = ('user__email', 'requested_email', 'reason', 'admin_reason')
     readonly_fields = ('created_at', 'updated_at', 'reviewed_at')
+
+
+@admin.register(ProducerSupportRequest)
+class ProducerSupportRequestAdmin(admin.ModelAdmin):
+    list_display = ('subject', 'user', 'status', 'created_at', 'updated_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('subject', 'message', 'user__email')
+    readonly_fields = ('user', 'created_at', 'updated_at')
+
+
+@admin.register(FrequentlyAskedQuestion)
+class FrequentlyAskedQuestionAdmin(admin.ModelAdmin):
+    list_display = ('audience', 'category', 'question_fr', 'sort_order', 'is_published', 'updated_at')
+    list_filter = ('audience', 'category', 'is_published')
+    search_fields = ('question_fr', 'answer_fr', 'question_en', 'answer_en')
+    ordering = ('audience', 'category', 'sort_order')
+    list_editable = ('sort_order', 'is_published')
 
 
 @admin.register(PlatformLegalIdentity)

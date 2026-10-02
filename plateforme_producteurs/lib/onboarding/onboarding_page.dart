@@ -387,7 +387,7 @@ class _ProducerOnboardingPageState extends State<ProducerOnboardingPage> {
     if (_loading) {
       return const ProducerAuthShell(
         title: 'Informations professionnelles',
-        showFaqButton: false,
+        showFaqButton: true,
         child: Center(
           child: Padding(
             padding: EdgeInsets.all(48),

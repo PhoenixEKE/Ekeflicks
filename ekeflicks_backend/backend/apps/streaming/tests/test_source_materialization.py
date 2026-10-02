@@ -143,3 +143,17 @@ class SourceMaterializationTests(
             result,
             "https://example.test/master.mov",
         )
+
+    def test_failed_remote_copy_removes_partial_file(self):
+        class BrokenSource(ChunkedSource):
+            def chunks(self):
+                yield b"partial-video"
+                raise OSError("interrupted download")
+
+        storage = MagicMock()
+        storage.path.side_effect = NotImplementedError
+        storage.open.return_value = BrokenSource(b"")
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(OSError, "interrupted download"):
+                _materialize_storage_input("uploads/master.mp4", Path(tmp), storage)
+            self.assertFalse((Path(tmp) / "master.mp4").exists())

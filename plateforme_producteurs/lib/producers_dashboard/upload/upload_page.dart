@@ -2231,8 +2231,33 @@ class _UploadPageState extends State<UploadPage> {
     );
   }
 
-  Future<XFile?> _pickImageFile() {
-    return _picker.pickImage(source: ImageSource.gallery);
+  Future<XFile?> _pickImageFile() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (sheetContext) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: const Icon(Icons.photo_library_outlined), title: Text(Localizations.localeOf(context).languageCode == 'en' ? 'Choose from library' : 'Choisir dans la galerie'), onTap: () => Navigator.pop(sheetContext, ImageSource.gallery)),
+        ListTile(leading: const Icon(Icons.photo_camera_outlined), title: Text(Localizations.localeOf(context).languageCode == 'en' ? 'Take a photo' : 'Prendre une photo'), onTap: () => Navigator.pop(sheetContext, ImageSource.camera)),
+      ])),
+    );
+    if (source == null) return null;
+    if (source == ImageSource.camera) {
+      try {
+        final preferences = await ProducerService.instance.getProducerPrivacyPreferences();
+        if (preferences['camera_enabled'] != true) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(Localizations.localeOf(context).languageCode == 'en'
+                ? 'Enable camera permission in My Account first.'
+                : 'Activez d’abord l’autorisation caméra dans Mon compte.'),
+          ));
+          return null;
+        }
+      } catch (error) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+        return null;
+      }
+    }
+    // The OS/browser asks for camera access only after the producer explicitly chooses this action.
+    return _picker.pickImage(source: source);
   }
 
   Future<XFile?> _pickVideoFile() {
@@ -5811,7 +5836,7 @@ class _UploadPageState extends State<UploadPage> {
               children: [
                 Expanded(
                   child: Text(
-                    'Ajouter un contenu',
+                    l10n.addContent,
                     style: AppTheme.textTitle.copyWith(fontSize: 24),
                   ),
                 ),
@@ -5823,8 +5848,8 @@ class _UploadPageState extends State<UploadPage> {
                             context: context,
                             barrierDismissible: true,
                             builder: (dialogContext) {
-                              return const ProducerModalShell(
-                                title: 'MES BROUILLONS',
+                              return ProducerModalShell(
+                                title: l10n.myDrafts.toUpperCase(),
                                 maxWidth: 1000,
                                 maxHeight: 760,
                                 insetPadding: EdgeInsets.symmetric(
@@ -5846,7 +5871,7 @@ class _UploadPageState extends State<UploadPage> {
                           }
                         },
                   icon: const Icon(Icons.folder_open_outlined),
-                  label: const Text('MES BROUILLONS'),
+                  label: Text(l10n.myDrafts.toUpperCase()),
                 ),
               ],
             ),
@@ -5866,7 +5891,7 @@ class _UploadPageState extends State<UploadPage> {
                     );
 
                 final xmlTitle = sectionTitle.isEmpty
-                    ? 'Import XML des métadonnées'
+                    ? l10n.xmlImportTitle
                     : sectionTitle;
 
                 return Container(
@@ -5896,16 +5921,14 @@ class _UploadPageState extends State<UploadPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Importer les métadonnées XML',
+                                      l10n.xmlImportTitle,
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                     SizedBox(height: 4),
                                     Text(
-                                      'Le fichier est analysé '
-                                      'sans enregistrer ni '
-                                      'modifier le contenu.',
+                                      l10n.xmlPreviewNotice,
                                     ),
                                     if (_contentType == null) ...[
                                       const SizedBox(height: 10),
@@ -5920,19 +5943,14 @@ class _UploadPageState extends State<UploadPage> {
                                             8,
                                           ),
                                         ),
-                                        child: const Row(
+                                        child: Row(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
                                             Icon(Icons.info_outline, size: 20),
                                             SizedBox(width: 8),
                                             Expanded(
-                                              child: Text(
-                                                'Avant de télécharger le modèle XML, '
-                                                'sélectionnez d’abord le type de contenu '
-                                                '(Film ou Série) ci-dessous. Le modèle '
-                                                'sera adapté au type choisi.',
-                                              ),
+                                              child: Text(l10n.xmlChooseTypeNotice),
                                             ),
                                           ],
                                         ),
@@ -5949,8 +5967,8 @@ class _UploadPageState extends State<UploadPage> {
                                   OutlinedButton.icon(
                                     onPressed: _downloadXmlTemplate,
                                     icon: const Icon(Icons.download_outlined),
-                                    label: const Text(
-                                      'TÉLÉCHARGER LE MODÈLE XML',
+                                    label: Text(
+                                      l10n.xmlDownloadTemplate.toUpperCase(),
                                     ),
                                   ),
                                   OutlinedButton.icon(
@@ -5968,8 +5986,8 @@ class _UploadPageState extends State<UploadPage> {
                                         : const Icon(Icons.upload_file),
                                     label: Text(
                                       _isLoadingXmlPreview
-                                          ? 'ANALYSE…'
-                                          : 'IMPORTER UN XML',
+                                          ? l10n.xmlAnalyzing.toUpperCase()
+                                          : l10n.xmlImport.toUpperCase(),
                                     ),
                                   ),
                                 ],
@@ -6002,7 +6020,11 @@ class _UploadPageState extends State<UploadPage> {
                   .map(
                     (e) => DropdownMenuItem(
                       value: e,
-                      child: Text(e.name.toUpperCase()),
+                      child: Text(
+                        e == ContentType.film
+                            ? l10n.moviesTab
+                            : l10n.seriesTab,
+                      ),
                     ),
                   )
                   .toList(),
@@ -6036,10 +6058,10 @@ class _UploadPageState extends State<UploadPage> {
             // TITRE ORIGINAL
             TextFormField(
               controller: originalTitleController,
-              decoration: const InputDecoration(
-                labelText: 'Titre original',
-                helperText: 'Titre dans la langue originale du programme.',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.originalTitle,
+                helperText: l10n.originalTitleHelp,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
@@ -6047,10 +6069,10 @@ class _UploadPageState extends State<UploadPage> {
             // SYNOPSIS COURT
             TextFormField(
               controller: synopsisController,
-              decoration: const InputDecoration(
-                labelText: 'Synopsis court',
-                helperText: '150 à 300 caractères à la soumission finale.',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.shortSynopsis,
+                helperText: l10n.shortSynopsisHelp,
+                border: const OutlineInputBorder(),
               ),
               minLines: 3,
               maxLines: 5,
@@ -6061,12 +6083,10 @@ class _UploadPageState extends State<UploadPage> {
             // SYNOPSIS LONG
             TextFormField(
               controller: descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Synopsis long',
-                helperText:
-                    'Facultatif — recommandé entre 500 et '
-                    '1000 caractères.',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.longSynopsis,
+                helperText: l10n.longSynopsisHelp,
+                border: const OutlineInputBorder(),
               ),
               minLines: 5,
               maxLines: 10,
@@ -6133,7 +6153,13 @@ class _UploadPageState extends State<UploadPage> {
                   .map(
                     (e) => DropdownMenuItem(
                       value: e,
-                      child: Text(e.name.toUpperCase()),
+                      child: Text(
+                        switch (e) {
+                          LanguageOption.francais => l10n.french,
+                          LanguageOption.anglais => l10n.english,
+                          LanguageOption.autres => l10n.otherOption,
+                        },
+                      ),
                     ),
                   )
                   .toList(),

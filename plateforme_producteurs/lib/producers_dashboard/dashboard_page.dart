@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:plateforme_producteurs/producers_dashboard/technical_specification_page.dart';
 import 'package:go_router/go_router.dart';
 import 'package:plateforme_producteurs/gen/app_localizations.dart';
+import 'package:plateforme_producteurs/models/producer_notification.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:plateforme_producteurs/core/core.dart';
 import 'package:plateforme_producteurs/providers/locale_provider.dart';
 import 'package:plateforme_producteurs/services/auth_service.dart';
+import 'package:plateforme_producteurs/services/producer_notification_service.dart';
 import 'package:plateforme_producteurs/widgets/producer_page_shell.dart';
+import 'package:plateforme_producteurs/widgets/producer_notifications_dialog.dart';
 
 import 'overview_page.dart';
 import 'analytics/analytics_page.dart';
@@ -15,9 +20,8 @@ import 'my_videos/films_tab.dart';
 import 'my_videos/series_tab.dart';
 import 'upload/upload_page.dart';
 import 'finance/finance_page.dart';
-import 'claims/claims_page.dart';
+import 'package:plateforme_producteurs/settings/help_support_page.dart';
 import 'profile/profile_page.dart';
-import 'package:plateforme_producteurs/widgets/producer_modal_shell.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -28,6 +32,9 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 0;
+  int _unreadNotificationCount = 0;
+  List<ProducerNotification> _notifications = const [];
+  Timer? _notificationRefreshTimer;
 
   String? _editingContentId;
   int? _editingOriginIndex;
@@ -36,6 +43,36 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     _checkAsset();
+    _refreshNotificationCount();
+    _notificationRefreshTimer = Timer.periodic(
+      const Duration(seconds: 60),
+      (_) => _refreshNotificationCount(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _notificationRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refreshNotificationCount() async {
+    try {
+      final inbox = await ProducerNotificationService.instance.getInbox();
+      _acceptNotificationInbox(inbox);
+    } catch (_) {
+      // The dashboard remains usable if notification delivery is unavailable.
+    }
+  }
+
+  Future<void> _acceptNotificationInbox(
+    ProducerNotificationInbox inbox,
+  ) async {
+    if (!mounted) return;
+    setState(() {
+      _unreadNotificationCount = inbox.unreadCount;
+      _notifications = inbox.notifications;
+    });
   }
 
   Future<void> _checkAsset() async {
@@ -86,9 +123,12 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
-  List<Widget> _buildPages(AppLocalizations l10n) {
+  List<Widget> _buildPages() {
     return [
-      const OverviewPage(),
+      OverviewPage(
+        notifications: _notifications,
+        onRefreshNotifications: _refreshNotificationCount,
+      ),
       const AnalyticsPage(),
       FilmsTab(
         onEditContent: (contentId) {
@@ -106,7 +146,7 @@ class _DashboardPageState extends State<DashboardPage> {
         onExit: _leaveContentEditor,
       ),
       const FinancePage(),
-      const ClaimsPage(),
+      const HelpSupportPage(embedded: true),
       const ProfilePage(),
     ];
   }
@@ -181,37 +221,46 @@ class _DashboardPageState extends State<DashboardPage> {
         title: _buildPageTitles(l10n)[_selectedIndex],
         padding: EdgeInsets.zero,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.language),
-            onPressed: localeProvider.toggleLocale,
-            tooltip: l10n.changeLanguage,
-          ),
           if (_selectedIndex == 0)
             IconButton(
+              tooltip: l10n.notificationsTitle,
               icon: Badge(
+                isLabelVisible: _unreadNotificationCount > 0,
+                label: Text(
+                  _unreadNotificationCount > 99
+                      ? '99+'
+                      : '$_unreadNotificationCount',
+                ),
                 backgroundColor: AppTheme.primary,
                 child: const Icon(Icons.notifications_none_rounded),
               ),
-              onPressed: () => _showNotifications(context, l10n),
+              onPressed: () => _showNotifications(context),
             ),
-          IconButton(
-            icon: const Icon(Icons.description_outlined),
-            tooltip: 'Cahier des charges technique',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const TechnicalSpecificationPage(),
-                ),
-              );
+          PopupMenuButton<int>(
+            tooltip: 'Options',
+            onSelected: (choice) {
+              if (choice == 0) localeProvider.toggleLocale();
+              if (choice == 1) {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const TechnicalSpecificationPage(),
+                  ),
+                );
+              }
+              if (choice == 2) _logout();
             },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: l10n.logout,
-            onPressed: _logout,
+            itemBuilder: (context) => [
+              PopupMenuItem(value: 0, child: Text(l10n.changeLanguage)),
+              const PopupMenuItem(value: 1, child: Text('Cahier des charges technique')),
+              PopupMenuItem(value: 2, child: Text(l10n.logout)),
+            ],
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Icon(Icons.more_vert),
+            ),
           ),
         ],
-        child: _buildPages(l10n)[_selectedIndex],
+        child: _buildPages()[_selectedIndex],
       ),
       bottomNavigationBar: _buildBottomNavBar(l10n),
     );
@@ -246,42 +295,11 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  void _showNotifications(BuildContext context, AppLocalizations l10n) {
-    showDialog(
+  void _showNotifications(BuildContext context) {
+    showDialog<void>(
       context: context,
-      builder: (context) => ProducerModalShell(
-        title: l10n.notificationsTitle,
-        maxWidth: 620,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.close, style: TextStyle(color: AppTheme.primary)),
-          ),
-        ],
-        child: SizedBox(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              ListTile(
-                title: Text(
-                  l10n.notificationNewComment,
-                  style: AppTheme.textBody,
-                ),
-                subtitle: Text(
-                  l10n.notificationOnContent("Mon Film - Episode 2"),
-                  style: AppTheme.textCaption,
-                ),
-                trailing: Text('12:30', style: AppTheme.textCaption),
-              ),
-              ListTile(
-                title: Text(l10n.notificationPayment, style: AppTheme.textBody),
-                subtitle: Text('+ 120,00 €', style: AppTheme.textCaption),
-                trailing: Text(l10n.yesterday, style: AppTheme.textCaption),
-              ),
-            ],
-          ),
-        ),
+      builder: (_) => ProducerNotificationsDialog(
+        onChanged: _acceptNotificationInbox,
       ),
     );
   }

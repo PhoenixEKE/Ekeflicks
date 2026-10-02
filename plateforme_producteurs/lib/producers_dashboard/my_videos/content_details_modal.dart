@@ -3,6 +3,7 @@ import 'package:video_player/video_player.dart';
 import 'package:intl/intl.dart';
 
 import 'package:plateforme_producteurs/core/core.dart';
+import 'package:plateforme_producteurs/gen/app_localizations.dart';
 import 'package:plateforme_producteurs/models/producer_analytics.dart';
 import 'package:plateforme_producteurs/models/technical_conformity_report.dart';
 import 'package:plateforme_producteurs/services/producer_service.dart';
@@ -18,17 +19,18 @@ class ContentDetailsModal extends StatefulWidget {
 
 class _ContentDetailsModalState extends State<ContentDetailsModal> {
   String _humanDateTime(dynamic raw) {
-    if (raw == null) return 'Non renseigné';
+    final l10n = AppLocalizations.of(context)!;
+    if (raw == null) return l10n.notProvided;
 
     final value = raw.toString().trim();
-    if (value.isEmpty) return 'Non renseigné';
+    if (value.isEmpty) return l10n.notProvided;
 
     final parsed = DateTime.tryParse(value);
     if (parsed == null) return value;
 
     final local = parsed.toLocal();
 
-    return DateFormat("d MMMM yyyy 'à' HH:mm", 'fr_FR').format(local);
+    return DateFormat.yMMMMd(l10n.localeName).add_Hm().format(local);
   }
 
   ProducerAnalyticsDetail? _analytics;
@@ -43,6 +45,8 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
   bool _filmMasterPreviewLoading = false;
 
   int _selectedTab = 0;
+  int _analyticsDays = 30;
+  int _analyticsGeneration = 0;
 
   Map<String, dynamic> get content => widget.content;
 
@@ -270,15 +274,24 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
     });
   }
 
-  Future<void> _loadAnalytics() async {
+  Future<void> _loadAnalytics({int? days}) async {
+    final generation = ++_analyticsGeneration;
+    final requestedDays = days ?? _analyticsDays;
     final id = _text('id', fallback: '');
+
+    if (mounted) {
+      setState(() {
+        _analyticsLoading = true;
+        _analyticsError = null;
+      });
+    }
 
     if (id.isEmpty) {
       if (!mounted) return;
 
       setState(() {
         _analyticsLoading = false;
-        _analyticsError = 'Identifiant du contenu indisponible.';
+        _analyticsError = AppLocalizations.of(context)!.analyticsUnavailable;
       });
 
       return;
@@ -286,46 +299,52 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
 
     try {
       final analytics = await ProducerService.instance
-          .getProducerContentAnalytics(id);
+          .getProducerContentAnalytics(id, days: requestedDays);
 
-      if (!mounted) return;
+      if (!mounted || generation != _analyticsGeneration) return;
 
       setState(() {
         _analytics = analytics;
+        _analyticsDays = requestedDays;
         _analyticsLoading = false;
         _analyticsError = null;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || generation != _analyticsGeneration) return;
 
       setState(() {
         _analyticsLoading = false;
-        _analyticsError = 'Analytics momentanément indisponibles.';
+        _analyticsError = AppLocalizations.of(context)!.analyticsLoadError;
       });
     }
   }
 
   String _text(String field, {String fallback = '—'}) {
-    final value = content[field]?.toString().trim() ?? '';
+    final localized = content['display_text'];
+    final value = localized is Map && localized[field] != null
+        ? localized[field].toString().trim()
+        : (content[field]?.toString().trim() ?? '');
     return value.isEmpty ? fallback : value;
   }
 
   String _status() {
-    return _text('producer_submission_status', fallback: 'unknown');
+    return _text('producer_submission_status', fallback: 'unknown')
+        .toLowerCase();
   }
 
   String _statusLabel() {
+    final l10n = AppLocalizations.of(context)!;
     switch (_status()) {
       case 'draft':
-        return 'Brouillon';
+        return l10n.contentStatusDraft;
       case 'pending':
-        return 'En validation';
+        return l10n.contentStatusPending;
       case 'approved':
-        return 'Validé';
+        return l10n.contentStatusApproved;
       case 'rejected':
-        return 'Refusé';
+        return l10n.contentStatusRejected;
       default:
-        return _status();
+        return l10n.contentStatusUnknown;
     }
   }
 
@@ -359,7 +378,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
 
   List<String> _genres() {
     return _maps('genres')
-        .map((item) => item['name']?.toString().trim() ?? '')
+        .map((item) => (item['display_name'] ?? item['name'])?.toString().trim() ?? '')
         .where((value) => value.isNotEmpty)
         .toList(growable: false);
   }
@@ -501,7 +520,9 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Fermer',
+                        tooltip: AppLocalizations.of(
+                          context,
+                        )!.closeContentDetails,
                         onPressed: () => Navigator.of(dialogContext).pop(),
                         icon: const Icon(
                           Icons.close_rounded,
@@ -842,6 +863,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
   }
 
   Widget _header() {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       height: 66,
       color: Colors.black,
@@ -867,7 +889,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
           const Spacer(),
           Flexible(
             child: Text(
-              'Détails du contenu',
+              l10n.contentDetailsTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
@@ -880,7 +902,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
           ),
           const SizedBox(width: 10),
           IconButton(
-            tooltip: 'Fermer',
+            tooltip: l10n.closeContentDetails,
             onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.close_rounded, color: Colors.white),
           ),
@@ -890,6 +912,8 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
   }
 
   Widget _hero() {
+    final compact = MediaQuery.sizeOf(context).width < 900;
+    final l10n = AppLocalizations.of(context)!;
     final poster = _isSeries
         ? _seriesHeroMedia(
             'poster_url',
@@ -926,7 +950,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
     final genres = _genres();
 
     final meta = <String>[
-      _isSeries ? 'SÉRIE' : 'FILM',
+      _isSeries ? l10n.seriesTab.toUpperCase() : l10n.moviesTab.toUpperCase(),
       _text('release_year', fallback: ''),
       if (!_isSeries) _durationLabel(content['duration']),
       _text('age_rating', fallback: ''),
@@ -935,7 +959,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
     final top10 = _top10Label();
 
     return Container(
-      height: 220,
+      height: compact ? 300 : 220,
       decoration: BoxDecoration(
         color: AppTheme.cardBackground,
         border: Border(
@@ -948,7 +972,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
         fit: StackFit.expand,
         children: [
           Positioned.fill(
-            left: 340,
+            left: compact ? 0 : 340,
             child: _networkImage(
               url: backdrop,
               fallbackIcon: _isSeries ? Icons.live_tv : Icons.movie,
@@ -973,12 +997,20 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
+            padding: EdgeInsets.fromLTRB(
+              compact ? 14 : 24,
+              compact ? 14 : 18,
+              compact ? 14 : 24,
+              compact ? 14 : 18,
+            ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: compact
+                  ? CrossAxisAlignment.start
+                  : CrossAxisAlignment.stretch,
               children: [
                 SizedBox(
-                  width: 122,
+                  width: compact ? 82 : 122,
+                  height: compact ? 122 : null,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: _networkImage(
@@ -990,7 +1022,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 22),
+                SizedBox(width: compact ? 12 : 22),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 5),
@@ -998,12 +1030,16 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _text('title', fallback: 'Sans titre'),
+                          _text(
+                            'title',
+                            fallback: AppLocalizations.of(context)!
+                                .analyticsContentFallback,
+                          ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: AppTheme.textPrimary,
-                            fontSize: 27,
+                            fontSize: compact ? 18 : 27,
                             height: 1.05,
                             fontWeight: FontWeight.w800,
                           ),
@@ -1052,7 +1088,8 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
                             'synopsis',
                             fallback: _text(
                               'description',
-                              fallback: 'Aucun synopsis renseigné.',
+                              fallback: AppLocalizations.of(context)!
+                                  .contentNoSynopsis,
                             ),
                           ),
                           maxLines: 3,
@@ -1067,7 +1104,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 220),
+                if (!compact) const SizedBox(width: 220),
               ],
             ),
           ),
@@ -1078,39 +1115,40 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
 
   Widget _kpiStrip() {
     final analytics = _analytics;
+    final l10n = AppLocalizations.of(context)!;
 
     final items = <_KpiData>[
       _KpiData(
         icon: Icons.play_circle_outline,
-        label: 'VUES',
+        label: l10n.analyticsViews.toUpperCase(),
         value: analytics == null
             ? '—'
             : _number(analytics.content.qualifiedViews),
       ),
       _KpiData(
         icon: Icons.people_outline,
-        label: 'SPECTATEURS',
+        label: l10n.analyticsUniqueViewers.toUpperCase(),
         value: analytics == null
             ? '—'
             : _number(analytics.content.uniqueViewers),
       ),
       _KpiData(
         icon: Icons.schedule_outlined,
-        label: 'WATCH TIME',
+        label: l10n.analyticsWatchTime.toUpperCase(),
         value: analytics == null
             ? '—'
             : _watchTime(analytics.content.watchSeconds),
       ),
       _KpiData(
         icon: Icons.thumb_up_alt_outlined,
-        label: 'LIKES',
+        label: l10n.analyticsLikes.toUpperCase(),
         value: analytics == null
             ? '—'
             : _number(analytics.engagement.currentLikes),
       ),
       _KpiData(
         icon: Icons.task_alt_outlined,
-        label: 'COMPLÉTION',
+        label: l10n.contentAverageCompletion.toUpperCase(),
         value: analytics == null
             ? '—'
             : '${analytics.content.completionRatePercent.toStringAsFixed(1)} %',
@@ -1128,7 +1166,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
           ),
         ),
       ),
-      child: _analyticsLoading
+      child: _analyticsLoading && analytics == null
           ? const Center(
               child: SizedBox(
                 width: 22,
@@ -1136,7 +1174,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             )
-          : _analyticsError != null
+          : _analyticsError != null && analytics == null
           ? Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -1160,7 +1198,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
 
                     _loadAnalytics();
                   },
-                  child: const Text('Réessayer'),
+                  child: Text(l10n.retry),
                 ),
               ],
             )
@@ -1220,12 +1258,13 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
   }
 
   List<String> get _tabs {
+    final l10n = AppLocalizations.of(context)!;
     return [
-      'Vue d’ensemble',
-      'Audience',
-      'Médias',
-      'Technique',
-      if (_isSeries) 'Saisons',
+      l10n.contentTabOverview,
+      l10n.contentTabAudience,
+      l10n.contentTabMedia,
+      l10n.contentTabTechnical,
+      if (_isSeries) l10n.contentTabSeasons,
     ];
   }
 
@@ -1293,16 +1332,16 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
 
   Widget _body() {
     final tabs = _tabs;
-    final tab = tabs[_selectedTab.clamp(0, tabs.length - 1)];
+    final tab = _selectedTab.clamp(0, tabs.length - 1);
 
     switch (tab) {
-      case 'Audience':
+      case 1:
         return _audience();
-      case 'Médias':
+      case 2:
         return _media();
-      case 'Technique':
+      case 3:
         return _technical();
-      case 'Saisons':
+      case 4:
         return _series();
       default:
         return _overview();
@@ -1310,54 +1349,55 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
   }
 
   Widget _overview() {
+    final l10n = AppLocalizations.of(context)!;
     final producers = _people('producer_team');
     final cast = _people('cast_team');
 
     return _contentGrid(
       children: [
         _panel(
-          title: 'Informations',
+          title: l10n.contentInfoSection,
           icon: Icons.info_outline,
           child: Column(
             children: [
-              _info('Type', _isSeries ? 'Série' : 'Film'),
-              _info('Année', _text('release_year')),
-              _info('Langue', _text('language')),
-              _info('Pays', _text('country')),
+              _info(l10n.contentTypeLabel, _isSeries ? l10n.seriesTab : l10n.moviesTab),
+              _info(l10n.yearLabel, _text('release_year')),
+              _info(l10n.languageLabel, _text('language')),
+              _info(l10n.countryLabel, _text('country')),
               if (!_isSeries)
-                _info('Durée', _durationLabel(content['duration'])),
-              _info('Classification', _text('age_rating')),
-              _info('Genres', _genres().isEmpty ? '—' : _genres().join(', ')),
+                _info(l10n.contentDuration, _durationLabel(content['duration'])),
+              _info(l10n.contentClassification, _text('age_rating')),
+              _info(l10n.genresLabel, _genres().isEmpty ? '—' : _genres().join(', ')),
             ],
           ),
         ),
         _panel(
-          title: 'Équipe',
+          title: l10n.contentTeamSection,
           icon: Icons.groups_outlined,
           child: Column(
             children: [
-              _info('Réalisateur', _text('director_name')),
-              _info('Scénariste', _text('screenwriter_name')),
+              _info(l10n.contentDirector, _text('director_name')),
+              _info(l10n.contentScreenwriter, _text('screenwriter_name')),
               _info(
-                'Producteurs',
+                l10n.contentProducers,
                 producers.isEmpty ? '—' : producers.join(', '),
               ),
-              _info('Casting', cast.isEmpty ? '—' : cast.join(', ')),
+              _info(l10n.contentCast, cast.isEmpty ? '—' : cast.join(', ')),
             ],
           ),
         ),
         _panel(
-          title: 'Publication & validation',
+          title: l10n.contentPublicationSection,
           icon: Icons.verified_outlined,
           child: Column(
             children: [
-              _info('Statut', _statusLabel()),
-              _info('Créé', _humanDateTime(content['created_at'])),
-              _info('Mis à jour', _humanDateTime(content['updated_at'])),
-              _info('Publication', _text('published_at')),
+              _info(l10n.status, _statusLabel()),
+              _info(l10n.contentCreatedAt, _humanDateTime(content['created_at'])),
+              _info(l10n.contentUpdatedAt, _humanDateTime(content['updated_at'])),
+              _info(l10n.contentPublishedAt, _text('published_at')),
               if (_text('review_reason', fallback: '').isNotEmpty)
                 _info(
-                  'Motif',
+                  l10n.contentReviewReason,
                   _text('review_reason'),
                   valueColor: AppTheme.error,
                 ),
@@ -1370,83 +1410,98 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
 
   Widget _audience() {
     final analytics = _analytics;
+    final l10n = AppLocalizations.of(context)!;
 
-    if (_analyticsLoading) {
+    if (_analyticsLoading && analytics == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
     if (analytics == null) {
       return _emptyState(
         Icons.analytics_outlined,
-        _analyticsError ?? 'Analytics indisponibles.',
+        _analyticsError ?? l10n.analyticsUnavailable,
       );
     }
 
     final engagement = analytics.engagement;
-
-    return _contentGrid(
+    final daySuffix = l10n.localeName.startsWith('fr') ? 'j' : 'd';
+    final panels = _contentGrid(
       children: [
         _panel(
-          title: 'Visionnage',
+          title: l10n.contentViewing,
           icon: Icons.ondemand_video_outlined,
           child: Column(
             children: [
-              _info('Démarrages', _number(analytics.content.playStarts)),
-              _info(
-                'Vues qualifiées',
-                _number(analytics.content.qualifiedViews),
-              ),
-              _info(
-                'Spectateurs uniques',
-                _number(analytics.content.uniqueViewers),
-              ),
-              _info(
-                'Temps de visionnage',
-                _watchTime(analytics.content.watchSeconds),
-              ),
-              _info(
-                'Vues complètes',
-                _number(analytics.content.completedViews),
-              ),
+              _info(l10n.contentStarts, _number(analytics.content.playStarts)),
+              _info(l10n.analyticsQualifiedViews, _number(analytics.content.qualifiedViews)),
+              _info(l10n.analyticsUniqueViewers, _number(analytics.content.uniqueViewers)),
+              _info(l10n.analyticsWatchTime, _watchTime(analytics.content.watchSeconds)),
+              _info(l10n.analyticsCompletedViews, _number(analytics.content.completedViews)),
             ],
           ),
         ),
         _panel(
-          title: 'Performance',
+          title: l10n.contentPerformance,
           icon: Icons.insights_outlined,
           child: Column(
             children: [
-              _info(
-                'Taux de qualification',
-                '${analytics.content.qualificationRatePercent.toStringAsFixed(1)} %',
-              ),
-              _info(
-                'Complétion moyenne',
-                '${analytics.content.completionRatePercent.toStringAsFixed(1)} %',
-              ),
-              _info(
-                'Taux d’engagement',
-                '${engagement.engagementRatePercent.toStringAsFixed(1)} %',
-              ),
+              _info(l10n.contentCompletionRate, '${analytics.content.qualificationRatePercent.toStringAsFixed(1)} %'),
+              _info(l10n.contentAverageCompletion, '${analytics.content.completionRatePercent.toStringAsFixed(1)} %'),
+              _info(l10n.analyticsEngagementRate, '${engagement.engagementRatePercent.toStringAsFixed(1)} %'),
             ],
           ),
         ),
         _panel(
-          title: 'Engagement',
+          title: l10n.analyticsEngagement,
           icon: Icons.favorite_border,
           child: Column(
             children: [
-              _info('Likes', _number(engagement.likes)),
-              _info('Unlikes', _number(engagement.unlikes)),
-              _info('Net likes', _number(engagement.netLikes)),
-              _info(
-                'Utilisateurs ayant liké',
-                _number(engagement.uniqueLikers),
-              ),
-              _info('Likes actuels', _number(engagement.currentLikes)),
+              _info(l10n.analyticsLikes, _number(engagement.likes)),
+              _info(l10n.analyticsUnlikes, _number(engagement.unlikes)),
+              _info(l10n.analyticsNetLikes, _number(engagement.netLikes)),
+              _info(l10n.contentLikedUsers, _number(engagement.uniqueLikers)),
+              _info(l10n.analyticsCurrentLikes, _number(engagement.currentLikes)),
             ],
           ),
         ),
+      ],
+    );
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              SegmentedButton<int>(
+                segments: [
+                  ButtonSegment(value: 7, label: Text('7 $daySuffix')),
+                  ButtonSegment(value: 30, label: Text('30 $daySuffix')),
+                  ButtonSegment(value: 90, label: Text('90 $daySuffix')),
+                ],
+                selected: {_analyticsDays},
+                onSelectionChanged: _analyticsLoading
+                    ? null
+                    : (selection) {
+                        if (selection.isNotEmpty) {
+                          _loadAnalytics(days: selection.first);
+                        }
+                      },
+              ),
+              IconButton(
+                tooltip: l10n.retry,
+                onPressed: _analyticsLoading ? null : _loadAnalytics,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
+        ),
+        if (_analyticsLoading) const LinearProgressIndicator(minHeight: 2),
+        Expanded(child: panels),
       ],
     );
   }
@@ -1531,7 +1586,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
       if (poster.isNotEmpty) {
         items.add(
           _mediaThumbnail(
-            title: 'Affiche',
+            title: AppLocalizations.of(context)!.contentPoster,
             url: poster,
             icon: Icons.movie_outlined,
             video: false,
@@ -1545,7 +1600,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
       if (banner.isNotEmpty) {
         items.add(
           _mediaThumbnail(
-            title: 'Bannière',
+              title: AppLocalizations.of(context)!.contentBanner,
             url: banner,
             icon: Icons.image_outlined,
             video: false,
@@ -1558,7 +1613,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
       if (trailer.isNotEmpty) {
         items.add(
           _mediaThumbnail(
-            title: 'Bande-annonce',
+              title: AppLocalizations.of(context)!.contentTrailer,
             url: trailer,
             icon: Icons.play_circle_outline_rounded,
             video: true,
@@ -1570,7 +1625,9 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
 
       items.add(
         _mediaThumbnail(
-          title: _filmMasterPreviewLoading ? 'Master — chargement…' : 'Master',
+          title: _filmMasterPreviewLoading
+              ? AppLocalizations.of(context)!.contentMasterLoading
+              : AppLocalizations.of(context)!.contentMaster,
           url: master,
           icon: Icons.video_library_outlined,
           video: true,
@@ -1583,7 +1640,7 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
     if (items.isEmpty) {
       return _emptyState(
         Icons.perm_media_outlined,
-        'Aucun média disponible pour ce contenu.',
+        AppLocalizations.of(context)!.contentNoMedia,
       );
     }
 
@@ -2421,18 +2478,16 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
 
   Widget _contentGrid({required List<Widget> children}) {
     return LayoutBuilder(
-      builder: (_, constraints) {
+      builder: (context, constraints) {
         if (constraints.maxWidth < 720) {
-          return Padding(
+          return ListView(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                for (var index = 0; index < children.length; index++) ...[
-                  children[index],
-                  if (index != children.length - 1) const SizedBox(height: 12),
-                ],
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                children[index],
+                if (index != children.length - 1) const SizedBox(height: 12),
               ],
-            ),
+            ],
           );
         }
 
@@ -2568,19 +2623,10 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
     return Column(
       children: [
         _header(),
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _hero(),
-                SizedBox(height: 116, child: _compactKpis()),
-                _tabsBar(),
-                SizedBox(height: 760, child: _body()),
-              ],
-            ),
-          ),
-        ),
+        _hero(),
+        SizedBox(height: 104, child: _compactKpis()),
+        _tabsBar(),
+        Expanded(child: _body()),
       ],
     );
   }
@@ -2588,31 +2634,31 @@ class _ContentDetailsModalState extends State<ContentDetailsModal> {
   Widget _compactKpis() {
     final analytics = _analytics;
 
-    if (_analyticsLoading) {
+    if (_analyticsLoading && analytics == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
     if (analytics == null) {
       return _emptyState(
         Icons.analytics_outlined,
-        _analyticsError ?? 'Analytics indisponibles.',
+        _analyticsError ?? AppLocalizations.of(context)!.analyticsUnavailable,
       );
     }
 
     final items = [
       _KpiData(
         icon: Icons.play_circle_outline,
-        label: 'VUES',
+        label: AppLocalizations.of(context)!.analyticsViews.toUpperCase(),
         value: _number(analytics.content.qualifiedViews),
       ),
       _KpiData(
         icon: Icons.people_outline,
-        label: 'SPECTATEURS',
+        label: AppLocalizations.of(context)!.analyticsUniqueViewers.toUpperCase(),
         value: _number(analytics.content.uniqueViewers),
       ),
       _KpiData(
         icon: Icons.thumb_up_alt_outlined,
-        label: 'LIKES',
+        label: AppLocalizations.of(context)!.analyticsLikes.toUpperCase(),
         value: _number(analytics.engagement.currentLikes),
       ),
     ];
