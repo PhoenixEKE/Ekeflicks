@@ -194,7 +194,8 @@ class StreamingApiTests(APITestCase):
         AXINOM_TENANT_ID='tenant-123',
         AXINOM_POLICY_ID='policy-456',
         AXINOM_COMMUNICATION_KEY_ID='key-1',
-        AXINOM_COMMUNICATION_KEY='secret',
+        AXINOM_COMMUNICATION_KEY='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        AXINOM_ACTIVE_USER_HMAC_SECRET='test-only-active-user-secret',
         AXINOM_WIDEVINE_LICENSE_URL='https://drm.ekeflicks.test/widevine',
         AXINOM_FAIRPLAY_LICENSE_URL='https://drm.ekeflicks.test/fairplay',
         AXINOM_FAIRPLAY_CERTIFICATE_URL='https://drm.ekeflicks.test/fairplay.cer',
@@ -202,7 +203,13 @@ class StreamingApiTests(APITestCase):
     )
     def test_axinom_android_offline_license_returns_widevine_entitlement(self):
         self.asset.drm_provider = 'axinom'
-        self.asset.save(update_fields=['drm_provider', 'updated_at'])
+        self.asset.drm_metadata = {
+            'key_ids': {
+                'cenc': ['11111111-1111-4111-8111-111111111111'],
+                'cbcs': ['22222222-2222-4222-8222-222222222222'],
+            },
+        }
+        self.asset.save(update_fields=['drm_provider', 'drm_metadata', 'updated_at'])
         self.client.force_authenticate(user=self.user)
 
         response = self.client.post(
@@ -227,7 +234,9 @@ class StreamingApiTests(APITestCase):
 
     @override_settings(
         AXINOM_DRM_ENABLED=True,
-        AXINOM_COMMUNICATION_KEY='secret',
+        AXINOM_COMMUNICATION_KEY_ID='key-1',
+        AXINOM_COMMUNICATION_KEY='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        AXINOM_ACTIVE_USER_HMAC_SECRET='test-only-active-user-secret',
         AXINOM_WIDEVINE_LICENSE_URL='https://drm.ekeflicks.test/widevine',
         AXINOM_FAIRPLAY_LICENSE_URL='https://drm.ekeflicks.test/fairplay',
         AXINOM_FAIRPLAY_CERTIFICATE_URL='https://drm.ekeflicks.test/fairplay.cer',
