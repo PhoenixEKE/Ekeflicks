@@ -188,11 +188,42 @@ class AdminContentSerializer(serializers.ModelSerializer):
 class AdminVideoAssetSerializer(serializers.ModelSerializer):
     content_title = serializers.CharField(source='content.title', read_only=True)
     producer_email = serializers.EmailField(source='content.producer.email', read_only=True)
+    analysis_report = serializers.SerializerMethodField()
+
+    def get_analysis_report(self, obj):
+        try:
+            report = obj.analysis_report
+        except Exception:
+            return None
+        return {
+            'status': report.status,
+            'container': report.container,
+            'video_codec': report.video_codec,
+            'audio_codec': report.audio_codec,
+            'width': report.width,
+            'height': report.height,
+            'frame_rate': report.frame_rate,
+            'video_bitrate': report.video_bitrate,
+            'audio_bitrate': report.audio_bitrate,
+            'duration_seconds': report.duration_seconds,
+            'audio_channels': report.audio_channels,
+            'sample_rate': report.sample_rate,
+            'loudness_lufs': report.loudness_lufs,
+            'black_frame_count': report.black_frame_count,
+            'freeze_frame_count': report.freeze_frame_count,
+            'technical_score': report.technical_score,
+            'moderation_scores': report.moderation_scores,
+            'detected_events': report.detected_events,
+            'flags': report.flags,
+            'technical_metadata': report.technical_metadata,
+            'error_message': report.error_message,
+            'analyzed_at': report.analyzed_at,
+        }
 
     class Meta:
         model = VideoAsset
         fields = ('id', 'title', 'content', 'content_title', 'producer_email', 'status',
-                  'moderation_status', 'moderation_reason', 'source_uploaded_at', 'moderated_at')
+                  'moderation_status', 'moderation_reason', 'source_uploaded_at', 'moderated_at', 'analysis_report')
 
 
 class AdminPayoutSerializer(serializers.ModelSerializer):
