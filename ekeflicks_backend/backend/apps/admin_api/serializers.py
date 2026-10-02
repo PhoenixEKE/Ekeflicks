@@ -1,4 +1,5 @@
 from django.contrib.auth.models import Group, Permission
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -193,7 +194,7 @@ class AdminVideoAssetSerializer(serializers.ModelSerializer):
     def get_analysis_report(self, obj):
         try:
             report = obj.analysis_report
-        except Exception:
+        except ObjectDoesNotExist:
             return None
         return {
             'status': report.status,
