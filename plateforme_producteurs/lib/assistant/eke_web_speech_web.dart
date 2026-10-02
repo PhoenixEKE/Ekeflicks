@@ -19,7 +19,7 @@ Future<bool> speakWithGender(String text, String language, String gender) async 
   bool matches(web.SpeechSynthesisVoice voice) {
     final name = voice.name.toLowerCase();
     if (feminine && name.contains('male') && !name.contains('female')) return false;
-    if (!feminine && name.contains('female')) return false;
+    if (!feminine && (name.contains('female') || name.contains('woman') || name.contains('femme'))) return false;
     return markers.any(name.contains);
   }
   web.SpeechSynthesisVoice? selected;
