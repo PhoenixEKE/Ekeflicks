@@ -494,7 +494,12 @@ class ProducerPayoutRequestViewSet(viewsets.ModelViewSet):
             raise exceptions.PermissionDenied('Un compte producteur est requis.')
         if producer.pk == request.user.pk:
             _require_finance_unlock(request.user)
-        return Response(producer_balance(producer))
+        from core.models import ProducerDemoEarning
+        show_demo = (
+            producer.pk == request.user.pk
+            and ProducerDemoEarning.objects.filter(producer=producer, seed_key='producer_portal_demo_v1').exists()
+        )
+        return Response(producer_balance(producer, include_demo=show_demo))
 
     @action(detail=True, methods=['post'])
     @transaction.atomic
