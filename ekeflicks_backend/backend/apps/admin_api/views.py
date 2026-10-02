@@ -2,6 +2,7 @@ import hashlib
 from datetime import timedelta
 
 from django.contrib.auth import authenticate
+from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import Group, Permission
 from django.db import transaction
 from django.db.models import Count, Prefetch, Sum, Q
@@ -461,7 +462,7 @@ class VideoModerationViewSet(viewsets.ReadOnlyModelViewSet):
     required_permission = 'core.view_videoasset'
 
     def get_queryset(self):
-        queryset = VideoAsset.objects.select_related('content', 'content__producer', 'moderated_by').order_by('-source_uploaded_at')
+        queryset = VideoAsset.objects.select_related('content', 'content__producer', 'moderated_by', 'analysis_report').order_by('-source_uploaded_at')
         state = self.request.query_params.get('status')
         search = self.request.query_params.get('search')
         if state:
@@ -482,7 +483,7 @@ class VideoModerationViewSet(viewsets.ReadOnlyModelViewSet):
         if decision == 'approved':
             try:
                 analysis_report = asset.analysis_report
-            except Exception as exc:
+            except ObjectDoesNotExist as exc:
                 raise exceptions.ValidationError({
                     'analysis_report': 'Le rapport QC/IA doit être disponible avant approbation.',
                 }) from exc
