@@ -228,7 +228,7 @@ def package_video_asset(asset, source_path, renditions, output_root, dash_root, 
     )
 
     safe_metadata.update({
-        "packaging_status": "ready",
+        "packaging_status": "packaged",
         "packaging_systems": ["widevine", "playready", "fairplay"],
         "manifests": {
             "widevine_hls": "master.m3u8",
