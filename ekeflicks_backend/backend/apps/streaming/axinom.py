@@ -215,7 +215,10 @@ def package_video_asset(asset, source_path, renditions, output_root, dash_root, 
             args.append(f"--hls_key_uri=skd://{uuid.UUID(hex=key_id)}:{iv}")
         if mpd_path:
             args.append(f"--mpd_output={mpd_path}")
-        subprocess.run(args, check=True, capture_output=True, text=True)
+        result = subprocess.run(args, check=False, capture_output=True, text=True)
+        if result.returncode:
+            # Do not include argv or captured output: Shaka argv contains raw keys.
+            raise RuntimeError(f"Axinom {scheme.upper()} packaging failed with exit code {result.returncode}.")
 
     run_packager(
         "cenc", cenc_key_id, cenc_key, "Widevine,PlayReady",
