@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -38,7 +40,7 @@ class AnalyticsApiTests(APITestCase):
 
         earning = ProducerContentView.objects.get(content=content, producer=producer)
         self.assertEqual(str(earning.progress_percent), '70.00')
-        self.assertEqual(str(earning.amount_eur), '0.001500')
+        self.assertEqual(earning.amount_eur, Decimal('0.001500'))
         self.assertEqual(earning.currency, 'XOF')
         self.assertEqual(earning.viewer_country_code, 'SN')
 
