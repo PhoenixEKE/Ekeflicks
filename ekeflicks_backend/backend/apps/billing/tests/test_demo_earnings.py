@@ -44,9 +44,9 @@ class ProducerDemoEarningsTests(TestCase):
         self.assertEqual(preview['content_earnings'][0]['total_eur'], Decimal('33.000000000'))
 
     def test_demo_earnings_never_fund_a_real_payout_request(self):
-        ProducerRevenueSetting.objects.create(
+        ProducerRevenueSetting.objects.update_or_create(
             pk=1,
-            minimum_payout_eur=Decimal('1'),
+            defaults={'minimum_payout_eur': Decimal('1')},
         )
         with self.assertRaises(serializers.ValidationError):
             create_payout_request(self.producer)
