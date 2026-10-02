@@ -286,13 +286,15 @@ class _FinancePageState extends State<FinancePage> {
     final earnings = (_balance['content_earnings'] as List? ?? const [])
         .whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
     final views = _balance['eligible_views'] ?? 0;
+    final demoMode = _balance['demo_mode'] == true;
     final minimum = _money(_balance['minimum_payout_local'] ?? _balance['minimum_payout_eur'], local: true);
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(padding: const EdgeInsets.all(20), children: [
         Text(_s(context, 'Mes finances', 'My finances'), style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 12),
-        _summaryCard(_s(context, 'Solde disponible', 'Available balance'), _money(_balance['amount_local'] ?? _balance['amount_eur'], local: true), Icons.account_balance_wallet_outlined),
+        _summaryCard(demoMode ? _s(context, 'Solde de démonstration', 'Demo balance') : _s(context, 'Solde disponible', 'Available balance'), _money(_balance['amount_local'] ?? _balance['amount_eur'], local: true), Icons.account_balance_wallet_outlined),
+        if (demoMode) Card(color: Colors.amber.withValues(alpha: .12), child: Padding(padding: const EdgeInsets.all(16), child: Text(_s(context, 'Données fictives de démonstration. Elles ne sont pas payables et peuvent être supprimées avec seed_producer_demo_data --clear.', 'Synthetic demo data. These amounts are not payable and can be removed with seed_producer_demo_data --clear.')))),
         _summaryCard(_s(context, 'Vues éligibles non payées', 'Unpaid eligible views'), '$views', Icons.visibility_outlined),
         _summaryCard(_s(context, 'Seuil minimum de paiement', 'Minimum payout threshold'), minimum, Icons.payments_outlined),
         Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(
@@ -311,7 +313,7 @@ class _FinancePageState extends State<FinancePage> {
         ))),
         const SizedBox(height: 12),
         FilledButton.icon(
-          onPressed: _working || (double.tryParse('${_balance['amount_eur']}') ?? 0) < (double.tryParse('${_balance['minimum_payout_eur']}') ?? 0) ? null : _requestPayout,
+          onPressed: demoMode || _working || (double.tryParse('${_balance['amount_eur']}') ?? 0) < (double.tryParse('${_balance['minimum_payout_eur']}') ?? 0) ? null : _requestPayout,
           icon: const Icon(Icons.payments_outlined),
           label: Text(_s(context, 'Demander un paiement', 'Request a payout')),
         ),
