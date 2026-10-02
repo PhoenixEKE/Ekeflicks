@@ -86,7 +86,7 @@ def record_producer_viewing_session(session):
 
     watched_seconds = int(session.duration_watched or 0)
     progress_percent = (Decimal(watched_seconds) * Decimal('100')) / Decimal(total_seconds)
-    if progress_percent <= Decimal(setting.eligible_progress_percent):
+    if progress_percent < Decimal(setting.eligible_progress_percent):
         return None
 
     amount_eur = (Decimal(setting.rate_per_1000_views_eur) / Decimal('1000')).quantize(
