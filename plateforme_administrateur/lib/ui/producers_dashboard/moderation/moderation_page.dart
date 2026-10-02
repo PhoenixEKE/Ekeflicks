@@ -42,6 +42,112 @@ class _ModerationPageState extends State<ModerationPage> {
     reason.dispose();
   }
 
+  Future<void> _reviewDrm(int id, String system, String decision) async {
+    final reason = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${decision == 'approved' ? 'Valider' : 'Rejeter'} ${system.toUpperCase()}'),
+        content: TextField(
+          controller: reason,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Motif / commentaire'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirmer')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      try {
+        await context.read<AdminApiClient>().reviewVideoDrm(
+          id,
+          system,
+          decision,
+          reason: reason.text,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${system.toUpperCase()} : ${decision == 'approved' ? 'validé' : 'rejeté'}')),
+          );
+          setState(_reload);
+        }
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Échec de la revue DRM : $error')),
+          );
+        }
+      }
+    }
+    reason.dispose();
+  }
+
+  Widget _drmReviews(Map<String, dynamic> item) {
+    if (item['drm_provider'] != 'axinom') return const SizedBox.shrink();
+    final metadata = item['drm_metadata'] is Map
+        ? Map<String, dynamic>.from(item['drm_metadata'] as Map)
+        : const <String, dynamic>{};
+    final validation = metadata['validation'] is Map
+        ? Map<String, dynamic>.from(metadata['validation'] as Map)
+        : const <String, dynamic>{};
+    final packaged = (metadata['packaging_systems'] as List?)
+            ?.map((value) => value.toString())
+            .toSet() ??
+        <String>{};
+    final ready = metadata['packaging_status'] == 'ready';
+    const systems = <String, String>{
+      'widevine': 'Widevine',
+      'fairplay': 'FairPlay',
+      'playready': 'PlayReady',
+    };
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Validation DRM — packaging : ${metadata['packaging_status'] ?? 'en attente'}',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            ...systems.entries.map((entry) {
+              final state = validation[entry.key] is Map
+                  ? Map<String, dynamic>.from(validation[entry.key] as Map)
+                  : const <String, dynamic>{};
+              final status = state['status']?.toString() ?? 'à valider';
+              final canApprove = ready && packaged.contains(entry.key);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  children: [
+                    Text('${entry.value} : $status'),
+                    if (state['reason']?.toString().isNotEmpty == true)
+                      Text('— ${state['reason']}'),
+                    OutlinedButton(
+                      onPressed: canApprove
+                          ? () => _reviewDrm(item['id'] as int, entry.key, 'approved')
+                          : null,
+                      child: const Text('Valider'),
+                    ),
+                    TextButton(
+                      onPressed: () => _reviewDrm(item['id'] as int, entry.key, 'rejected'),
+                      child: const Text('Rejeter'),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            if (!ready)
+              const Text('La validation s’active après chiffrement et contrôle technique des manifestes.'),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _report(Map<String, dynamic>? report) {
     if (report == null) {
       return const Text('Rapport QC/IA indisponible. L’approbation doit attendre sa génération.');
@@ -126,6 +232,10 @@ class _ModerationPageState extends State<ModerationPage> {
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           children: [
             _report(report),
+            if (item['drm_provider'] == 'axinom') ...[
+              const SizedBox(height: 12),
+              _drmReviews(item),
+            ],
             const SizedBox(height: 12),
             Wrap(spacing: 8, children: [
               OutlinedButton.icon(
