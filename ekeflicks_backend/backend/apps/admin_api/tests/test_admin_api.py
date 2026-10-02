@@ -151,7 +151,7 @@ class AdminSecurityApiTests(APITestCase):
         video_list = self.client.get('/api/v1/admin/videos/?status=pending')
         self.assertEqual(video_list.status_code, 200)
         serialized = video_list.data['results'][0]
-        self.assertEqual(serialized['analysis_report']['technical_score'], '98.00')
+        self.assertEqual(str(serialized['analysis_report']['technical_score']), '98.00')
         self.assertEqual(serialized['analysis_report']['flags'], ['audio_loudness_out_of_range'])
         content_response = self.client.post(f'/api/v1/admin/contents/{content.pk}/review/', {
             'decision': 'approved',
