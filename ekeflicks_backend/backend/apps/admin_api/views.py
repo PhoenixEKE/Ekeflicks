@@ -479,6 +479,20 @@ class VideoModerationViewSet(viewsets.ReadOnlyModelViewSet):
         if decision not in ('approved', 'rejected'):
             raise exceptions.ValidationError({'decision': 'Valeurs autorisées : approved, rejected.'})
         asset = self.get_object()
+        if decision == 'approved':
+            try:
+                analysis_report = asset.analysis_report
+            except Exception as exc:
+                raise exceptions.ValidationError({
+                    'analysis_report': 'Le rapport QC/IA doit être disponible avant approbation.',
+                }) from exc
+            if analysis_report.status not in {'passed', 'review_required'}:
+                raise exceptions.ValidationError({
+                    'analysis_report': (
+                        'Le rapport QC/IA doit être terminé et consulté avant approbation. '
+                        f'Statut actuel : {analysis_report.status}.'
+                    ),
+                })
         asset.moderation_status = decision
         asset.moderation_reason = request.data.get('reason', '')
         asset.moderated_by = request.user
