@@ -6,6 +6,7 @@ class Episode {
     required this.title,
     required this.number,
     required this.videoUrl,
+    this.videoAssetId,
     this.description = '',
     this.duration = Duration.zero,
     this.imageUrl = '',
@@ -16,6 +17,7 @@ class Episode {
   final String title;
   final int number;
   final String videoUrl;
+  final String? videoAssetId;
   final String description;
   final Duration duration;
   final String imageUrl;
@@ -27,6 +29,7 @@ class Episode {
     number: _integer(json['number'] ?? json['episode_number']),
     videoUrl:
         json['video_url']?.toString() ?? json['stream_url']?.toString() ?? '',
+    videoAssetId: json['video_asset_id']?.toString(),
     description: json['description']?.toString() ?? '',
     duration: Duration(
       seconds: _integer(json['duration_seconds'] ?? json['duration']),
@@ -68,6 +71,7 @@ class Content {
     required this.posterUrl,
     this.backdropUrl = '',
     required this.videoUrl,
+    this.videoAssetId,
     required this.type,
     required this.genres,
     required this.releaseYear,
@@ -96,6 +100,7 @@ class Content {
       videoUrl,
       releaseYear;
   final ContentType type;
+  final String? videoAssetId;
   final List<String> genres;
   final Duration duration;
   final double? rating, userRating, progress;
@@ -123,6 +128,7 @@ class Content {
       backdropUrl: json['backdrop_url']?.toString() ?? '',
       videoUrl:
           json['video_url']?.toString() ?? json['stream_url']?.toString() ?? '',
+      videoAssetId: json['video_asset_id']?.toString(),
       type:
           rawType == 'series' || rawType == 'serie'
               ? ContentType.series
@@ -190,6 +196,7 @@ class Content {
     String? posterUrl,
     String? backdropUrl,
     String? videoUrl,
+    String? videoAssetId,
     ContentType? type,
     List<String>? genres,
     String? releaseYear,
@@ -215,6 +222,7 @@ class Content {
     posterUrl: posterUrl ?? this.posterUrl,
     backdropUrl: backdropUrl ?? this.backdropUrl,
     videoUrl: videoUrl ?? this.videoUrl,
+    videoAssetId: videoAssetId ?? this.videoAssetId,
     type: type ?? this.type,
     genres: genres ?? this.genres,
     releaseYear: releaseYear ?? this.releaseYear,

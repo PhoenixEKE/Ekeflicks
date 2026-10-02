@@ -50,6 +50,7 @@ class ContentStatusSerializer(serializers.ModelSerializer):
 
 
 class EpisodeSerializer(serializers.ModelSerializer):
+    video_asset_id = serializers.SerializerMethodField()
     season_id = serializers.PrimaryKeyRelatedField(
         source='season',
         queryset=Season.objects.all(),
@@ -76,11 +77,21 @@ class EpisodeSerializer(serializers.ModelSerializer):
             'description',
             'duration',
             'video_url',
+            'video_asset_id',
             'thumbnail_url',
             'created_at',
             'updated_at',
         ]
         read_only_fields = ['id', 'season', 'content', 'created_at', 'updated_at']
+
+    def get_video_asset_id(self, obj):
+        prefetched = getattr(obj, 'published_video_assets', None)
+        if prefetched is not None:
+            return str(prefetched[0].id) if prefetched else None
+        asset = obj.video_assets.filter(
+            status='ready', moderation_status='approved', published_at__isnull=False,
+        ).order_by('-published_at', '-created_at').only('id').first()
+        return str(asset.id) if asset else None
 
     def validate(self, attrs):
         season = attrs.get('season') or getattr(self.instance, 'season', None)
@@ -195,6 +206,7 @@ class SeasonSerializer(serializers.ModelSerializer):
         return _get_trailer_technical_conformity(obj)
 
 class ContentListSerializer(serializers.ModelSerializer):
+    video_asset_id = serializers.SerializerMethodField()
     trailer_analysis_status = serializers.SerializerMethodField()
     trailer_analyzed_at = serializers.SerializerMethodField()
     trailer_technical_conformity = serializers.SerializerMethodField()
@@ -230,6 +242,7 @@ class ContentListSerializer(serializers.ModelSerializer):
             'backdrop_url',
             'banner_url',
             'trailer_url',
+            'video_asset_id',
             'release_year',
             'release_date',
             'duration',
@@ -268,6 +281,17 @@ class ContentListSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+    def get_video_asset_id(self, obj):
+        prefetched = getattr(obj, 'published_video_assets', None)
+        if prefetched is not None:
+            return str(prefetched[0].id) if prefetched else None
+        if obj.type == 'series':
+            return None
+        asset = obj.video_assets.filter(
+            status='ready', moderation_status='approved', published_at__isnull=False,
+        ).order_by('-published_at', '-created_at').only('id').first()
+        return str(asset.id) if asset else None
 
 
     def get_trailer_analysis_status(self, obj):

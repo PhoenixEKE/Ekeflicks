@@ -466,7 +466,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         HeroBanner(
                           contents: contentProvider.featuredContent,
                           onPlayPressed: (content) {
-                            if (content.videoUrl.isEmpty) {
+                            if (content.videoUrl.isEmpty &&
+                                content.videoAssetId == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Aucune URL vidéo disponible'),
@@ -479,6 +480,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               '/player',
                               arguments: {
                                 'videoUrl': content.videoUrl,
+                                'videoAssetId': content.videoAssetId,
                                 'title': content.title,
                                 'imageUrl': content.posterUrl,
                                 'contentId': content.id,

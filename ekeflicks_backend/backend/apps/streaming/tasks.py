@@ -1743,6 +1743,99 @@ def _probe_output_media(source_input):
     return json.loads(result.stdout or '{}')
 
 
+def _run_output_qc(output_root, dash_manifest_path, selected_renditions, expected_duration):
+    """Validate the generated HLS/DASH structure and every referenced HLS segment.
+
+    This deliberately validates manifests and files without trying to decode
+    encrypted media. DRM playback itself is checked by the license/device
+    integration tests, while this gate catches incomplete packaging before the
+    files are uploaded or published.
+    """
+    import xml.etree.ElementTree as ET
+
+    output_root = Path(output_root)
+    master_path = output_root / 'master.m3u8'
+    if not master_path.is_file():
+        raise ValueError('Output QC failed: HLS master playlist is missing.')
+    master_text = master_path.read_text(encoding='utf-8', errors='replace')
+    if '#EXTM3U' not in master_text or '#EXT-X-STREAM-INF' not in master_text:
+        raise ValueError('Output QC failed: HLS master playlist has no variants.')
+    master_refs = {
+        line.strip() for line in master_text.splitlines()
+        if line.strip() and not line.lstrip().startswith('#')
+    }
+
+    checked_hls = []
+    expected_hls_duration = max(float(expected_duration or 0), 0)
+    for rendition in selected_renditions:
+        quality = str(rendition['quality'])
+        playlist_path = output_root / quality / 'index.m3u8'
+        if f'{quality}/index.m3u8' not in master_refs:
+            raise ValueError(f'Output QC failed: HLS master playlist does not advertise {quality}.')
+        if not playlist_path.is_file():
+            raise ValueError(f'Output QC failed: {quality} playlist is missing.')
+        playlist = playlist_path.read_text(encoding='utf-8', errors='replace')
+        if '#EXTM3U' not in playlist or '#EXTINF:' not in playlist:
+            raise ValueError(f'Output QC failed: {quality} playlist has no media segments.')
+        segment_refs = [
+            line.strip() for line in playlist.splitlines()
+            if line.strip() and not line.lstrip().startswith('#')
+        ]
+        if not segment_refs:
+            raise ValueError(f'Output QC failed: {quality} playlist references no media segments.')
+        segment_paths = [(playlist_path.parent / ref).resolve() for ref in segment_refs]
+        if any(not path.is_file() or path.stat().st_size == 0 for path in segment_paths):
+            raise ValueError(f'Output QC failed: {quality} playlist references a missing or empty segment.')
+        durations = []
+        for line in playlist.splitlines():
+            if line.startswith('#EXTINF:'):
+                try:
+                    durations.append(float(line.split(':', 1)[1].split(',', 1)[0]))
+                except (TypeError, ValueError):
+                    raise ValueError(f'Output QC failed: {quality} playlist contains an invalid segment duration.')
+        actual_duration = sum(durations)
+        if expected_hls_duration and actual_duration < expected_hls_duration * 0.90:
+            raise ValueError(f'Output QC failed: {quality} playlist is shorter than the source.')
+        checked_hls.append({
+            'quality': quality,
+            'segments': len(segment_paths),
+            'duration_seconds': round(actual_duration, 3),
+        })
+
+    if not dash_manifest_path.is_file():
+        raise ValueError('Output QC failed: DASH manifest is missing.')
+    try:
+        root = ET.parse(dash_manifest_path).getroot()
+    except (ET.ParseError, OSError) as exc:
+        raise ValueError('Output QC failed: DASH manifest is invalid XML.') from exc
+    local_name = lambda node: node.tag.rsplit('}', 1)[-1]
+    representation_count = 0
+    for adaptation in (node for node in root.iter() if local_name(node) == 'AdaptationSet'):
+        content_type = (adaptation.attrib.get('contentType') or '').lower()
+        mime_type = (adaptation.attrib.get('mimeType') or '').lower()
+        if content_type == 'video' or mime_type.startswith('video/'):
+            representation_count += sum(
+                1 for node in adaptation if local_name(node) == 'Representation'
+            )
+    if representation_count == 0:
+        representation_count = sum(
+            1 for node in root.iter()
+            if local_name(node) == 'Representation'
+            and (node.attrib.get('mimeType') or '').lower().startswith('video/')
+        )
+    if representation_count < len(selected_renditions):
+        raise ValueError('Output QC failed: DASH manifest is missing one or more video representations.')
+
+    return {
+        'status': 'passed',
+        'hls_master': 'present',
+        'hls_renditions': checked_hls,
+        'dash_manifest': 'valid',
+        'dash_representations': representation_count,
+        'expected_duration_seconds': expected_hls_duration,
+    }
+
+
 @shared_task(
     bind=True,
     autoretry_for=(),
