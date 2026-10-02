@@ -75,6 +75,9 @@ jobs:
           cache: true
       - name: Install dependencies
         run: flutter pub get
+      - name: Accept Android SDK licenses
+        if: matrix.application == 'plateforme_client'
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
       - name: Build producer web application
         if: matrix.application == 'plateforme_producteurs'
         run: flutter build web --release
