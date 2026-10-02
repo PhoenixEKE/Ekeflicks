@@ -244,7 +244,13 @@ class StreamingApiTests(APITestCase):
     )
     def test_axinom_ios_offline_license_returns_fairplay_configuration(self):
         self.asset.drm_provider = 'axinom'
-        self.asset.save(update_fields=['drm_provider', 'updated_at'])
+        self.asset.drm_metadata = {
+            'key_ids': {
+                'cenc': ['11111111-1111-4111-8111-111111111111'],
+                'cbcs': ['22222222-2222-4222-8222-222222222222'],
+            },
+        }
+        self.asset.save(update_fields=['drm_provider', 'drm_metadata', 'updated_at'])
         self.client.force_authenticate(user=self.user)
 
         response = self.client.post(
