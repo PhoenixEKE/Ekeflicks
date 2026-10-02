@@ -40,6 +40,46 @@ class _ModerationPageState extends State<ModerationPage> {
     reason.dispose();
   }
 
+  Widget _report(Map<String, dynamic>? report) {
+    if (report == null) {
+      return const Text('Rapport QC/IA indisponible. L’approbation doit attendre sa génération.');
+    }
+    String value(Object? v) => v?.toString() ?? '—';
+    final flags = (report['flags'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+    final events = (report['detected_events'] as List?) ?? const [];
+    final scores = report['moderation_scores'] is Map
+        ? Map<String, dynamic>.from(report['moderation_scores'] as Map)
+        : const <String, dynamic>{};
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Rapport QC/IA — statut : ${value(report['status'])}', style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Text('Vidéo : ${value(report['video_codec'])} ${value(report['width'])}×${value(report['height'])} • ${value(report['frame_rate'])} fps'),
+        Text('Audio : ${value(report['audio_codec'])} • ${value(report['audio_channels'])} canaux • ${value(report['sample_rate'])} Hz'),
+        Text('Durée : ${value(report['duration_seconds'])} s • Loudness : ${value(report['loudness_lufs'])} LUFS'),
+        Text('Score technique : ${value(report['technical_score'])} • images noires : ${value(report['black_frame_count'])} • images figées : ${value(report['freeze_frame_count'])}'),
+        if (flags.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Text('Alertes', style: TextStyle(fontWeight: FontWeight.w600)),
+          ...flags.map((flag) => Text('• $flag')),
+        ],
+        if (scores.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Text('Scores de modération IA', style: TextStyle(fontWeight: FontWeight.w600)),
+          Text(scores.entries.map((e) => '${e.key}: ${e.value}').join(' • ')),
+        ],
+        if (events.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Text('Événements détectés', style: TextStyle(fontWeight: FontWeight.w600)),
+          ...events.take(30).map((event) => Text('• $event')),
+        ],
+        if ((report['error_message'] ?? '').toString().isNotEmpty)
+          Text('Erreur : ${report['error_message']}', style: const TextStyle(color: Colors.red)),
+      ],
+    );
+  }
+
   Widget _list(Future<List<Map<String, dynamic>>> future, {required bool video}) =>
     FutureBuilder<List<Map<String, dynamic>>>(future: future, builder: (context, snapshot) {
       if (snapshot.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
@@ -48,16 +88,45 @@ class _ModerationPageState extends State<ModerationPage> {
       if (items.isEmpty) return const Center(child: Text('Aucun dépôt en attente.'));
       return ListView.separated(itemCount: items.length, separatorBuilder: (_, __) => const Divider(), itemBuilder: (_, index) {
         final item = items[index];
-        return ListTile(
-          leading: Icon(video ? Icons.video_file : Icons.movie_creation, color: AppTheme.primary),
-          title: Text((video ? item['content_title'] : item['title'])?.toString() ?? 'Sans titre'),
-          subtitle: Text('Producteur : ${item['producer_email'] ?? 'Non renseigné'}'),
-          trailing: Wrap(spacing: 8, children: [
-            IconButton(tooltip: 'Rejeter', onPressed: () => _review(video, item['id'] as int, 'rejected'),
-              icon: const Icon(Icons.close, color: Colors.redAccent)),
-            IconButton(tooltip: 'Valider', onPressed: () => _review(video, item['id'] as int, 'approved'),
-              icon: const Icon(Icons.check, color: Colors.green)),
-          ]),
+        if (!video) {
+          return ListTile(
+            leading: const Icon(Icons.movie_creation, color: AppTheme.primary),
+            title: Text(item['title']?.toString() ?? 'Sans titre'),
+            subtitle: Text('Producteur : ${item['producer_email'] ?? 'Non renseigné'}'),
+            trailing: Wrap(spacing: 8, children: [
+              IconButton(tooltip: 'Rejeter', onPressed: () => _review(false, item['id'] as int, 'rejected'),
+                icon: const Icon(Icons.close, color: Colors.redAccent)),
+              IconButton(tooltip: 'Valider', onPressed: () => _review(false, item['id'] as int, 'approved'),
+                icon: const Icon(Icons.check, color: Colors.green)),
+            ]),
+          );
+        }
+        final report = item['analysis_report'] is Map
+            ? Map<String, dynamic>.from(item['analysis_report'] as Map)
+            : null;
+        final canApprove = report != null &&
+            const {'passed', 'review_required'}.contains(report['status']);
+        return ExpansionTile(
+          leading: const Icon(Icons.video_file, color: AppTheme.primary),
+          title: Text(item['content_title']?.toString() ?? 'Sans titre'),
+          subtitle: Text('Producteur : ${item['producer_email'] ?? 'Non renseigné'} • QC : ${report?['status'] ?? 'rapport absent'}'),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            _report(report),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, children: [
+              OutlinedButton.icon(
+                onPressed: () => _review(true, item['id'] as int, 'rejected'),
+                icon: const Icon(Icons.close, color: Colors.redAccent),
+                label: const Text('Rejeter'),
+              ),
+              FilledButton.icon(
+                onPressed: canApprove ? () => _review(true, item['id'] as int, 'approved') : null,
+                icon: const Icon(Icons.check),
+                label: Text(canApprove ? 'Valider après examen' : 'QC requis avant validation'),
+              ),
+            ]),
+          ],
         );
       });
     });
