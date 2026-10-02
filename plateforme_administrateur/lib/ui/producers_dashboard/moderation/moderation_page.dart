@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -76,6 +78,17 @@ class _ModerationPageState extends State<ModerationPage> {
         ],
         if ((report['error_message'] ?? '').toString().isNotEmpty)
           Text('Erreur : ${report['error_message']}', style: const TextStyle(color: Colors.red)),
+        if (report['technical_metadata'] is Map && (report['technical_metadata'] as Map).isNotEmpty)
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: const Text('Détails complets QC / FFprobe / IA'),
+            children: [
+              SelectableText(
+                const JsonEncoder.withIndent('  ').convert(report['technical_metadata']),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
+            ],
+          ),
       ],
     );
   }
