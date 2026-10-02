@@ -112,6 +112,8 @@ def producer_balance(producer, include_demo=False):
     view_amount += demo_view_amount
     ad_amount += demo_ad_amount
     amount_eur = view_amount + ad_amount
+    # Recompute after opt-in demo rows have been included.
+    currency, amount_local = convert_eur_for_producer(amount_eur, producer)
 
     return {
         'eligible_views': views.count() + demo_eligible_views,
