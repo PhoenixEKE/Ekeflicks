@@ -435,6 +435,39 @@ class ContentModerationViewSet(viewsets.ReadOnlyModelViewSet):
     def get_required_permission(self):
         return 'core.change_content' if self.action == 'review' else self.required_permission
 
+    @action(detail=True, methods=['post'], url_path='drm-review')
+    def drm_review(self, request, pk=None):
+        asset = self.get_object()
+        if asset.drm_provider != 'axinom':
+            raise exceptions.ValidationError({'drm_provider': 'La validation DRM Axinom concerne uniquement les assets Axinom.'})
+        system = str(request.data.get('system') or '').strip().lower()
+        decision = str(request.data.get('decision') or '').strip().lower()
+        reason = str(request.data.get('reason') or '').strip()
+        if system not in {'widevine', 'fairplay', 'playready'}:
+            raise exceptions.ValidationError({'system': 'Valeurs autorisées : widevine, fairplay, playready.'})
+        if decision not in {'approved', 'rejected'}:
+            raise exceptions.ValidationError({'decision': 'Valeurs autorisées : approved, rejected.'})
+        drm = dict(asset.drm_metadata or {})
+        packaged = set(drm.get('packaging_systems') or [])
+        if decision == 'approved' and (
+            drm.get('packaging_status') != 'ready' or system not in packaged
+        ):
+            raise exceptions.ValidationError({
+                'packaging': f"Le manifeste chiffré {system} doit passer le contrôle technique avant approbation."
+            })
+        validation = dict(drm.get('validation') or {})
+        validation[system] = {
+            'status': decision,
+            'reason': reason,
+            'reviewed_by': str(request.user.pk),
+            'reviewed_at': timezone.now().isoformat(),
+        }
+        drm['validation'] = validation
+        asset.drm_metadata = drm
+        asset.save(update_fields=['drm_metadata', 'updated_at'])
+        audit(request, f'video.drm_{decision}', asset, {'system': system, 'reason': reason})
+        return Response(self.get_serializer(asset).data)
+
     @action(detail=True, methods=['post'])
     def review(self, request, pk=None):
         decision = request.data.get('decision')
@@ -472,7 +505,7 @@ class VideoModerationViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
     def get_required_permission(self):
-        return 'core.change_videoasset' if self.action == 'review' else self.required_permission
+        return 'core.change_videoasset' if self.action in {'review', 'drm_review'} else self.required_permission
 
     @action(detail=True, methods=['post'])
     def review(self, request, pk=None):
