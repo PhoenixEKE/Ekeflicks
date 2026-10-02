@@ -993,7 +993,8 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
                 raise exceptions.ValidationError({
                     'drm_validation': f"Validation administrateur requise pour : {', '.join(pending)}."
                 })
-        ensure_encryption_key_id(asset)
+        if asset.drm_provider != 'axinom':
+            ensure_encryption_key_id(asset)
         asset.status = 'ready'
         asset.published_at = timezone.now()
         asset.save(update_fields=['encryption_key_id', 'status', 'published_at', 'updated_at'])
@@ -1144,6 +1145,21 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
         )
         renditions = VideoRenditionSerializer(asset.renditions.all(), many=True).data
         subtitles = SubtitleTrackSerializer(asset.subtitle_tracks.all(), many=True).data
+        drm_metadata = asset.drm_metadata if isinstance(asset.drm_metadata, dict) else {}
+        drm_manifests = drm_metadata.get('manifests') or {}
+        resolved_drm_system = (
+            drm_system or drm_configuration(asset, platform=platform).get('drm_system') or ''
+        ).lower()
+        hls_manifest_url = asset.hls_master_url
+        dash_manifest_url = asset.dash_manifest_url
+        if asset.drm_provider == 'axinom':
+            if resolved_drm_system == 'fairplay':
+                hls_manifest_url = drm_manifests.get('fairplay_hls') or ''
+            elif resolved_drm_system == 'playready':
+                dash_manifest_url = drm_manifests.get('playready_dash') or ''
+            elif resolved_drm_system == 'widevine':
+                hls_manifest_url = drm_manifests.get('widevine_hls') or ''
+                dash_manifest_url = drm_manifests.get('widevine_dash') or ''
 
         payload = {
             'asset_id': str(asset.id),
@@ -1151,14 +1167,14 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
             'content_id': str(asset.content_id),
             'episode_id': str(asset.episode_id) if asset.episode_id else None,
             'hls_master_url': sign_streaming_url(
-                asset.hls_master_url,
+                hls_manifest_url,
                 asset,
                 profile,
                 request.user,
                 signed_expires_at,
             ),
             'dash_manifest_url': sign_streaming_url(
-                asset.dash_manifest_url,
+                dash_manifest_url,
                 asset,
                 profile,
                 request.user,
