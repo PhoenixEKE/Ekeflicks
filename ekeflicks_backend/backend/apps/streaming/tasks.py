@@ -1458,6 +1458,9 @@ def transcode_video_asset_to_hls(self, asset_id):
         segment_duration = str(getattr(settings, 'HLS_SEGMENT_DURATION_SECONDS', 4))
         master_lines = ['#EXTM3U', '#EXT-X-VERSION:3']
         rendition_payloads = []
+        dash_root = work_root / 'dash'
+        dash_root.mkdir(parents=True, exist_ok=True)
+        dash_manifest_path = dash_root / 'manifest.mpd'
 
         try:
             if asset.drm_provider == 'axinom':
