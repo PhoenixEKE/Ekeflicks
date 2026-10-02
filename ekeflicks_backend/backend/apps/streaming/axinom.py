@@ -130,3 +130,125 @@ def decode_track_key(track):
         base64.b64decode(track["key_id"], validate=True).hex(),
         base64.b64decode(track["key"], validate=True).hex(),
     )
+
+def package_video_asset(source_path, renditions, output_root, dash_root, segment_duration, has_audio):
+    """Encode a per-title ladder, encrypt it with Axinom keys, and package DASH/HLS.
+
+    This runs locally in a worker temporary directory. Raw keys are passed to
+    Shaka Packager only through its process arguments and are never persisted.
+    """
+    import subprocess
+    from pathlib import Path
+
+    output_root = Path(output_root)
+    dash_root = Path(dash_root)
+    output_root.mkdir(parents=True, exist_ok=True)
+    dash_root.mkdir(parents=True, exist_ok=True)
+
+    request_content_keys_for_asset_path._asset = getattr(package_video_asset, "_asset", None)
+    raw_tracks, safe_metadata = request_content_keys_for_asset_path(source_path, renditions)
+    cenc = next((track for track in raw_tracks if track["_scheme"] == "cenc"), None)
+    cbcs = next((track for track in raw_tracks if track["_scheme"] == "cbcs"), None)
+    if cenc is None or cbcs is None:
+        raise ValueError("Axinom did not return both CENC and CBCS content keys.")
+    cenc_key_id, cenc_key = decode_track_key(cenc)
+    cbcs_key_id, cbcs_key = decode_track_key(cbcs)
+    cbcs_iv = base64.b64decode(cbcs["iv"], validate=True).hex() if cbcs.get("iv") else ""
+    if not cbcs_iv:
+        raise ValueError("Axinom did not return the IV required for FairPlay HLS.")
+
+    work = output_root.parent / "encoded"
+    work.mkdir(parents=True, exist_ok=True)
+    encoded = []
+    for index, rendition in enumerate(renditions):
+        target = work / f"video_{index}_{rendition['quality']}.mp4"
+        bitrate = str(int(rendition["bandwidth"]))
+        subprocess.run([
+            "ffmpeg", "-y", "-i", str(source_path), "-map", "0:v:0",
+            "-vf", f"scale=-2:{int(rendition['height'])}",
+            "-c:v", "libx264", "-profile:v", "main", "-preset", "veryfast",
+            "-b:v", bitrate, "-maxrate", bitrate, "-bufsize", str(int(bitrate) * 2),
+            "-force_key_frames", f"expr:gte(t,n_forced*{segment_duration})",
+            "-sc_threshold", "0", "-an", "-movflags", "+faststart", str(target),
+        ], check=True, capture_output=True, text=True)
+        encoded.append((target, rendition, index))
+
+    audio_path = None
+    if has_audio:
+        audio_path = work / "audio.mp4"
+        subprocess.run([
+            "ffmpeg", "-y", "-i", str(source_path), "-map", "0:a:0",
+            "-vn", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart",
+            str(audio_path),
+        ], check=True, capture_output=True, text=True)
+
+    def run_packager(scheme, key_id, key, systems, output_hls_root, mpd_path=None, iv=None):
+        output_hls_root.mkdir(parents=True, exist_ok=True)
+        args = ["packager"]
+        for target, rendition, index in encoded:
+            quality = rendition["quality"]
+            base = output_hls_root / quality
+            base.mkdir(parents=True, exist_ok=True)
+            args.append(
+                f"in={target},stream=video,"
+                f"init_segment={base}/init.mp4,"
+                f"segment_template={base}/segment_$Number$.m4s,"
+                f"playlist_name={quality}/index.m3u8,hls_name={quality}"
+            )
+        if audio_path:
+            audio_dir = output_hls_root / "audio"
+            audio_dir.mkdir(parents=True, exist_ok=True)
+            args.append(
+                f"in={audio_path},stream=audio,"
+                f"init_segment={audio_dir}/init.mp4,"
+                f"segment_template={audio_dir}/segment_$Number$.m4s,"
+                "playlist_name=audio/index.m3u8,hls_name=audio"
+            )
+        args.extend([
+            "--enable_raw_key_encryption",
+            f"--keys=key_id={key_id}:key={key}",
+            f"--protection_scheme={scheme}",
+            f"--protection_systems={systems}",
+            "--segment_duration", str(segment_duration),
+            f"--hls_master_playlist_output={output_hls_root}/master.m3u8",
+        ])
+        if iv:
+            args.append(f"--hls_key_uri=skd://{key_id}:{iv}")
+        if mpd_path:
+            args.append(f"--mpd_output={mpd_path}")
+        subprocess.run(args, check=True, capture_output=True, text=True)
+
+    run_packager(
+        "cenc", cenc_key_id, cenc_key, "Widevine,PlayReady",
+        output_root, dash_root / "manifest.mpd",
+    )
+    fairplay_root = output_root / "fairplay"
+    run_packager(
+        "cbcs", cbcs_key_id, cbcs_key, "FairPlay",
+        fairplay_root, iv=cbcs_iv,
+    )
+
+    safe_metadata.update({
+        "packaging_status": "ready",
+        "packaging_systems": ["widevine", "playready", "fairplay"],
+        "manifests": {
+            "widevine_hls": "master.m3u8",
+            "widevine_dash": "manifest.mpd",
+            "playready_dash": "manifest.mpd",
+            "fairplay_hls": "fairplay/master.m3u8",
+        },
+        "validation": {},
+    })
+    rendition_payloads = [(index, rendition) for _, rendition, index in encoded]
+    return rendition_payloads, safe_metadata
+
+
+def request_content_keys_for_asset_path(source_path, renditions):
+    # Kept separate to permit the key request to be mocked independently of
+    # encoding and packaging in tests.
+    # The video asset ID is provided via an internal temporary attribute by
+    # the caller to avoid deriving identifiers from content filenames.
+    asset = getattr(request_content_keys_for_asset_path, "_asset", None)
+    if asset is None:
+        raise RuntimeError("Axinom asset context was not provided.")
+    return request_content_keys(asset)
