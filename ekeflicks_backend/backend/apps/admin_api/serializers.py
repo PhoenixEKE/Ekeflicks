@@ -190,6 +190,7 @@ class AdminVideoAssetSerializer(serializers.ModelSerializer):
     content_title = serializers.CharField(source='content.title', read_only=True)
     producer_email = serializers.EmailField(source='content.producer.email', read_only=True)
     analysis_report = serializers.SerializerMethodField()
+    drm_metadata = serializers.JSONField(read_only=True)
 
     def get_analysis_report(self, obj):
         try:
@@ -224,7 +225,7 @@ class AdminVideoAssetSerializer(serializers.ModelSerializer):
     class Meta:
         model = VideoAsset
         fields = ('id', 'title', 'content', 'content_title', 'producer_email', 'status',
-                  'moderation_status', 'moderation_reason', 'source_uploaded_at', 'moderated_at', 'analysis_report')
+                  'moderation_status', 'moderation_reason', 'source_uploaded_at', 'moderated_at', 'analysis_report', 'drm_provider', 'drm_metadata')
 
 
 class AdminPayoutSerializer(serializers.ModelSerializer):
