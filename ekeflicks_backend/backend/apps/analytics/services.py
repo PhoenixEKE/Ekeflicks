@@ -1,10 +1,12 @@
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.db import transaction
 from django.db.models import Count, Sum, Value
 from django.db.models.functions import Coalesce, TruncMinute
 from django.utils import timezone
 
 from core.models import (
+    User,
     ProducerContentView,
     ProducerCountryCurrency,
     ProducerPayoutRequest,
@@ -46,6 +48,7 @@ def _total_seconds_for_session(session):
     return 0
 
 
+@transaction.atomic
 def record_producer_viewing_session(session):
     session = (
         ViewingSession.objects.select_related(
@@ -61,12 +64,21 @@ def record_producer_viewing_session(session):
     if not producer:
         return None
 
+    # Serialize eligibility checks for the same account across profiles/sessions.
+    User.objects.select_for_update().filter(pk=session.profile.user_id).first()
+
     setting = revenue_settings()
     if not setting.remuneration_enabled or not producer.producer_remuneration_enabled:
         return None
 
     if ProducerContentView.objects.filter(viewing_session=session).exists():
         return session.producer_view
+    if ProducerContentView.objects.filter(
+        producer=producer,
+        content=session.content,
+        viewing_session__profile__user_id=session.profile.user_id,
+    ).exists():
+        return None
 
     total_seconds = _total_seconds_for_session(session)
     if total_seconds <= 0:
@@ -74,7 +86,7 @@ def record_producer_viewing_session(session):
 
     watched_seconds = int(session.duration_watched or 0)
     progress_percent = (Decimal(watched_seconds) * Decimal('100')) / Decimal(total_seconds)
-    if progress_percent < Decimal(setting.eligible_progress_percent):
+    if progress_percent <= Decimal(setting.eligible_progress_percent):
         return None
 
     amount_eur = (Decimal(setting.rate_per_1000_views_eur) / Decimal('1000')).quantize(
