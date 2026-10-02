@@ -1460,151 +1460,194 @@ def transcode_video_asset_to_hls(self, asset_id):
         rendition_payloads = []
 
         try:
-            for index, rendition in enumerate(selected_renditions):
-                rendition_dir = output_root / rendition['quality']
-                rendition_dir.mkdir(parents=True, exist_ok=True)
-
-                playlist_path = rendition_dir / 'index.m3u8'
-                segment_pattern = rendition_dir / 'segment_%05d.ts'
-                bitrate = str(rendition['bandwidth'])
-                buffer_size = str(rendition['bandwidth'] * 2)
-
-                command = [
+            if asset.drm_provider == 'axinom':
+                from apps.streaming.axinom import package_video_asset
+                if not getattr(settings, 'AXINOM_DRM_ENABLED', False):
+                    raise ValueError('Axinom DRM is not enabled in backend settings.')
+                has_audio = bool(analysis_report.audio_codec)
+                rendition_payloads, drm_metadata = package_video_asset(
+                    asset=asset,
+                    source_path=source_input,
+                    renditions=selected_renditions,
+                    output_root=output_root,
+                    dash_root=dash_root,
+                    segment_duration=segment_duration,
+                    has_audio=has_audio,
+                )
+                asset.drm_metadata = drm_metadata
+                asset.save(update_fields=['drm_metadata', 'updated_at'])
+            else:
+                for index, rendition in enumerate(selected_renditions):
+                    rendition_dir = output_root / rendition['quality']
+                    rendition_dir.mkdir(parents=True, exist_ok=True)
+    
+                    playlist_path = rendition_dir / 'index.m3u8'
+                    segment_pattern = rendition_dir / 'segment_%05d.ts'
+                    bitrate = str(rendition['bandwidth'])
+                    buffer_size = str(rendition['bandwidth'] * 2)
+    
+                    command = [
+                        'ffmpeg',
+                        '-y',
+                        '-i',
+                        source_input,
+                        '-vf',
+                        f"scale=-2:{rendition['height']}",
+                        '-c:v',
+                        'h264',
+                        '-profile:v',
+                        'main',
+                        '-preset',
+                        'veryfast',
+                        '-b:v',
+                        bitrate,
+                        '-maxrate',
+                        bitrate,
+                        '-bufsize',
+                        buffer_size,
+                        '-c:a',
+                        'aac',
+                        '-b:a',
+                        '128k',
+                        '-force_key_frames',
+                        f'expr:gte(t,n_forced*{segment_duration})',
+                        '-sc_threshold',
+                        '0',
+                        '-f',
+                        'hls',
+                        '-hls_time',
+                        segment_duration,
+                        '-hls_playlist_type',
+                        'vod',
+                        '-hls_segment_filename',
+                        str(segment_pattern),
+                        str(playlist_path),
+                    ]
+                    subprocess.run(command, check=True, capture_output=True, text=True)
+    
+                    rendition_payloads.append((index, rendition))
+                    master_lines.extend([
+                        f"#EXT-X-STREAM-INF:BANDWIDTH={rendition['bandwidth']},RESOLUTION={rendition['width']}x{rendition['height']}",
+                        f"{rendition['quality']}/index.m3u8",
+                    ])
+    
+                master_path = output_root / 'master.m3u8'
+                master_path.write_text('\\n'.join(master_lines) + '\\n', encoding='utf-8')
+    
+                # DASH / fragmented MP4
+                dash_root = work_root / 'dash'
+                dash_root.mkdir(parents=True, exist_ok=True)
+                dash_manifest_path = dash_root / 'manifest.mpd'
+    
+                dash_command = [
                     'ffmpeg',
                     '-y',
                     '-i',
                     source_input,
-                    '-vf',
-                    f"scale=-2:{rendition['height']}",
-                    '-c:v',
-                    'h264',
-                    '-profile:v',
-                    'main',
-                    '-preset',
-                    'veryfast',
-                    '-b:v',
-                    bitrate,
-                    '-maxrate',
-                    bitrate,
-                    '-bufsize',
-                    buffer_size,
-                    '-c:a',
-                    'aac',
-                    '-b:a',
-                    '128k',
-                    '-force_key_frames',
-                    f'expr:gte(t,n_forced*{segment_duration})',
-                    '-sc_threshold',
-                    '0',
-                    '-f',
-                    'hls',
-                    '-hls_time',
-                    segment_duration,
-                    '-hls_playlist_type',
-                    'vod',
-                    '-hls_segment_filename',
-                    str(segment_pattern),
-                    str(playlist_path),
                 ]
-                subprocess.run(command, check=True, capture_output=True, text=True)
-
-                rendition_payloads.append((index, rendition))
-                master_lines.extend([
-                    f"#EXT-X-STREAM-INF:BANDWIDTH={rendition['bandwidth']},RESOLUTION={rendition['width']}x{rendition['height']}",
-                    f"{rendition['quality']}/index.m3u8",
-                ])
-
-            master_path = output_root / 'master.m3u8'
-            master_path.write_text('\\n'.join(master_lines) + '\\n', encoding='utf-8')
-
-            # DASH / fragmented MP4
-            dash_root = work_root / 'dash'
-            dash_root.mkdir(parents=True, exist_ok=True)
-            dash_manifest_path = dash_root / 'manifest.mpd'
-
-            dash_command = [
-                'ffmpeg',
-                '-y',
-                '-i',
-                source_input,
-            ]
-
-            for rendition_index, rendition in enumerate(selected_renditions):
-                bitrate = str(rendition['bandwidth'])
-                buffer_size = str(rendition['bandwidth'] * 2)
-
+    
+                for rendition_index, rendition in enumerate(selected_renditions):
+                    bitrate = str(rendition['bandwidth'])
+                    buffer_size = str(rendition['bandwidth'] * 2)
+    
+                    dash_command.extend([
+                        '-map',
+                        '0:v:0',
+                        f'-filter:v:{rendition_index}',
+                        f"scale=-2:{rendition['height']}",
+                        f'-c:v:{rendition_index}',
+                        'h264',
+                        f'-profile:v:{rendition_index}',
+                        'main',
+                        f'-preset:v:{rendition_index}',
+                        'veryfast',
+                        f'-b:v:{rendition_index}',
+                        bitrate,
+                        f'-maxrate:v:{rendition_index}',
+                        bitrate,
+                        f'-bufsize:v:{rendition_index}',
+                        buffer_size,
+                        f'-force_key_frames:v:{rendition_index}',
+                        f'expr:gte(t,n_forced*{segment_duration})',
+                        f'-sc_threshold:v:{rendition_index}',
+                        '0',
+                    ])
+    
+                has_audio = bool(analysis_report.audio_codec)
+    
+                if has_audio:
+                    dash_command.extend([
+                        '-map',
+                        '0:a:0?',
+                        '-c:a',
+                        'aac',
+                        '-b:a',
+                        '128k',
+                    ])
+    
+                adaptation_sets = (
+                    'id=0,streams=v id=1,streams=a'
+                    if has_audio
+                    else 'id=0,streams=v'
+                )
+    
                 dash_command.extend([
-                    '-map',
-                    '0:v:0',
-                    f'-filter:v:{rendition_index}',
-                    f"scale=-2:{rendition['height']}",
-                    f'-c:v:{rendition_index}',
-                    'h264',
-                    f'-profile:v:{rendition_index}',
-                    'main',
-                    f'-preset:v:{rendition_index}',
-                    'veryfast',
-                    f'-b:v:{rendition_index}',
-                    bitrate,
-                    f'-maxrate:v:{rendition_index}',
-                    bitrate,
-                    f'-bufsize:v:{rendition_index}',
-                    buffer_size,
-                    f'-force_key_frames:v:{rendition_index}',
-                    f'expr:gte(t,n_forced*{segment_duration})',
-                    f'-sc_threshold:v:{rendition_index}',
-                    '0',
+                    '-f',
+                    'dash',
+                    '-seg_duration',
+                    segment_duration,
+                    '-use_template',
+                    '1',
+                    '-use_timeline',
+                    '1',
+                    '-init_seg_name',
+                    'init_$RepresentationID$.m4s',
+                    '-media_seg_name',
+                    'chunk_$RepresentationID$_$Number%05d$.m4s',
+                    '-adaptation_sets',
+                    adaptation_sets,
+                    str(dash_manifest_path),
                 ])
-
-            has_audio = bool(analysis_report.audio_codec)
-
-            if has_audio:
-                dash_command.extend([
-                    '-map',
-                    '0:a:0?',
-                    '-c:a',
-                    'aac',
-                    '-b:a',
-                    '128k',
-                ])
-
-            adaptation_sets = (
-                'id=0,streams=v id=1,streams=a'
-                if has_audio
-                else 'id=0,streams=v'
-            )
-
-            dash_command.extend([
-                '-f',
-                'dash',
-                '-seg_duration',
-                segment_duration,
-                '-use_template',
-                '1',
-                '-use_timeline',
-                '1',
-                '-init_seg_name',
-                'init_$RepresentationID$.m4s',
-                '-media_seg_name',
-                'chunk_$RepresentationID$_$Number%05d$.m4s',
-                '-adaptation_sets',
-                adaptation_sets,
-                str(dash_manifest_path),
-            ])
-
-            subprocess.run(
-                dash_command,
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-
+    
+                subprocess.run(
+                    dash_command,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+    
             output_qc = _run_output_qc(
                 output_root=output_root,
                 dash_manifest_path=dash_manifest_path,
                 selected_renditions=selected_renditions,
                 expected_duration=duration_for_per_title,
             )
+            if asset.drm_provider == 'axinom':
+                dash_text = dash_manifest_path.read_text(encoding='utf-8', errors='ignore').lower()
+                fairplay_text = '\\n'.join(
+                    file.read_text(encoding='utf-8', errors='ignore')
+                    for file in (output_root / 'fairplay').rglob('*.m3u8')
+                )
+                fairplay_lower = fairplay_text.lower()
+                protection_systems = []
+                if 'edef8ba9' in dash_text and 'contentprotection' in dash_text:
+                    protection_systems.append('widevine')
+                if '9a04f079' in dash_text and 'contentprotection' in dash_text:
+                    protection_systems.append('playready')
+                if '#ext-x-key' in fairplay_lower and 'skd://' in fairplay_lower:
+                    protection_systems.append('fairplay')
+                if set(protection_systems) != {'widevine', 'playready', 'fairplay'}:
+                    raise ValueError('Axinom DRM manifest QC failed; required protection markers are missing.')
+                asset.drm_metadata = dict(asset.drm_metadata or {})
+                asset.drm_metadata['packaging_status'] = 'ready'
+                asset.drm_metadata['packaging_systems'] = sorted(protection_systems)
+                asset.drm_metadata['output_qc'] = {
+                    'widevine_dash': 'passed',
+                    'playready_dash': 'passed',
+                    'fairplay_hls': 'passed',
+                }
+                asset.save(update_fields=['drm_metadata', 'updated_at'])
+
 
             metadata = dict(
                 analysis_report.technical_metadata or {}
@@ -1644,12 +1687,22 @@ def transcode_video_asset_to_hls(self, asset_id):
 
             asset.hls_master_url = uploaded_urls.get('master.m3u8', '')
             asset.dash_manifest_url = uploaded_dash_urls.get('manifest.mpd', '')
+            if asset.drm_provider == 'axinom':
+                drm_metadata = dict(asset.drm_metadata or {})
+                manifests = dict(drm_metadata.get('manifests') or {})
+                manifests['widevine_hls'] = uploaded_urls.get('master.m3u8', '')
+                manifests['widevine_dash'] = uploaded_dash_urls.get('manifest.mpd', '')
+                manifests['playready_dash'] = uploaded_dash_urls.get('manifest.mpd', '')
+                manifests['fairplay_hls'] = uploaded_urls.get('fairplay/master.m3u8', '')
+                drm_metadata['manifests'] = manifests
+                asset.drm_metadata = drm_metadata
             asset.status = 'ready'
             asset.save(
                 update_fields=[
                     'hls_master_url',
                     'dash_manifest_url',
                     'status',
+                    'drm_metadata',
                     'updated_at',
                 ]
             )
