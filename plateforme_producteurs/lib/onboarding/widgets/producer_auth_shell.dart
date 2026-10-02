@@ -8,12 +8,14 @@ class ProducerAuthShell extends StatelessWidget {
     this.title,
     this.maxWidth = 1180,
     this.showFaqButton = true,
+    this.scrollable = true,
   });
 
   final Widget child;
   final String? title;
   final double maxWidth;
   final bool showFaqButton;
+  final bool scrollable;
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +23,7 @@ class ProducerAuthShell extends StatelessWidget {
       title: title,
       maxWidth: maxWidth,
       showFaq: showFaqButton,
-      scrollable: true,
+      scrollable: scrollable,
       contentDecoration: true,
       child: child,
     );

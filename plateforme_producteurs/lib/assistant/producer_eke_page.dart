@@ -177,9 +177,14 @@ class _ProducerEkePageState extends State<ProducerEkePage> {
           final gender = voice['gender']?.toString().toLowerCase() ?? '';
           final name = voice['name']?.toString().toLowerCase() ?? '';
           final target = _voiceGender == 'female' ? 'female' : 'male';
-          if (gender.contains(target)) return true;
+          final normalizedGender = gender.trim();
+          if (normalizedGender == target ||
+              (target == 'male' && normalizedGender.startsWith('male') && !normalizedGender.contains('female'))) {
+            return true;
+          }
           if (_voiceGender == 'female') return ['female', 'femme', 'woman', 'samantha', 'karen', 'amelie', 'julie', 'zira'].any(name.contains) && !name.contains('male');
-          return ['male', 'homme', 'man', 'thomas', 'daniel', 'paul', 'nicolas', 'antoine', 'henri'].any(name.contains) && !name.contains('female');
+          return !name.contains('female') &&
+              ['male', 'homme', 'man', 'thomas', 'daniel', 'paul', 'nicolas', 'antoine', 'henri'].any(name.contains);
         }
         Map? selected;
         for (final voice in voices) {
