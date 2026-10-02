@@ -44,6 +44,7 @@ class _ProducerFaqPageState extends State<ProducerFaqPage> {
     return ProducerAuthShell(
       maxWidth: 1050,
       showFaqButton: false,
+      scrollable: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
