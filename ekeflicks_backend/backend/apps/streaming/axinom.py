@@ -103,7 +103,7 @@ def request_content_keys(asset):
             normalized["_scheme"] = scheme.lower()
             all_tracks.append(normalized)
             safe_tracks.append({
-                "key_id": key_id_hex,
+                "key_id": str(uuid.UUID(hex=key_id_hex)),
                 "scheme": scheme.lower(),
                 "iv": iv_hex,
                 "drm_systems": [
@@ -212,7 +212,7 @@ def package_video_asset(asset, source_path, renditions, output_root, dash_root, 
             f"--hls_master_playlist_output={output_hls_root}/master.m3u8",
         ])
         if iv:
-            args.append(f"--hls_key_uri=skd://{key_id}:{iv}")
+            args.append(f"--hls_key_uri=skd://{uuid.UUID(hex=key_id)}:{iv}")
         if mpd_path:
             args.append(f"--mpd_output={mpd_path}")
         subprocess.run(args, check=True, capture_output=True, text=True)
