@@ -131,7 +131,7 @@ def decode_track_key(track):
         base64.b64decode(track["key"], validate=True).hex(),
     )
 
-def package_video_asset(source_path, renditions, output_root, dash_root, segment_duration, has_audio):
+def package_video_asset(asset, source_path, renditions, output_root, dash_root, segment_duration, has_audio):
     """Encode a per-title ladder, encrypt it with Axinom keys, and package DASH/HLS.
 
     This runs locally in a worker temporary directory. Raw keys are passed to
@@ -145,8 +145,7 @@ def package_video_asset(source_path, renditions, output_root, dash_root, segment
     output_root.mkdir(parents=True, exist_ok=True)
     dash_root.mkdir(parents=True, exist_ok=True)
 
-    request_content_keys_for_asset_path._asset = getattr(package_video_asset, "_asset", None)
-    raw_tracks, safe_metadata = request_content_keys_for_asset_path(source_path, renditions)
+    raw_tracks, safe_metadata = request_content_keys(asset)
     cenc = next((track for track in raw_tracks if track["_scheme"] == "cenc"), None)
     cbcs = next((track for track in raw_tracks if track["_scheme"] == "cbcs"), None)
     if cenc is None or cbcs is None:
@@ -242,13 +241,3 @@ def package_video_asset(source_path, renditions, output_root, dash_root, segment
     rendition_payloads = [(index, rendition) for _, rendition, index in encoded]
     return rendition_payloads, safe_metadata
 
-
-def request_content_keys_for_asset_path(source_path, renditions):
-    # Kept separate to permit the key request to be mocked independently of
-    # encoding and packaging in tests.
-    # The video asset ID is provided via an internal temporary attribute by
-    # the caller to avoid deriving identifiers from content filenames.
-    asset = getattr(request_content_keys_for_asset_path, "_asset", None)
-    if asset is None:
-        raise RuntimeError("Axinom asset context was not provided.")
-    return request_content_keys(asset)
