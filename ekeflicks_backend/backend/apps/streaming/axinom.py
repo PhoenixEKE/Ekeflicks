@@ -52,57 +52,66 @@ def _decode_key_response(response):
 
 
 def request_content_keys(asset):
-    """Fetch an HD CENC key and a CBCS key for FairPlay.
+    """Fetch separate CENC and CBCS key material.
 
-    Return the full Axinom tracks for immediate packaging and separately return
-    safe metadata suitable for persistence.
+    Return raw Key Service tracks for immediate packaging and safe metadata
+    suitable for persistence. Raw keys must remain in process memory only.
     """
     if not getattr(settings, "AXINOM_DRM_ENABLED", False):
         raise ImproperlyConfigured("AXINOM_DRM_ENABLED must be true.")
     endpoint = _required_setting("AXINOM_KEY_SERVICE_URL")
     signer = _required_setting("AXINOM_KEY_PROVIDER_NAME")
-    # Stable opaque content ID; no title, email, or other identifying metadata.
     content_id = base64.b64encode(uuid.UUID(str(asset.id)).bytes).decode("ascii")
-    request_data = {
-        "content_id": content_id,
-        "drm_types": ["WIDEVINE", "PLAYREADY", "FAIRPLAY"],
-        "tracks": [{"type": "HD"}],
-        "protection_scheme": "CENC",
-    }
-    request_text = json.dumps(request_data, indent=2, ensure_ascii=False)
-    request_bytes = request_text.encode("utf-8")
-    envelope = {
-        "request": base64.b64encode(request_bytes).decode("ascii"),
-        "signature": _sign_request(request_bytes),
-        "signer": signer,
-    }
-    response = requests.post(
-        endpoint,
-        json=envelope,
-        timeout=getattr(settings, "AXINOM_KEY_TIMEOUT_SECONDS", 20),
-    )
-    response.raise_for_status()
-    tracks = _decode_key_response(response)
+    all_tracks = []
     safe_tracks = []
-    for track in tracks:
-        key_id = track.get("key_id")
-        key = track.get("key")
-        if not key_id or not key:
-            raise ValueError("Axinom Key Service returned a track without a key or key ID.")
-        try:
-            key_id_hex = base64.b64decode(key_id, validate=True).hex()
-            key_hex = base64.b64decode(key, validate=True).hex()
-            iv_hex = base64.b64decode(track["iv"], validate=True).hex() if track.get("iv") else ""
-        except (ValueError, KeyError) as exc:
-            raise ValueError("Axinom Key Service returned malformed key material.") from exc
-        if len(key_id_hex) != 32 or len(key_hex) != 32:
-            raise ValueError("Axinom keys must use 16-byte key IDs and content keys.")
-        safe_tracks.append({
-            "key_id": key_id_hex,
-            "scheme": str(track.get("protection_scheme") or "cenc").lower(),
-            "iv": iv_hex,
-            "drm": track.get("drm") or [],
-        })
+    for scheme in ("CENC", "CBCS"):
+        request_data = {
+            "content_id": content_id,
+            "drm_types": ["WIDEVINE", "PLAYREADY", "FAIRPLAY"],
+            "tracks": [{"type": "HD"}],
+            "protection_scheme": scheme,
+        }
+        request_text = json.dumps(request_data, indent=2, ensure_ascii=False)
+        request_bytes = request_text.encode("utf-8")
+        envelope = {
+            "request": base64.b64encode(request_bytes).decode("ascii"),
+            "signature": _sign_request(request_bytes),
+            "signer": signer,
+        }
+        response = requests.post(
+            endpoint,
+            json=envelope,
+            timeout=getattr(settings, "AXINOM_KEY_TIMEOUT_SECONDS", 20),
+        )
+        response.raise_for_status()
+        scheme_tracks = _decode_key_response(response)
+        for track in scheme_tracks:
+            key_id = track.get("key_id")
+            key = track.get("key")
+            if not key_id or not key:
+                raise ValueError("Axinom Key Service returned a track without a key or key ID.")
+            try:
+                key_id_hex = base64.b64decode(key_id, validate=True).hex()
+                key_hex = base64.b64decode(key, validate=True).hex()
+                iv_hex = base64.b64decode(track["iv"], validate=True).hex() if track.get("iv") else ""
+            except (ValueError, KeyError) as exc:
+                raise ValueError("Axinom Key Service returned malformed key material.") from exc
+            if len(key_id_hex) != 32 or len(key_hex) != 32:
+                raise ValueError("Axinom keys must use 16-byte key IDs and content keys.")
+            # Keep the normalized scheme on the in-memory record for packaging.
+            normalized = dict(track)
+            normalized["_scheme"] = scheme.lower()
+            all_tracks.append(normalized)
+            safe_tracks.append({
+                "key_id": key_id_hex,
+                "scheme": scheme.lower(),
+                "iv": iv_hex,
+                "drm_systems": [
+                    str(item.get("system") or "").lower()
+                    for item in (track.get("drm") or [])
+                    if isinstance(item, dict)
+                ],
+            })
     safe = {
         "provider": "axinom",
         "status": "keys_ready",
@@ -113,8 +122,7 @@ def request_content_keys(asset):
         "key_tracks": safe_tracks,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    return tracks, safe
-
+    return all_tracks, safe
 
 def decode_track_key(track):
     """Convert one Axinom base64 key record for a transient packager command."""
