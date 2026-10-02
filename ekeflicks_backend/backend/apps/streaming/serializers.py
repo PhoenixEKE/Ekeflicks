@@ -127,6 +127,7 @@ class VideoAssetSerializer(serializers.ModelSerializer):
             'is_downloadable',
             'drm_provider',
             'encryption_key_id',
+            'drm_metadata',
             'published_at',
             'renditions',
             'subtitle_tracks',
@@ -144,6 +145,7 @@ class VideoAssetSerializer(serializers.ModelSerializer):
             'moderated_by',
             'moderated_by_email',
             'moderated_at',
+            'drm_metadata',
             'created_at',
             'updated_at',
         ]
