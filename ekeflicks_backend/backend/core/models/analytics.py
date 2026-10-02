@@ -53,10 +53,10 @@ class DailyStat(models.Model):
 
 class ProducerRevenueSetting(models.Model):
     remuneration_enabled = models.BooleanField(default=True)
-    eligible_progress_percent = models.DecimalField(max_digits=5, decimal_places=2, default=30)
-    rate_per_1000_views_eur = models.DecimalField(max_digits=10, decimal_places=6, default=1.524490)
+    eligible_progress_percent = models.DecimalField(max_digits=5, decimal_places=2, default=70)
+    rate_per_1000_views_eur = models.DecimalField(max_digits=10, decimal_places=6, default=1.500000)
     advertising_share_percent = models.DecimalField(max_digits=5, decimal_places=2, default=60)
-    minimum_payout_eur = models.DecimalField(max_digits=10, decimal_places=6, default=76.224509)
+    minimum_payout_eur = models.DecimalField(max_digits=10, decimal_places=6, default=75.000000)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -125,6 +125,51 @@ class ProducerAdvertisingRevenue(models.Model):
                 self.share_percent = setting_share
         self.producer_share_eur = (
             Decimal(self.net_revenue_eur) * Decimal(self.share_percent) / Decimal('100')
+        ).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+        super().save(*args, **kwargs)
+
+
+
+class ProducerDemoEarning(models.Model):
+    """Synthetic finance preview, isolated from payable producer earnings."""
+
+    producer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='demo_earnings')
+    content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='producer_demo_earnings')
+    seed_key = models.CharField(max_length=80, db_index=True)
+    period = models.DateField(db_index=True)
+    eligible_views = models.PositiveIntegerField(default=0)
+    view_revenue_eur = models.DecimalField(max_digits=14, decimal_places=9, default=0)
+    advertising_net_revenue_eur = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    advertising_share_percent = models.DecimalField(max_digits=5, decimal_places=2, default=60)
+    advertising_share_eur = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'producer_demo_earnings'
+        constraints = [
+            models.UniqueConstraint(fields=['producer', 'content', 'seed_key'], name='producer_demo_earning_unique_seed'),
+            models.CheckConstraint(
+                check=models.Q(view_revenue_eur__gte=0) & models.Q(advertising_net_revenue_eur__gte=0),
+                name='producer_demo_earning_nonnegative',
+            ),
+            models.CheckConstraint(
+                check=models.Q(advertising_share_percent__gte=0) & models.Q(advertising_share_percent__lte=100),
+                name='producer_demo_share_0_100',
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        from decimal import Decimal, ROUND_HALF_UP
+        from django.core.exceptions import ValidationError
+
+        owner_id = Content.objects.filter(pk=self.content_id).values_list('producer_id', flat=True).first()
+        if owner_id != self.producer_id:
+            raise ValidationError('La rémunération de démonstration doit appartenir au producteur du contenu.')
+        self.advertising_share_eur = (
+            Decimal(self.advertising_net_revenue_eur)
+            * Decimal(self.advertising_share_percent)
+            / Decimal('100')
         ).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
         super().save(*args, **kwargs)
 
