@@ -180,7 +180,7 @@ class ProfileApiTests(APITestCase):
         )
 
         # Vérifier que le logo est intégré en CID
-        self.assertIn('cid:logo_light.png', message.alternatives[0][0])
+        self.assertIn('cid:logo_dark.png', message.alternatives[0][0])
 
         # Vérifier que le multipart est de type 'related' pour l'affichage inline
         self.assertEqual(message.mixed_subtype, 'related')
