@@ -164,7 +164,10 @@ class ProfileApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         reset_messages = [
             message for message in mail.outbox
-            if self.user.email in message.to
+            if (
+                self.user.email in message.to
+                and message.subject == 'Réinitialiser votre PIN parental EkeFlicks'
+            )
         ]
         self.assertEqual(len(reset_messages), 1)
 

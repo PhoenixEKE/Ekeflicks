@@ -23,6 +23,13 @@ class ProducerAnalyticsAPITests(
         )
         self._engagement_patcher.start()
         self.addCleanup(self._engagement_patcher.stop)
+
+        self._content_analytics_patcher = patch(
+            'apps.analytics.services.producer_content_video_analytics',
+            return_value=[],
+        )
+        self._content_analytics_patcher.start()
+        self.addCleanup(self._content_analytics_patcher.stop)
         self.url = reverse(
             'producer-analytics-list'
         )

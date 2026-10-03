@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.files.storage import storages
@@ -272,8 +274,9 @@ class StreamingApiTests(APITestCase):
         self.assertEqual(response.data['drm']['fairplay_certificate_url'], 'https://drm.ekeflicks.test/fairplay.cer')
         self.assertEqual(response.data['drm']['ios']['license_duration_days'], 14)
 
+    @patch('apps.streaming.views.analyze_video_asset.delay')
     @override_settings(STORAGES=TEST_FILE_STORAGES)
-    def test_staff_can_upload_video_source(self):
+    def test_staff_can_upload_video_source(self, analyze_video_asset_delay):
         storages._storages.clear()
         self.user.is_staff = True
         self.user.save(update_fields=['is_staff'])
@@ -291,6 +294,7 @@ class StreamingApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        analyze_video_asset_delay.assert_called_once_with(str(self.asset.id))
         self.asset.refresh_from_db()
         self.assertTrue(
             self.asset.source_file_path.startswith(f'uploads/producer_{self.user.id}/')
@@ -298,8 +302,9 @@ class StreamingApiTests(APITestCase):
         self.assertIn(f'asset_{self.asset.id}/video_original.mp4', self.asset.source_file_path)
         self.assertEqual(self.asset.source_file_size_bytes, len(b'fake video bytes'))
 
+    @patch('apps.streaming.views.analyze_video_asset.delay')
     @override_settings(STORAGES=TEST_FILE_STORAGES)
-    def test_producer_can_create_and_upload_own_video_asset(self):
+    def test_producer_can_create_and_upload_own_video_asset(self, analyze_video_asset_delay):
         storages._storages.clear()
         producer = User.objects.create_user(
             email='producer-video@example.com',
@@ -363,6 +368,7 @@ class StreamingApiTests(APITestCase):
         )
 
         self.assertEqual(upload_response.status_code, status.HTTP_200_OK)
+        analyze_video_asset_delay.assert_called_once_with(str(asset.id))
         asset.refresh_from_db()
         self.assertEqual(asset.source_uploaded_by, producer)
         self.assertEqual(asset.moderation_status, 'pending')
