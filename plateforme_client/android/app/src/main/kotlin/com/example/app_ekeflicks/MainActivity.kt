@@ -12,6 +12,11 @@ class MainActivity : FlutterActivity() {
         )
     }
 
+    override fun onResume() {
+        super.onResume()
+        PlayReadyTvPlayerView.resumeAll()
+    }
+
     override fun onPause() {
         PlayReadyTvPlayerView.pauseAll()
         super.onPause()

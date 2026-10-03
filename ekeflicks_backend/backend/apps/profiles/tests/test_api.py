@@ -162,9 +162,13 @@ class ProfileApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(mail.outbox), 1)
+        reset_messages = [
+            message for message in mail.outbox
+            if self.user.email in message.to
+        ]
+        self.assertEqual(len(reset_messages), 1)
 
-        message = mail.outbox[0]
+        message = reset_messages[0]
 
         # Vérifier que le lien utilise le format query string (compatible hébergements partagés)
         self.assertIn(

@@ -48,7 +48,7 @@ internal class PlayReadyTvPlayerView(
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
             .setCacheKeyFactory { dataSpec ->
                 // Do not persist signed query tokens in cache metadata.
-                "$cacheKey:${dataSpec.uri.path.orEmpty()}"
+                "$cacheKey:${dataSpec.uri.path.orEmpty()}:${dataSpec.position}:${dataSpec.length}"
             }
         val mediaSourceFactory = DefaultMediaSourceFactory(cacheFactory)
         player = ExoPlayer.Builder(context)
@@ -79,6 +79,7 @@ internal class PlayReadyTvPlayerView(
 
     override fun dispose() {
         ACTIVE_PLAYERS.remove(player)
+        RESUME_AFTER_PAUSE.remove(player)
         playerView.player = null
         player.release()
     }
@@ -91,8 +92,23 @@ internal class PlayReadyTvPlayerView(
             ConcurrentHashMap<ExoPlayer, Boolean>(),
         )
 
+        private val RESUME_AFTER_PAUSE = ConcurrentHashMap<ExoPlayer, Boolean>()
+
         fun pauseAll() {
-            ACTIVE_PLAYERS.forEach { it.pause() }
+            ACTIVE_PLAYERS.forEach { player ->
+                if (player.playWhenReady) {
+                    RESUME_AFTER_PAUSE[player] = true
+                }
+                player.pause()
+            }
+        }
+
+        fun resumeAll() {
+            ACTIVE_PLAYERS.forEach { player ->
+                if (RESUME_AFTER_PAUSE.remove(player) == true) {
+                    player.play()
+                }
+            }
         }
 
         @Synchronized
