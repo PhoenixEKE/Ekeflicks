@@ -188,7 +188,7 @@ class ProfileApiTests(APITestCase):
         # Vérifier que le logo est attaché à l'email
         self.assertTrue(
             any(
-                attachment.get('Content-ID') == '<logo_light.png>'
+                attachment.get('Content-ID') == '<logo_dark.png>'
                 for attachment in message.attachments
             )
         )
