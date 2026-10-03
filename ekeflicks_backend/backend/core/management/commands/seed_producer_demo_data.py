@@ -15,7 +15,7 @@ from apps.analytics.services import (
     normalize_analytics_event,
 )
 from apps.catalog.translations import source_hash
-from core.models import Content, Notification, NotificationType, ProducerDemoEarning, ProducerRevenueSetting, User
+from core.models import Content, Notification, NotificationType, ProducerDemoEarning, User
 
 
 SEED_KEY = 'producer_portal_demo_v1'
@@ -129,7 +129,8 @@ class Command(BaseCommand):
 
     @staticmethod
     def _seed_demo_earnings(producer, contents):
-        setting, _ = ProducerRevenueSetting.objects.get_or_create(pk=1)
+        from apps.auth.producer_compensation import compensation_terms_for
+        terms = compensation_terms_for(producer)
         demo_rows = (
             (6000, Decimal('40.00')),
             (4200, Decimal('30.00')),
@@ -137,7 +138,7 @@ class Command(BaseCommand):
         )
         for content, (eligible_views, ad_net_eur) in zip(contents, demo_rows):
             view_revenue = (
-                Decimal(setting.rate_per_1000_views_eur)
+                Decimal(terms['rate_per_1000_views_eur'])
                 * Decimal(eligible_views)
                 / Decimal('1000')
             ).quantize(Decimal('0.000000001'))
@@ -150,7 +151,7 @@ class Command(BaseCommand):
                     'eligible_views': eligible_views,
                     'view_revenue_eur': view_revenue,
                     'advertising_net_revenue_eur': ad_net_eur,
-                    'advertising_share_percent': setting.advertising_share_percent,
+                    'advertising_share_percent': terms['advertising_share_percent'],
                 },
             )
 

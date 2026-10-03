@@ -202,6 +202,21 @@ class ProducerContractVersion(TimeStampedModel):
         ),
     )
 
+    # A contract version changes remuneration only when the administrator
+    # explicitly marks it as a compensation amendment and supplies the
+    # commercial terms below. Otherwise existing producers carry their last
+    # signed terms forward when accepting a new legal-text version.
+    amends_compensation = models.BooleanField(default=False)
+    rate_per_1000_views_eur = models.DecimalField(
+        max_digits=10, decimal_places=6, null=True, blank=True,
+    )
+    eligible_progress_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+    advertising_share_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+
     canonical_content = models.TextField(
         blank=True,
         help_text=(
@@ -284,6 +299,22 @@ class ProducerAgreement(TimeStampedModel):
         ProducerAccount,
         on_delete=models.CASCADE,
         related_name='agreements',
+    )
+
+    previous_agreement = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='successor_agreements',
+    )
+    compensation_amendment = models.BooleanField(default=False)
+    compensation_terms_source = models.CharField(max_length=32, blank=True)
+    rate_per_1000_views_eur = models.DecimalField(
+        max_digits=10, decimal_places=6, null=True, blank=True,
+    )
+    eligible_progress_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+    advertising_share_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
     )
 
     contract_version = models.CharField(

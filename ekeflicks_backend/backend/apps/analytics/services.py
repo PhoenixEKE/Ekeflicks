@@ -68,6 +68,8 @@ def record_producer_viewing_session(session):
     User.objects.select_for_update().filter(pk=session.profile.user_id).first()
 
     setting = revenue_settings()
+    from apps.auth.producer_compensation import compensation_terms_for
+    terms = compensation_terms_for(producer, effective_at=session.start_time)
     if not setting.remuneration_enabled or not producer.producer_remuneration_enabled:
         return None
 
@@ -86,10 +88,11 @@ def record_producer_viewing_session(session):
 
     watched_seconds = int(session.duration_watched or 0)
     progress_percent = (Decimal(watched_seconds) * Decimal('100')) / Decimal(total_seconds)
-    if progress_percent < Decimal(setting.eligible_progress_percent):
+    if progress_percent < Decimal(terms['eligible_progress_percent']):
         return None
 
-    amount_eur = (Decimal(setting.rate_per_1000_views_eur) / Decimal('1000')).quantize(
+    rate_per_1000 = Decimal(terms['rate_per_1000_views_eur'])
+    amount_eur = (rate_per_1000 / Decimal('1000')).quantize(
         Decimal('0.000000001'),
         rounding=ROUND_HALF_UP,
     )
@@ -97,11 +100,14 @@ def record_producer_viewing_session(session):
     return ProducerContentView.objects.create(
         viewing_session=session,
         producer=producer,
+        contract_agreement=terms['agreement'],
         content=session.content,
         episode=session.episode,
         watched_seconds=watched_seconds,
         total_seconds=total_seconds,
         progress_percent=progress_percent.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+        rate_per_1000_views_eur=rate_per_1000,
+        eligible_progress_percent=Decimal(terms['eligible_progress_percent']),
         viewer_country_code=(session.profile.user.country_code or '').upper(),
         amount_eur=amount_eur,
         currency=currency,

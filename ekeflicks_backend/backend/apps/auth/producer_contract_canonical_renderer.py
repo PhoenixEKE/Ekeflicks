@@ -133,6 +133,31 @@ def build_contract_context(
         ekeflicks_signed_at
     )
 
+    if agreement is not None:
+        from decimal import Decimal
+        from apps.auth.producer_compensation import compensation_terms_for
+
+        terms = compensation_terms_for(
+            agreement.producer_account,
+            effective_at=agreement.signed_at or agreement.created_at,
+        )
+        rate = agreement.rate_per_1000_views_eur
+        if rate is None:
+            rate = terms["rate_per_1000_views_eur"]
+        progress = agreement.eligible_progress_percent
+        if progress is None:
+            progress = terms["eligible_progress_percent"]
+        share = agreement.advertising_share_percent
+        if share is None:
+            share = terms["advertising_share_percent"]
+        share = Decimal(share)
+        context.update({
+            "producer_rate_per_1000_views_eur": format(Decimal(rate), "f"),
+            "producer_eligible_progress_percent": format(Decimal(progress), "f"),
+            "producer_advertising_share_percent": format(share, "f"),
+            "ekeflicks_advertising_share_percent": format(Decimal("100") - share, "f"),
+        })
+
     return context
 
 

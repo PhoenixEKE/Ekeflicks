@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import transaction
@@ -156,6 +157,46 @@ def publish_contract_version(instance):
         raise ProducerContractVersionError(
             "Le titre contractuel est obligatoire."
         )
+
+    placeholders = (
+        '{{producer_rate_per_1000_views_eur}}',
+        '{{producer_eligible_progress_percent}}',
+        '{{producer_advertising_share_percent}}',
+        '{{ekeflicks_advertising_share_percent}}',
+    )
+    if any(token not in content for token in placeholders):
+        raise ProducerContractVersionError(
+            "Le texte contractuel doit employer les quatre placeholders de rémunération pour conserver le barème signé du Producteur."
+        )
+    translations = instance.canonical_content_translations or {}
+    for language, translated in translations.items():
+        if isinstance(translated, dict) and translated.get('reviewed') is True:
+            translated_text = str(translated.get('value') or '')
+            if any(token not in translated_text for token in placeholders):
+                raise ProducerContractVersionError(
+                    f"La traduction {language.upper()} doit conserver les placeholders de rémunération."
+                )
+
+    if instance.amends_compensation:
+        if not instance.requires_reacceptance:
+            raise ProducerContractVersionError(
+                "Un avenant de rémunération doit exiger l’acceptation du Producteur avant son entrée en vigueur."
+            )
+        required = (
+            instance.rate_per_1000_views_eur,
+            instance.eligible_progress_percent,
+            instance.advertising_share_percent,
+        )
+        if any(value is None for value in required):
+            raise ProducerContractVersionError(
+                "Un avenant de rémunération doit préciser le taux par 1 000 vues, le seuil de visionnage et la part publicitaire."
+            )
+        if Decimal(instance.rate_per_1000_views_eur) < 0:
+            raise ProducerContractVersionError("Le taux de rémunération ne peut pas être négatif.")
+        if not Decimal('0') <= Decimal(instance.eligible_progress_percent) <= Decimal('100'):
+            raise ProducerContractVersionError("Le seuil de visionnage doit être compris entre 0 et 100 %.")
+        if not Decimal('0') <= Decimal(instance.advertising_share_percent) <= Decimal('100'):
+            raise ProducerContractVersionError("La part publicitaire doit être comprise entre 0 et 100 %.")
 
     translations = instance.canonical_content_translations or {}
     title_hash = contract_content_sha256(instance.title)

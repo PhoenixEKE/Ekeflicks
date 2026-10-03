@@ -2,6 +2,7 @@ import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/providers/content_provider.dart';
+import 'package:app_ekeflicks/providers/device_info_provider.dart';
 import 'package:app_ekeflicks/services/native_screen_retainer.dart';
 import 'package:app_ekeflicks/utils/browser_info.dart';
 import 'package:better_player/better_player.dart';
@@ -68,6 +69,9 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   bool _error = false;
   String? _errorMessage;
   bool _isTv = false;
+  bool _isAndroidTvDevice = false;
+  bool _usePlayReadyTvView = false;
+  Map<String, String> _playReadyTvParams = const {};
 
   @override
   void initState() {
@@ -81,6 +85,8 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _isTv = AppResponsive.isTVSize(context);
+    _isAndroidTvDevice = defaultTargetPlatform == TargetPlatform.android &&
+        context.watch<DeviceInfoProvider>().isTV;
   }
 
   String _platformName() {
@@ -91,6 +97,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   }
 
   String _drmSystem(String platform) {
+    if (platform == 'tv') return 'playready';
     if (platform == 'ios' || (kIsWeb && isSafariBrowser())) return 'fairplay';
     return 'widevine';
   }
@@ -101,6 +108,8 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         _loading = true;
         _error = false;
         _errorMessage = null;
+        _usePlayReadyTvView = false;
+        _playReadyTvParams = const {};
       });
     }
     BetterPlayerController? nextController;
@@ -110,14 +119,15 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       DataSourceType sourceType = DataSourceType.network;
 
       if (widget.videoAssetId != null && widget.videoAssetId!.isNotEmpty) {
+        final deviceInfo = context.read<DeviceInfoProvider>();
+        if (!deviceInfo.isInitialized) await deviceInfo.init();
+        _isAndroidTvDevice = defaultTargetPlatform == TargetPlatform.android &&
+            deviceInfo.isTV;
         final profileId = context.read<ProfileProvider>().currentProfile?.id;
         if (profileId == null || profileId.isEmpty) {
           throw StateError('Aucun profil actif pour autoriser la lecture.');
         }
-        final platform =
-            _isTv && defaultTargetPlatform == TargetPlatform.android
-                ? 'tv'
-                : _platformName();
+        final platform = _isAndroidTvDevice ? 'tv' : _platformName();
         final drmSystem = _drmSystem(platform);
         final playback = await context.read<ContentProvider>().preparePlayback(
           assetId: widget.videoAssetId!,
@@ -137,6 +147,24 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
           final token = drmData['entitlement_token']?.toString() ?? '';
           if (licenseUrl.isEmpty || token.isEmpty) {
             throw StateError('La licence DRM est indisponible pour ce contenu.');
+          }
+          if (drmSystem == 'playready') {
+            final manifest = playback['dash_manifest_url']?.toString() ?? '';
+            if (manifest.isEmpty || kIsWeb) {
+              throw StateError('Le manifeste PlayReady pour Android TV est indisponible.');
+            }
+            if (!mounted) return;
+            setState(() {
+              _playReadyTvParams = {
+                'manifestUrl': manifest,
+                'licenseUrl': licenseUrl,
+                'entitlementToken': token,
+                'cacheKey': 'eke-asset-${widget.videoAssetId}',
+              };
+              _usePlayReadyTvView = true;
+              _loading = false;
+            });
+            return;
           }
           if (drmSystem == 'fairplay') {
             final uri = Uri.parse(licenseUrl);
@@ -192,6 +220,17 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
           sourceType,
           sourceUrl,
           drmConfiguration: drm,
+          cacheConfiguration: !kIsWeb && sourceType == DataSourceType.network
+              ? CacheConfiguration(
+                  useCache: true,
+                  maxCacheSize: 256 * 1024 * 1024,
+                  maxCacheFileSize: 64 * 1024 * 1024,
+                  preCacheSize: 12 * 1024 * 1024,
+                  key: widget.videoAssetId?.isNotEmpty == true
+                      ? 'eke-asset-${widget.videoAssetId}'
+                      : sourceUrl,
+                )
+              : null,
           useAsmsSubtitles: true,
         ),
       );
@@ -281,9 +320,17 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                   ),
                 ],
               )
-            : _loading || _controller == null
+            : _loading
                 ? const CircularProgressIndicator()
-                : AspectRatio(
+                : _usePlayReadyTvView
+                    ? AndroidView(
+                        viewType: 'ekeflicks/playready-tv-player',
+                        creationParams: _playReadyTvParams,
+                        creationParamsCodec: const StandardMessageCodec(),
+                      )
+                    : _controller == null
+                        ? const CircularProgressIndicator()
+                        : AspectRatio(
                     aspectRatio: 16 / 9,
                     child: BetterPlayer(controller: _controller!),
                   ),

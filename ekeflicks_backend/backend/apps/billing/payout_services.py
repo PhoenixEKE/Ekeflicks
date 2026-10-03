@@ -60,6 +60,8 @@ def producer_balance(producer, include_demo=False):
         })
         entry['advertising_revenue_eur'] = row['amount'] or Decimal('0')
     setting = revenue_settings()
+    from apps.auth.producer_compensation import compensation_terms_for
+    terms = compensation_terms_for(producer)
     all_view_rows = ProducerContentView.objects.filter(
         producer=producer,
         status__in=['pending', 'requested', 'paid'],
@@ -144,10 +146,16 @@ def producer_balance(producer, include_demo=False):
             }
             for row in all_by_content.values()
         ],
-        'rate_per_1000_views_eur': setting.rate_per_1000_views_eur,
-        'rate_per_1000_views_local': local_amount(setting.rate_per_1000_views_eur),
-        'eligible_progress_percent': setting.eligible_progress_percent,
-        'advertising_share_percent': setting.advertising_share_percent,
+        'rate_per_1000_views_eur': terms['rate_per_1000_views_eur'],
+        'rate_per_1000_views_local': local_amount(terms['rate_per_1000_views_eur']),
+        'eligible_progress_percent': terms['eligible_progress_percent'],
+        'advertising_share_percent': terms['advertising_share_percent'],
+        'compensation_contract_version': (
+            terms['agreement'].contract_version if terms.get('agreement') else ''
+        ),
+        'compensation_amendment': bool(
+            terms['agreement'] and terms['agreement'].compensation_amendment
+        ),
         'minimum_payout_eur': setting.minimum_payout_eur,
         'minimum_payout_local': local_amount(setting.minimum_payout_eur),
     }
