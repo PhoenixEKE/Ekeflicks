@@ -71,6 +71,7 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
             'unpublish',
             'start_transcode',
             'pending_submissions',
+            'drm_review',
         }:
             return [permissions.IsAdminUser()]
         if self.action in {'mine', 'producer_dashboard'}:
@@ -977,13 +978,61 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
                 {'moderation_status': 'La video doit etre validee avant publication.'}
             )
 
-        ensure_encryption_key_id(asset)
+        if asset.drm_provider == 'axinom':
+            drm = asset.drm_metadata if isinstance(asset.drm_metadata, dict) else {}
+            systems = drm.get('packaging_systems') or []
+            reviews = drm.get('validation') or {}
+            required = {'widevine', 'fairplay', 'playready'}
+            if drm.get('packaging_status') != 'ready' or not required.issubset(set(systems)):
+                raise exceptions.ValidationError({
+                    'drm': 'Le packaging chiffre Widevine, FairPlay et PlayReady doit etre termine.'
+                })
+            pending = sorted(system for system in required
+                             if (reviews.get(system) or {}).get('status') != 'approved')
+            if pending:
+                raise exceptions.ValidationError({
+                    'drm_validation': f"Validation administrateur requise pour : {', '.join(pending)}."
+                })
+        if asset.drm_provider != 'axinom':
+            ensure_encryption_key_id(asset)
         asset.status = 'ready'
         asset.published_at = timezone.now()
         asset.save(update_fields=['encryption_key_id', 'status', 'published_at', 'updated_at'])
         notify_new_publication(asset.content)
         serializer = self.get_serializer(asset)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='drm-review')
+    def drm_review(self, request, pk=None):
+        asset = self.get_object()
+        if asset.drm_provider != 'axinom':
+            raise exceptions.ValidationError({'drm_provider': 'Cette action concerne les assets Axinom.'})
+        system = str(request.data.get('system') or '').strip().lower()
+        decision = str(request.data.get('decision') or '').strip().lower()
+        reason = str(request.data.get('reason') or '').strip()
+        if system not in {'widevine', 'fairplay', 'playready'}:
+            raise exceptions.ValidationError({'system': 'Choisir widevine, fairplay ou playready.'})
+        if decision not in {'approved', 'rejected'}:
+            raise exceptions.ValidationError({'decision': 'Choisir approved ou rejected.'})
+        drm = dict(asset.drm_metadata or {})
+        packaged = set(drm.get('packaging_systems') or [])
+        if decision == 'approved' and (
+            drm.get('packaging_status') != 'ready' or system not in packaged
+        ):
+            raise exceptions.ValidationError({
+                'packaging': f"Le packaging {system} chiffre n'est pas verifie."
+            })
+        validation = dict(drm.get('validation') or {})
+        validation[system] = {
+            'status': decision,
+            'reason': reason,
+            'reviewed_by': str(request.user.pk),
+            'reviewed_at': timezone.now().isoformat(),
+        }
+        drm['validation'] = validation
+        asset.drm_metadata = drm
+        asset.save(update_fields=['drm_metadata', 'updated_at'])
+        return Response(self.get_serializer(asset).data)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
@@ -1096,6 +1145,21 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
         )
         renditions = VideoRenditionSerializer(asset.renditions.all(), many=True).data
         subtitles = SubtitleTrackSerializer(asset.subtitle_tracks.all(), many=True).data
+        drm_metadata = asset.drm_metadata if isinstance(asset.drm_metadata, dict) else {}
+        drm_manifests = drm_metadata.get('manifests') or {}
+        resolved_drm_system = (
+            drm_system or drm_configuration(asset, platform=platform).get('drm_system') or ''
+        ).lower()
+        hls_manifest_url = asset.hls_master_url
+        dash_manifest_url = asset.dash_manifest_url
+        if asset.drm_provider == 'axinom':
+            if resolved_drm_system == 'fairplay':
+                hls_manifest_url = drm_manifests.get('fairplay_hls') or ''
+            elif resolved_drm_system == 'playready':
+                dash_manifest_url = drm_manifests.get('playready_dash') or ''
+            elif resolved_drm_system == 'widevine':
+                hls_manifest_url = drm_manifests.get('widevine_hls') or ''
+                dash_manifest_url = drm_manifests.get('widevine_dash') or ''
 
         payload = {
             'asset_id': str(asset.id),
@@ -1103,14 +1167,14 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
             'content_id': str(asset.content_id),
             'episode_id': str(asset.episode_id) if asset.episode_id else None,
             'hls_master_url': sign_streaming_url(
-                asset.hls_master_url,
+                hls_manifest_url,
                 asset,
                 profile,
                 request.user,
                 signed_expires_at,
             ),
             'dash_manifest_url': sign_streaming_url(
-                asset.dash_manifest_url,
+                dash_manifest_url,
                 asset,
                 profile,
                 request.user,

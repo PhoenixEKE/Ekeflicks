@@ -53,10 +53,10 @@ class DailyStat(models.Model):
 
 class ProducerRevenueSetting(models.Model):
     remuneration_enabled = models.BooleanField(default=True)
-    eligible_progress_percent = models.DecimalField(max_digits=5, decimal_places=2, default=30)
-    rate_per_1000_views_eur = models.DecimalField(max_digits=10, decimal_places=6, default=1.524490)
+    eligible_progress_percent = models.DecimalField(max_digits=5, decimal_places=2, default=70)
+    rate_per_1000_views_eur = models.DecimalField(max_digits=10, decimal_places=6, default=1.500000)
     advertising_share_percent = models.DecimalField(max_digits=5, decimal_places=2, default=60)
-    minimum_payout_eur = models.DecimalField(max_digits=10, decimal_places=6, default=76.224509)
+    minimum_payout_eur = models.DecimalField(max_digits=10, decimal_places=6, default=75.000000)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -75,6 +75,10 @@ class ProducerAdvertisingRevenue(models.Model):
         ('void', 'Void'),
     ]
     producer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='advertising_earnings')
+    contract_agreement = models.ForeignKey(
+        'ProducerAgreement', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='advertising_revenues',
+    )
     content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='producer_advertising_earnings')
     period = models.DateField(db_index=True)
     external_reference = models.CharField(max_length=120, blank=True)
@@ -118,13 +122,59 @@ class ProducerAdvertisingRevenue(models.Model):
         if Decimal(self.net_revenue_eur) < 0:
             raise ValidationError('Le revenu publicitaire net ne peut pas être négatif.')
         if self._state.adding:
-            setting_share = ProducerRevenueSetting.objects.filter(pk=1).values_list(
-                'advertising_share_percent', flat=True
-            ).first()
-            if setting_share is not None:
-                self.share_percent = setting_share
+            from apps.auth.producer_compensation import compensation_terms_for
+            terms = compensation_terms_for(self.producer, effective_at=self.period)
+            self.share_percent = terms['advertising_share_percent']
+            self.contract_agreement_id = (
+                terms['agreement'].pk if terms.get('agreement') else None
+            )
         self.producer_share_eur = (
             Decimal(self.net_revenue_eur) * Decimal(self.share_percent) / Decimal('100')
+        ).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+        super().save(*args, **kwargs)
+
+
+
+class ProducerDemoEarning(models.Model):
+    """Synthetic finance preview, isolated from payable producer earnings."""
+
+    producer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='demo_earnings')
+    content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='producer_demo_earnings')
+    seed_key = models.CharField(max_length=80, db_index=True)
+    period = models.DateField(db_index=True)
+    eligible_views = models.PositiveIntegerField(default=0)
+    view_revenue_eur = models.DecimalField(max_digits=14, decimal_places=9, default=0)
+    advertising_net_revenue_eur = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    advertising_share_percent = models.DecimalField(max_digits=5, decimal_places=2, default=60)
+    advertising_share_eur = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'producer_demo_earnings'
+        constraints = [
+            models.UniqueConstraint(fields=['producer', 'content', 'seed_key'], name='producer_demo_earning_unique_seed'),
+            models.CheckConstraint(
+                check=models.Q(view_revenue_eur__gte=0) & models.Q(advertising_net_revenue_eur__gte=0),
+                name='producer_demo_earning_nonnegative',
+            ),
+            models.CheckConstraint(
+                check=models.Q(advertising_share_percent__gte=0) & models.Q(advertising_share_percent__lte=100),
+                name='producer_demo_share_0_100',
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        from decimal import Decimal, ROUND_HALF_UP
+        from django.core.exceptions import ValidationError
+
+        owner_id = Content.objects.filter(pk=self.content_id).values_list('producer_id', flat=True).first()
+        if owner_id != self.producer_id:
+            raise ValidationError('La rémunération de démonstration doit appartenir au producteur du contenu.')
+        self.advertising_share_eur = (
+            Decimal(self.advertising_net_revenue_eur)
+            * Decimal(self.advertising_share_percent)
+            / Decimal('100')
         ).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
         super().save(*args, **kwargs)
 
@@ -158,6 +208,10 @@ class ProducerContentView(models.Model):
         related_name='producer_view',
     )
     producer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='producer_views')
+    contract_agreement = models.ForeignKey(
+        'ProducerAgreement', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='eligible_views',
+    )
     content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='producer_views')
     episode = models.ForeignKey(Episode, on_delete=models.SET_NULL, null=True, blank=True)
     payout_request = models.ForeignKey(
@@ -170,6 +224,12 @@ class ProducerContentView(models.Model):
     watched_seconds = models.PositiveIntegerField(default=0)
     total_seconds = models.PositiveIntegerField(default=0)
     progress_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    rate_per_1000_views_eur = models.DecimalField(
+        max_digits=10, decimal_places=6, default=0,
+    )
+    eligible_progress_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=70,
+    )
     viewer_country_code = models.CharField(max_length=2, blank=True)
     amount_eur = models.DecimalField(max_digits=14, decimal_places=9, default=0)
     currency = models.CharField(max_length=3, default='EUR')

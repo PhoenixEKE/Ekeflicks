@@ -41,6 +41,8 @@ jobs:
         working-directory: ekeflicks_backend/backend
     steps:
       - uses: actions/checkout@v4
+      - name: Install FFmpeg for video analysis tests
+        run: sudo apt-get update && sudo apt-get install --yes ffmpeg
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -68,15 +70,48 @@ jobs:
         working-directory: ${{ matrix.application }}
     steps:
       - uses: actions/checkout@v4
+      - name: Set up JDK 21 for Android DRM plugin
+        if: matrix.application == 'plateforme_client'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.8'
+          flutter-version: '3.47.0'
           channel: stable
           cache: true
       - name: Install dependencies
         run: flutter pub get
+      - name: Accept Android SDK licenses
+        if: matrix.application == 'plateforme_client'
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
       - name: Build producer web application
         if: matrix.application == 'plateforme_producteurs'
         run: flutter build web --release
+      - name: Build client web application
+        if: matrix.application == 'plateforme_client'
+        run: flutter build web --release
+      - name: Build client Android application
+        if: matrix.application == 'plateforme_client'
+        run: flutter build apk --release
       - name: Run Flutter tests
         run: flutter test
+
+  client-ios-build:
+    name: Client iOS build
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: plateforme_client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Build iOS without code signing
+        run: flutter build ios --release --no-codesign

@@ -2,6 +2,7 @@ import hashlib
 from datetime import timedelta
 
 from django.contrib.auth import authenticate
+from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import Group, Permission
 from django.db import transaction
 from django.db.models import Count, Prefetch, Sum, Q
@@ -434,6 +435,39 @@ class ContentModerationViewSet(viewsets.ReadOnlyModelViewSet):
     def get_required_permission(self):
         return 'core.change_content' if self.action == 'review' else self.required_permission
 
+    @action(detail=True, methods=['post'], url_path='drm-review')
+    def drm_review(self, request, pk=None):
+        asset = self.get_object()
+        if asset.drm_provider != 'axinom':
+            raise exceptions.ValidationError({'drm_provider': 'La validation DRM Axinom concerne uniquement les assets Axinom.'})
+        system = str(request.data.get('system') or '').strip().lower()
+        decision = str(request.data.get('decision') or '').strip().lower()
+        reason = str(request.data.get('reason') or '').strip()
+        if system not in {'widevine', 'fairplay', 'playready'}:
+            raise exceptions.ValidationError({'system': 'Valeurs autorisées : widevine, fairplay, playready.'})
+        if decision not in {'approved', 'rejected'}:
+            raise exceptions.ValidationError({'decision': 'Valeurs autorisées : approved, rejected.'})
+        drm = dict(asset.drm_metadata or {})
+        packaged = set(drm.get('packaging_systems') or [])
+        if decision == 'approved' and (
+            drm.get('packaging_status') != 'ready' or system not in packaged
+        ):
+            raise exceptions.ValidationError({
+                'packaging': f"Le manifeste chiffré {system} doit passer le contrôle technique avant approbation."
+            })
+        validation = dict(drm.get('validation') or {})
+        validation[system] = {
+            'status': decision,
+            'reason': reason,
+            'reviewed_by': str(request.user.pk),
+            'reviewed_at': timezone.now().isoformat(),
+        }
+        drm['validation'] = validation
+        asset.drm_metadata = drm
+        asset.save(update_fields=['drm_metadata', 'updated_at'])
+        audit(request, f'video.drm_{decision}', asset, {'system': system, 'reason': reason})
+        return Response(self.get_serializer(asset).data)
+
     @action(detail=True, methods=['post'])
     def review(self, request, pk=None):
         decision = request.data.get('decision')
@@ -461,7 +495,7 @@ class VideoModerationViewSet(viewsets.ReadOnlyModelViewSet):
     required_permission = 'core.view_videoasset'
 
     def get_queryset(self):
-        queryset = VideoAsset.objects.select_related('content', 'content__producer', 'moderated_by').order_by('-source_uploaded_at')
+        queryset = VideoAsset.objects.select_related('content', 'content__producer', 'moderated_by', 'analysis_report').order_by('-source_uploaded_at')
         state = self.request.query_params.get('status')
         search = self.request.query_params.get('search')
         if state:
@@ -471,7 +505,7 @@ class VideoModerationViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
     def get_required_permission(self):
-        return 'core.change_videoasset' if self.action == 'review' else self.required_permission
+        return 'core.change_videoasset' if self.action in {'review', 'drm_review'} else self.required_permission
 
     @action(detail=True, methods=['post'])
     def review(self, request, pk=None):
@@ -479,6 +513,20 @@ class VideoModerationViewSet(viewsets.ReadOnlyModelViewSet):
         if decision not in ('approved', 'rejected'):
             raise exceptions.ValidationError({'decision': 'Valeurs autorisées : approved, rejected.'})
         asset = self.get_object()
+        if decision == 'approved':
+            try:
+                analysis_report = asset.analysis_report
+            except ObjectDoesNotExist as exc:
+                raise exceptions.ValidationError({
+                    'analysis_report': 'Le rapport QC/IA doit être disponible avant approbation.',
+                }) from exc
+            if analysis_report.status not in {'passed', 'review_required'}:
+                raise exceptions.ValidationError({
+                    'analysis_report': (
+                        'Le rapport QC/IA doit être terminé et consulté avant approbation. '
+                        f'Statut actuel : {analysis_report.status}.'
+                    ),
+                })
         asset.moderation_status = decision
         asset.moderation_reason = request.data.get('reason', '')
         asset.moderated_by = request.user

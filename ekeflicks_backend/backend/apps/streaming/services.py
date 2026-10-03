@@ -2,10 +2,13 @@ import base64
 import hashlib
 import hmac
 import json
+
+import jwt
 import uuid
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
 from django.utils import timezone
 
@@ -346,30 +349,88 @@ def _jwt_segment(payload):
 
 
 def axinom_entitlement_token(license_obj, platform='', drm_system=''):
-    secret = getattr(settings, 'AXINOM_COMMUNICATION_KEY', '') or settings.SECRET_KEY
-    header = {
-        'alg': 'HS256',
-        'typ': 'JWT',
-        'kid': getattr(settings, 'AXINOM_COMMUNICATION_KEY_ID', ''),
+    """Create the Axinom v2 entitlement wrapped and signed as an LSM JWT.
+
+    The communication secret and active-user HMAC secret are deliberately
+    required. Django's application SECRET_KEY is never used as a fallback.
+    """
+    if not getattr(settings, 'AXINOM_DRM_ENABLED', False):
+        raise ImproperlyConfigured('Axinom DRM is disabled.')
+
+    communication_key_id = str(getattr(settings, 'AXINOM_COMMUNICATION_KEY_ID', '') or '').strip()
+    communication_key_b64 = str(getattr(settings, 'AXINOM_COMMUNICATION_KEY', '') or '').strip()
+    active_user_secret = str(getattr(settings, 'AXINOM_ACTIVE_USER_HMAC_SECRET', '') or '')
+    if not communication_key_id or not communication_key_b64 or not active_user_secret:
+        raise ImproperlyConfigured(
+            'AXINOM_COMMUNICATION_KEY_ID, AXINOM_COMMUNICATION_KEY and '
+            'AXINOM_ACTIVE_USER_HMAC_SECRET must be configured.'
+        )
+
+    asset = license_obj.asset
+    drm_metadata = getattr(asset, 'drm_metadata', {}) or {}
+    key_ids = drm_metadata.get('key_ids', {}) if isinstance(drm_metadata, dict) else {}
+    resolved_drm_system = (
+        str(drm_system or license_obj.metadata.get('drm_system') or '').lower()
+    )
+    if resolved_drm_system == 'fairplay':
+        inline_keys = key_ids.get('cbcs') or []
+    else:
+        inline_keys = key_ids.get('cenc') or []
+    if isinstance(inline_keys, str):
+        inline_keys = [inline_keys]
+    if not inline_keys:
+        raise ImproperlyConfigured(
+            f'No Axinom {resolved_drm_system or "CENC"} Key ID is stored for this asset.'
+        )
+
+    key_entries = [{'id': str(key_id)} for key_id in inline_keys if key_id]
+    if not key_entries:
+        raise ImproperlyConfigured('The asset has no usable Axinom Key IDs.')
+
+    # Active Users are account-scoped: switching profiles/devices does not
+    # create a new Axinom user. The source identifier is never sent to Axinom.
+    principal_id = str(license_obj.profile.user_id)
+    user_id = hmac.new(
+        active_user_secret.encode('utf-8'),
+        principal_id.encode('utf-8'),
+        hashlib.sha256,
+    ).hexdigest()
+
+    expires_at = license_obj.expires_at
+    offline = license_obj.license_mode == 'offline'
+    license_rules = {
+        'allow_persistence': bool(offline),
     }
-    payload = {
-        'iss': 'ekeflicks',
-        'tenant_id': getattr(settings, 'AXINOM_TENANT_ID', ''),
-        'policy_id': getattr(settings, 'AXINOM_POLICY_ID', ''),
-        'license_id': str(license_obj.id),
-        'license_mode': license_obj.license_mode,
-        'asset_id': str(license_obj.asset_id),
-        'content_id': str(license_obj.content_id),
-        'profile_id': str(license_obj.profile_id),
-        'key_id': license_obj.key_id,
-        'platform': platform or license_obj.metadata.get('platform', ''),
-        'drm_system': drm_system or license_obj.metadata.get('drm_system', ''),
-        'exp': int(license_obj.expires_at.timestamp()),
+    if offline and expires_at:
+        license_rules['expiration_datetime'] = expires_at.isoformat()
+    else:
+        license_rules['duration'] = int(playback_license_ttl_seconds())
+
+    entitlement_message = {
+        'type': 'entitlement_message',
+        'version': 2,
+        'license': license_rules,
+        'content_keys_source': {'inline': key_entries},
+        'session': {'user_id': user_id},
     }
-    encoded_header = _jwt_segment(header)
-    encoded_payload = _jwt_segment(payload)
-    signature = _urlsafe_hmac(secret, f"{encoded_header}.{encoded_payload}")
-    return f"{encoded_header}.{encoded_payload}.{signature}"
+    usage_policy = str(getattr(settings, 'AXINOM_USAGE_POLICY_NAME', '') or '').strip()
+    if usage_policy:
+        for entry in key_entries:
+            entry['usage_policy'] = usage_policy
+
+    license_service_message = {
+        'version': 1,
+        'com_key_id': communication_key_id,
+        'message': entitlement_message,
+    }
+    try:
+        communication_key = base64.b64decode(communication_key_b64, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise ImproperlyConfigured('AXINOM_COMMUNICATION_KEY must be valid base64.') from exc
+    if not communication_key:
+        raise ImproperlyConfigured('AXINOM_COMMUNICATION_KEY decodes to an empty key.')
+
+    return jwt.encode(license_service_message, communication_key, algorithm='HS256')
 
 
 def drm_configuration(asset, license_obj=None, platform='', drm_system='', offline=False):

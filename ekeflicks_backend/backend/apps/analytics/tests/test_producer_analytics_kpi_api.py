@@ -21,6 +21,12 @@ class ProducerAnalyticsKPIAPITests(
     APITestCase
 ):
     def setUp(self):
+        self._engagement_patcher = patch(
+            'apps.analytics.services.producer_engagement_analytics',
+            return_value={},
+        )
+        self._engagement_patcher.start()
+        self.addCleanup(self._engagement_patcher.stop)
         self.url = reverse(
             'producer-analytics-list'
         )

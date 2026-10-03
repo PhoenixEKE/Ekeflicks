@@ -236,6 +236,20 @@ class AdminApiClient {
   Future<void> reviewVideo(int id, String decision, {String reason = ''}) async =>
       _request('POST', '/videos/$id/review/', body: {'decision': decision, 'reason': reason});
 
+  Future<Map<String, dynamic>> reviewVideoDrm(
+    int id,
+    String system,
+    String decision, {
+    String reason = '',
+  }) async =>
+      Map<String, dynamic>.from(
+        await _request(
+          'POST',
+          '/videos/$id/drm-review/',
+          body: {'system': system, 'decision': decision, 'reason': reason},
+        ) as Map,
+      );
+
   // =========================================================
   // PAIEMENTS PRODUCTEURS
   // =========================================================

@@ -84,7 +84,8 @@ class _PostLoginPageState extends State<PostLoginPage> {
   }) {
     final videoUrl = content.videoUrl.trim();
 
-    if (videoUrl.isEmpty || !videoUrl.startsWith('http')) {
+    if ((videoUrl.isEmpty || !videoUrl.startsWith('http')) &&
+        content.videoAssetId == null) {
       final loc = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -102,6 +103,7 @@ class _PostLoginPageState extends State<PostLoginPage> {
           builder:
               (context) => PlayerPage(
                 videoUrl: videoUrl,
+                videoAssetId: content.videoAssetId,
                 title: content.title,
                 imageUrl: content.posterUrl,
                 startPosition: startAt,

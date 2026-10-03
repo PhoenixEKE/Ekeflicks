@@ -38,6 +38,7 @@ class _GenrePageState extends State<GenrePage> {
           builder:
               (context) => PlayerPage(
                 videoUrl: content.videoUrl,
+                videoAssetId: content.videoAssetId,
                 title: content.title,
                 imageUrl: content.posterUrl,
                 startPosition: content.duration.inSeconds * content.progress!,

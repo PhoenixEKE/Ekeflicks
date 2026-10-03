@@ -162,9 +162,16 @@ class ProfileApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(mail.outbox), 1)
+        reset_messages = [
+            message for message in mail.outbox
+            if (
+                self.user.email in message.to
+                and message.subject == 'Réinitialiser votre PIN parental EkeFlicks'
+            )
+        ]
+        self.assertEqual(len(reset_messages), 1)
 
-        message = mail.outbox[0]
+        message = reset_messages[0]
 
         # Vérifier que le lien utilise le format query string (compatible hébergements partagés)
         self.assertIn(
@@ -173,7 +180,7 @@ class ProfileApiTests(APITestCase):
         )
 
         # Vérifier que le logo est intégré en CID
-        self.assertIn('cid:logo_light.png', message.alternatives[0][0])
+        self.assertIn('cid:logo_dark.png', message.alternatives[0][0])
 
         # Vérifier que le multipart est de type 'related' pour l'affichage inline
         self.assertEqual(message.mixed_subtype, 'related')
@@ -181,7 +188,7 @@ class ProfileApiTests(APITestCase):
         # Vérifier que le logo est attaché à l'email
         self.assertTrue(
             any(
-                attachment.get('Content-ID') == '<logo_light.png>'
+                attachment.get('Content-ID') == '<logo_dark.png>'
                 for attachment in message.attachments
             )
         )

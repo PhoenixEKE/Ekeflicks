@@ -61,8 +61,8 @@ class BillingApiTests(APITestCase):
 
     def test_free_30_day_subscription_is_activated_without_payment(self):
         free_plan = SubscriptionPlan.objects.create(
-            name='Free 30 Days',
-            slug='free-30-days',
+            name='Free Test 30 Days',
+            slug='free-test-30-days',
             price='0.00',
             duration_days=30,
         )
@@ -81,8 +81,8 @@ class BillingApiTests(APITestCase):
 
     def test_best_price_returns_cheapest_active_plan(self):
         basic_plan = SubscriptionPlan.objects.create(
-            name='Basic',
-            slug='basic',
+            name='Basic Test',
+            slug='basic-test',
             price='5.00',
             currency='EUR',
             duration_days=30,
@@ -129,7 +129,7 @@ class BillingApiTests(APITestCase):
                 'amount': '1.00',
                 'currency': 'USD',
                 'status': 'success',
-                'provider': 'stripe',
+                'provider': 'cinetpay',
             },
             format='json',
         )
@@ -203,7 +203,7 @@ class BillingApiTests(APITestCase):
         ViewingSession.objects.create(
             profile=Profile.objects.get(user=viewer),
             content=content,
-            duration_watched=3000,
+            duration_watched=4500,
         )
         self.assertEqual(ProducerContentView.objects.filter(producer=producer).count(), 1)
         ProducerFinanceAccess.objects.create(

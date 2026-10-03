@@ -143,7 +143,7 @@ EKEFLICKS conserve la maîtrise de la date de publication, de la mise en avant, 
 
 **12.1 Montant de référence**
 
-Pour les Contenus admis au programme de rémunération à la vue, le Producteur perçoit un montant de référence de **un euro et cinquante centimes (1,50 €) pour mille (1 000) Vues Éligibles**.
+Pour les Contenus admis au programme de rémunération à la vue, le Producteur perçoit un montant de référence de **{{producer_rate_per_1000_views_eur}} € pour mille (1 000) Vues Éligibles**.
 
 **12.2 Devise de référence et conversion**
 
@@ -173,7 +173,7 @@ Une « **Vue Éligible** » est une lecture reconnue comme valide par les règle
 
 **13.2 Critères de qualification**
 
-Une Vue Éligible est comptabilisée lorsqu'un utilisateur a regardé **plus de soixante-dix pour cent (70 %) du Contenu**.
+Une Vue Éligible est comptabilisée lorsqu'un utilisateur a regardé **{{producer_eligible_progress_percent}} % du Contenu**.
 
 **13.3 Règle spécifique aux abonnés**
 
@@ -195,8 +195,8 @@ Pour les Contenus longs (plus de 60 minutes), la rémunération peut être calcu
 
 Lorsqu'un Contenu génère des revenus publicitaires directement attribuables à son exploitation sur l'écosystème EKEFLICKS, les **Revenus Publicitaires Nets** sont répartis comme suit :
 
-- **Soixante pour cent (60 %)** au Producteur ;
-- **Quarante pour cent (40 %)** à EKEFLICKS.
+- **{{producer_advertising_share_percent}} %** au Producteur ;
+- **{{ekeflicks_advertising_share_percent}} %** à EKEFLICKS.
 
 **14.2 Définition des Revenus Publicitaires Nets**
 
@@ -538,11 +538,11 @@ Le Producteur déclare avoir lu le contrat dans son intégralité, avoir eu la p
 | Élément | Règle applicable - version 2026-09-v5 |
 | :--- | :--- |
 | **Devise de référence** | **Euro (EUR)** |
-| **Rémunération à la vue** | **1,50 € pour 1 000 Vues Éligibles** |
-| **Vue Éligible** | Lecture de plus de 70 % du Contenu |
+| **Rémunération à la vue** | **{{producer_rate_per_1000_views_eur}} € pour 1 000 Vues Éligibles** |
+| **Vue Éligible** | Lecture d'au moins **{{producer_eligible_progress_percent}} %** du Contenu |
 | **Règle abonnés** | 1 seule Vue Éligible par abonné et par Contenu |
 | **Répartition au temps de visionnage** | Applicable pour les Contenus longs (> 60 min) |
-| **Publicité** | 60 % Producteur / 40 % EKEFLICKS sur les Revenus Publicitaires Nets |
+| **Publicité** | {{producer_advertising_share_percent}} % Producteur / {{ekeflicks_advertising_share_percent}} % EKEFLICKS sur les Revenus Publicitaires Nets |
 | **CPM moyen cible** | 2,50 € minimum (indicatif) |
 | **Pot commun Premium** | 20 % des revenus nets des abonnements Premium |
 | **Répartition du pot commun** | Au temps de visionnage |
@@ -631,5 +631,3 @@ Toute évolution substantielle de ce barème applicable au Producteur est commun
 {{ekeflicks_signature_datetime}}
 
 ---
-
-

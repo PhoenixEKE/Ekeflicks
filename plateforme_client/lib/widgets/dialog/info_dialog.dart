@@ -74,6 +74,7 @@ class _InfoDialogState extends State<InfoDialog> {
         builder:
             (context) => PlayerPage(
               videoUrl: widget.content.videoUrl,
+              videoAssetId: widget.content.videoAssetId,
               title: widget.content.title,
               imageUrl: widget.content.posterUrl,
             ),

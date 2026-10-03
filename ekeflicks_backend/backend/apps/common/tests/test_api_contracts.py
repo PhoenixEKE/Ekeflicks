@@ -137,8 +137,8 @@ class AvatarEndpointTests(SimpleTestCase):
             response = AvatarListView.as_view()(request)
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data['path'], 'catalog/avatar-junior.gif')
-        self.assertTrue(storage.exists('catalog/avatar-junior.gif'))
+        self.assertEqual(response.data['path'], 'avatar-junior.gif')
+        self.assertTrue(storage.exists('avatar-junior.gif'))
 
         request = APIRequestFactory().delete(
             reverse('avatar-detail', kwargs={'avatar_path': response.data['path']})
@@ -150,11 +150,11 @@ class AvatarEndpointTests(SimpleTestCase):
         ):
             response = AvatarDetailView.as_view()(
                 request,
-                avatar_path='catalog/avatar-junior.gif',
+                avatar_path='avatar-junior.gif',
             )
 
         self.assertEqual(response.status_code, 204)
-        self.assertFalse(storage.exists('catalog/avatar-junior.gif'))
+        self.assertFalse(storage.exists('avatar-junior.gif'))
 
     def test_avatar_writes_are_restricted_to_staff(self):
         request = APIRequestFactory().post(

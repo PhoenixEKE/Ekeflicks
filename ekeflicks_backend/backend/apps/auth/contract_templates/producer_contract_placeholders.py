@@ -31,7 +31,15 @@ EKEFLICKS_CONTRACT_PLACEHOLDERS = (
     "ekeflicks_signature_datetime",
 )
 
+COMPENSATION_CONTRACT_PLACEHOLDERS = (
+    "producer_rate_per_1000_views_eur",
+    "producer_eligible_progress_percent",
+    "producer_advertising_share_percent",
+    "ekeflicks_advertising_share_percent",
+)
+
 ALL_CONTRACT_PLACEHOLDERS = (
     PRODUCER_CONTRACT_PLACEHOLDERS
     + EKEFLICKS_CONTRACT_PLACEHOLDERS
+    + COMPENSATION_CONTRACT_PLACEHOLDERS
 )

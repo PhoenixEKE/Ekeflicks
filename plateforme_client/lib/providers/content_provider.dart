@@ -55,6 +55,17 @@ class ContentProvider with ChangeNotifier {
 
   Future<Content> loadDetail(String id) =>
       _api.detail(id, profileId: profileId);
+  Future<Map<String, dynamic>> preparePlayback({
+    required String assetId,
+    required String platform,
+    required String drmSystem,
+    required String activeProfileId,
+  }) => _api.preparePlayback(
+    assetId: assetId,
+    platform: platform,
+    drmSystem: drmSystem,
+    profileId: activeProfileId,
+  );
   Future<List<Content>> searchRemote(String query) =>
       _api.search(query, profileId: profileId);
   Future<List<Content>> loadFavorites() => _api.favorites(profileId: profileId);
