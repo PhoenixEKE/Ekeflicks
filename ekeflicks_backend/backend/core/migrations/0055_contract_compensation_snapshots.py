@@ -131,7 +131,7 @@ def backfill_contract_terms(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-    dependencies = [('core', '0053_producer_demo_earnings_and_contract_rules')]
+    dependencies = [('core', '0054_video_asset_drm_metadata')]
 
     operations = [
         migrations.AddField('producercontractversion', 'amends_compensation', models.BooleanField(default=False)),
