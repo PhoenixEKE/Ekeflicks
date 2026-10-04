@@ -236,6 +236,7 @@ REST_FRAMEWORK = {
         'register': '5/hour',
         'password_reset': '3/hour',
         'token_refresh': '30/minute',
+        'salon_ice_servers': '30/hour',
     },
 }
 
@@ -873,6 +874,10 @@ if "test" in _sys.argv:
 ASGI_APPLICATION = "config.asgi.application"
 
 SALON_REALTIME_TICKET_TTL = 60
+TURN_STUN_URLS = env_list('TURN_STUN_URLS', 'stun:stun.l.google.com:19302')
+TURN_ICE_SERVER_URLS = env_list('TURN_ICE_SERVER_URLS')
+TURN_SHARED_SECRET = os.environ.get('TURN_SHARED_SECRET', '').strip()
+TURN_CREDENTIAL_TTL_SECONDS = int(os.environ.get('TURN_CREDENTIAL_TTL_SECONDS', '3600'))
 
 CHANNEL_LAYERS = {
     "default": {

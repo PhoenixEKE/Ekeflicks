@@ -131,6 +131,37 @@ Verifier FFmpeg dans l'image :
 docker compose run --rm django ffmpeg -version
 ```
 
+## TURN relay for Ekeroom
+
+Ekeroom asks this API for ICE servers only after the authenticated user has joined an open salon.
+The API keeps the Coturn shared secret server-side and returns a short-lived HMAC credential
+(default one hour, limited to 24 hours). With no TURN URLs or secret configured, the client keeps
+the existing public STUN fallback; relay traffic is not enabled until Coturn is provisioned.
+
+The optional Coturn service runs in host networking so its UDP relay port range is reachable.
+Before enabling it on a server:
+
+1. Create a DNS A record for `turn.ekeflicks.com` pointing to the TURN host's public IP.
+2. Obtain a TLS certificate for that hostname. Copy its full chain and private key to the
+   paths in `.env`, owned by UID/GID 65534 (the Coturn image's `nobody` user); use mode
+   `0644` for the certificate and `0600` for the private key. Configure a Certbot renewal hook
+   to refresh these copies and restart Coturn.
+3. Generate one random shared secret on the server (for example, `openssl rand -hex 32`) and
+   set the same value in `TURN_SHARED_SECRET` in the backend `.env`.
+4. Set `TURN_EXTERNAL_IP`, `TURN_REALM`, and
+   `TURN_ICE_SERVER_URLS` in that same `.env`, for example:
+   `turn:turn.ekeflicks.com:3478?transport=udp,turn:turn.ekeflicks.com:3478?transport=tcp,turns:turn.ekeflicks.com:5349?transport=tcp`.
+   Keep the URL list and secret out of source control.
+5. Open TCP/UDP 3478, TCP 5349, and TCP/UDP 49160–49200 in the host firewall and provider firewall.
+6. From `ekeflicks_backend/`, start the optional relay with
+   `docker compose --profile turn -f docker-compose.yml -f docker-compose.turn.yml up -d coturn`.
+   Recreate the Django service after changing its `.env` so the credential endpoint receives the
+   same secret as Coturn.
+
+Coturn relays consume server bandwidth when direct peer connections fail. This PR only adds the
+opt-in service and app/API support; it does not configure DNS, open firewall ports, or deploy the
+relay to production. Validate the configured relay with web, mobile and Android TV network tests.
+
 ## Nginx
 
 Nginx doit router le domaine API vers Django/Gunicorn :

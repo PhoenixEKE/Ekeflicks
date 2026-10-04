@@ -53,6 +53,10 @@ class _EkeroomPageState extends State<EkeroomPage> {
   List<Map<String, dynamic>> _salons = const [];
   List<Map<String, dynamic>> _messages = const [];
   Map<String, dynamic>? _salon;
+  List<Map<String, dynamic>>? _cachedIceServers;
+  DateTime? _iceServersExpireAt;
+  String? _iceServersSalonId;
+  Future<List<Map<String, dynamic>>>? _iceServersRequest;
   bool _loading = false;
   bool _connected = false;
   bool _isTv = false;
@@ -340,6 +344,10 @@ class _EkeroomPageState extends State<EkeroomPage> {
     final id = salon['id']?.toString();
     if (id == null || id.isEmpty) return;
     await _disconnectRealtime();
+    _iceServersCache = null;
+    _iceServersExpireAt = null;
+    _iceServersSalonId = null;
+    _iceServersRequest = null;
     setState(() {
       _salon = salon;
       _messages = const [];
@@ -534,6 +542,80 @@ class _EkeroomPageState extends State<EkeroomPage> {
     return stream;
   }
 
+  static const List<Map<String, dynamic>> _fallbackIceServers = [
+    {'urls': 'stun:stun.l.google.com:19302'},
+  ];
+
+  Future<List<Map<String, dynamic>>> _iceServersForCurrentSalon() async {
+    final salonId = _salon?['id']?.toString();
+    if (salonId == null || salonId.isEmpty) return _fallbackIceServers;
+
+    final expiresAt = _iceServersExpireAt;
+    if (_iceServersSalonId == salonId &&
+        _cachedIceServers != null &&
+        expiresAt != null &&
+        DateTime.now().isBefore(expiresAt)) {
+      return _cachedIceServers!;
+    }
+
+    if (_iceServersSalonId == salonId && _iceServersRequest != null) {
+      return _iceServersRequest!;
+    }
+
+    _iceServersSalonId = salonId;
+    final request = _fetchIceServers(salonId);
+    _iceServersRequest = request;
+    try {
+      return await request;
+    } finally {
+      if (identical(_iceServersRequest, request)) {
+        _iceServersRequest = null;
+      }
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchIceServers(String salonId) async {
+    try {
+      final response = await _dio.get<Object>(
+        '/salons/' + salonId + '/ice-servers/',
+      );
+      final rawData = response.data;
+      if (rawData is Map) {
+        final payload = Map<String, dynamic>.from(rawData);
+        final rawServers = payload['ice_servers'];
+        if (rawServers is List) {
+          final servers = rawServers
+              .whereType<Map>()
+              .map((server) => Map<String, dynamic>.from(server))
+              .where((server) => server['urls'] != null)
+              .toList();
+          if (servers.isNotEmpty) {
+            if (_iceServersSalonId == salonId) {
+              final ttl = (payload['expires_in'] as num?)?.toInt() ?? 0;
+              final cacheSeconds =
+                  ttl > 0 ? (ttl - 15).clamp(15, ttl).toInt() : 180;
+              _cachedIceServers = servers;
+              _iceServersExpireAt = DateTime.now().add(
+                Duration(seconds: cacheSeconds),
+              );
+            }
+            return servers;
+          }
+        }
+      }
+    } catch (_) {
+      debugPrint(
+        'Ekeroom ICE credential request failed; using public STUN fallback.',
+      );
+    }
+
+    if (_iceServersSalonId == salonId) {
+      _cachedIceServers = _fallbackIceServers;
+      _iceServersExpireAt = DateTime.now().add(const Duration(minutes: 3));
+    }
+    return _fallbackIceServers;
+  }
+
   Future<RTCPeerConnection> _createPeer(
     String peerId, {
     bool sendOffer = false,
@@ -541,9 +623,7 @@ class _EkeroomPageState extends State<EkeroomPage> {
     final existing = _peers[peerId];
     if (existing != null) return existing;
     final peer = await createPeerConnection({
-      'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-      ],
+      'iceServers': await _iceServersForCurrentSalon(),
     });
     _peers[peerId] = peer;
     final local = await _ensureLocalMedia();
