@@ -113,5 +113,5 @@ jobs:
           cache: true
       - name: Install dependencies
         run: flutter pub get
-      - name: Build iOS without code signing
-        run: flutter build ios --release --simulator --no-codesign
+      - name: Build iOS simulator without code signing
+        run: flutter build ios --debug --simulator --no-codesign

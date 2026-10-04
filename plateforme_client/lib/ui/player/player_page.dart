@@ -170,7 +170,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     return {
       'position_ms': value.position.inMilliseconds,
       'is_playing': value.isPlaying,
-      'playback_rate': value.playbackSpeed,
+      'playback_rate': 1.0,
     };
   }
 
