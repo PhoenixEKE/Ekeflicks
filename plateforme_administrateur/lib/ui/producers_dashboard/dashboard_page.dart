@@ -18,6 +18,8 @@ import 'claims/claims_page.dart';
 import 'profile/profile_page.dart';
 import 'subscriptions/subscriptions_page.dart';
 import 'subscriptions/subscription_offers_page.dart';
+import 'analytics/platform_reports_page.dart';
+import 'advertising/ad_management_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -52,6 +54,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final auth = context.read<AdminAuthProvider>();
     return [
       _Destination(_NavItem(Icons.dashboard_rounded, l10n.dashboardTab), const OverviewPage()),
+      if (auth.isSuperuser || auth.can('core.view_dailystat'))
+        _Destination(_NavItem(Icons.query_stats_rounded, 'Rapports'), const PlatformReportsPage()),
+      if (auth.isSuperuser || auth.can('core.view_adcampaign'))
+        _Destination(_NavItem(Icons.campaign_rounded, 'Publicité'), const AdManagementPage()),
       if (auth.can('core.view_user'))
         _Destination(_NavItem(Icons.people_alt_rounded, l10n.usersManagement), const UsersPage()),
       if (auth.can('core.view_user'))

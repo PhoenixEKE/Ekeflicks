@@ -156,6 +156,89 @@ class ContentApiService {
     };
   }
 
+  Future<String> newPlaybackSessionId() async => _newUuidV4();
+
+  Future<Map<String, dynamic>> requestAdDecision({
+    required String assetId,
+    required String profileId,
+    required String placement,
+    required String platform,
+    required String drmSystem,
+    required String playbackSessionId,
+    int positionSeconds = 0,
+  }) async {
+    final response = await _dio.post(
+      _url('/ads/decision/'),
+      data: {
+        'asset_id': assetId,
+        'profile_id': profileId,
+        'placement': placement,
+        'platform': platform,
+        'drm_system': drmSystem,
+        'playback_session_id': playbackSessionId,
+        'position_seconds': positionSeconds,
+      },
+      options: _options(profileId),
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<void> reportAdEvent({
+    required String campaignId,
+    required String assetId,
+    required String profileId,
+    required String placement,
+    required String platform,
+    required String playbackSessionId,
+    required String eventType,
+    int positionSeconds = 0,
+  }) async {
+    await _dio.post(
+      _url('/ads/events/'),
+      data: {
+        'event_id': await _newUuidV4(),
+        'campaign_id': campaignId,
+        'asset_id': assetId,
+        'profile_id': profileId,
+        'placement': placement,
+        'platform': platform,
+        'playback_session_id': playbackSessionId,
+        'event_type': eventType,
+        'position_seconds': positionSeconds,
+      },
+      options: _options(profileId),
+    );
+  }
+
+  Future<Map<String, dynamic>> adTargetingConsent(String profileId) async {
+    final response = await _dio.get(
+      _url('/profiles/$profileId/ad-targeting-consent/'),
+      options: _options(profileId),
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> setAdTargetingConsent(
+    String profileId, {
+    required bool enabled,
+  }) async {
+    final response = await _dio.put(
+      _url('/profiles/$profileId/ad-targeting-consent/'),
+      data: {'personalized_ads': enabled},
+      options: _options(profileId),
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<String> _newUuidV4() async {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+  }
+
   /// Creates the server-side offline authorization and persistent Axinom license.
   /// The manifest URL uses a longer, subscription-gated signature so large downloads
   /// can finish over slower connections.

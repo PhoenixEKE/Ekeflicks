@@ -20,6 +20,7 @@ from .recommendations import Recommendation, TrendingCache, ContentSimilarity
 from .subscriptions import SubscriptionPlan, SubscriptionPlanOffer, Subscription, Payment, PaymentWebhookEvent, ProducerPayoutRequest
 from .streaming import VideoAsset, VideoRendition, SubtitleTrack, OfflineDownloadLicense, PlaybackLicense, MediaAnalysisReport
 from .trailer_analysis import TrailerAnalysisReport
+from .advertising import AdCampaign, AdEvent, AdTargetingConsent
 from .analytics import DailyStat, ProducerAdvertisingRevenue, ProducerContentView, ProducerCountryCurrency, ProducerDemoEarning, ProducerRevenueSetting, ViewingSession
 from .notifications import NotificationType, Notification
 from .producers import (
@@ -43,6 +44,7 @@ __all__ = [
     'VideoAsset', 'VideoRendition', 'SubtitleTrack', 'OfflineDownloadLicense', 'PlaybackLicense', 'MediaAnalysisReport', 'TrailerAnalysisReport',
     'ViewingSession', 'DailyStat', 'ProducerRevenueSetting', 'ProducerCountryCurrency', 'ProducerContentView',
     'ProducerAdvertisingRevenue', 'ProducerDemoEarning',
+    'AdCampaign', 'AdEvent', 'AdTargetingConsent',
     'NotificationType', 'Notification',
     'ProducerAccount', 'ProducerContractVersion', 'ProducerAgreement',
 ]

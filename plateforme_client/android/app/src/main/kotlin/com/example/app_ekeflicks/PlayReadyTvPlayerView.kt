@@ -1,6 +1,8 @@
 package com.example.app_ekeflicks
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -16,6 +18,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.StandardMessageCodec
 import io.flutter.plugin.platform.PlatformView
 import io.flutter.plugin.platform.PlatformViewFactory
@@ -69,15 +72,26 @@ internal class PlayReadyTvPlayerView(
         playerView.controllerAutoShow = true
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         playerView.player = player
+        player.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                publishPlaybackState(player)
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                publishPlaybackState(player)
+            }
+        })
         player.setMediaItem(mediaItem)
         player.prepare()
         player.playWhenReady = true
         ACTIVE_PLAYERS.add(player)
+        mainHandler.post(playbackTicker)
     }
 
     override fun getView(): View = playerView
 
     override fun dispose() {
+        mainHandler.removeCallbacks(playbackTicker)
         ACTIVE_PLAYERS.remove(player)
         RESUME_AFTER_PAUSE.remove(player)
         playerView.player = null
@@ -93,6 +107,29 @@ internal class PlayReadyTvPlayerView(
         )
 
         private val RESUME_AFTER_PAUSE = ConcurrentHashMap<ExoPlayer, Boolean>()
+        private val mainHandler = Handler(Looper.getMainLooper())
+        @Volatile private var eventSink: EventChannel.EventSink? = null
+
+        private fun publishPlaybackState(player: ExoPlayer) {
+            val payload = mapOf(
+                "is_playing" to player.isPlaying,
+                "play_when_ready" to player.playWhenReady,
+                "position_ms" to player.currentPosition,
+            )
+            mainHandler.post { eventSink?.success(payload) }
+        }
+
+        fun setEventSink(sink: EventChannel.EventSink?) {
+            eventSink = sink
+            ACTIVE_PLAYERS.forEach(::publishPlaybackState)
+        }
+
+        private val playbackTicker = object : Runnable {
+            override fun run() {
+                ACTIVE_PLAYERS.forEach(::publishPlaybackState)
+                if (ACTIVE_PLAYERS.isNotEmpty()) mainHandler.postDelayed(this, 1000)
+            }
+        }
 
         fun pauseAll() {
             ACTIVE_PLAYERS.forEach { player ->

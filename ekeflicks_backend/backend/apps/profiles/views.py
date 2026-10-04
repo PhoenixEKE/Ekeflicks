@@ -6,7 +6,7 @@ from rest_framework import decorators, exceptions, filters, permissions, respons
 from apps.common.permissions import IsAdminOrReadOnly
 from apps.notifications.services import notify_user
 from apps.profiles.serializers import ProfileSerializer, ProfileTypeSerializer
-from core.models import ParentalPinResetToken, Profile, ProfileType, Subscription, User
+from core.models import AdTargetingConsent, ParentalPinResetToken, Profile, ProfileType, Subscription, User
 
 
 class ProfileTypeViewSet(viewsets.ModelViewSet):
@@ -57,6 +57,36 @@ class ProfileViewSet(viewsets.ModelViewSet):
         # Soft delete
         instance.is_active = False
         instance.save(update_fields=['is_active', 'updated_at'])
+
+    @decorators.action(detail=True, methods=['get', 'put'], url_path='ad-targeting-consent')
+    def ad_targeting_consent(self, request, pk=None):
+        profile = self.get_object()
+        eligible = profile.type.name != 'child' and profile.age is not None and profile.age >= 18
+        consent = AdTargetingConsent.objects.filter(profile=profile).first()
+        if not eligible and consent and consent.personalized_ads:
+            consent.personalized_ads = False
+            consent.consented_at = None
+            consent.save(update_fields=['personalized_ads', 'consented_at', 'updated_at'])
+
+        if request.method == 'PUT':
+            enabled = request.data.get('personalized_ads')
+            if not isinstance(enabled, bool):
+                raise exceptions.ValidationError({'personalized_ads': 'Une valeur booléenne est obligatoire.'})
+            if enabled and not eligible:
+                raise exceptions.PermissionDenied('La personnalisation publicitaire est réservée aux profils adultes.')
+            if consent is None:
+                consent = AdTargetingConsent(profile=profile)
+            consent.personalized_ads = enabled
+            consent.consented_at = timezone.now() if enabled else None
+            consent.consent_version = '1'
+            consent.save()
+
+        return response.Response({
+            'personalized_ads': bool(consent and consent.personalized_ads),
+            'eligible': eligible,
+            'consent_version': consent.consent_version if consent else '1',
+            'updated_at': consent.updated_at if consent else None,
+        })
 
     @decorators.action(detail=False, methods=['get'], url_path='capacity')
     def capacity(self, request):

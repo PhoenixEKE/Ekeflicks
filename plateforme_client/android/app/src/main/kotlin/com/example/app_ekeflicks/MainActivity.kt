@@ -4,6 +4,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.DownloadService
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 @UnstableApi
@@ -16,6 +17,16 @@ class MainActivity : FlutterActivity() {
         )
         OfflineMedia3.manager(applicationContext)
         DownloadService.start(applicationContext, EkeOfflineDownloadService::class.java)
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "ekeflicks/tv-player-events")
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    PlayReadyTvPlayerView.setEventSink(events)
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    PlayReadyTvPlayerView.setEventSink(null)
+                }
+            })
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "ekeflicks/offline")
             .setMethodCallHandler { call, result ->
                 @Suppress("UNCHECKED_CAST")
