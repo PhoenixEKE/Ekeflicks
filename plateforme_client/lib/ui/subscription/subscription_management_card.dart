@@ -238,9 +238,11 @@ class _SubscriptionManagementCardState
         _copy(context, 'Aucun forfait actif', 'No active plan');
     final expiry = _dateLabel(sub?['expires_at']?.toString() ?? '');
     final amount = sub?['price_at_purchase'] ?? plan?['price'];
-    final currency = sub?['currency_at_purchase']?.toString().isNotEmpty == true
-        ? sub?['currency_at_purchase']?.toString()
-        : plan?['currency']?.toString();
+    final purchasedCurrency =
+        sub == null ? null : sub['currency_at_purchase']?.toString();
+    final currency = purchasedCurrency == null || purchasedCurrency.isEmpty
+        ? (plan == null ? null : plan['currency']?.toString())
+        : purchasedCurrency;
     final periodDays =
         sub?['duration_days_at_purchase'] ?? plan?['duration_days'] ?? 30;
     final priceText = amount == null
