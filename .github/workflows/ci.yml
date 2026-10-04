@@ -92,6 +92,9 @@ jobs:
       - name: Build client web application
         if: matrix.application == 'plateforme_client'
         run: flutter build web --release
+      - name: Build admin web application
+        if: matrix.application == 'plateforme_administrateur'
+        run: flutter build web --release
       - name: Build client Android application
         if: matrix.application == 'plateforme_client'
         run: flutter build apk --release
