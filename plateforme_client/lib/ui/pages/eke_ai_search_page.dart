@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:provider/provider.dart';
 
 import 'package:app_ekeflicks/core/app_theme.dart';
@@ -209,7 +210,7 @@ class _EkeAISearchPageState extends State<EkeAISearchPage> {
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1000),
+              constraints: BoxConstraints(maxWidth: AppResponsive.isTVSize(context) ? 1400 : 1000),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(

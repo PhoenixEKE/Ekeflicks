@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/profile_provider.dart';
@@ -201,7 +202,7 @@ class _PaymentReturnPageState extends State<PaymentReturnPage> {
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
+            constraints: BoxConstraints(maxWidth: AppResponsive.isTVSize(context) ? 720 : 520),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

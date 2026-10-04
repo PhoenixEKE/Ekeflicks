@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/widgets/app_bars/simple_app_bar.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
@@ -299,7 +300,9 @@ class _LoginPageState extends State<LoginPage> with KeyboardNavigationMixin {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Container(
-        width: isWide ? 450 : double.infinity,
+        width: AppResponsive.isTVSize(context)
+            ? 620
+            : (isWide ? 450 : double.infinity),
         padding: const EdgeInsets.all(24),
         decoration: AppTheme.cardDecoration(context),
         child: Form(

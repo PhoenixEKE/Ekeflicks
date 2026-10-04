@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/widgets/footers/reusable_footer.dart';
 import 'subscription_step1_page.dart';
@@ -11,6 +12,7 @@ class SubscriptionStep2Page extends StatefulWidget {
   final String offerPrice;
   final String offerCurrency;
   final String planSlug;
+  final int durationDays;
   final String? accountEmail;
 
   const SubscriptionStep2Page({
@@ -19,6 +21,7 @@ class SubscriptionStep2Page extends StatefulWidget {
     required this.offerPrice,
     required this.offerCurrency,
     required this.planSlug,
+    this.durationDays = 30,
     this.accountEmail,
   });
 
@@ -153,23 +156,29 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
 
   String get _formattedOfferPrice {
     final parsed = double.tryParse(widget.offerPrice.replaceAll(',', '.'));
-
     final price =
         parsed != null && parsed == parsed.truncateToDouble()
             ? parsed.toInt().toString()
             : widget.offerPrice;
 
-    switch (widget.offerCurrency.toUpperCase()) {
-      case 'XOF':
-      case 'XAF':
-        return '$price FCFA';
-      case 'EUR':
-        return '$price €';
-      case 'USD':
-        return '$price ${r'$'}';
-      default:
-        return '$price ${widget.offerCurrency.toUpperCase()}';
+    final amount = switch (widget.offerCurrency.toUpperCase()) {
+      'XOF' || 'XAF' => price + ' FCFA',
+      'EUR' => price + ' €',
+      'USD' => price + ' ' + r'$',
+      _ => price + ' ' + widget.offerCurrency.toUpperCase(),
+    };
+
+    if (widget.durationDays >= 28 && widget.durationDays <= 31) {
+      return AppLocalizations.of(context)!.prixParMois(amount);
     }
+
+    final isFrench = Localizations.localeOf(context).languageCode == 'fr';
+    final period = widget.durationDays == 1
+        ? (isFrench ? '1 jour' : '1 day')
+        : (isFrench
+            ? widget.durationDays.toString() + ' jours'
+            : widget.durationDays.toString() + ' days');
+    return amount + ' / ' + period;
   }
 
   @override
@@ -211,7 +220,271 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
           ),
           child: Center(
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 1200),
+              constraints: BoxConstraints(maxWidth: AppResponsive.contentMaxWidth(context)),
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        isDarkMode
+                            ? Colors.black.withValues(alpha: 0.8)
+                            : Colors.grey.withValues(alpha: 0.3),
+                    blurRadius: 15,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 40), // Espacement accru en haut
+                    // AJOUT: Logo centré
+                    Image.asset(
+                      logoPath,
+                      height: 60, // Taille réduite pour s'intégrer mieux
+                      fit: BoxFit.contain,
+                    ),
+
+                    const SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back),
+                            onPressed: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) => SubscriptionStep1Page(
+                                        accountEmail: widget.accountEmail,
+                                      ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            loc.step2of2,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Text(
+                        loc.chooseYourPaymentMethodForOffer(
+                          widget.offerTitle,
+                          _formattedOfferPrice,
+                        ),
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Text(
+                        loc.paymentSecureInfo,
+                        style: theme.textTheme.bodySmall,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Wrap(
+                        spacing: 16,
+                        runSpacing: 16,
+                        alignment: WrapAlignment.center,
+                        children: List.generate(paymentMethods.length, (index) {
+                          final method = paymentMethods[index];
+                          return FadeTransition(
+                            opacity: _fadeAnimations[index],
+                            child: _PaymentCard(
+                              iconPath: method.iconPath,
+                              label: method.label,
+                              onTap: () => _handlePaymentTap(method.key),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    const ReusableFooter(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PaymentMethod {
+  final String key;
+  final String label;
+  final String iconPath;
+
+  PaymentMethod({
+    required this.key,
+    required this.label,
+    required this.iconPath,
+  });
+}
+
+class _PaymentCard extends StatefulWidget {
+  final String iconPath;
+  final String label;
+  final VoidCallback onTap;
+
+  const _PaymentCard({
+    required this.iconPath,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<_PaymentCard> createState() => _PaymentCardState();
+}
+
+class _PaymentCardState extends State<_PaymentCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+    final isDarkMode = theme.brightness == Brightness.dark;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 160,
+          height: 160,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow:
+                _isHovered
+                    ? [
+                      BoxShadow(
+                        color: primaryColor.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                    : [
+                      BoxShadow(
+                        color:
+                            isDarkMode
+                                ? Colors.black.withValues(alpha: 0.6)
+                                : Colors.grey.withValues(alpha: 0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+            border: Border.all(
+              color: _isHovered ? primaryColor : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(widget.iconPath, height: 48),
+              const SizedBox(height: 12),
+              Text(
+                widget.label,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+}',
+      _ => '$price ${widget.offerCurrency.toUpperCase()}',
+    };
+
+    if (widget.durationDays >= 28 && widget.durationDays <= 31) {
+      return AppLocalizations.of(context)!.prixParMois(amount);
+    }
+    final period = widget.durationDays == 1
+        ? (Localizations.localeOf(context).languageCode == 'fr'
+            ? '1 jour'
+            : '1 day')
+        : (Localizations.localeOf(context).languageCode == 'fr'
+            ? widget.durationDays.toString() + ' jours'
+            : widget.durationDays.toString() + ' days');
+    return amount + ' / ' + period;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+    final logoPath =
+        isDarkMode
+            ? 'assets/images/logo_dark.png'
+            : 'assets/images/logo_light.png';
+
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        // SUPPRIMÉ: l'AppBar
+        body: Container(
+          decoration: BoxDecoration(
+            gradient:
+                isDarkMode
+                    ? LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.grey.shade900,
+                        Colors.black,
+                        Colors.grey.shade900,
+                      ],
+                    )
+                    : LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.grey.shade100,
+                        Colors.white,
+                        Colors.grey.shade100,
+                      ],
+                    ),
+          ),
+          child: Center(
+            child: Container(
+              constraints: BoxConstraints(maxWidth: AppResponsive.contentMaxWidth(context)),
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: theme.cardColor,

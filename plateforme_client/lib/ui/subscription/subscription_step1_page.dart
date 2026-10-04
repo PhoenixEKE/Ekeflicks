@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'subscription_offers_widget.dart';
 import 'subscription_step2_page.dart';
@@ -93,6 +94,7 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
               offerPrice: offer.price ?? '',
               offerCurrency: offer.currency,
               planSlug: offer.planSlug,
+              durationDays: offer.durationDays,
               accountEmail: email,
             ),
       ),
@@ -137,7 +139,7 @@ class _SubscriptionStep1PageState extends State<SubscriptionStep1Page> {
           ),
           child: Center(
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 1200),
+              constraints: BoxConstraints(maxWidth: AppResponsive.contentMaxWidth(context)),
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: theme.cardColor,

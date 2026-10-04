@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:provider/provider.dart';
 
 import 'package:app_ekeflicks/core/app_theme.dart';
@@ -175,7 +176,7 @@ class _EkeAIAssistantPageState extends State<EkeAIAssistantPage> {
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1000),
+              constraints: BoxConstraints(maxWidth: AppResponsive.isTVSize(context) ? 1400 : 1000),
               child: Column(
                 children: [
                   Expanded(
@@ -189,7 +190,7 @@ class _EkeAIAssistantPageState extends State<EkeAIAssistantPage> {
                                     ? Alignment.centerRight
                                     : Alignment.centerLeft,
                             child: Container(
-                              constraints: const BoxConstraints(maxWidth: 650),
+                              constraints: BoxConstraints(maxWidth: AppResponsive.isTVSize(context) ? 980 : 650),
                               margin: const EdgeInsets.only(bottom: 10),
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
