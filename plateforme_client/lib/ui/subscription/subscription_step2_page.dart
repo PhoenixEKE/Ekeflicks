@@ -34,6 +34,9 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
   late final AnimationController _controller;
   late final List<Animation<double>> _fadeAnimations;
   bool _isProcessingPayment = false;
+  bool _enableAutoRenew = false;
+
+  bool get _monthlyPlan => widget.durationDays >= 28 && widget.durationDays <= 31;
 
   final List<PaymentMethod> paymentMethods = [
     PaymentMethod(
@@ -125,7 +128,10 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
     try {
       final checkoutUrl = await context
           .read<UserProvider>()
-          .startStripeCheckout(widget.planSlug);
+          .startStripeCheckout(
+            widget.planSlug,
+            enableAutoRenew: _enableAutoRenew,
+          );
 
       final uri = Uri.parse(checkoutUrl);
 
@@ -303,6 +309,34 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
                         textAlign: TextAlign.center,
                       ),
                     ),
+                    if (_monthlyPlan) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Card(
+                          child: CheckboxListTile(
+                            value: _enableAutoRenew,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            onChanged: _isProcessingPayment
+                                ? null
+                                : (value) => setState(
+                                      () => _enableAutoRenew = value ?? false,
+                                    ),
+                            title: Text(
+                              Localizations.localeOf(context).languageCode == 'fr'
+                                  ? 'Mettre en place le prélèvement mensuel automatique'
+                                  : 'Set up automatic monthly payments',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              Localizations.localeOf(context).languageCode == 'fr'
+                                  ? 'À votre demande uniquement. ${_formattedOfferPrice} sera prélevé chaque mois sur le moyen de paiement choisi. Vous pourrez arrêter le renouvellement à tout moment; votre accès restera valable jusqu’à la date d’échéance.'
+                                  : 'Only at your request. ${_formattedOfferPrice} will be charged monthly to your selected payment method. You can stop renewal at any time; access remains available through the expiry date.',
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     const SizedBox(height: 24),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),

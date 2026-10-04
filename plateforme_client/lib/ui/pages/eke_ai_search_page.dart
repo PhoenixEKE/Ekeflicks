@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +7,7 @@ import 'package:app_ekeflicks/core/app_theme.dart';
 import 'package:app_ekeflicks/models/eke_ai_models.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
 import 'package:app_ekeflicks/services/eke_ai_service.dart';
+import 'package:app_ekeflicks/ui/salons/ekeroom_page.dart';
 
 class EkeAISearchPage extends StatefulWidget {
   final String? initialQuery;
@@ -22,6 +24,15 @@ class _EkeAISearchPageState extends State<EkeAISearchPage> {
   bool _loading = false;
   String? _error;
   List<EkeAIContent> _results = const [];
+  List<Map<String, dynamic>> _salons = const [];
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  String _scope = 'catalogue';
+  String _audioLanguage = 'any';
+  String _subtitleLanguage = 'any';
+  bool _listening = false;
+
+  bool get _english =>
+      Localizations.localeOf(context).languageCode == 'en';
 
   @override
   void initState() {
@@ -37,6 +48,7 @@ class _EkeAISearchPageState extends State<EkeAISearchPage> {
   @override
   void dispose() {
     _controller.dispose();
+    _speech.stop();
     super.dispose();
   }
 
@@ -57,19 +69,37 @@ class _EkeAISearchPageState extends State<EkeAISearchPage> {
     });
 
     try {
-      final response = await _service().search(query, limit: 30);
+      if (_scope == 'salons') {
+        final salons = await _service().searchSalons(query);
+        if (!mounted) return;
+        setState(() {
+          _salons = salons;
+          _results = const [];
+        });
+      } else {
+        final response = await _service().search(
+          query,
+          limit: 30,
+          language: _english ? 'en' : 'fr',
+          audioLanguage: _audioLanguage,
+          subtitleLanguage: _subtitleLanguage,
+        );
 
-      if (!mounted) return;
-
-      setState(() {
-        _results = response.items;
-      });
+        if (!mounted) return;
+        setState(() {
+          _results = response.items;
+          _salons = const [];
+        });
+      }
     } catch (error) {
       if (!mounted) return;
 
       setState(() {
         _results = const [];
-        _error = 'La recherche EKE IA est momentanément indisponible.';
+        _salons = const [];
+        _error = _english
+            ? 'EKE AI search is temporarily unavailable.'
+            : 'La recherche EKE IA est momentanément indisponible.';
       });
     } finally {
       if (mounted) {
@@ -78,6 +108,32 @@ class _EkeAISearchPageState extends State<EkeAISearchPage> {
         });
       }
     }
+  }
+
+  Future<void> _listen() async {
+    final available = await _speech.initialize(
+      onStatus: (status) {
+        if (status == 'notListening' && mounted) {
+          setState(() => _listening = false);
+        }
+      },
+      onError: (_) {
+        if (mounted) setState(() => _listening = false);
+      },
+    );
+    if (!available || !mounted) return;
+    setState(() => _listening = true);
+    await _speech.listen(
+      localeId: _english ? 'en_US' : 'fr_FR',
+      onResult: (result) {
+        if (!mounted) return;
+        setState(() => _controller.text = result.recognizedWords);
+        if (result.finalResult) {
+          setState(() => _listening = false);
+          _search();
+        }
+      },
+    );
   }
 
   Future<void> _explain(EkeAIContent content) async {
@@ -144,6 +200,36 @@ class _EkeAISearchPageState extends State<EkeAISearchPage> {
     );
   }
 
+  Widget _salonCard(Map<String, dynamic> salon) {
+    final title = (salon['name'] ?? 'Ekeroom').toString();
+    final contentTitle = salon['content_title']?.toString();
+    final count = (salon['member_count'] as num?)?.toInt() ?? 0;
+    final id = salon['id']?.toString() ?? '';
+    final scheduled = salon['scheduled_at']?.toString();
+    return Card(
+      child: ListTile(
+        leading: const CircleAvatar(child: Icon(Icons.groups_outlined)),
+        title: Text(title),
+        subtitle: Text([
+          if (contentTitle != null && contentTitle.isNotEmpty) contentTitle,
+          _english ? '$count watching' : '$count participant(s)',
+          if (scheduled != null && scheduled.isNotEmpty)
+            (_english ? 'Scheduled: ' : 'Programmé : ') + scheduled,
+        ].join(' · ')),
+        trailing: FilledButton(
+          onPressed: id.isEmpty
+              ? null
+              : () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => EkeroomPage(initialSalonId: id),
+                    ),
+                  ),
+          child: Text(_english ? 'Join' : 'Rejoindre'),
+        ),
+      ),
+    );
+  }
+
   Widget _resultCard(EkeAIContent content) {
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -204,7 +290,16 @@ class _EkeAISearchPageState extends State<EkeAISearchPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Recherche EKE IA')),
+      appBar: AppBar(
+        title: Text(_english ? 'EKE AI search' : 'Recherche EKE IA'),
+        actions: [
+          IconButton(
+            tooltip: 'Ekeroom',
+            onPressed: () => Navigator.pushNamed(context, '/ekeroom'),
+            icon: const Icon(Icons.groups_outlined),
+          ),
+        ],
+      ),
       body: Container(
         decoration: AppTheme.pageDecoration(context),
         child: SafeArea(
@@ -215,23 +310,89 @@ class _EkeAISearchPageState extends State<EkeAISearchPage> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: Text(_english ? 'Films and series' : 'Films et séries'),
+                          selected: _scope == 'catalogue',
+                          onSelected: (_) => setState(() => _scope = 'catalogue'),
+                        ),
+                        ChoiceChip(
+                          label: Text(_english ? 'Ekerooms' : 'Salons Ekeroom'),
+                          selected: _scope == 'salons',
+                          onSelected: (_) => setState(() => _scope = 'salons'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
                     TextField(
                       controller: _controller,
                       autofocus: true,
                       textInputAction: TextInputAction.search,
                       onSubmitted: (_) => _search(),
                       decoration: InputDecoration(
-                        hintText:
-                            'Demandez à EKE IA un film, '
-                            'une série, un genre...',
+                        hintText: _scope == 'salons'
+                            ? (_english ? 'Search a room or a film title...' : 'Rechercher un salon ou un film...')
+                            : (_english
+                                ? 'Search for a film, series or genre...'
+                                : 'Demandez à EKE IA un film, une série, un genre...'),
                         prefixIcon: const Icon(Icons.auto_awesome),
-                        suffixIcon: IconButton(
-                          tooltip: 'Rechercher',
-                          onPressed: _loading ? null : _search,
-                          icon: const Icon(Icons.search),
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: _english ? 'Speak your search' : 'Dicter la recherche',
+                              onPressed: _loading ? null : _listen,
+                              icon: Icon(_listening ? Icons.mic : Icons.mic_none),
+                            ),
+                            IconButton(
+                              tooltip: _english ? 'Search' : 'Rechercher',
+                              onPressed: _loading ? null : _search,
+                              icon: const Icon(Icons.search),
+                            ),
+                          ],
                         ),
                       ),
                     ),
+                    if (_scope == 'catalogue') ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _audioLanguage,
+                              decoration: InputDecoration(
+                                labelText: _english ? 'Audio language' : 'Langue audio',
+                                isDense: true,
+                              ),
+                              items: [
+                                DropdownMenuItem(value: 'any', child: Text(_english ? 'Any' : 'Toutes')),
+                                const DropdownMenuItem(value: 'fr', child: Text('Français')),
+                                const DropdownMenuItem(value: 'en', child: Text('English')),
+                              ],
+                              onChanged: (value) => setState(() => _audioLanguage = value ?? 'any'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _subtitleLanguage,
+                              decoration: InputDecoration(
+                                labelText: _english ? 'Subtitles' : 'Sous-titres',
+                                isDense: true,
+                              ),
+                              items: [
+                                DropdownMenuItem(value: 'any', child: Text(_english ? 'Any' : 'Tous')),
+                                const DropdownMenuItem(value: 'fr', child: Text('Français')),
+                                const DropdownMenuItem(value: 'en', child: Text('English')),
+                              ],
+                              onChanged: (value) => setState(() => _subtitleLanguage = value ?? 'any'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     if (_loading) const LinearProgressIndicator(),
                     if (_error != null) ...[
@@ -241,21 +402,31 @@ class _EkeAISearchPageState extends State<EkeAISearchPage> {
                     const SizedBox(height: 8),
                     Expanded(
                       child:
-                          _results.isEmpty && !_loading && _error == null
-                              ? const Center(
-                                child: Text(
-                                  'Que souhaitez-vous regarder ?',
-                                  textAlign: TextAlign.center,
-                                ),
-                              )
-                              : ListView.separated(
-                                itemCount: _results.length,
-                                separatorBuilder:
-                                    (_, _) => const SizedBox(height: 8),
-                                itemBuilder:
-                                    (context, index) =>
-                                        _resultCard(_results[index]),
-                              ),
+                          _scope == 'salons'
+                              ? (_salons.isEmpty && !_loading && _error == null
+                                  ? Center(
+                                      child: Text(
+                                        _english ? 'Search for a room to join.' : 'Recherchez un salon à rejoindre.',
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      itemCount: _salons.length,
+                                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                                      itemBuilder: (context, index) => _salonCard(_salons[index]),
+                                    ))
+                              : (_results.isEmpty && !_loading && _error == null
+                                  ? Center(
+                                      child: Text(
+                                        _english ? 'What would you like to watch?' : 'Que souhaitez-vous regarder ?',
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      itemCount: _results.length,
+                                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                                      itemBuilder: (context, index) => _resultCard(_results[index]),
+                                    )),
                     ),
                   ],
                 ),

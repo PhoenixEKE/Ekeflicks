@@ -15,7 +15,7 @@ It does not replace PostgreSQL authorization and does not write user data.
 
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from apps.recommendations.candidate_generation import (
     generate_candidate_pool,
@@ -24,6 +24,7 @@ from apps.recommendations.eke_ai import (
     eligible_content_queryset,
 )
 from apps.recommendations.intelligent_search import (
+    content_matches_language_filters,
     intelligent_search,
 )
 from apps.recommendations.personalized_engine import (
@@ -67,6 +68,8 @@ class ConversationResponse:
     reply: str
     profile_id: str
     items: tuple
+    language: str = "fr"
+    occasion: str = ""
 
     def to_dict(self):
         return {
@@ -75,6 +78,8 @@ class ConversationResponse:
             "message": self.message,
             "reply": self.reply,
             "profile_id": self.profile_id,
+            "language": self.language,
+            "occasion": self.occasion,
             "item_count": len(
                 self.items
             ),
@@ -114,6 +119,15 @@ _RECOMMENDATION_MARKERS = {
     "recommandation",
     "propose",
     "proposer",
+    "family",
+    "famille",
+    "familial",
+    "familiale",
+    "romantic",
+    "romantique",
+    "romance",
+    "soirée",
+    "soiree",
 }
 
 _HELP_MARKERS = {
@@ -278,11 +292,15 @@ def _search_items(
     message,
     context,
     limit,
+    audio_language=None,
+    subtitle_language=None,
 ):
     result = intelligent_search(
         query=message,
         context=context,
         limit=limit,
+        audio_language=audio_language,
+        subtitle_language=subtitle_language,
     )
 
     return tuple(
@@ -300,6 +318,8 @@ def _recommendation_items(
     *,
     context,
     limit,
+    audio_language=None,
+    subtitle_language=None,
 ):
     candidate_limit = min(
         max(
@@ -314,88 +334,89 @@ def _recommendation_items(
         limit=candidate_limit,
     )
 
+    has_language_filter = bool(audio_language or subtitle_language)
+    ranking_limit = candidate_limit if has_language_filter else limit
     result = recommend_for_context(
         context=context,
         candidate_pool=pool,
-        limit=limit,
+        limit=ranking_limit,
     )
 
     recommendation_ids = [
         item.content_id
         for item in result.recommendations
     ]
-
-    titles = _titles_for_ids(
-        recommendation_ids
-    )
+    authorized = {
+        str(content.id): content
+        for content in eligible_content_queryset().filter(
+            id__in=recommendation_ids
+        )
+    }
 
     items = []
-
     for item in result.recommendations:
-        title = titles.get(
-            item.content_id
-        )
+        content = authorized.get(item.content_id)
 
-        # Authorization/content consistency guard.
-        # If an id is no longer eligible between pipeline steps,
-        # it is not exposed.
-        if title is None:
+        # PostgreSQL remains the catalogue authorization boundary.
+        if content is None:
+            continue
+        if not content_matches_language_filters(
+            content,
+            audio_language=audio_language,
+            subtitle_language=subtitle_language,
+        ):
             continue
 
         items.append(
             ConversationItem(
                 content_id=item.content_id,
-                title=title,
+                title=content.title,
                 score=item.score,
                 reasons=item.reasons,
             )
         )
+        if len(items) >= limit:
+            break
 
-    return tuple(
-        items
-    )
+    return tuple(items)
 
 
 def _reply_for(
     *,
     intent,
     items,
+    language,
 ):
-    if intent == "help":
-        return (
-            "I can search the available catalogue "
-            "or recommend content based on your profile."
-        )
+    if language == "en":
+        if intent == "help":
+            return "I can search the available catalogue or recommend films and series from your profile."
+        if items:
+            if intent == "recommendation":
+                return "Here are recommendations from the available catalogue, using your profile and evening type."
+            return "Here are the available catalogue results matching your request."
+        if intent == "recommendation":
+            return "I could not find an available recommendation for this profile and request."
+        return "I could not find an available catalogue item matching this request."
 
+    if intent == "help":
+        return "Je peux rechercher dans le catalogue disponible ou recommander des films et séries selon votre profil."
     if items:
         if intent == "recommendation":
-            return (
-                "Here are recommendations selected "
-                "from the currently available catalogue."
-            )
-
-        return (
-            "Here are the available catalogue results "
-            "that match your request."
-        )
-
+            return "Voici des recommandations du catalogue disponible, selon votre profil et le type de soirée."
+        return "Voici les résultats du catalogue disponibles qui correspondent à votre demande."
     if intent == "recommendation":
-        return (
-            "I do not have an available recommendation "
-            "for this profile right now."
-        )
-
-    return (
-        "I could not find an available catalogue item "
-        "matching this request."
-    )
-
+        return "Je n’ai pas trouvé de recommandation disponible pour ce profil et cette demande."
+    return "Je n’ai pas trouvé de contenu disponible correspondant à cette demande."
 
 def converse(
     *,
     message,
     context,
     limit=10,
+    language="fr",
+    occasion="",
+    audio_language=None,
+    subtitle_language=None,
 ):
     if not isinstance(
         context,
@@ -418,6 +439,57 @@ def converse(
         limit
     )
 
+    requested_language = str(language or "").strip().lower()
+    if requested_language not in {"fr", "en"}:
+        raise ConversationalAssistantError(
+            "language must be fr or en."
+        )
+    normalized_for_language = _normalize_text(normalized_message)
+    french_signals = {
+        "je", "une", "film", "famille", "familial", "ce", "soir",
+        "cherche", "recommande", "pour", "avec", "romantique",
+    }
+    english_signals = {
+        "i", "the", "movie", "family", "tonight", "find",
+        "recommend", "for", "with", "romantic",
+    }
+    words_for_language = set(normalized_for_language.split())
+    french_count = len(words_for_language & french_signals)
+    english_count = len(words_for_language & english_signals)
+    response_language = (
+        "fr" if french_count > english_count
+        else "en" if english_count > french_count
+        else requested_language
+    )
+    occasion_label = str(occasion or "").strip()
+    normalized_occasion = _normalize_text(
+        occasion_label or normalized_message
+    )
+    occasion_intent = occasion_label
+    if any(term in normalized_occasion.split() for term in ("famille", "family", "familial", "familiale", "kids")):
+        occasion_intent = "family animation adventure comedy " + occasion_intent
+        occasion_label = occasion_label or "family"
+    elif any(term in normalized_occasion.split() for term in ("romantique", "romantic", "romance", "love")):
+        occasion_intent = "romance romantic drama comedy " + occasion_intent
+        occasion_label = occasion_label or "romantic"
+    elif any(term in normalized_occasion.split() for term in ("action", "adventure", "aventure")):
+        occasion_intent = "action adventure " + occasion_intent
+        occasion_label = occasion_label or "action"
+
+    if occasion_intent:
+        context = replace(
+            context,
+            current_intent=(
+                " ".join(
+                    item for item in (
+                        context.current_intent,
+                        occasion_intent,
+                    )
+                    if item
+                )
+            ),
+        )
+
     intent = classify_intent(
         normalized_message
     )
@@ -429,6 +501,8 @@ def converse(
         items = _recommendation_items(
             context=context,
             limit=limit,
+            audio_language=audio_language,
+            subtitle_language=subtitle_language,
         )
 
     else:
@@ -436,6 +510,8 @@ def converse(
             message=normalized_message,
             context=context,
             limit=limit,
+            audio_language=audio_language,
+            subtitle_language=subtitle_language,
         )
 
     return ConversationResponse(
@@ -445,7 +521,10 @@ def converse(
         reply=_reply_for(
             intent=intent,
             items=items,
+            language=response_language,
         ),
         profile_id=context.profile_id,
         items=items,
+        language=response_language,
+        occasion=occasion_label,
     )

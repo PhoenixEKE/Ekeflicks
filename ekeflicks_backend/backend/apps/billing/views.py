@@ -1,4 +1,6 @@
 import json
+
+import stripe
 import secrets
 import re
 from datetime import timedelta
@@ -319,6 +321,91 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status_name)
         return queryset
 
+    @action(detail=True, methods=['post'], url_path='cancel-renewal')
+    def cancel_renewal(self, request, pk=None):
+        subscription = self.get_object()
+        if not subscription.auto_renew and subscription.cancel_at_period_end:
+            return Response(self.get_serializer(subscription).data)
+
+        if not subscription.stripe_subscription_id:
+            raise exceptions.ValidationError({
+                'detail': (
+                    'Le renouvellement Stripe n’est pas encore configuré '
+                    'pour cet abonnement.'
+                )
+            })
+
+        stripe.api_key = getattr(settings, 'STRIPE_SECRET_KEY', '')
+        if not stripe.api_key:
+            raise exceptions.ValidationError({
+                'detail': 'Le renouvellement Stripe n’est pas configuré sur le serveur.'
+            })
+        try:
+            remote = stripe.Subscription.modify(
+                subscription.stripe_subscription_id,
+                cancel_at_period_end=True,
+            )
+        except stripe.StripeError as exc:
+            raise exceptions.APIException(
+                f'Impossible d’annuler le renouvellement Stripe : {exc}'
+            )
+
+        subscription.cancel_at_period_end = True
+        subscription.auto_renew = False
+        if remote.get('current_period_end'):
+            from datetime import datetime, timezone as dt_timezone
+            subscription.expires_at = datetime.fromtimestamp(
+                int(remote['current_period_end']),
+                tz=dt_timezone.utc,
+            )
+        subscription.save(update_fields=[
+            'cancel_at_period_end',
+            'auto_renew',
+            'expires_at',
+            'updated_at',
+        ])
+        return Response(self.get_serializer(subscription).data)
+
+    @action(detail=True, methods=['post'], url_path='enable-renewal')
+    def enable_renewal(self, request, pk=None):
+        subscription = self.get_object()
+        if request.data.get('consent') is not True:
+            raise exceptions.ValidationError({
+                'consent': 'Confirmez la remise en place du prélèvement récurrent.'
+            })
+        if not subscription.stripe_subscription_id:
+            raise exceptions.ValidationError({
+                'detail': (
+                    'Cet abonnement n’a pas de contrat Stripe récurrent. '
+                    'Souscrivez à nouveau avec votre accord explicite.'
+                )
+            })
+
+        stripe.api_key = getattr(settings, 'STRIPE_SECRET_KEY', '')
+        if not stripe.api_key:
+            raise exceptions.ValidationError({
+                'detail': 'Le renouvellement Stripe n’est pas configuré sur le serveur.'
+            })
+        try:
+            stripe.Subscription.modify(
+                subscription.stripe_subscription_id,
+                cancel_at_period_end=False,
+            )
+        except stripe.StripeError as exc:
+            raise exceptions.APIException(
+                f'Impossible de réactiver le renouvellement Stripe : {exc}'
+            )
+
+        subscription.auto_renew = True
+        subscription.auto_renew_consent_at = timezone.now()
+        subscription.cancel_at_period_end = False
+        subscription.save(update_fields=[
+            'auto_renew',
+            'auto_renew_consent_at',
+            'cancel_at_period_end',
+            'updated_at',
+        ])
+        return Response(self.get_serializer(subscription).data)
 
 class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
@@ -639,7 +726,7 @@ class PaymentWebhookView(views.APIView):
                 payload,
             )
 
-            if payment:
+            if payment or not error:
                 webhook_event.payment = payment
                 webhook_event.processed = True
                 webhook_event.processed_at = timezone.now()
@@ -730,7 +817,7 @@ class PaymentWebhookView(views.APIView):
                     payload,
                 )
 
-                if payment:
+                if payment or not error:
                     webhook_event.payment = payment
                     webhook_event.processed = True
                     webhook_event.processed_at = timezone.now()

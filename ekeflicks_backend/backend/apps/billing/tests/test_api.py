@@ -2,6 +2,8 @@ import hashlib
 import hmac
 import json
 import re
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.test import override_settings
 from django.core import mail
@@ -61,6 +63,86 @@ class BillingApiTests(APITestCase):
         self.assertTrue(any('Abonnement cree' in message.subject for message in mail.outbox))
         subscription_email = next(message for message in mail.outbox if 'Abonnement cree' in message.subject)
         self.assertIn('logo_dark.png', subscription_email.alternatives[0][0])
+
+    def test_auto_renew_requires_explicit_customer_consent(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            reverse('subscription-list'),
+            {
+                'plan_id': str(self.plan.id),
+                'auto_renew': True,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data['auto_renew_consent'][0],
+            'Confirmez explicitement la mise en place du prélèvement récurrent.',
+        )
+        self.assertFalse(
+            self.user.subscriptions.filter(auto_renew=True).exists()
+        )
+
+    def test_monthly_subscription_stores_explicit_renewal_consent(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            reverse('subscription-list'),
+            {
+                'plan_id': str(self.plan.id),
+                'auto_renew': True,
+                'auto_renew_consent': True,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data['auto_renew'])
+        self.assertTrue(response.data['auto_renew_consent_at'])
+        self.assertFalse(response.data['cancel_at_period_end'])
+
+    @override_settings(STRIPE_SECRET_KEY='sk_test_recurring')
+    @patch('apps.billing.serializers.stripe.checkout.Session.create')
+    def test_explicit_monthly_consent_creates_recurring_stripe_checkout(
+        self,
+        create_session,
+    ):
+        create_session.return_value = SimpleNamespace(
+            id='cs_recurring_test',
+            url='https://checkout.stripe.test/session',
+        )
+        self.client.force_authenticate(user=self.user)
+        subscription_response = self.client.post(
+            reverse('subscription-list'),
+            {
+                'plan_id': str(self.plan.id),
+                'auto_renew_consent': True,
+            },
+            format='json',
+        )
+
+        payment_response = self.client.post(
+            reverse('payment-list'),
+            {
+                'subscription_id': subscription_response.data['id'],
+                'provider': 'stripe',
+            },
+            format='json',
+        )
+
+        self.assertEqual(payment_response.status_code, status.HTTP_201_CREATED)
+        call = create_session.call_args.kwargs
+        self.assertEqual(call['mode'], 'subscription')
+        self.assertEqual(
+            call['line_items'][0]['price_data']['recurring'],
+            {'interval': 'month'},
+        )
+        self.assertEqual(
+            call['subscription_data']['metadata']['auto_renew_consent'],
+            'true',
+        )
 
     def test_free_30_day_subscription_is_activated_without_payment(self):
         free_plan = SubscriptionPlan.objects.create(

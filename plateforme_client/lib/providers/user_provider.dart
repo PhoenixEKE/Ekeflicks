@@ -65,7 +65,10 @@ class UserProvider with ChangeNotifier {
   /// Creates a paid subscription and initializes a Stripe Checkout session.
   ///
   /// The backend remains the source of truth for the plan price/currency.
-  Future<String> startStripeCheckout(String planSlug) async {
+  Future<String> startStripeCheckout(
+    String planSlug, {
+    bool enableAutoRenew = false,
+  }) async {
     // 1. Load the active plans from the backend.
     final plansResponse = await apiClient.dio.get<Map<String, dynamic>>(
       '/subscription-plans/',
@@ -92,7 +95,11 @@ class UserProvider with ChangeNotifier {
     // 2. Create the pending paid subscription.
     final subscriptionResponse = await apiClient.dio.post<Map<String, dynamic>>(
       '/subscriptions/',
-      data: {'plan_id': planId, 'auto_renew': true},
+      data: {
+        'plan_id': planId,
+        'auto_renew': enableAutoRenew,
+        'auto_renew_consent': enableAutoRenew,
+      },
     );
 
     final subscriptionId = subscriptionResponse.data?['id'];

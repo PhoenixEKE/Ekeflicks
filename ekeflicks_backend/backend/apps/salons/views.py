@@ -58,10 +58,10 @@ class SalonViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        return (
+        queryset = (
             Salon.objects
             .select_related("host", "content")
-            .prefetch_related("memberships")
+            .prefetch_related("memberships__user")
             .filter(
                 Q(visibility=Salon.VISIBILITY_PUBLIC)
                 | Q(host=user)
@@ -72,6 +72,20 @@ class SalonViewSet(viewsets.ModelViewSet):
             )
             .distinct()
         )
+        query = (self.request.query_params.get("search") or "").strip()
+        if query:
+            queryset = queryset.filter(
+                Q(name__icontains=query)
+                | Q(content__title__icontains=query)
+                | Q(content__original_title__icontains=query)
+            )
+        content_id = self.request.query_params.get("content_id")
+        if content_id:
+            queryset = queryset.filter(content_id=content_id)
+        status_name = self.request.query_params.get("status")
+        if status_name in {Salon.STATUS_OPEN, Salon.STATUS_CLOSED}:
+            queryset = queryset.filter(status=status_name)
+        return queryset
 
     def get_serializer_class(self):
         if self.action == "create":

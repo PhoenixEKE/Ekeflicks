@@ -83,6 +83,39 @@ class _SubscriptionManagementCardState
     }
   }
 
+  Future<void> _setRenewal(bool enabled) async {
+    final subscriptionId = _subscription?['id']?.toString();
+    if (subscriptionId == null || subscriptionId.isEmpty) return;
+    try {
+      await context.read<UserProvider>().apiClient.dio.post<Object>(
+        '/subscriptions/$subscriptionId/${enabled ? 'enable-renewal' : 'cancel-renewal'}/',
+        data: enabled ? {'consent': true} : <String, dynamic>{},
+      );
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_copy(
+            context,
+            enabled ? 'Le prélèvement mensuel est réactivé.' : 'Le renouvellement est arrêté à l’échéance.',
+            enabled ? 'Monthly billing is enabled again.' : 'Renewal will stop at expiry.',
+          )),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_copy(
+            context,
+            'Impossible de modifier le renouvellement.',
+            'Could not update renewal.',
+          )),
+        ),
+      );
+    }
+  }
+
   int _order(Map<String, dynamic> plan) =>
       (plan['display_order'] as num?)?.toInt() ?? 0;
 
@@ -278,6 +311,29 @@ class _SubscriptionManagementCardState
         if (priceText != null) ...[
           const SizedBox(height: 6),
           Text(priceText),
+        ],
+        if (_isCurrentActive && sub?['auto_renew'] == true) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.autorenew, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(_copy(context, 'Prélèvement mensuel activé', 'Monthly billing is active')),
+              ),
+            ],
+          ),
+          TextButton(
+            onPressed: () => _setRenewal(false),
+            child: Text(_copy(context, 'Arrêter le renouvellement à l’échéance', 'Stop renewal at expiry')),
+          ),
+        ] else if (_isCurrentActive && sub?['cancel_at_period_end'] == true) ...[
+          const SizedBox(height: 10),
+          Text(_copy(context, 'Le renouvellement est arrêté. Votre accès reste actif jusqu’à l’échéance.', 'Renewal is off. Access stays active through expiry.')),
+          TextButton(
+            onPressed: () => _setRenewal(true),
+            child: Text(_copy(context, 'Réactiver le prélèvement mensuel', 'Resume monthly billing')),
+          ),
         ],
         if (!_isCurrentActive && plan != null && _amount(plan['price']) > 0) ...[
           const SizedBox(height: 16),

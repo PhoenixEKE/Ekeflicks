@@ -131,10 +131,11 @@ class EkeAIRecommendationResponse {
     return EkeAIRecommendationResponse(
       items: List<EkeAIContent>.unmodifiable(_extractContents(json)),
       message:
-          (json['message'] ??
+          (json['reply'] ??
                   json['answer'] ??
                   json['response'] ??
-                  json['text'])
+                  json['text'] ??
+                  json['message'])
               ?.toString(),
       apiVersion: json['api_version']?.toString(),
       raw: Map<String, dynamic>.unmodifiable(json),

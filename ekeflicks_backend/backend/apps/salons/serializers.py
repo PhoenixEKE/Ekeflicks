@@ -19,6 +19,8 @@ class SalonSerializer(serializers.ModelSerializer):
     )
 
     member_count = serializers.SerializerMethodField()
+    content_title = serializers.CharField(source='content.title', read_only=True, allow_null=True)
+    members = serializers.SerializerMethodField()
 
     class Meta:
         model = Salon
@@ -27,6 +29,9 @@ class SalonSerializer(serializers.ModelSerializer):
             "name",
             "host_id",
             "content_id",
+            "content_title",
+            "members",
+            "scheduled_at",
             "visibility",
             "mode",
             "status",
@@ -42,6 +47,9 @@ class SalonSerializer(serializers.ModelSerializer):
         read_only_fields = (
             "id",
             "host_id",
+            "content_title",
+            "members",
+            "scheduled_at",
             "status",
             "member_count",
             "created_at",
@@ -53,6 +61,23 @@ class SalonSerializer(serializers.ModelSerializer):
         return obj.memberships.filter(
             left_at__isnull=True,
         ).count()
+
+    def get_members(self, obj):
+        memberships = obj.memberships.filter(
+            left_at__isnull=True,
+        ).select_related("user")
+        return [
+            {
+                "user_id": str(item.user_id),
+                "display_name": (
+                    item.user.get_full_name()
+                    or getattr(item.user, "username", "")
+                    or "Membre"
+                ),
+                "role": item.role,
+            }
+            for item in memberships
+        ]
 
 
 class SalonCreateSerializer(serializers.Serializer):
@@ -95,6 +120,20 @@ class SalonCreateSerializer(serializers.Serializer):
     video_enabled = serializers.BooleanField(
         default=True,
     )
+
+    scheduled_at = serializers.DateTimeField(
+        required=False,
+        allow_null=True,
+    )
+
+    def validate_scheduled_at(self, value):
+        if value is not None:
+            from django.utils import timezone
+            if value <= timezone.now():
+                raise serializers.ValidationError(
+                    "La séance doit être programmée dans le futur."
+                )
+        return value
 
     def create(self, validated_data):
         return create_entitled_salon(

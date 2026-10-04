@@ -319,6 +319,7 @@ def create_entitled_salon(
     audio_enabled=True,
     video_enabled=True,
     host_leave_policy=Salon.HOST_LEAVE_CLOSE,
+    scheduled_at=None,
 ):
     User = get_user_model()
 
@@ -379,6 +380,7 @@ def create_entitled_salon(
         audio_enabled=audio_enabled,
         video_enabled=video_enabled,
         host_leave_policy=host_leave_policy,
+        scheduled_at=scheduled_at,
     )
 
     SalonSessionQuotaEntry.objects.create(

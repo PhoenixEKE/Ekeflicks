@@ -7,6 +7,7 @@ import 'package:app_ekeflicks/services/native_screen_retainer.dart';
 import 'package:app_ekeflicks/services/content_api_service.dart';
 import 'package:app_ekeflicks/services/offline_download_service.dart';
 import 'package:app_ekeflicks/utils/browser_info.dart';
+import 'package:app_ekeflicks/ui/salons/ekeroom_page.dart';
 import 'package:better_player/better_player.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -161,6 +162,44 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     } finally {
       if (mounted) setState(() => _isDownloadingOffline = false);
     }
+  }
+
+  Map<String, dynamic>? _readPlaybackState() {
+    final videoController = _controller?.videoPlayerController;
+    if (videoController == null) return null;
+    final value = videoController.value;
+    return {
+      'position_ms': value.position.inMilliseconds,
+      'is_playing': value.isPlaying,
+      'playback_rate': value.playbackSpeed,
+    };
+  }
+
+  Future<void> _applyRemotePlayback(Map<String, dynamic> state) async {
+    final controller = _controller;
+    if (controller == null) return;
+    final position = (state['effective_position_ms'] ??
+            state['position_ms'] ??
+            0) as num;
+    await controller.seekTo(Duration(milliseconds: position.toInt()));
+    if (state['is_playing'] == true) {
+      await controller.play();
+    } else {
+      await controller.pause();
+    }
+  }
+
+  Future<void> _openEkeroom() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => EkeroomPage(
+          contentId: widget.videoAssetId,
+          contentTitle: widget.title,
+          readPlaybackState: _readPlaybackState,
+          onRemotePlaybackState: _applyRemotePlayback,
+        ),
+      ),
+    );
   }
 
   Future<void> _initializePlayer() async {
@@ -367,6 +406,12 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.download_for_offline_outlined),
+            ),
+          if (widget.videoAssetId?.isNotEmpty == true)
+            IconButton(
+              tooltip: 'Ekeroom',
+              onPressed: _openEkeroom,
+              icon: const Icon(Icons.groups_outlined),
             ),
           IconButton(
             tooltip: 'Téléchargements',

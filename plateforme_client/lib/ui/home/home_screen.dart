@@ -192,6 +192,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
+            IconButton(
+              tooltip: 'Rechercher films et salons',
+              onPressed: () => Navigator.pushNamed(context, '/eke-ai-search'),
+              icon: const Icon(Icons.search),
+            ),
+            IconButton(
+              tooltip: 'Ekeroom',
+              onPressed: () => Navigator.pushNamed(context, '/ekeroom'),
+              icon: const Icon(Icons.groups_outlined),
+            ),
             TextButton.icon(
               onPressed: () {
                 Navigator.of(context).push(
