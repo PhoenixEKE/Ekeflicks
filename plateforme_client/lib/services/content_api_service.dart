@@ -156,6 +156,82 @@ class ContentApiService {
     };
   }
 
+  /// Creates the server-side offline authorization and persistent Axinom license.
+  /// The manifest URL uses a longer, subscription-gated signature so large downloads
+  /// can finish over slower connections.
+  Future<Map<String, dynamic>> prepareOfflineDownload({
+    required String assetId,
+    required String platform,
+    required String drmSystem,
+    required String profileId,
+  }) async {
+    final deviceId = await _persistentDeviceId();
+    final manifestResponse = await _dio.get(
+      _url('/video-assets/$assetId/manifest/'),
+      queryParameters: {
+        'platform': platform,
+        'drm_system': drmSystem,
+        'offline': '1',
+      },
+      options: _options(profileId),
+    );
+    final manifest = Map<String, dynamic>.from(manifestResponse.data as Map);
+    if (manifest['offline_allowed'] != true) {
+      throw StateError('Le forfait ou ce contenu ne permet pas le téléchargement hors ligne.');
+    }
+
+    final recordResponse = await _dio.post(
+      _url('/video-assets/$assetId/request-offline/'),
+      data: {
+        'profile_id': profileId,
+        'device_id': deviceId,
+        'device_type': platform,
+        'platform': platform,
+      },
+      options: _options(profileId),
+    );
+    final offlineRecord = Map<String, dynamic>.from(recordResponse.data as Map);
+    try {
+      final licenseResponse = await _dio.post(
+        _url('/video-assets/$assetId/offline-license/'),
+        data: {
+          'profile_id': profileId,
+          'device_id': deviceId,
+          'device_type': platform,
+          'platform': platform,
+          'drm_system': drmSystem,
+        },
+        options: _options(profileId),
+      );
+      return {
+        'manifest': manifest,
+        'offline_record': offlineRecord,
+        'offline_license': Map<String, dynamic>.from(licenseResponse.data as Map),
+        'device_id': deviceId,
+      };
+    } catch (_) {
+      try {
+        await revokeOfflineDownload(
+          offlineRecord['id'].toString(),
+          profileId: profileId,
+        );
+      } catch (_) {
+        // Preserve the original license request failure.
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> revokeOfflineDownload(
+    String id, {
+    required String profileId,
+  }) async {
+    await _dio.post(
+      _url('/offline-licenses/$id/revoke/'),
+      options: _options(profileId),
+    );
+  }
+
   Future<String> _persistentDeviceId() async {
     final preferences = await SharedPreferences.getInstance();
     final saved = preferences.getString('eke_install_device_id');

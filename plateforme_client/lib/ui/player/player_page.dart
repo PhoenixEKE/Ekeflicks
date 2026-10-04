@@ -4,6 +4,8 @@ import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/providers/content_provider.dart';
 import 'package:app_ekeflicks/providers/device_info_provider.dart';
 import 'package:app_ekeflicks/services/native_screen_retainer.dart';
+import 'package:app_ekeflicks/services/content_api_service.dart';
+import 'package:app_ekeflicks/services/offline_download_service.dart';
 import 'package:app_ekeflicks/utils/browser_info.dart';
 import 'package:better_player/better_player.dart';
 import 'package:flutter/foundation.dart';
@@ -68,6 +70,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   bool _loading = true;
   bool _error = false;
   String? _errorMessage;
+  bool _isDownloadingOffline = false;
   bool _isTv = false;
   bool _isAndroidTvDevice = false;
   bool _usePlayReadyTvView = false;
@@ -100,6 +103,64 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     if (platform == 'tv') return 'playready';
     if (platform == 'ios' || (kIsWeb && isSafariBrowser())) return 'fairplay';
     return 'widevine';
+  }
+
+  Future<void> _downloadForOffline() async {
+    final assetId = widget.videoAssetId;
+    if (assetId == null || assetId.isEmpty || _isDownloadingOffline) return;
+    final profile = context.read<ProfileProvider>().currentProfile;
+    final profileId = profile?.id;
+    if (profileId == null || profileId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sélectionnez un profil pour télécharger.')),
+      );
+      return;
+    }
+
+    setState(() => _isDownloadingOffline = true);
+    try {
+      final deviceInfo = context.read<DeviceInfoProvider>();
+      if (!deviceInfo.isInitialized) await deviceInfo.init();
+      final platform = deviceInfo.isTV
+          ? 'tv'
+          : defaultTargetPlatform == TargetPlatform.iOS
+              ? 'ios'
+              : 'android';
+      final drmSystem = platform == 'tv'
+          ? 'playready'
+          : platform == 'ios'
+              ? 'fairplay'
+              : 'widevine';
+      final api = ContentApiService(
+        context.read<ProfileProvider>().apiClient.dio,
+      );
+      await OfflineDownloadService(api).download(
+        assetId: assetId,
+        title: widget.title,
+        posterUrl: widget.imageUrl,
+        profileId: profileId,
+        platform: platform,
+        drmSystem: drmSystem,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Téléchargement hors ligne ajouté à la file.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      final message = error is StateError
+          ? error.message.toString()
+          : error is UnsupportedError
+              ? error.message.toString()
+              : 'Impossible de préparer le téléchargement hors ligne.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } finally {
+      if (mounted) setState(() => _isDownloadingOffline = false);
+    }
   }
 
   Future<void> _initializePlayer() async {
@@ -293,6 +354,26 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: true,
+        actions: [
+          if (OfflineDownloadService.isSupported &&
+              widget.videoAssetId?.isNotEmpty == true)
+            IconButton(
+              tooltip: 'Télécharger hors ligne',
+              onPressed: _isDownloadingOffline ? null : _downloadForOffline,
+              icon: _isDownloadingOffline
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.download_for_offline_outlined),
+            ),
+          IconButton(
+            tooltip: 'Téléchargements',
+            onPressed: () => Navigator.of(context).pushNamed('/downloads'),
+            icon: const Icon(Icons.download_done_outlined),
+          ),
+        ],
       ),
       body: Center(
         child: _error

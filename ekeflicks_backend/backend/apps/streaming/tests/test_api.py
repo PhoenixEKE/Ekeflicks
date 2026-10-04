@@ -119,6 +119,45 @@ class StreamingApiTests(APITestCase):
         self.assertEqual(response.data['renditions'][0]['quality'], '720p')
         self.assertIn('ef_sig=', response.data['renditions'][0]['hls_playlist_url'])
 
+    def test_offline_manifest_requires_download_entitlement_and_extends_signed_url_ttl(self):
+        self.client.force_authenticate(user=self.user)
+
+        denied_plan = SubscriptionPlan.objects.create(
+            name='Streaming only',
+            slug='streaming-only',
+            price='9.99',
+            duration_days=30,
+            download_enabled=False,
+        )
+        self.subscription.plan = denied_plan
+        self.subscription.save(update_fields=['plan'])
+
+        url = reverse('video-asset-manifest', args=[self.asset.id])
+        response = self.client.get(
+            url,
+            {'profile': str(self.profile.id), 'offline': '1'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.subscription.plan = self.plan
+        self.subscription.save(update_fields=['plan'])
+        with self.settings(
+            STREAMING_SIGNED_URL_TTL_SECONDS=60,
+            STREAMING_OFFLINE_SIGNED_URL_TTL_SECONDS=7200,
+        ):
+            before = timezone.now()
+            response = self.client.get(
+                url,
+                {'profile': str(self.profile.id), 'offline': '1'},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expires_at = timezone.datetime.fromisoformat(
+            response.data['signed_url_expires_at'].replace('Z', '+00:00')
+        )
+        self.assertGreaterEqual(expires_at, before + timezone.timedelta(seconds=7190))
+        self.assertEqual(response.data['signed_url_ttl_seconds'], 7200)
+
     def test_playback_license_can_be_created_for_active_subscription(self):
         self.asset.drm_provider = 'aes_128'
         self.asset.save(update_fields=['drm_provider', 'updated_at'])

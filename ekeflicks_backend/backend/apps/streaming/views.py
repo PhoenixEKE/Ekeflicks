@@ -1140,8 +1140,21 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
         drm_system = request.query_params.get('drm_system') or ''
         plan = subscription.plan if subscription else None
         offline_allowed = bool(asset.is_downloadable and plan and plan.download_enabled)
+        offline_download = request.query_params.get('offline', '').lower() in {'1', 'true', 'yes'}
+        if offline_download and not offline_allowed:
+            raise exceptions.PermissionDenied(
+                'Le plan actuel ou ce contenu ne permet pas le telechargement offline.'
+            )
+        signed_url_ttl_seconds = int(
+            getattr(settings, 'STREAMING_SIGNED_URL_TTL_SECONDS', 3600)
+        )
+        if offline_download:
+            signed_url_ttl_seconds = max(
+                signed_url_ttl_seconds,
+                int(getattr(settings, 'STREAMING_OFFLINE_SIGNED_URL_TTL_SECONDS', 86400)),
+            )
         signed_expires_at = timezone.now() + timezone.timedelta(
-            seconds=getattr(settings, 'STREAMING_SIGNED_URL_TTL_SECONDS', 3600)
+            seconds=signed_url_ttl_seconds
         )
         renditions = VideoRenditionSerializer(asset.renditions.all(), many=True).data
         subtitles = SubtitleTrackSerializer(asset.subtitle_tracks.all(), many=True).data
@@ -1191,6 +1204,7 @@ class VideoAssetViewSet(viewsets.ModelViewSet):
             'provider_license_url': provider_license_url(asset, drm_system, platform=platform),
             'drm': drm_configuration(asset, platform=platform, drm_system=drm_system),
             'manifest_ttl_seconds': getattr(settings, 'STREAMING_MANIFEST_TTL_SECONDS', 3600),
+            'signed_url_ttl_seconds': signed_url_ttl_seconds,
             'signed_urls_enabled': getattr(settings, 'STREAMING_SIGNED_URLS_ENABLED', True),
             'signed_url_expires_at': signed_expires_at.isoformat(),
             'offline_allowed': offline_allowed,

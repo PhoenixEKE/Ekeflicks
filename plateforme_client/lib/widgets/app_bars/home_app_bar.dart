@@ -58,6 +58,14 @@ class _AppBarActions extends StatelessWidget {
       children: [
         if (!isMobile) const _FaqButton(), // 🔄 REMPLACÉ : Tutorials → FAQ
         if (!isMobile) _LanguageSelector(onLanguageChanged: onLanguageChanged),
+        IconButton(
+          icon: Icon(
+            Icons.download_for_offline_outlined,
+            color: Theme.of(context).iconTheme.color,
+          ),
+          tooltip: 'Téléchargements hors ligne',
+          onPressed: () => Navigator.of(context).pushNamed('/downloads'),
+        ),
         const _ThemeToggle(),
         const _AuthActions(),
       ],

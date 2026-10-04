@@ -15,6 +15,7 @@ import 'ui/users/sign_up_page.dart';
 import 'ui/pages/notifications_page.dart';
 import 'ui/pages/unsubscribe_page.dart';
 import 'ui/player/player_page.dart';
+import 'ui/pages/offline_downloads_page.dart';
 
 /// Configuration des routes de l'application.
 Map<String, WidgetBuilder> getAppRoutes() {
@@ -34,6 +35,7 @@ Map<String, WidgetBuilder> getAppRoutes() {
     '/profile-selection': (context) => const ProfileSelectionPage(),
     '/notifications': (context) => const NotificationsPage(),
     '/player': (context) => PlayerPage.fromRoute(context),
+    '/downloads': (context) => const OfflineDownloadsPage(),
     '/unsubscribe':
         (context) => UnsubscribePage(token: Uri.base.queryParameters['token']),
   };
