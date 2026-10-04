@@ -132,9 +132,28 @@ final class OfflineDownloadCoordinator: NSObject,
       result(FlutterError(code: "OFFLINE_DOWNLOAD_INVALID", message: "A signed HTTPS manifest is required.", details: nil))
       return
     }
-    guard metadata[assetId]?["status"] as? String != "completed" else {
-      result(FlutterError(code: "OFFLINE_EXISTS", message: "This video is already downloaded.", details: nil))
+    let activeStatuses: Set<String> = [
+      "completed", "waiting_for_license", "queued", "downloading", "paused"
+    ]
+    let currentStatus = metadata[assetId]?["status"] as? String ?? ""
+    guard !activeStatuses.contains(currentStatus) else {
+      result(FlutterError(code: "OFFLINE_EXISTS", message: "This video already has an offline download.", details: nil))
       return
+    }
+    if let previous = metadata[assetId] {
+      if let localPath = previous["localPath"] as? String, !localPath.isEmpty {
+        try? FileManager.default.removeItem(atPath: localPath)
+      }
+      let oldIdentifiers = previous["keyIdentifiers"] as? [String] ?? []
+      oldIdentifiers.forEach {
+        deleteSecret(service: keychainService, account: keyAccount(assetId, $0))
+      }
+      deleteSecret(service: entitlementService, account: assetId)
+      entitlements.removeValue(forKey: assetId)
+      warmingPlayers.removeValue(forKey: assetId)?.pause()
+      if let oldSession = keySessions.removeValue(forKey: assetId) {
+        sessionAssetIds.removeValue(forKey: ObjectIdentifier(oldSession))
+      }
     }
 
     var values = arguments

@@ -27,6 +27,20 @@ class OfflineDownloadService {
       throw UnsupportedError('Le téléchargement hors ligne est disponible sur Android et iOS.');
     }
 
+    final existingDownloads = await list();
+    for (final existing in existingDownloads.where(
+      (item) => item.assetId == assetId && item.profileId == profileId,
+    )) {
+      if (existing.status == 'failed' || existing.isExpired) {
+        await remove(existing, profileId: profileId);
+        continue;
+      }
+      final message = existing.status == 'completed'
+          ? 'Cette vidéo est déjà téléchargée sur cet appareil.'
+          : 'Un téléchargement de cette vidéo est déjà en cours.';
+      throw StateError(message);
+    }
+
     final setup = await _api.prepareOfflineDownload(
       assetId: assetId,
       platform: platform,
