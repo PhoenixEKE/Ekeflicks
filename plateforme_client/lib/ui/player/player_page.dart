@@ -165,9 +165,8 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   }
 
   Map<String, dynamic>? _readPlaybackState() {
-    final videoController = _controller?.videoPlayerController;
-    if (videoController == null) return null;
-    final value = videoController.value;
+    final value = _controller?.playerValue;
+    if (value == null) return null;
     return {
       'position_ms': value.position.inMilliseconds,
       'is_playing': value.isPlaying,

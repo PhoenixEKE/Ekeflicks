@@ -78,7 +78,7 @@ class BillingApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
-            response.data['auto_renew_consent'][0],
+            str(response.data['auto_renew_consent']),
             'Confirmez explicitement la mise en place du prélèvement récurrent.',
         )
         self.assertFalse(

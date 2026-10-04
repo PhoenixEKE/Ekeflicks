@@ -66,18 +66,26 @@ class SalonSerializer(serializers.ModelSerializer):
         memberships = obj.memberships.filter(
             left_at__isnull=True,
         ).select_related("user")
-        return [
-            {
-                "user_id": str(item.user_id),
-                "display_name": (
-                    item.user.get_full_name()
-                    or getattr(item.user, "username", "")
+        members = []
+        for item in memberships:
+            name_parts = [
+                str(getattr(item.user, "firstname", "") or "").strip(),
+                str(getattr(item.user, "lastname", "") or "").strip(),
+            ]
+            display_name = " ".join(part for part in name_parts if part)
+            if not display_name:
+                display_name = (
+                    getattr(item.user, "email", "")
+                    or getattr(item.user, "phone", "")
                     or "Membre"
-                ),
+                )
+                display_name = display_name.split("@", 1)[0]
+            members.append({
+                "user_id": str(item.user_id),
+                "display_name": display_name,
                 "role": item.role,
-            }
-            for item in memberships
-        ]
+            })
+        return members
 
 
 class SalonCreateSerializer(serializers.Serializer):

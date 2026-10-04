@@ -116,7 +116,7 @@ class _EkeAIAssistantPageState extends State<EkeAIAssistantPage> {
 
       setState(() {
         _messages.add(
-          const _AssistantMessage(
+          _AssistantMessage(
             fromUser: false,
             text: _english
                 ? 'I’m temporarily unavailable. Please try again shortly.'
