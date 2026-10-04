@@ -1,8 +1,10 @@
 import re
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 from django.db import migrations, models
+from django.db.models import DateField
+from django.db.models.functions import Coalesce, TruncDate
 import django.db.models.deletion
 
 
@@ -36,6 +38,17 @@ def backfill_contract_terms(apps, schema_editor):
             match = re.search(r'\((\d{1,5}(?:[,.]\d{1,6})?)\s*€\)\s*(?:pour mille|pour 1\s*000)', text, re.I)
             if match:
                 values['rate_per_1000_views_eur'] = Decimal(match.group(1).replace(',', '.'))
+        if values['rate_per_1000_views_eur'] is None:
+            cfa_match = re.search(
+                r'(\d{1,3}(?:[ .]\d{3})+|\d{1,7})\s*(?:FCFA|XOF).{0,100}(?:pour mille|pour 1\s*000|per 1,?000|per thousand)',
+                text,
+                re.I | re.S,
+            )
+            if cfa_match:
+                values['rate_per_1000_views_eur'] = (
+                    Decimal(re.sub(r'[\s.]', '', cfa_match.group(1)))
+                    / Decimal('655.957')
+                ).quantize(Decimal('0.000001'))
         if values['eligible_progress_percent'] is None:
             match = re.search(r'(\d{1,3}(?:[,.]\d{1,2})?)\s*%[^\n.]{0,60}(?:du contenu|of the content)', text, re.I)
             if match:
@@ -89,29 +102,95 @@ def backfill_contract_terms(apps, schema_editor):
                             if match:
                                 values['advertising_share_percent'] = Decimal(match.group(1).replace(',', '.'))
                                 break
-        return {key: Decimal(str(values[key])) if values[key] is not None else defaults[key] for key in defaults}
+        return {key: Decimal(str(values[key])) if values[key] is not None else None for key in defaults}
 
     by_account = {}
-    for agreement in Agreement.objects.filter(signed_at__isnull=False).order_by('producer_account_id', 'signed_at', 'created_at'):
-        terms = extract(agreement.contract_version)
+    terms_by_account = {}
+    agreements = Agreement.objects.filter(
+        signed_at__isnull=False,
+    ).order_by('producer_account_id', 'signed_at', 'created_at')
+    for agreement in agreements:
+        account_id = agreement.producer_account_id
+        previous_id = by_account.get(account_id)
+        previous_terms = terms_by_account.get(account_id)
+        version = ContractVersion.objects.filter(
+            version=agreement.contract_version,
+        ).first()
+        parsed_terms = extract(agreement.contract_version)
+        text_changed_terms = bool(
+            previous_terms
+            and any(
+                parsed_terms[key] is not None
+                and parsed_terms[key] != previous_terms[key]
+                for key in defaults
+            )
+        )
+        compensation_amendment = bool(
+            (version and version.amends_compensation)
+            or text_changed_terms
+        )
+
+        if previous_terms and not compensation_amendment:
+            # New legal text without a compensation amendment keeps the
+            # producer's previous signed commercial terms.
+            terms = dict(previous_terms)
+            source = 'carried_forward'
+        else:
+            # A newly signed amendment can change only one commercial term;
+            # unspecified values continue from the previous agreement.
+            terms = {
+                key: (
+                    parsed_terms[key]
+                    if parsed_terms[key] is not None
+                    else previous_terms[key]
+                    if previous_terms
+                    else defaults[key]
+                )
+                for key in defaults
+            }
+            source = (
+                'backfilled_contract_text'
+                if any(value is not None for value in parsed_terms.values())
+                else 'platform_default'
+            )
+
         Agreement.objects.filter(pk=agreement.pk).update(
             rate_per_1000_views_eur=terms['rate_per_1000_views_eur'],
             eligible_progress_percent=terms['eligible_progress_percent'],
             advertising_share_percent=terms['advertising_share_percent'],
-            compensation_terms_source='backfilled_contract_text',
-            previous_agreement_id=by_account.get(agreement.producer_account_id),
+            compensation_amendment=compensation_amendment,
+            compensation_terms_source=source,
+            previous_agreement_id=previous_id,
         )
-        by_account[agreement.producer_account_id] = agreement.pk
+        by_account[account_id] = agreement.pk
+        terms_by_account[account_id] = terms
 
-    for view in View.objects.select_related('producer').all().iterator():
+    for view in View.objects.all().iterator():
         agreement = Agreement.objects.filter(
             producer_account__user_id=view.producer_id,
             signed_at__isnull=False,
         ).filter(
             models.Q(effective_date__lte=view.counted_at.date())
             | models.Q(effective_date__isnull=True, signed_at__date__lte=view.counted_at.date())
-        ).order_by('-effective_date', '-signed_at').first()
-        terms = extract(agreement.contract_version) if agreement else defaults
+        ).annotate(
+            _effective_on=Coalesce(
+                'effective_date',
+                TruncDate('signed_at'),
+                output_field=DateField(),
+            )
+        ).order_by('-_effective_on', '-signed_at').first()
+        terms = {
+            'rate_per_1000_views_eur': (
+                agreement.rate_per_1000_views_eur
+                if agreement and agreement.rate_per_1000_views_eur is not None
+                else defaults['rate_per_1000_views_eur']
+            ),
+            'eligible_progress_percent': (
+                agreement.eligible_progress_percent
+                if agreement and agreement.eligible_progress_percent is not None
+                else defaults['eligible_progress_percent']
+            ),
+        }
         View.objects.filter(pk=view.pk).update(
             contract_agreement_id=agreement.pk if agreement else None,
             rate_per_1000_views_eur=terms['rate_per_1000_views_eur'],
@@ -125,9 +204,31 @@ def backfill_contract_terms(apps, schema_editor):
         ).filter(
             models.Q(effective_date__lte=row.period)
             | models.Q(effective_date__isnull=True, signed_at__date__lte=row.period)
-        ).order_by('-effective_date', '-signed_at').first()
-        if agreement:
-            AdRevenue.objects.filter(pk=row.pk).update(contract_agreement_id=agreement.pk)
+        ).annotate(
+            _effective_on=Coalesce(
+                'effective_date',
+                TruncDate('signed_at'),
+                output_field=DateField(),
+            )
+        ).order_by('-_effective_on', '-signed_at').first()
+        updates = {'contract_agreement_id': agreement.pk if agreement else None}
+        # Pending advertising earnings are still payable, so align them with
+        # the agreement active for the revenue period. Preserve requested and
+        # paid payout snapshots.
+        if agreement and row.status == 'pending':
+            share_percent = agreement.advertising_share_percent
+            if share_percent is not None:
+                producer_share = (
+                    Decimal(row.net_revenue_eur)
+                    * Decimal(share_percent)
+                    / Decimal('100')
+                ).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+                updates.update({
+                    'share_percent': share_percent,
+                    'producer_share_eur': producer_share,
+                })
+        AdRevenue.objects.filter(pk=row.pk).update(**updates)
+
 
 
 class Migration(migrations.Migration):

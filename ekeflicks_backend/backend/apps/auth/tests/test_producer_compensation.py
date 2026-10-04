@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -5,6 +6,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.auth.producer_compensation import (
+    compensation_terms_for,
     parse_contract_compensation,
     terms_for_new_agreement,
 )
@@ -12,7 +14,13 @@ from apps.auth.producer_contract_versions import (
     ProducerContractVersionError,
     publish_contract_version,
 )
-from core.models import ProducerAccount, ProducerAgreement, ProducerContractVersion
+from core.models import (
+    Content,
+    ProducerAccount,
+    ProducerAdvertisingRevenue,
+    ProducerAgreement,
+    ProducerContractVersion,
+)
 
 
 class ProducerCompensationContractTests(TestCase):
@@ -86,6 +94,94 @@ class ProducerCompensationContractTests(TestCase):
         self.assertEqual(terms['advertising_share_percent'], Decimal('62.00'))
         self.assertEqual(terms['previous_agreement'], self.previous)
         self.assertTrue(terms['compensation_amendment'])
+
+    def test_unamended_successor_inherits_the_latest_signed_amendment(self):
+        self.previous.signed_at = timezone.now() - timedelta(days=1)
+        self.previous.effective_date = timezone.localdate() - timedelta(days=1)
+        self.previous.save(update_fields=['signed_at', 'effective_date', 'updated_at'])
+        amendment = ProducerContractVersion.objects.create(
+            version='compensation-amendment-chain',
+            title='Compensation amendment',
+            amends_compensation=True,
+            rate_per_1000_views_eur=Decimal('2.250000'),
+            eligible_progress_percent=Decimal('65.00'),
+            advertising_share_percent=Decimal('62.00'),
+            canonical_content='Compensation amendment.',
+        )
+        amended_agreement = ProducerAgreement.objects.create(
+            producer_account=self.account,
+            contract_version=amendment.version,
+            contract_title=amendment.title,
+            status=ProducerAgreement.STATUS_SIGNED,
+            signed_at=timezone.now(),
+            effective_date=timezone.localdate(),
+            previous_agreement=self.previous,
+            compensation_amendment=True,
+            compensation_terms_source='signed_amendment',
+            rate_per_1000_views_eur=amendment.rate_per_1000_views_eur,
+            eligible_progress_percent=amendment.eligible_progress_percent,
+            advertising_share_percent=amendment.advertising_share_percent,
+        )
+        successor = ProducerContractVersion.objects.create(
+            version='successor-no-compensation-change',
+            title='Updated legal text',
+            canonical_content='Legal wording changed; compensation did not.',
+        )
+
+        terms = terms_for_new_agreement(
+            self.account,
+            contract_version=successor.version,
+        )
+
+        self.assertEqual(terms['rate_per_1000_views_eur'], Decimal('2.250000'))
+        self.assertEqual(terms['eligible_progress_percent'], Decimal('65.00'))
+        self.assertEqual(terms['advertising_share_percent'], Decimal('62.00'))
+        self.assertEqual(terms['previous_agreement'], amended_agreement)
+        self.assertFalse(terms['compensation_amendment'])
+
+    def test_signed_agreement_with_date_supersedes_older_undated_record(self):
+        now = timezone.now()
+        self.previous.signed_at = now - timedelta(days=30)
+        self.previous.effective_date = None
+        self.previous.save(update_fields=['signed_at', 'effective_date', 'updated_at'])
+        newer = ProducerAgreement.objects.create(
+            producer_account=self.account,
+            contract_version='dated-amendment',
+            contract_title='Dated amendment',
+            status=ProducerAgreement.STATUS_SIGNED,
+            signed_at=now - timedelta(days=10),
+            effective_date=timezone.localdate() - timedelta(days=10),
+            compensation_amendment=True,
+            compensation_terms_source='signed_amendment',
+            rate_per_1000_views_eur=Decimal('2.750000'),
+            eligible_progress_percent=Decimal('68.00'),
+            advertising_share_percent=Decimal('64.00'),
+        )
+
+        terms = compensation_terms_for(self.account)
+
+        self.assertEqual(terms['agreement'], newer)
+        self.assertEqual(terms['rate_per_1000_views_eur'], Decimal('2.750000'))
+        self.assertEqual(terms['advertising_share_percent'], Decimal('64.00'))
+
+    def test_ad_revenue_uses_the_signed_share_for_its_period(self):
+        content = Content.objects.create(
+            title='Contract advertising test',
+            type='movie',
+            producer=self.account.user,
+        )
+
+        revenue = ProducerAdvertisingRevenue.objects.create(
+            producer=self.account.user,
+            content=content,
+            period=timezone.localdate(),
+            external_reference='contract-terms-test',
+            net_revenue_eur=Decimal('20.0000'),
+        )
+
+        self.assertEqual(revenue.share_percent, Decimal('57.50'))
+        self.assertEqual(revenue.producer_share_eur, Decimal('11.5000'))
+        self.assertEqual(revenue.contract_agreement, self.previous)
 
     def test_compensation_amendment_must_require_producer_reacceptance(self):
         version = ProducerContractVersion.objects.create(

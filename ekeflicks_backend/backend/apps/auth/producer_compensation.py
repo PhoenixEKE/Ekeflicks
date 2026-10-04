@@ -6,7 +6,8 @@ from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 
-from django.db.models import Q
+from django.db.models import DateField, Q
+from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
 from core.models import ProducerAccount, ProducerAgreement, ProducerContractVersion
@@ -145,13 +146,22 @@ def latest_signed_agreement(producer, *, effective_at=None):
         status__in=(ProducerAgreement.STATUS_SIGNED, ProducerAgreement.STATUS_SUPERSEDED),
         signed_at__isnull=False,
     )
-    if effective_at is not None:
-        day = effective_at.date() if isinstance(effective_at, datetime) else effective_at
-        queryset = queryset.filter(
-            Q(effective_date__lte=day)
-            | Q(effective_date__isnull=True, signed_at__date__lte=day)
+    day = (
+        effective_at.date()
+        if isinstance(effective_at, datetime)
+        else effective_at
+    ) if effective_at is not None else timezone.localdate()
+    queryset = queryset.filter(
+        Q(effective_date__lte=day)
+        | Q(effective_date__isnull=True, signed_at__date__lte=day)
+    )
+    return queryset.annotate(
+        _effective_on=Coalesce(
+            'effective_date',
+            TruncDate('signed_at'),
+            output_field=DateField(),
         )
-    return queryset.order_by('-effective_date', '-signed_at', '-created_at').first()
+    ).order_by('-_effective_on', '-signed_at', '-created_at').first()
 
 
 def compensation_terms_for(producer, *, effective_at=None):
