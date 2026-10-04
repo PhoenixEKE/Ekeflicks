@@ -390,7 +390,11 @@ class _Actions extends StatelessWidget {
   final VoidCallback onArchive;
   @override
   Widget build(BuildContext context) => Wrap(spacing: 2, children: [
-        IconButton(tooltip: 'Modifier', onPressed: onEdit, icon: const Icon(Icons.edit_outlined)),
+        IconButton(
+          tooltip: 'Modifier',
+          onPressed: status == 'archived' ? null : onEdit,
+          icon: const Icon(Icons.edit_outlined),
+        ),
         if (status == 'active')
           IconButton(tooltip: 'Mettre en pause', onPressed: () => onStatus('paused'), icon: const Icon(Icons.pause_circle_outline))
         else if (status != 'archived')

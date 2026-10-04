@@ -194,7 +194,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     if (decision == null) return;
     final raw = decision['ad_schedule'];
     _midrollCuePoints = raw is List
-        ? raw.whereType<num>().map((value) => value.toInt()).where((value) => value > 0).toSet().toList()..sort()
+        ? (raw.whereType<num>().map((value) => value.toInt()).where((value) => value > 0).toSet().toList()..sort())
         : const [];
     final breaks = decision['ssai_breaks'];
     _ssaiBreaks = breaks is List
