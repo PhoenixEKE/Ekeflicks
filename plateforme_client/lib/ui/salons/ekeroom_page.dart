@@ -344,7 +344,7 @@ class _EkeroomPageState extends State<EkeroomPage> {
     final id = salon['id']?.toString();
     if (id == null || id.isEmpty) return;
     await _disconnectRealtime();
-    _iceServersCache = null;
+    _cachedIceServers = null;
     _iceServersExpireAt = null;
     _iceServersSalonId = null;
     _iceServersRequest = null;
