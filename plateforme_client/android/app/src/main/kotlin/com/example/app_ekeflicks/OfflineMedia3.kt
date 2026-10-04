@@ -20,7 +20,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
-import androidx.media3.datasource.CacheDataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -145,7 +145,12 @@ internal object OfflineMedia3 {
                 .setDataSourceFactory(dataSourceFactory)
                 .create(mediaItem)
             helper.prepare(object : DownloadHelper.Callback {
-                override fun onPrepared(prepared: DownloadHelper) {
+                override fun onPrepared(prepared: DownloadHelper, tracksInfoAvailable: Boolean) {
+                    if (!tracksInfoAvailable) {
+                        prepared.release()
+                        result.error("OFFLINE_TRACKS_UNAVAILABLE", "Could not select tracks from this DASH manifest.", null)
+                        return
+                    }
                     try {
                         val metadata = JSONObject()
                             .put("title", args["title"]?.toString().orEmpty())
@@ -249,7 +254,7 @@ internal object OfflineMedia3 {
         try {
             val downloadManager = manager(context)
             val rows = ArrayList<Map<String, Any?>>()
-            val cursor = downloadManager.downloadIndex.getDownloads(IntArray(0))
+            val cursor = downloadManager.downloadIndex.getDownloads()
             try {
                 while (cursor.moveToNext()) {
                     val download = cursor.download
