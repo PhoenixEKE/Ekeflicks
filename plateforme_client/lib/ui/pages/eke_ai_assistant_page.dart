@@ -336,6 +336,28 @@ class _EkeAIAssistantPageState extends State<EkeAIAssistantPage> {
                               },
                             ),
                           ),
+                          Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                final content = _recommendations.first;
+                                Navigator.pushNamed(
+                                  context,
+                                  '/ekeroom',
+                                  arguments: {
+                                    'contentId': content.id,
+                                    'contentTitle': content.title,
+                                  },
+                                );
+                              },
+                              icon: const Icon(Icons.event_available),
+                              label: Text(
+                                _english
+                                    ? 'Schedule an Ekeroom for this pick'
+                                    : 'Programmer un Ekeroom avec ce choix',
+                              ),
+                            ),
+                          ),
                         ],
                       ],
                     ),
