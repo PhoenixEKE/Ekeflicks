@@ -1,0 +1,29 @@
+services:
+  coturn:
+    image: coturn/coturn:4.18.0-alpine
+    container_name: ekeflicks_coturn
+    profiles:
+      - turn
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:?Set TURN_SHARED_SECRET in ekeflicks_backend/.env}
+    volumes:
+      - ${TURN_TLS_CERT_PATH:?Set TURN_TLS_CERT_PATH in ekeflicks_backend/.env}:/etc/coturn/turn-cert.pem:ro
+      - ${TURN_TLS_KEY_PATH:?Set TURN_TLS_KEY_PATH in ekeflicks_backend/.env}:/etc/coturn/turn-key.pem:ro
+    command:
+      - --log-file=stdout
+      - --realm=${TURN_REALM:?Set TURN_REALM in ekeflicks_backend/.env}
+      - --external-ip=${TURN_EXTERNAL_IP:?Set TURN_EXTERNAL_IP in ekeflicks_backend/.env}
+      - --listening-port=3478
+      - --tls-listening-port=5349
+      - --cert=/etc/coturn/turn-cert.pem
+      - --pkey=/etc/coturn/turn-key.pem
+      - --use-auth-secret
+      - --static-auth-secret=$$TURN_SHARED_SECRET
+      - --min-port=${TURN_MIN_RELAY_PORT:-49160}
+      - --max-port=${TURN_MAX_RELAY_PORT:-49200}
+      - --fingerprint
+      - --no-multicast-peers
+      - --user-quota=30
+      - --total-quota=250

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -6,7 +8,7 @@ from core.models import Content, ProducerContentView, ProducerCountryCurrency, P
 
 
 class AnalyticsApiTests(APITestCase):
-    def test_viewing_session_at_30_percent_creates_producer_earning(self):
+    def test_viewing_session_at_70_percent_creates_producer_earning(self):
         producer = User.objects.create_user(
             email='producer-analytics@example.com',
             password='StrongPass123',
@@ -33,12 +35,12 @@ class AnalyticsApiTests(APITestCase):
         ViewingSession.objects.create(
             profile=profile,
             content=content,
-            duration_watched=1800,
+            duration_watched=4200,
         )
 
         earning = ProducerContentView.objects.get(content=content, producer=producer)
-        self.assertEqual(str(earning.progress_percent), '30.00')
-        self.assertEqual(str(earning.amount_eur), '0.001500')
+        self.assertEqual(str(earning.progress_percent), '70.00')
+        self.assertEqual(earning.amount_eur, Decimal('0.001500'))
         self.assertEqual(earning.currency, 'XOF')
         self.assertEqual(earning.viewer_country_code, 'SN')
 

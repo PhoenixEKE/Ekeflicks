@@ -236,6 +236,7 @@ REST_FRAMEWORK = {
         'register': '5/hour',
         'password_reset': '3/hour',
         'token_refresh': '30/minute',
+        'salon_ice_servers': '30/hour',
     },
 }
 
@@ -276,6 +277,12 @@ OFFLINE_LICENSE_DAYS = int(os.environ.get('OFFLINE_LICENSE_DAYS', '30'))
 STREAMING_CDN_BASE_URL = os.environ.get('STREAMING_CDN_BASE_URL', 'https://api.ekeflicks.com/media/videos/')
 STREAMING_STORE_PROCESSING_ARTIFACTS = env_bool('STREAMING_STORE_PROCESSING_ARTIFACTS', True)
 STREAMING_SIGNED_URLS_ENABLED = env_bool('STREAMING_SIGNED_URLS_ENABLED', True)
+AD_SSAI_ENABLED = env_bool('AD_SSAI_ENABLED', False)
+AD_SSAI_SESSION_URL = os.environ.get('AD_SSAI_SESSION_URL', '').strip()
+AD_SSAI_API_KEY = os.environ.get('AD_SSAI_API_KEY', '').strip()
+AD_SSAI_ALLOWED_HOSTS = [host.lower() for host in env_list('AD_SSAI_ALLOWED_HOSTS')]
+AD_SSAI_TIMEOUT_SECONDS = int(os.environ.get('AD_SSAI_TIMEOUT_SECONDS', '5'))
+
 STREAMING_SIGNED_URL_TTL_SECONDS = int(os.environ.get('STREAMING_SIGNED_URL_TTL_SECONDS', STREAMING_MANIFEST_TTL_SECONDS))
 STREAMING_SIGNING_SECRET = os.environ.get('STREAMING_SIGNING_SECRET') or SECRET_KEY
 
@@ -299,6 +306,16 @@ AXINOM_WIDEVINE_LICENSE_URL = os.environ.get('AXINOM_WIDEVINE_LICENSE_URL', '')
 AXINOM_FAIRPLAY_LICENSE_URL = os.environ.get('AXINOM_FAIRPLAY_LICENSE_URL', '')
 AXINOM_FAIRPLAY_CERTIFICATE_URL = os.environ.get('AXINOM_FAIRPLAY_CERTIFICATE_URL', '')
 AXINOM_PLAYREADY_LICENSE_URL = os.environ.get('AXINOM_PLAYREADY_LICENSE_URL', '')
+AXINOM_ACTIVE_USER_HMAC_SECRET = os.environ.get('AXINOM_ACTIVE_USER_HMAC_SECRET', '')
+AXINOM_USAGE_POLICY_NAME = os.environ.get('AXINOM_USAGE_POLICY_NAME', '')
+AXINOM_KEY_SERVICE_URL = os.environ.get(
+    'AXINOM_KEY_SERVICE_URL',
+    'https://key-server-management.axprod.net/api/WidevineProtectionInfo',
+)
+AXINOM_KEY_PROVIDER_NAME = os.environ.get('AXINOM_KEY_PROVIDER_NAME', '')
+AXINOM_KEY_SIGNING_KEY_HEX = os.environ.get('AXINOM_KEY_SIGNING_KEY_HEX', '')
+AXINOM_KEY_SIGNING_IV_HEX = os.environ.get('AXINOM_KEY_SIGNING_IV_HEX', '')
+AXINOM_KEY_TIMEOUT_SECONDS = int(os.environ.get('AXINOM_KEY_TIMEOUT_SECONDS', '20'))
 
 # =========================================================
 # PAYMENT PROVIDERS
@@ -863,6 +880,10 @@ if "test" in _sys.argv:
 ASGI_APPLICATION = "config.asgi.application"
 
 SALON_REALTIME_TICKET_TTL = 60
+TURN_STUN_URLS = env_list('TURN_STUN_URLS', 'stun:stun.l.google.com:19302')
+TURN_ICE_SERVER_URLS = env_list('TURN_ICE_SERVER_URLS')
+TURN_SHARED_SECRET = os.environ.get('TURN_SHARED_SECRET', '').strip()
+TURN_CREDENTIAL_TTL_SECONDS = int(os.environ.get('TURN_CREDENTIAL_TTL_SECONDS', '3600'))
 
 CHANNEL_LAYERS = {
     "default": {

@@ -9,6 +9,7 @@ import 'package:app_ekeflicks/ui/subscription/subscription_step1_page.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
 import 'package:dio/dio.dart';
 import 'package:app_ekeflicks/utils/api_error_message.dart';
@@ -147,6 +148,7 @@ class _SignupPageState extends State<SignupPage> {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
     final isWide = MediaQuery.of(context).size.width >= 900;
+    final isTV = AppResponsive.isTVSize(context);
 
     return Scaffold(
       appBar: SimpleAppBar(
@@ -160,13 +162,13 @@ class _SignupPageState extends State<SignupPage> {
         child: Center(
           child: SingleChildScrollView(
             padding: EdgeInsets.symmetric(
-              horizontal: isWide ? 0 : 24,
+              horizontal: isTV ? 40 : (isWide ? 0 : 24),
               vertical: 32,
             ),
             child: Container(
-              width: isWide ? 500 : double.infinity,
+              width: isTV ? 680 : (isWide ? 500 : double.infinity),
               margin: isWide ? const EdgeInsets.all(24) : EdgeInsets.zero,
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(isTV ? 40 : 32),
               decoration: AppDecorations.contentContainerDecoration(context),
               child: Form(
                 key: _formKey,

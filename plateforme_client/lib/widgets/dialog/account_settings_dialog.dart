@@ -26,6 +26,9 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
   bool _adultProfilesLocked = false;
   bool _childHistoryEnabled = true;
   bool _safeSearchEnabled = true;
+  bool _personalizedAds = false;
+  bool _personalizedAdsEligible = false;
+  bool _savingAdConsent = false;
   int _maximumAge = 13;
   String _territory = 'FR';
   bool _saving = false;
@@ -53,13 +56,65 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
     } catch (_) {
       // The form remains usable with safe defaults when the API is unavailable.
     }
+    Map<String, dynamic> adConsent = const {};
+    try {
+      final response = await context
+          .read<ProfileProvider>()
+          .apiClient
+          .dio
+          .get<Object>('/profiles/${widget.profile.id}/ad-targeting-consent/');
+      if (response.data is Map) {
+        adConsent = Map<String, dynamic>.from(response.data! as Map);
+      }
+    } catch (_) {
+      // Personalization stays off when consent status cannot be read.
+    }
     if (!mounted) return;
     setState(() {
       _adultProfilesLocked = parental['adult_profiles_locked'] == true;
       _hasPin = parental['has_parental_pin'] == true;
       _childHistoryEnabled = parental['child_history_enabled'] != false;
       _safeSearchEnabled = parental['safe_search_enabled'] != false;
+      _personalizedAds = adConsent['personalized_ads'] == true;
+      _personalizedAdsEligible = adConsent['eligible'] == true;
     });
+  }
+
+  Future<void> _setPersonalizedAds(bool enabled) async {
+    setState(() => _savingAdConsent = true);
+    try {
+      final response = await context
+          .read<ProfileProvider>()
+          .apiClient
+          .dio
+          .put<Object>(
+            '/profiles/${widget.profile.id}/ad-targeting-consent/',
+            data: {'personalized_ads': enabled},
+          );
+      final result = Map<String, dynamic>.from(response.data! as Map);
+      if (mounted) {
+        setState(() {
+          _personalizedAds = result['personalized_ads'] == true;
+          _personalizedAdsEligible = result['eligible'] == true;
+        });
+      }
+    } on DioException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.response?.data is Map
+              ? (error.response!.data as Map)['detail']?.toString() ?? 'Impossible de modifier ce choix.'
+              : 'Impossible de modifier ce choix.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de modifier ce choix.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingAdConsent = false);
+    }
   }
 
   Future<void> _save() async {
@@ -360,6 +415,29 @@ class _AccountSettingsDialogState extends State<AccountSettingsDialog> {
               subtitle: const Text(
                 'Masque les résultats dépassant la classification autorisée.',
               ),
+            ),
+            const Divider(height: 32),
+            _title('Publicité et confidentialité', Icons.privacy_tip_outlined),
+            SwitchListTile(
+              value: _personalizedAds,
+              onChanged: _savingAdConsent ||
+                      (!_personalizedAdsEligible && !_personalizedAds)
+                  ? null
+                  : _setPersonalizedAds,
+              title: const Text('Personnaliser les publicités'),
+              subtitle: Text(
+                _personalizedAdsEligible
+                    ? 'Autoriser l’utilisation des genres regardés sur ce profil. Vous pouvez retirer ce consentement à tout moment.'
+                    : _personalizedAds
+                        ? 'Ce profil n’est plus éligible. Désactivez le consentement.'
+                        : 'Disponible pour les profils adultes dont l’âge est déclaré.',
+              ),
+              secondary: _savingAdConsent
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.ads_click),
             ),
             const Divider(height: 32),
             _title('Application', Icons.tune),

@@ -13,6 +13,7 @@ class HeroBanner extends StatelessWidget {
   final void Function(Content)? onPlayPressed;
   final void Function(Content)? onInfoPressed;
   final bool isMobile;
+  final bool isTV;
 
   const HeroBanner({
     super.key,
@@ -22,13 +23,14 @@ class HeroBanner extends StatelessWidget {
     this.onPlayPressed,
     this.onInfoPressed,
     this.isMobile = false,
+    this.isTV = false,
   });
 
   @override
   Widget build(BuildContext context) {
     if (contents.isEmpty) {
       return SizedBox(
-        height: isMobile ? 200 : 500,
+        height: isTV ? 620 : (isMobile ? 200 : 500),
         width: double.infinity,
         child: Stack(
           fit: StackFit.expand,
@@ -95,6 +97,7 @@ class HeroBanner extends StatelessWidget {
         onPlayPressed: onPlayPressed,
         onInfoPressed: onInfoPressed,
         isMobile: isMobile,
+        isTV: isTV,
       ),
     );
   }
@@ -104,11 +107,13 @@ class _HeroBannerView extends StatelessWidget {
   final void Function(Content)? onPlayPressed;
   final void Function(Content)? onInfoPressed;
   final bool isMobile;
+  final bool isTV;
 
   const _HeroBannerView({
     this.onPlayPressed,
     this.onInfoPressed,
     required this.isMobile,
+    required this.isTV,
   });
 
   @override

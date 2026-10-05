@@ -233,6 +233,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.themeMode,
+      builder: (context, child) {
+        final deviceInfo = Provider.of<DeviceInfoProvider>(
+          context,
+        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) deviceInfo.updateDeviceType(context);
+        });
+        return FocusTraversalGroup(child: child ?? const SizedBox.shrink());
+      },
       initialRoute: initialRoute,
       // Flutter normally expands an initial route such as /reset-password to
       // both `/` and the requested route. That leaves SplashScreen mounted;

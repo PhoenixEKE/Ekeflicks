@@ -9,7 +9,7 @@ from rest_framework.status import HTTP_409_CONFLICT
 
 from apps.analytics.services import convert_eur_for_producer, producer_currency, revenue_settings
 from apps.notifications.services import notify_staff, notify_user
-from core.models import ProducerAdvertisingRevenue, ProducerContentView, ProducerPayoutRequest, ProducerRevenueSetting, User
+from core.models import ProducerAdvertisingRevenue, ProducerContentView, ProducerDemoEarning, ProducerPayoutRequest, ProducerRevenueSetting, User
 
 
 class PayoutConflict(exceptions.APIException):
@@ -21,7 +21,7 @@ def available_producer_views(producer):
     return ProducerContentView.objects.filter(producer=producer, status='pending')
 
 
-def producer_balance(producer):
+def producer_balance(producer, include_demo=False):
     views = available_producer_views(producer)
     ad_revenues = ProducerAdvertisingRevenue.objects.filter(
         producer=producer,
@@ -60,6 +60,8 @@ def producer_balance(producer):
         })
         entry['advertising_revenue_eur'] = row['amount'] or Decimal('0')
     setting = revenue_settings()
+    from apps.auth.producer_compensation import compensation_terms_for
+    terms = compensation_terms_for(producer)
     all_view_rows = ProducerContentView.objects.filter(
         producer=producer,
         status__in=['pending', 'requested', 'paid'],
@@ -90,8 +92,37 @@ def producer_balance(producer):
             'advertising_revenue_eur': Decimal('0'),
         })
         entry['advertising_revenue_eur'] = row['amount'] or Decimal('0')
+    demo_rows = list(
+        ProducerDemoEarning.objects.filter(producer=producer, seed_key='producer_portal_demo_v1').select_related('content')
+    ) if include_demo else []
+    demo_view_amount = sum((Decimal(row.view_revenue_eur) for row in demo_rows), Decimal('0'))
+    demo_ad_amount = sum((Decimal(row.advertising_share_eur) for row in demo_rows), Decimal('0'))
+    demo_eligible_views = sum(row.eligible_views for row in demo_rows)
+    demo_amount = demo_view_amount + demo_ad_amount
+    for row in demo_rows:
+        for target in (all_by_content, available_by_content):
+            entry = target.setdefault(row.content_id, {
+                'content_id': str(row.content_id),
+                'title': row.content.title,
+                'eligible_views': 0,
+                'view_revenue_eur': Decimal('0'),
+                'advertising_revenue_eur': Decimal('0'),
+            })
+            entry['eligible_views'] += row.eligible_views
+            entry['view_revenue_eur'] += Decimal(row.view_revenue_eur)
+            entry['advertising_revenue_eur'] += Decimal(row.advertising_share_eur)
+    view_amount += demo_view_amount
+    ad_amount += demo_ad_amount
+    amount_eur = view_amount + ad_amount
+    # Recompute after opt-in demo rows have been included.
+    currency, amount_local = convert_eur_for_producer(amount_eur, producer)
+
     return {
-        'eligible_views': views.count(),
+        'eligible_views': views.count() + demo_eligible_views,
+        'demo_mode': bool(demo_rows),
+        'demo_eligible_views': demo_eligible_views,
+        'demo_amount_eur': demo_amount,
+        'demo_amount_local': local_amount(demo_amount),
         'amount_eur': amount_eur,
         'currency': currency,
         'amount_local': amount_local,
@@ -115,10 +146,16 @@ def producer_balance(producer):
             }
             for row in all_by_content.values()
         ],
-        'rate_per_1000_views_eur': setting.rate_per_1000_views_eur,
-        'rate_per_1000_views_local': local_amount(setting.rate_per_1000_views_eur),
-        'eligible_progress_percent': setting.eligible_progress_percent,
-        'advertising_share_percent': setting.advertising_share_percent,
+        'rate_per_1000_views_eur': terms['rate_per_1000_views_eur'],
+        'rate_per_1000_views_local': local_amount(terms['rate_per_1000_views_eur']),
+        'eligible_progress_percent': terms['eligible_progress_percent'],
+        'advertising_share_percent': terms['advertising_share_percent'],
+        'compensation_contract_version': (
+            terms['agreement'].contract_version if terms.get('agreement') else ''
+        ),
+        'compensation_amendment': bool(
+            terms['agreement'] and terms['agreement'].compensation_amendment
+        ),
         'minimum_payout_eur': setting.minimum_payout_eur,
         'minimum_payout_local': local_amount(setting.minimum_payout_eur),
     }

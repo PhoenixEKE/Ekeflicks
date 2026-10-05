@@ -25,6 +25,7 @@ def create_salon(
     audio_enabled=True,
     video_enabled=True,
     host_leave_policy=Salon.HOST_LEAVE_CLOSE,
+    scheduled_at=None,
 ):
     salon = Salon.objects.create(
         host=host,
@@ -35,6 +36,7 @@ def create_salon(
         capacity=capacity,
         audio_enabled=audio_enabled,
         video_enabled=video_enabled,
+        scheduled_at=scheduled_at,
         join_code=secrets.token_urlsafe(24),
         host_leave_policy=host_leave_policy,
     )

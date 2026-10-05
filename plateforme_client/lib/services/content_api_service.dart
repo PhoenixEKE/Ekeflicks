@@ -1,5 +1,8 @@
-import 'package:dio/dio.dart';
+import 'dart:math';
+
 import 'package:app_ekeflicks/models/content_model.dart';
+import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeFeed {
   const HomeFeed({
@@ -114,6 +117,217 @@ class ContentApiService {
       },
       options: _options(profileId),
     );
+  }
+
+  /// Fetches a signed manifest and obtains the per-playback Axinom entitlement.
+  /// The entitlement stays in memory and is passed to the DRM player only.
+  Future<Map<String, dynamic>> preparePlayback({
+    required String assetId,
+    required String platform,
+    required String drmSystem,
+    required String profileId,
+  }) async {
+    final deviceId = await _persistentDeviceId();
+    final manifestResponse = await _dio.get(
+      _url('/video-assets/$assetId/manifest/'),
+      queryParameters: {'platform': platform, 'drm_system': drmSystem},
+      options: _options(profileId),
+    );
+    final manifest = Map<String, dynamic>.from(manifestResponse.data as Map);
+    final licenseResponse = await _dio.post(
+      _url('/video-assets/$assetId/license/'),
+      data: {
+        'profile_id': profileId,
+        'device_id': deviceId,
+        'device_type': platform,
+        'platform': platform,
+        'drm_system': drmSystem,
+      },
+      options: _options(profileId),
+    );
+    final license = Map<String, dynamic>.from(licenseResponse.data as Map);
+    final drm = license['drm'] is Map
+        ? Map<String, dynamic>.from(license['drm'] as Map)
+        : <String, dynamic>{};
+    return {
+      ...manifest,
+      'license': license,
+      'drm': drm,
+    };
+  }
+
+  Future<String> newPlaybackSessionId() async => _newUuidV4();
+
+  Future<Map<String, dynamic>> requestAdDecision({
+    required String assetId,
+    required String profileId,
+    required String placement,
+    required String platform,
+    required String drmSystem,
+    required String playbackSessionId,
+    int positionSeconds = 0,
+  }) async {
+    final response = await _dio.post(
+      _url('/ads/decision/'),
+      data: {
+        'asset_id': assetId,
+        'profile_id': profileId,
+        'placement': placement,
+        'platform': platform,
+        'drm_system': drmSystem,
+        'playback_session_id': playbackSessionId,
+        'position_seconds': positionSeconds,
+      },
+      options: _options(profileId),
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<void> reportAdEvent({
+    required String campaignId,
+    required String assetId,
+    required String profileId,
+    required String placement,
+    required String platform,
+    required String playbackSessionId,
+    required String eventType,
+    int positionSeconds = 0,
+  }) async {
+    await _dio.post(
+      _url('/ads/events/'),
+      data: {
+        'event_id': await _newUuidV4(),
+        'campaign_id': campaignId,
+        'asset_id': assetId,
+        'profile_id': profileId,
+        'placement': placement,
+        'platform': platform,
+        'playback_session_id': playbackSessionId,
+        'event_type': eventType,
+        'position_seconds': positionSeconds,
+      },
+      options: _options(profileId),
+    );
+  }
+
+  Future<Map<String, dynamic>> adTargetingConsent(String profileId) async {
+    final response = await _dio.get(
+      _url('/profiles/$profileId/ad-targeting-consent/'),
+      options: _options(profileId),
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> setAdTargetingConsent(
+    String profileId, {
+    required bool enabled,
+  }) async {
+    final response = await _dio.put(
+      _url('/profiles/$profileId/ad-targeting-consent/'),
+      data: {'personalized_ads': enabled},
+      options: _options(profileId),
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<String> _newUuidV4() async {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+  }
+
+  /// Creates the server-side offline authorization and persistent Axinom license.
+  /// The manifest URL uses a longer, subscription-gated signature so large downloads
+  /// can finish over slower connections.
+  Future<Map<String, dynamic>> prepareOfflineDownload({
+    required String assetId,
+    required String platform,
+    required String drmSystem,
+    required String profileId,
+  }) async {
+    final deviceId = await _persistentDeviceId();
+    final manifestResponse = await _dio.get(
+      _url('/video-assets/$assetId/manifest/'),
+      queryParameters: {
+        'platform': platform,
+        'drm_system': drmSystem,
+        'offline': '1',
+      },
+      options: _options(profileId),
+    );
+    final manifest = Map<String, dynamic>.from(manifestResponse.data as Map);
+    if (manifest['offline_allowed'] != true) {
+      throw StateError('Le forfait ou ce contenu ne permet pas le téléchargement hors ligne.');
+    }
+
+    final recordResponse = await _dio.post(
+      _url('/video-assets/$assetId/request-offline/'),
+      data: {
+        'profile_id': profileId,
+        'device_id': deviceId,
+        'device_type': platform,
+        'platform': platform,
+      },
+      options: _options(profileId),
+    );
+    final offlineRecord = Map<String, dynamic>.from(recordResponse.data as Map);
+    try {
+      final licenseResponse = await _dio.post(
+        _url('/video-assets/$assetId/offline-license/'),
+        data: {
+          'profile_id': profileId,
+          'device_id': deviceId,
+          'device_type': platform,
+          'platform': platform,
+          'drm_system': drmSystem,
+        },
+        options: _options(profileId),
+      );
+      return {
+        'manifest': manifest,
+        'offline_record': offlineRecord,
+        'offline_license': Map<String, dynamic>.from(licenseResponse.data as Map),
+        'device_id': deviceId,
+      };
+    } catch (_) {
+      try {
+        await revokeOfflineDownload(
+          offlineRecord['id'].toString(),
+          profileId: profileId,
+        );
+      } catch (_) {
+        // Preserve the original license request failure.
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> revokeOfflineDownload(
+    String id, {
+    required String profileId,
+  }) async {
+    await _dio.post(
+      _url('/offline-licenses/$id/revoke/'),
+      options: _options(profileId),
+    );
+  }
+
+  Future<String> _persistentDeviceId() async {
+    final preferences = await SharedPreferences.getInstance();
+    final saved = preferences.getString('eke_install_device_id');
+    if (saved != null && saved.isNotEmpty) return saved;
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    final deviceId = '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+    await preferences.setString('eke_install_device_id', deviceId);
+    return deviceId;
   }
 
   Future<List<Content>> listContents(

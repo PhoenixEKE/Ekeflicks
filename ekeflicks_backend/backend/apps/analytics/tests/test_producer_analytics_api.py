@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
@@ -15,6 +17,19 @@ class ProducerAnalyticsAPITests(
     APITestCase
 ):
     def setUp(self):
+        self._engagement_patcher = patch(
+            'apps.analytics.services.producer_engagement_analytics',
+            return_value={},
+        )
+        self._engagement_patcher.start()
+        self.addCleanup(self._engagement_patcher.stop)
+
+        self._content_analytics_patcher = patch(
+            'apps.analytics.services.producer_content_video_analytics',
+            return_value=[],
+        )
+        self._content_analytics_patcher.start()
+        self.addCleanup(self._content_analytics_patcher.stop)
         self.url = reverse(
             'producer-analytics-list'
         )

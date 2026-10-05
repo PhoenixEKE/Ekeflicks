@@ -27,6 +27,7 @@ void main() {
         'title': 'API series',
         'type': 'series',
         'duration_seconds': 2700,
+        'video_asset_id': 'asset-movie-42',
         'genres': [
           {'name': 'Drame'},
         ],
@@ -44,6 +45,7 @@ void main() {
                 'episode_number': 2,
                 'title': 'Retour',
                 'stream_url': '/e8.m3u8',
+                'video_asset_id': 'asset-episode-8',
               },
             ],
           },
@@ -58,7 +60,9 @@ void main() {
 
       expect(parsed.id, '42');
       expect(parsed.isSeries, isTrue);
+      expect(parsed.videoAssetId, 'asset-movie-42');
       expect(parsed.seasonList.single.episodes.single.number, 2);
+      expect(parsed.seasonList.single.episodes.single.videoAssetId, 'asset-episode-8');
       expect(parsed.nextEpisode?.id, '9');
       expect(parsed.isFavorite, isTrue);
       expect(parsed.userRating, 4);

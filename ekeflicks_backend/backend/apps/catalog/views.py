@@ -6,7 +6,7 @@ from apps.catalog.draft_cleanup import (
     delete_draft_temporary_media,
     delete_season_temporary_media,
 )
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework import exceptions, filters, permissions, status, viewsets
@@ -208,7 +208,25 @@ class ContentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = (
             Content.objects.select_related('status', 'producer', 'reviewed_by', 'technical_specification')
-            .prefetch_related('genres', 'emissions', 'seasons__episodes')
+            .prefetch_related(
+                'genres',
+                'emissions',
+                'seasons__episodes',
+                Prefetch(
+                    'video_assets',
+                    queryset=VideoAsset.objects.filter(
+                        status='ready', moderation_status='approved', published_at__isnull=False,
+                    ).order_by('-published_at', '-created_at'),
+                    to_attr='published_video_assets',
+                ),
+                Prefetch(
+                    'seasons__episodes__video_assets',
+                    queryset=VideoAsset.objects.filter(
+                        status='ready', moderation_status='approved', published_at__isnull=False,
+                    ).order_by('-published_at', '-created_at'),
+                    to_attr='published_video_assets',
+                ),
+            )
             .all()
         )
         params = self.request.query_params

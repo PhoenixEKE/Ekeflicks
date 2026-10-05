@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -82,6 +83,7 @@ class SubscriptionOffersWidget extends StatefulWidget {
 class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
   int? _selectedIndex;
   int? hoveredIndex;
+  int? _focusedIndex;
 
   List<SubscriptionOffer> offers = [];
   bool _isLoading = true;
@@ -118,6 +120,16 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                 final maxDevices = (plan['max_devices'] as num?)?.toInt() ?? 1;
                 final quality = plan['max_quality']?.toString() ?? 'HD';
                 final downloadEnabled = plan['download_enabled'] == true;
+                final tvEnabled = plan['tv_enabled'] == true;
+                final isFrench =
+                    Localizations.localeOf(context).languageCode == 'fr';
+                final devicesSupported = tvEnabled
+                    ? (isFrench
+                        ? 'TV, ordinateur, smartphone, tablette'
+                        : 'TV, computer, smartphone, tablet')
+                    : (isFrench
+                        ? 'Ordinateur, smartphone, tablette'
+                        : 'Computer, smartphone, tablet');
 
                 return SubscriptionOffer(
                   title: plan['name']?.toString() ?? '',
@@ -125,7 +137,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                   currency: currency,
                   quality: quality,
                   resolution: quality,
-                  devicesSupported: 'TV, ordinateur, smartphone, tablette',
+                  devicesSupported: devicesSupported,
                   simultaneousDevices: maxDevices,
                   downloadEnabled: downloadEnabled,
                   adsIncluded: plan['ads_included'] == true,
@@ -204,13 +216,16 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth > 600;
+        final isTV = AppResponsive.isTVSize(context);
 
         final double cardWidth =
-            isDesktop
-                ? 200
-                : (constraints.maxWidth > 450
-                    ? (constraints.maxWidth / 2) - 12
-                    : constraints.maxWidth * 0.9);
+            isTV
+                ? 280
+                : isDesktop
+                    ? 220
+                    : (constraints.maxWidth > 450
+                        ? (constraints.maxWidth / 2) - 12
+                        : constraints.maxWidth * 0.9);
 
         return Center(
           child: Wrap(
@@ -223,13 +238,17 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
               final isFree = offer.isFree;
 
               return InkWell(
+                autofocus: isTV && index == 0,
+                onFocusChange: (focused) {
+                  setState(() => _focusedIndex = focused ? index : null);
+                },
                 onTap: () => _selectOffer(index),
                 child: MouseRegion(
                   onEnter: (_) => setState(() => hoveredIndex = index),
                   onExit: (_) => setState(() => hoveredIndex = null),
                   child: Transform(
                     transform:
-                        hoveredIndex == index && isDesktop
+                        (hoveredIndex == index || _focusedIndex == index) && isDesktop
                             ? (Matrix4.identity()..scale(1.03))
                             : Matrix4.identity(),
                     alignment: Alignment.center,
@@ -244,7 +263,7 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                                 : Theme.of(context).cardColor,
                         border: Border.all(
                           color:
-                              isSelected
+                              isSelected || _focusedIndex == index
                                   ? Theme.of(context).colorScheme.primary
                                   : (isFree ? Colors.green : Colors.grey),
                           width: isFree ? 3 : 2,
@@ -308,12 +327,12 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
                           ] else ...[
                             Text(
                               offer.price != null
-                                  ? loc.prixParMois(offer.formattedPrice)
+                                  ? _formatOfferPrice(offer, loc)
                                   : loc.prixNonDisponible,
                               style: AppTheme.offerPriceStyle(context),
                             ),
                           ],
-                          if (isDesktop || isSelected)
+                          if (isDesktop || isTV || isSelected)
                             _offerDetails(offer, context),
                         ],
                       ),
@@ -326,6 +345,19 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
         );
       },
     );
+  }
+
+  String _formatOfferPrice(
+    SubscriptionOffer offer,
+    AppLocalizations loc,
+  ) {
+    if (offer.durationDays >= 28 && offer.durationDays <= 31) {
+      return loc.prixParMois(offer.formattedPrice);
+    }
+    final period = offer.durationDays == 1
+        ? '1 jour'
+        : '${offer.durationDays} jours';
+    return '${offer.formattedPrice} / $period';
   }
 
   Widget _offerDetails(SubscriptionOffer offer, BuildContext context) {

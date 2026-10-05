@@ -7,6 +7,9 @@ import 'package:provider/provider.dart';
 import 'package:app_ekeflicks/providers/theme_provider.dart';
 import 'package:app_ekeflicks/widgets/dialog/custom_language_dialog.dart';
 import 'package:app_ekeflicks/widgets/dialog/language_selector_dialog.dart';
+import 'package:app_ekeflicks/providers/user_provider.dart';
+import 'package:app_ekeflicks/providers/profile_provider.dart';
+import 'package:app_ekeflicks/ui/users/account_page.dart';
 
 /// AppBar responsive avec gestion de thème et internationalisation
 class CustomAppBar extends BaseAppBar {
@@ -58,6 +61,14 @@ class _AppBarActions extends StatelessWidget {
       children: [
         if (!isMobile) const _FaqButton(), // 🔄 REMPLACÉ : Tutorials → FAQ
         if (!isMobile) _LanguageSelector(onLanguageChanged: onLanguageChanged),
+        IconButton(
+          icon: Icon(
+            Icons.download_for_offline_outlined,
+            color: Theme.of(context).iconTheme.color,
+          ),
+          tooltip: 'Téléchargements hors ligne',
+          onPressed: () => Navigator.of(context).pushNamed('/downloads'),
+        ),
         const _ThemeToggle(),
         const _AuthActions(),
       ],
@@ -144,6 +155,49 @@ class _AuthActions extends StatelessWidget {
     final theme = Theme.of(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
+    final userProvider = context.watch<UserProvider>();
+
+    void openAccount() {
+      final profile = context.read<ProfileProvider>().currentProfile;
+      if (profile == null) {
+        Navigator.of(context).pushNamed('/profile-selection');
+        return;
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => AccountPage(currentProfile: profile),
+        ),
+      );
+    }
+
+    if (userProvider.isLoggedIn && isMobile) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            onPressed: openAccount,
+            icon: const Icon(Icons.account_circle_outlined),
+            tooltip: loc.compte,
+          ),
+          IconButton(
+            icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).iconTheme.color),
+            tooltip: loc.menu,
+            onPressed: () => showCustomMenuDialog(context, loc),
+          ),
+        ],
+      );
+    }
+
+    if (userProvider.isLoggedIn) {
+      return TextButton.icon(
+        onPressed: openAccount,
+        icon: const Icon(Icons.account_circle_outlined),
+        label: Text(loc.compte),
+        style: TextButton.styleFrom(
+          foregroundColor: isDark ? Colors.white70 : theme.colorScheme.secondary,
+        ),
+      );
+    }
 
     if (isMobile) {
       return Row(

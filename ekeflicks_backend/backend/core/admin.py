@@ -21,6 +21,7 @@ from core.models import (
     ProducerContentView,
     ProducerAdvertisingRevenue,
     ProducerContractVersion,
+    ProducerAgreement,
     PlatformLegalIdentity,
     ProducerCountryCurrency,
     ProducerPayoutRequest,
@@ -94,6 +95,7 @@ class ProducerContractVersionAdmin(admin.ModelAdmin):
         'status',
         'effective_date',
         'requires_reacceptance',
+        'amends_compensation',
         'published_at',
         'updated_at',
     )
@@ -126,7 +128,24 @@ class ProducerContractVersionAdmin(admin.ModelAdmin):
                     'status',
                     'effective_date',
                     'requires_reacceptance',
+                    'amends_compensation',
                 )
+            },
+        ),
+        (
+            'Conditions de rémunération',
+            {
+                'fields': (
+                    'rate_per_1000_views_eur',
+                    'eligible_progress_percent',
+                    'advertising_share_percent',
+                ),
+                'description': (
+                    'Cochez « modifie la rémunération » uniquement pour un avenant. '
+                    'Sans avenant, les producteurs existants conservent les conditions '
+                    'de leur dernière signature. Les quatre placeholders de rémunération '
+                    'doivent figurer dans le texte contractuel et sa traduction anglaise.'
+                ),
             },
         ),
         (
@@ -181,6 +200,10 @@ class ProducerContractVersionAdmin(admin.ModelAdmin):
                     'status',
                     'effective_date',
                     'requires_reacceptance',
+                    'amends_compensation',
+                    'rate_per_1000_views_eur',
+                    'eligible_progress_percent',
+                    'advertising_share_percent',
                     'canonical_content',
                 ]
             )
@@ -246,7 +269,9 @@ class ProducerContractVersionAdmin(admin.ModelAdmin):
         }:
             previous = ProducerContractVersion.objects.filter(pk=obj.pk).values(
                 'version', 'title', 'status', 'effective_date',
-                'requires_reacceptance', 'canonical_content',
+                'requires_reacceptance', 'amends_compensation',
+                'rate_per_1000_views_eur', 'eligible_progress_percent',
+                'advertising_share_percent', 'canonical_content',
             ).first()
             immutable_values = {
                 'version': obj.version,
@@ -254,6 +279,10 @@ class ProducerContractVersionAdmin(admin.ModelAdmin):
                 'status': obj.status,
                 'effective_date': obj.effective_date,
                 'requires_reacceptance': obj.requires_reacceptance,
+                'amends_compensation': obj.amends_compensation,
+                'rate_per_1000_views_eur': obj.rate_per_1000_views_eur,
+                'eligible_progress_percent': obj.eligible_progress_percent,
+                'advertising_share_percent': obj.advertising_share_percent,
                 'canonical_content': normalize_contract_content(obj.canonical_content),
             }
             if previous != immutable_values:
@@ -288,6 +317,8 @@ class ProducerContractVersionAdmin(admin.ModelAdmin):
             )
 
             publish_contract_version(obj)
+
+
             obj.refresh_from_db()
             return
 
@@ -307,6 +338,18 @@ class ProducerContractVersionAdmin(admin.ModelAdmin):
             form,
             change,
         )
+
+
+@admin.register(ProducerAgreement)
+class ProducerAgreementAdmin(admin.ModelAdmin):
+    list_display = (
+        'producer_account', 'contract_version', 'status', 'signed_at',
+        'compensation_amendment', 'rate_per_1000_views_eur',
+        'advertising_share_percent',
+    )
+    list_filter = ('status', 'compensation_amendment', 'contract_version')
+    search_fields = ('producer_account__company_name', 'producer_account__user__email')
+    readonly_fields = tuple(field.name for field in ProducerAgreement._meta.fields)
 
 
 @admin.register(TechnicalSpecification)

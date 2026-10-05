@@ -7,7 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.admin_api.security import totp
 from core.models.content import Content
-from core.models.streaming import VideoAsset
+from core.models.streaming import MediaAnalysisReport, VideoAsset
 from core.models.profiles import Profile, ProfileType
 from core.models.subscriptions import ProducerPayoutRequest, Subscription, SubscriptionPlan
 from core.models.users import AdminMFADevice, User, UserSession
@@ -130,15 +130,35 @@ class AdminSecurityApiTests(APITestCase):
         content = Content.objects.create(title='Dépôt test', type='movie', producer=producer,
                                          producer_submission_status='pending')
         asset = VideoAsset.objects.create(content=content, moderation_status='pending')
+        report = MediaAnalysisReport.objects.create(
+            asset=asset,
+            status='passed',
+            container='mov,mp4',
+            video_codec='h264',
+            audio_codec='aac',
+            width=1920,
+            height=1080,
+            technical_score=Decimal('98.00'),
+            flags=['audio_loudness_out_of_range'],
+            moderation_scores={'violence': 0.02},
+            detected_events=[{'label': 'violence', 'timestamp': 12.0}],
+            technical_metadata={'qc_v2': {'black_events': 0}},
+        )
         login = self.client.post('/api/v1/admin/auth/login/', {
             'email': moderator.email, 'password': 'strong-password', 'otp': totp(device.secret),
         }, format='json')
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        video_list = self.client.get('/api/v1/admin/videos/?status=pending')
+        self.assertEqual(video_list.status_code, 200)
+        serialized = video_list.data['results'][0]
+        self.assertEqual(str(serialized['analysis_report']['technical_score']), '98.00')
+        self.assertEqual(serialized['analysis_report']['flags'], ['audio_loudness_out_of_range'])
         content_response = self.client.post(f'/api/v1/admin/contents/{content.pk}/review/', {
             'decision': 'approved',
         }, format='json')
         video_response = self.client.post(f'/api/v1/admin/videos/{asset.pk}/review/', {
             'decision': 'approved',
+            'reason': 'Rapport QC examiné.',
         }, format='json')
         self.assertEqual(content_response.status_code, 200)
         self.assertEqual(video_response.status_code, 200)
@@ -146,6 +166,24 @@ class AdminSecurityApiTests(APITestCase):
         asset.refresh_from_db()
         self.assertEqual(content.producer_submission_status, 'approved')
         self.assertEqual(asset.moderation_status, 'approved')
+
+    def test_video_approval_requires_completed_analysis_report(self):
+        moderator = User.objects.create_user('moderator-qc@example.com', 'strong-password', is_staff=True)
+        moderator.groups.add(Group.objects.get(name='Modérateur'))
+        device = AdminMFADevice.objects.create(user=moderator, confirmed_at=timezone.now())
+        producer = User.objects.create_user('producer-qc@example.com', 'strong-password', is_producer=True)
+        content = Content.objects.create(title='QC absent', type='movie', producer=producer)
+        asset = VideoAsset.objects.create(content=content, moderation_status='pending')
+        login = self.client.post('/api/v1/admin/auth/login/', {
+            'email': moderator.email, 'password': 'strong-password', 'otp': totp(device.secret),
+        }, format='json')
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        response = self.client.post(f'/api/v1/admin/videos/{asset.pk}/review/', {
+            'decision': 'approved',
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+        asset.refresh_from_db()
+        self.assertEqual(asset.moderation_status, 'pending')
 
     def test_default_roles_are_seeded_with_least_privilege_permissions(self):
         support = Group.objects.get(name='Support')

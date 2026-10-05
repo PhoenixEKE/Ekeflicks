@@ -198,12 +198,17 @@ class EkeAIViewSet(
             {
                 "version": EKE_AI_PUBLIC_API_VERSION,
                 "status": "ready",
+                "languages": ["fr", "en"],
                 "capabilities": {
                     "for_you": True,
                     "search": True,
                     "chat": True,
                     "explain": True,
                     "feedback": True,
+                    "cross_language_search": True,
+                    "audio_subtitle_filters": True,
+                    "occasion_recommendations": True,
+                    "voice_input_supported_by_clients": True,
                 },
                 "components": {
                     "foundation": EKE_AI_FOUNDATION_VERSION,
@@ -338,6 +343,7 @@ class EkeAIViewSet(
         profile_id = request.data.get(
             "profile_id"
         )
+        language = str(request.data.get("language") or "fr").strip().lower()
 
         try:
             limit = _normalize_limit(
@@ -357,6 +363,8 @@ class EkeAIViewSet(
                 query=query,
                 context=context,
                 limit=limit,
+                audio_language=request.data.get("audio_language"),
+                subtitle_language=request.data.get("subtitle_language"),
             )
 
         except (
@@ -374,6 +382,7 @@ class EkeAIViewSet(
             )
 
         payload = result.to_dict()
+        payload["language"] = language if language in {"fr", "en"} else "fr"
 
         payload["api_version"] = (
             EKE_AI_PUBLIC_API_VERSION
@@ -402,6 +411,13 @@ class EkeAIViewSet(
         profile_id = request.data.get(
             "profile_id"
         )
+        language = request.data.get("language", "fr")
+        occasion = request.data.get("occasion", "")
+        audio_language = request.data.get("audio_language")
+        subtitle_language = request.data.get("subtitle_language")
+        current_intent = " ".join(
+            item for item in (message, str(occasion or "")) if item
+        )
 
         try:
             limit = _normalize_limit(
@@ -416,18 +432,23 @@ class EkeAIViewSet(
             context = build_user_context(
                 user=request.user,
                 profile_id=profile_id,
-                current_intent=message,
+                current_intent=current_intent,
             )
 
             result = converse(
                 message=message,
                 context=context,
                 limit=limit,
+                language=language,
+                occasion=occasion,
+                audio_language=audio_language,
+                subtitle_language=subtitle_language,
             )
 
         except (
             EkeAIPublicAPIError,
             ConversationalAssistantError,
+            IntelligentSearchError,
             EkeAIContextError,
         ) as exc:
             return Response(

@@ -16,6 +16,8 @@ import 'package:app_ekeflicks/widgets/footers/main_footer.dart';
 import 'package:app_ekeflicks/widgets/app_bars/home_app_bar.dart';
 import 'package:app_ekeflicks/widgets/dialog/info_dialog.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
+import 'package:app_ekeflicks/ui/subscription/subscription_management_card.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
 import 'package:app_ekeflicks/core/api_config.dart';
 import 'package:app_ekeflicks/widgets/eke_ai/eke_ai_widgets.dart';
@@ -33,7 +35,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const String _homeFallbackImage = 'assets/images/streaming.webp';
-  bool? _isMobile;
   String _priceWithCurrency = "5 €"; // valeur par défaut
   String? _popupText;
   String? _popupTitle;
@@ -45,7 +46,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      _isMobile = MediaQuery.of(context).size.width < 600;
       await _fetchBestPrice();
       await _loadContent();
       await _loadEkeAIForYou();
@@ -192,6 +192,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
+            IconButton(
+              tooltip: 'Rechercher films et salons',
+              onPressed: () => Navigator.pushNamed(context, '/eke-ai-search'),
+              icon: const Icon(Icons.search),
+            ),
+            IconButton(
+              tooltip: 'Ekeroom',
+              onPressed: () => Navigator.pushNamed(context, '/ekeroom'),
+              icon: const Icon(Icons.groups_outlined),
+            ),
             TextButton.icon(
               onPressed: () {
                 Navigator.of(context).push(
@@ -216,7 +226,9 @@ class _HomeScreenState extends State<HomeScreen> {
           )
         else
           SizedBox(
-            height: 360,
+            height: AppResponsive.isTVSize(context)
+                ? 440
+                : (AppResponsive.isMobile(context) ? 320 : 360),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _ekeAIForYou.length,
@@ -332,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final prefs = await SharedPreferences.getInstance();
     final alreadyShown = prefs.getBool('welcome_popup_shown') ?? false;
 
-    if (!alreadyShown && _isMobile == false) {
+    if (!alreadyShown && !AppResponsive.isMobile(context)) {
       _showAnimatedWelcomeDialog();
       await prefs.setBool('welcome_popup_shown', true);
     }
@@ -374,7 +386,9 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       ),
       child: Container(
-        width: 480,
+        width: MediaQuery.of(context).size.width < 528
+          ? MediaQuery.of(context).size.width - 48
+          : 480,
         padding: const EdgeInsets.all(24),
         decoration: AppDecorations.dialogDecoration(context),
         child: Column(
@@ -447,6 +461,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     final contentProvider = Provider.of<ContentProvider>(context);
+    final userProvider = Provider.of<UserProvider>(context);
+    final isMobile = AppResponsive.isMobile(context);
+    final isTV = AppResponsive.isTVSize(context);
+    final isMainProfile =
+        Provider.of<ProfileProvider>(context).currentProfile?.type?.name == 'main';
 
     return Scaffold(
       appBar: const CustomAppBar(),
@@ -454,7 +473,7 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: AppTheme.pageDecoration(context),
         child: Center(
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 1200),
+            constraints: BoxConstraints(maxWidth: AppResponsive.contentMaxWidth(context)),
             decoration: AppDecorations.contentContainerDecoration(context),
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
@@ -465,8 +484,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         HeroBanner(
                           contents: contentProvider.featuredContent,
+                          isMobile: isMobile,
+                          isTV: isTV,
                           onPlayPressed: (content) {
-                            if (content.videoUrl.isEmpty) {
+                            if (content.videoUrl.isEmpty &&
+                                content.videoAssetId == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Aucune URL vidéo disponible'),
@@ -479,6 +501,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               '/player',
                               arguments: {
                                 'videoUrl': content.videoUrl,
+                                'videoAssetId': content.videoAssetId,
                                 'title': content.title,
                                 'imageUrl': content.posterUrl,
                                 'contentId': content.id,
@@ -500,7 +523,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: EdgeInsets.symmetric(horizontal: AppResponsive.pagePadding(context)),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -510,12 +533,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                 context,
                               ),
                               _buildEkeAIForYouSection(),
-                              const SizedBox(height: 20),
+                              if (userProvider.isLoggedIn && isMainProfile) ...[
+                                const SizedBox(height: 20),
+                                const SubscriptionManagementCard(),
+                              ],
                               const SizedBox(height: 20),
                               _buildFeatureBlocks(
                                 _generateFeatures(loc),
                                 context,
-                                _isMobile ?? false,
+                                isMobile,
                               ),
                               const SizedBox(height: 20),
                               _buildSliderSection(
@@ -526,7 +552,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
-                        MainFooter(isMobile: _isMobile ?? false),
+                        MainFooter(isMobile: isMobile),
                       ],
                     ),
                   ),
@@ -591,11 +617,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildCarouselSlider(List<Content> items, BuildContext context) {
     if (items.isEmpty) {
       return SizedBox(
-        height: 240,
+        height: AppResponsive.isTVSize(context) ? 320 : 240,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final width = constraints.maxWidth;
-            final itemsPerView = _calculateItemsPerView(width);
+            final itemsPerView = _calculateItemsPerView(width, context);
             final cardWidth = width / itemsPerView;
 
             return ListView.builder(
@@ -616,14 +642,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        int itemsPerView = _calculateItemsPerView(width);
+        int itemsPerView = _calculateItemsPerView(width, context);
         itemsPerView = itemsPerView.clamp(1, items.length);
         double viewportFraction = (1 / itemsPerView).clamp(0.2, 1.0);
 
         return CarouselSlider.builder(
           itemCount: items.length,
           options: CarouselOptions(
-            height: 240,
+            height: AppResponsive.isTVSize(context) ? 320 : 240,
             viewportFraction: viewportFraction,
             enableInfiniteScroll: false,
             enlargeCenterPage: false,
@@ -635,11 +661,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  int _calculateItemsPerView(double width) {
+  int _calculateItemsPerView(double width, BuildContext context) {
+    if (AppResponsive.isTVSize(context)) {
+      if (width < 1100) return 4;
+      if (width < 1450) return 5;
+      return 6;
+    }
     if (width < 400) return 1;
     if (width < 600) return 2;
     if (width < 800) return 3;
-    return 4;
+    if (width < 1200) return 4;
+    return 5;
   }
 
   Widget _buildFallbackCarouselItem(BuildContext context) {
@@ -649,7 +681,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
         child: Image.asset(
           _homeFallbackImage,
-          height: 180,
+          height: AppResponsive.isTVSize(context) ? 250 : 180,
           width: double.infinity,
           fit: BoxFit.cover,
         ),
@@ -667,19 +699,19 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(AppTheme.borderRadius),
             child: CachedNetworkImage(
               imageUrl: item.posterUrl,
-              height: 180,
+              height: AppResponsive.isTVSize(context) ? 250 : 180,
               width: double.infinity,
               fit: BoxFit.cover,
               placeholder:
                   (context, url) => Container(
-                    height: 180,
+                    height: AppResponsive.isTVSize(context) ? 250 : 180,
                     decoration: AppDecorations.imagePlaceholderDecoration(
                       context,
                     ),
                   ),
               errorWidget:
                   (context, url, error) => Container(
-                    height: 180,
+                    height: AppResponsive.isTVSize(context) ? 250 : 180,
                     decoration: AppDecorations.imagePlaceholderDecoration(
                       context,
                     ),

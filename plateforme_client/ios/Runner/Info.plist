@@ -24,6 +24,12 @@
     <string>$(FLUTTER_BUILD_NUMBER)</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>La caméra permet de participer en vidéo à un salon Ekeroom.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Le microphone permet d’échanger pendant un salon Ekeroom.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>La reconnaissance vocale permet de rechercher un film ou parler à EKE AI.</string>
     <key>UILaunchStoryboardName</key>
     <string>LaunchScreen</string>
     <key>UIMainStoryboardFile</key>

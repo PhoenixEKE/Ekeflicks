@@ -19,6 +19,8 @@ class SalonSerializer(serializers.ModelSerializer):
     )
 
     member_count = serializers.SerializerMethodField()
+    content_title = serializers.CharField(source='content.title', read_only=True, allow_null=True)
+    members = serializers.SerializerMethodField()
 
     class Meta:
         model = Salon
@@ -27,6 +29,9 @@ class SalonSerializer(serializers.ModelSerializer):
             "name",
             "host_id",
             "content_id",
+            "content_title",
+            "members",
+            "scheduled_at",
             "visibility",
             "mode",
             "status",
@@ -42,6 +47,9 @@ class SalonSerializer(serializers.ModelSerializer):
         read_only_fields = (
             "id",
             "host_id",
+            "content_title",
+            "members",
+            "scheduled_at",
             "status",
             "member_count",
             "created_at",
@@ -53,6 +61,31 @@ class SalonSerializer(serializers.ModelSerializer):
         return obj.memberships.filter(
             left_at__isnull=True,
         ).count()
+
+    def get_members(self, obj):
+        memberships = obj.memberships.filter(
+            left_at__isnull=True,
+        ).select_related("user")
+        members = []
+        for item in memberships:
+            name_parts = [
+                str(getattr(item.user, "firstname", "") or "").strip(),
+                str(getattr(item.user, "lastname", "") or "").strip(),
+            ]
+            display_name = " ".join(part for part in name_parts if part)
+            if not display_name:
+                display_name = (
+                    getattr(item.user, "email", "")
+                    or getattr(item.user, "phone", "")
+                    or "Membre"
+                )
+                display_name = display_name.split("@", 1)[0]
+            members.append({
+                "user_id": str(item.user_id),
+                "display_name": display_name,
+                "role": item.role,
+            })
+        return members
 
 
 class SalonCreateSerializer(serializers.Serializer):
@@ -95,6 +128,20 @@ class SalonCreateSerializer(serializers.Serializer):
     video_enabled = serializers.BooleanField(
         default=True,
     )
+
+    scheduled_at = serializers.DateTimeField(
+        required=False,
+        allow_null=True,
+    )
+
+    def validate_scheduled_at(self, value):
+        if value is not None:
+            from django.utils import timezone
+            if value <= timezone.now():
+                raise serializers.ValidationError(
+                    "La séance doit être programmée dans le futur."
+                )
+        return value
 
     def create(self, validated_data):
         return create_entitled_salon(

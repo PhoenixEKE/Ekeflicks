@@ -835,6 +835,13 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
             ).first()
 
             if agreement is None:
+                from apps.auth.producer_compensation import terms_for_new_agreement
+                try:
+                    compensation = terms_for_new_agreement(
+                        account, contract_version=version,
+                    )
+                except ValueError as exc:
+                    raise exceptions.ValidationError({'detail': str(exc)}) from exc
                 platform_snapshot = (
                     platform_agreement_snapshot_values()
                 )
@@ -861,8 +868,29 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
                         ]
                     ),
                     ekeflicks_signed_at=timezone.now(),
+                    **compensation,
                     **platform_snapshot,
                 )
+
+        if (
+            agreement.status != ProducerAgreement.STATUS_SIGNED
+            and agreement.rate_per_1000_views_eur is None
+        ):
+            from apps.auth.producer_compensation import terms_for_new_agreement
+            try:
+                compensation = terms_for_new_agreement(
+                    account, contract_version=agreement.contract_version,
+                )
+            except ValueError as exc:
+                raise exceptions.ValidationError({'detail': str(exc)}) from exc
+            for key, value in compensation.items():
+                setattr(agreement, key, value)
+            agreement.save(update_fields=[
+                'previous_agreement', 'compensation_amendment',
+                'compensation_terms_source', 'rate_per_1000_views_eur',
+                'eligible_progress_percent', 'advertising_share_percent',
+                'updated_at',
+            ])
 
         if agreement.status != ProducerAgreement.STATUS_SIGNED:
             if agreement.contract_language != language:
@@ -925,9 +953,34 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
             )
 
         from apps.analytics.services import convert_eur_for_producer, producer_currency, revenue_settings
+        from apps.auth.producer_compensation import compensation_terms_for
         revenue = revenue_settings()
+        compensation = compensation_terms_for(
+            account,
+            effective_at=(agreement.signed_at or agreement.created_at)
+            if agreement.status == ProducerAgreement.STATUS_SIGNED
+            else timezone.now(),
+        )
+        compensation = {
+            **compensation,
+            'rate_per_1000_views_eur': (
+                agreement.rate_per_1000_views_eur
+                if agreement.rate_per_1000_views_eur is not None
+                else compensation['rate_per_1000_views_eur']
+            ),
+            'eligible_progress_percent': (
+                agreement.eligible_progress_percent
+                if agreement.eligible_progress_percent is not None
+                else compensation['eligible_progress_percent']
+            ),
+            'advertising_share_percent': (
+                agreement.advertising_share_percent
+                if agreement.advertising_share_percent is not None
+                else compensation['advertising_share_percent']
+            ),
+        }
         producer_currency_code, _ = producer_currency(account)
-        _, local_rate_per_1000 = convert_eur_for_producer(revenue.rate_per_1000_views_eur, account)
+        _, local_rate_per_1000 = convert_eur_for_producer(compensation['rate_per_1000_views_eur'], account)
         _, local_minimum_payout = convert_eur_for_producer(revenue.minimum_payout_eur, account)
 
         agreement.save(
@@ -954,8 +1007,8 @@ class ProducerAgreementCurrentView(generics.GenericAPIView):
                     'currency': producer_currency_code,
                     'rate_per_1000_views': str(local_rate_per_1000),
                     'minimum_payout': str(local_minimum_payout),
-                    'eligible_progress_percent': str(revenue.eligible_progress_percent),
-                    'advertising_share_percent': str(revenue.advertising_share_percent),
+                    'eligible_progress_percent': str(compensation['eligible_progress_percent']),
+                    'advertising_share_percent': str(compensation['advertising_share_percent']),
                     'reference_currency': 'EUR',
                 },
                 'status': agreement.status,

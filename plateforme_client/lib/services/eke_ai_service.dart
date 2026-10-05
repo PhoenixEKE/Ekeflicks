@@ -31,6 +31,10 @@ class EkeAIService {
   Future<EkeAIRecommendationResponse> search(
     String query, {
     int limit = 20,
+    String language = 'fr',
+    String? audioLanguage,
+    String? subtitleLanguage,
+    String? profileId,
   }) async {
     final normalized = query.trim();
     if (normalized.isEmpty) {
@@ -39,7 +43,17 @@ class EkeAIService {
 
     final response = await _dio.post<Object>(
       '$_prefix/search/',
-      data: {'query': normalized, 'limit': _limit(limit, max: 50)},
+      data: {
+        'query': normalized,
+        'limit': _limit(limit, max: 50),
+        'language': language,
+        if (audioLanguage != null && audioLanguage != 'any')
+          'audio_language': audioLanguage,
+        if (subtitleLanguage != null && subtitleLanguage != 'any')
+          'subtitle_language': subtitleLanguage,
+        if (profileId != null && profileId.isNotEmpty)
+          'profile_id': profileId,
+      },
     );
     return EkeAIRecommendationResponse.fromJson(_map(response.data));
   }
@@ -47,6 +61,11 @@ class EkeAIService {
   Future<EkeAIRecommendationResponse> chat(
     String message, {
     int limit = 10,
+    String language = 'fr',
+    String? occasion,
+    String? audioLanguage,
+    String? subtitleLanguage,
+    String? profileId,
   }) async {
     final normalized = message.trim();
     if (normalized.isEmpty) {
@@ -55,9 +74,39 @@ class EkeAIService {
 
     final response = await _dio.post<Object>(
       '$_prefix/chat/',
-      data: {'message': normalized, 'limit': _limit(limit, max: 20)},
+      data: {
+        'message': normalized,
+        'limit': _limit(limit, max: 20),
+        'language': language,
+        if (occasion != null && occasion.isNotEmpty) 'occasion': occasion,
+        if (audioLanguage != null && audioLanguage != 'any')
+          'audio_language': audioLanguage,
+        if (subtitleLanguage != null && subtitleLanguage != 'any')
+          'subtitle_language': subtitleLanguage,
+        if (profileId != null && profileId.isNotEmpty)
+          'profile_id': profileId,
+      },
     );
     return EkeAIRecommendationResponse.fromJson(_map(response.data));
+  }
+
+  Future<List<Map<String, dynamic>>> searchSalons(String query) async {
+    final response = await _dio.get<Object>(
+      '/salons/',
+      queryParameters: {
+        'search': query.trim(),
+        'status': 'open',
+      },
+    );
+    final payload = response.data;
+    final raw = payload is Map ? (payload['results'] ?? const []) : payload;
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => item.map(
+              (key, value) => MapEntry(key.toString(), value),
+            ))
+        .toList(growable: false);
   }
 
   Future<EkeAIExplanation> explain(String contentId) async {

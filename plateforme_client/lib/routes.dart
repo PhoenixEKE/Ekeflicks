@@ -14,6 +14,11 @@ import 'ui/users/reset_password_page.dart';
 import 'ui/users/sign_up_page.dart';
 import 'ui/pages/notifications_page.dart';
 import 'ui/pages/unsubscribe_page.dart';
+import 'ui/player/player_page.dart';
+import 'ui/pages/offline_downloads_page.dart';
+import 'ui/pages/eke_ai_assistant_page.dart';
+import 'ui/pages/eke_ai_search_page.dart';
+import 'ui/salons/ekeroom_page.dart';
 
 /// Configuration des routes de l'application.
 Map<String, WidgetBuilder> getAppRoutes() {
@@ -32,6 +37,11 @@ Map<String, WidgetBuilder> getAppRoutes() {
     '/payment/return': (context) => const PaymentReturnPage(),
     '/profile-selection': (context) => const ProfileSelectionPage(),
     '/notifications': (context) => const NotificationsPage(),
+    '/player': (context) => PlayerPage.fromRoute(context),
+    '/downloads': (context) => const OfflineDownloadsPage(),
+    '/eke-ai': (context) => const EkeAIAssistantPage(),
+    '/eke-ai-search': (context) => const EkeAISearchPage(),
+    '/ekeroom': (context) => EkeroomPage.fromRoute(context),
     '/unsubscribe':
         (context) => UnsubscribePage(token: Uri.base.queryParameters['token']),
   };

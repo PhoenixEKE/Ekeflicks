@@ -1,0 +1,4 @@
+<resources>
+    <string name="offline_downloads_channel">Téléchargements hors ligne</string>
+    <string name="offline_downloads_channel_description">Progression des vidéos disponibles hors connexion.</string>
+</resources>

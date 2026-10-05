@@ -61,6 +61,8 @@ class SearchResponse:
     normalized_query: str
     profile_id: str | None
     results: tuple
+    audio_language: str | None = None
+    subtitle_language: str | None = None
 
     def to_dict(self):
         return {
@@ -68,6 +70,8 @@ class SearchResponse:
             "query": self.query,
             "normalized_query": self.normalized_query,
             "profile_id": self.profile_id,
+            "audio_language": self.audio_language,
+            "subtitle_language": self.subtitle_language,
             "result_count": len(
                 self.results
             ),
@@ -107,6 +111,88 @@ def _normalize_text(value):
     )
 
 
+_BILINGUAL_SYNONYM_GROUPS = (
+    ("film", "movie", "cinema"),
+    ("serie", "series", "show"),
+    ("famille", "familial", "familiale", "family", "kids"),
+    ("romantique", "romantic", "romance", "love"),
+    ("comedie", "comedy", "funny", "drôle"),
+    ("drame", "drama"),
+    ("horreur", "horror", "scary"),
+    ("aventure", "adventure"),
+    ("africain", "africaine", "african"),
+    ("documentaire", "documentary"),
+    ("policier", "detective", "crime"),
+    ("action", "action"),
+)
+
+_LANGUAGE_ALIASES = {
+    "fr": {"fr", "francais", "french"},
+    "en": {"en", "anglais", "english"},
+}
+
+
+def _expand_bilingual_terms(terms):
+    expanded = list(terms)
+    for term in terms:
+        for group in _BILINGUAL_SYNONYM_GROUPS:
+            normalized_group = {
+                _normalize_text(value)
+                for value in group
+            }
+            if term in normalized_group:
+                expanded.extend(sorted(normalized_group))
+                break
+    return tuple(dict.fromkeys(expanded))
+
+
+def _normalize_language_filter(value):
+    normalized = _normalize_text(value)
+    if not normalized:
+        return None
+    for code, aliases in _LANGUAGE_ALIASES.items():
+        if normalized in aliases:
+            return code
+    raise IntelligentSearchError(
+        "audio_language and subtitle_language must be fr or en."
+    )
+
+
+def _language_available(values, language):
+    if not language:
+        return True
+    if isinstance(values, str):
+        values = [values]
+    if not isinstance(values, (list, tuple, set)):
+        return False
+    aliases = _LANGUAGE_ALIASES[language]
+    for item in values:
+        candidates = item.values() if isinstance(item, dict) else (item,)
+        for candidate in candidates:
+            normalized = _normalize_text(candidate)
+            if normalized in aliases or any(
+                normalized.startswith(alias + " ")
+                for alias in aliases
+                if len(alias) > 2
+            ):
+                return True
+    return False
+
+
+def content_matches_language_filters(
+    content,
+    *,
+    audio_language=None,
+    subtitle_language=None,
+):
+    audio_language = _normalize_language_filter(audio_language)
+    subtitle_language = _normalize_language_filter(subtitle_language)
+    return (
+        _language_available(content.audio_languages, audio_language)
+        and _language_available(content.subtitle_languages, subtitle_language)
+    )
+
+
 def _query_terms(query):
     normalized = _normalize_text(
         query
@@ -117,7 +203,7 @@ def _query_terms(query):
             "query must not be empty."
         )
 
-    terms = tuple(
+    base_terms = tuple(
         dict.fromkeys(
             term
             for term in normalized.split()
@@ -125,12 +211,12 @@ def _query_terms(query):
         )
     )
 
-    if not terms:
+    if not base_terms:
         raise IntelligentSearchError(
             "query has no searchable terms."
         )
 
-    return normalized, terms
+    return normalized, _expand_bilingual_terms(base_terms)
 
 
 def _normalize_limit(limit):
@@ -375,6 +461,8 @@ def intelligent_search(
     query,
     context=None,
     limit=20,
+    audio_language=None,
+    subtitle_language=None,
 ):
     normalized_query, terms = (
         _query_terms(
@@ -386,6 +474,8 @@ def intelligent_search(
         limit
     )
 
+    audio_language = _normalize_language_filter(audio_language)
+    subtitle_language = _normalize_language_filter(subtitle_language)
     preferred_genres = (
         _preferred_genres(
             context
@@ -405,6 +495,16 @@ def intelligent_search(
     scored = []
 
     for content in queryset:
+        if not _language_available(
+            content.audio_languages,
+            audio_language,
+        ):
+            continue
+        if not _language_available(
+            content.subtitle_languages,
+            subtitle_language,
+        ):
+            continue
         score, reasons, matched_terms = (
             _score_content(
                 content=content,
@@ -461,4 +561,6 @@ def intelligent_search(
         results=tuple(
             scored[:limit]
         ),
+        audio_language=audio_language,
+        subtitle_language=subtitle_language,
     )

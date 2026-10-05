@@ -52,6 +52,8 @@ class EkeAIIntelligentSearchTests(TestCase):
         approved=True,
         available_from=None,
         available_until=None,
+        audio_languages=None,
+        subtitle_languages=None,
     ):
         return Content.objects.create(
             title=title,
@@ -64,6 +66,8 @@ class EkeAIIntelligentSearchTests(TestCase):
             ),
             available_from=available_from,
             available_until=available_until,
+            audio_languages=audio_languages or [],
+            subtitle_languages=subtitle_languages or [],
         )
 
     def test_exact_title_is_ranked_first(self):
@@ -295,6 +299,44 @@ class EkeAIIntelligentSearchTests(TestCase):
         self.assertEqual(
             result.results,
             tuple(),
+        )
+
+
+    def test_bilingual_synonyms_match_catalogue_titles(self):
+        comedy = self._content(title="Comedy Night")
+
+        result = intelligent_search(
+            query="comédie",
+            context=self._context(),
+        )
+
+        self.assertEqual(
+            result.results[0].content_id,
+            str(comedy.id),
+        )
+
+    def test_audio_and_subtitle_filters_use_available_versions(self):
+        matching = self._content(
+            title="Comedy Night",
+            audio_languages=["English"],
+            subtitle_languages=["Français"],
+        )
+        self._content(
+            title="Comedy Night 2",
+            audio_languages=["Français"],
+            subtitle_languages=["English"],
+        )
+
+        result = intelligent_search(
+            query="comedy",
+            context=self._context(),
+            audio_language="en",
+            subtitle_language="fr",
+        )
+
+        self.assertEqual(
+            [item.content_id for item in result.results],
+            [str(matching.id)],
         )
 
     def test_empty_query_rejected(self):

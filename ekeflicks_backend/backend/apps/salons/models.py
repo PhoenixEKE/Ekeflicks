@@ -107,6 +107,11 @@ class Salon(models.Model):
         default=True,
     )
 
+    scheduled_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
     join_code = models.CharField(
         max_length=64,
         unique=True,

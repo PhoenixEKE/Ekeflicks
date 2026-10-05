@@ -173,7 +173,7 @@ class ConversationalAssistantTests(TestCase):
         )
 
         self.assertIn(
-            "could not find",
+            "pas trouvé",
             result.reply.lower(),
         )
 

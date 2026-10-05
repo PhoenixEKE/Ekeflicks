@@ -141,7 +141,11 @@ void main() {
 
     expect(request.uri.path, '/api/v1/eke-ai/search/');
 
-    expect(request.data, {'query': 'film africain', 'limit': 7});
+    expect(request.data, {
+      'query': 'film africain',
+      'limit': 7,
+      'language': 'fr',
+    });
   });
 
   test('chat uses public EKE IA chat API', () async {

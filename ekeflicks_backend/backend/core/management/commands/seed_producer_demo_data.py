@@ -1,6 +1,7 @@
 """Seed clearly marked producer portal demo content and analytics."""
 
 import uuid
+from decimal import Decimal
 from datetime import timedelta
 
 from django.conf import settings
@@ -14,7 +15,7 @@ from apps.analytics.services import (
     normalize_analytics_event,
 )
 from apps.catalog.translations import source_hash
-from core.models import Content, Notification, NotificationType, User
+from core.models import Content, Notification, NotificationType, ProducerDemoEarning, User
 
 
 SEED_KEY = 'producer_portal_demo_v1'
@@ -114,6 +115,7 @@ class Command(BaseCommand):
                     raise CommandError(f'Le titre {title} existe déjà hors de ce jeu démo; arrêt sans le modifier.')
                 content_rows.append(content)
 
+            self._seed_demo_earnings(producer, content_rows)
             self._enable_demo_mode(producer, preferences)
             self._seed_notifications(producer)
             event_count = self._write_events(client, producer, content_rows)
@@ -123,7 +125,35 @@ class Command(BaseCommand):
             f'{len(content_rows)} contenus ([DÉMO]), {event_count} événements analytiques nouveaux marqués is_test=1, '
             f'notifications identifiées [DÉMO] ({created_content} nouveau(x) contenu(s)).'
         ))
-        self.stdout.write('Aucun montant, vue rémunérée ni solde Finance n’a été créé.')
+        self.stdout.write('Solde et revenus [DÉMO] visibles dans Finance uniquement; exclus des demandes de paiement et du calcul réel.')
+
+    @staticmethod
+    def _seed_demo_earnings(producer, contents):
+        from apps.auth.producer_compensation import compensation_terms_for
+        terms = compensation_terms_for(producer)
+        demo_rows = (
+            (6000, Decimal('40.00')),
+            (4200, Decimal('30.00')),
+            (3600, Decimal('30.00')),
+        )
+        for content, (eligible_views, ad_net_eur) in zip(contents, demo_rows):
+            view_revenue = (
+                Decimal(terms['rate_per_1000_views_eur'])
+                * Decimal(eligible_views)
+                / Decimal('1000')
+            ).quantize(Decimal('0.000000001'))
+            ProducerDemoEarning.objects.update_or_create(
+                producer=producer,
+                content=content,
+                seed_key=SEED_KEY,
+                defaults={
+                    'period': timezone.localdate(),
+                    'eligible_views': eligible_views,
+                    'view_revenue_eur': view_revenue,
+                    'advertising_net_revenue_eur': ad_net_eur,
+                    'advertising_share_percent': terms['advertising_share_percent'],
+                },
+            )
 
     @staticmethod
     def _enable_demo_mode(producer, preferences):
@@ -234,6 +264,7 @@ class Command(BaseCommand):
         return len(new_rows)
 
     def _clear(self, producer):
+        ProducerDemoEarning.objects.filter(producer=producer, seed_key=SEED_KEY).delete()
         content_ids = list(Content.objects.filter(producer=producer, producer_notes=f'demo:{SEED_KEY}').values_list('id', flat=True))
         if content_ids:
             client = clickhouse_client()

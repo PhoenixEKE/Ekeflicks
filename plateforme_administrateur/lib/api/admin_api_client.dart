@@ -236,6 +236,20 @@ class AdminApiClient {
   Future<void> reviewVideo(int id, String decision, {String reason = ''}) async =>
       _request('POST', '/videos/$id/review/', body: {'decision': decision, 'reason': reason});
 
+  Future<Map<String, dynamic>> reviewVideoDrm(
+    int id,
+    String system,
+    String decision, {
+    String reason = '',
+  }) async =>
+      Map<String, dynamic>.from(
+        await _request(
+          'POST',
+          '/videos/$id/drm-review/',
+          body: {'system': system, 'decision': decision, 'reason': reason},
+        ) as Map,
+      );
+
   // =========================================================
   // PAIEMENTS PRODUCTEURS
   // =========================================================
@@ -247,6 +261,60 @@ class AdminApiClient {
 
   Future<void> reviewPayout(int id, String action, {String reason = '', String? password}) async =>
       _request('POST', '/payouts/$id/$action/', body: {'reason': reason, if (password != null) 'password': password});
+
+  // =========================================================
+  // ANALYTIQUES DE PLATEFORME ET PUBLICITÉS
+  // =========================================================
+
+  Future<Map<String, dynamic>> platformAnalytics({int days = 30}) async =>
+      Map<String, dynamic>.from(
+        await _request('GET', '/analytics/?days=$days') as Map,
+      );
+
+  Future<List<Map<String, dynamic>>> adCampaigns({String? status, String search = ''}) async {
+    final query = Uri(queryParameters: {
+      if (status != null) 'status': status,
+      if (search.trim().isNotEmpty) 'search': search.trim(),
+    }).query;
+    return _results(await _request('GET', '/ad-campaigns/?$query'));
+  }
+
+  Future<List<Map<String, dynamic>>> advertisingContents({String search = ''}) async {
+    final query = Uri(queryParameters: {
+      if (search.trim().isNotEmpty) 'search': search.trim(),
+    }).query;
+    final path = '/ad-campaigns/content-options/${query.isEmpty ? '' : '?$query'}';
+    return _results(await _request('GET', path));
+  }
+
+  Future<Map<String, dynamic>> advertisingAnalytics({int days = 30}) async =>
+      Map<String, dynamic>.from(
+        await _request('GET', '/advertising/analytics/?days=$days') as Map,
+      );
+
+  Future<Map<String, dynamic>> createAdCampaign(Map<String, dynamic> data) async =>
+      Map<String, dynamic>.from(
+        await _request('POST', '/ad-campaigns/', body: data) as Map,
+      );
+
+  Future<Map<String, dynamic>> updateAdCampaign(
+    Object id,
+    Map<String, dynamic> data,
+  ) async =>
+      Map<String, dynamic>.from(
+        await _request('PATCH', '/ad-campaigns/$id/', body: data) as Map,
+      );
+
+  Future<Map<String, dynamic>> setAdCampaignStatus(
+    Object id,
+    String status,
+  ) async =>
+      Map<String, dynamic>.from(
+        await _request('POST', '/ad-campaigns/$id/status/', body: {'status': status}) as Map,
+      );
+
+  Future<void> archiveAdCampaign(Object id) async =>
+      _request('DELETE', '/ad-campaigns/$id/');
 
   // =========================================================
   // MÉTHODES INTERNES

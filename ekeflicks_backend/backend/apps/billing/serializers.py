@@ -226,6 +226,11 @@ class SubscriptionPlanOfferAdminSerializer(serializers.ModelSerializer):
 
 class SubscriptionSerializer(serializers.ModelSerializer):
     plan = SubscriptionPlanSerializer(read_only=True)
+    auto_renew_consent = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False,
+    )
     plan_id = serializers.PrimaryKeyRelatedField(
         source='plan',
         queryset=SubscriptionPlan.objects.filter(is_active=True),
@@ -242,7 +247,13 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             'started_at',
             'expires_at',
             'cancelled_at',
+            'price_at_purchase',
+            'currency_at_purchase',
+            'duration_days_at_purchase',
             'auto_renew',
+            'auto_renew_consent_at',
+            'cancel_at_period_end',
+            'auto_renew_consent',
             'created_at',
             'updated_at',
         ]
@@ -253,6 +264,11 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             'started_at',
             'expires_at',
             'cancelled_at',
+            'price_at_purchase',
+            'currency_at_purchase',
+            'duration_days_at_purchase',
+            'auto_renew_consent_at',
+            'cancel_at_period_end',
             'created_at',
             'updated_at',
         ]
@@ -301,6 +317,32 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         )
 
         is_free = price == 0
+        auto_renew_consent = validated_data.pop(
+            'auto_renew_consent',
+            False,
+        )
+        requested_auto_renew = validated_data.get(
+            'auto_renew',
+            auto_renew_consent,
+        )
+
+        if requested_auto_renew and not auto_renew_consent:
+            raise serializers.ValidationError({
+                'auto_renew_consent': (
+                    'Confirmez explicitement la mise en place '
+                    'du prélèvement récurrent.'
+                )
+            })
+
+        if auto_renew_consent and (
+            is_free or duration_days < 28 or duration_days > 31
+        ):
+            raise serializers.ValidationError({
+                'auto_renew_consent': (
+                    'Le prélèvement récurrent est disponible '
+                    'uniquement pour un abonnement mensuel payant.'
+                )
+            })
 
         return Subscription.objects.create(
             user=user,
@@ -319,10 +361,15 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             features_at_purchase=features,
             status='active' if is_free else 'pending',
             expires_at=expires_at,
-            auto_renew=(
-                False
-                if is_free
-                else validated_data.get('auto_renew', True)
+            auto_renew=bool(
+                auto_renew_consent
+                and requested_auto_renew
+                and not is_free
+            ),
+            auto_renew_consent_at=(
+                timezone.now()
+                if auto_renew_consent and requested_auto_renew
+                else None
             ),
         )
 
@@ -394,6 +441,34 @@ class PaymentSerializer(serializers.ModelSerializer):
         if not currency:
             currency = plan.currency
 
+        recurring = bool(
+            subscription.auto_renew
+            and subscription.auto_renew_consent_at
+        )
+        if recurring and provider != 'stripe':
+            raise serializers.ValidationError({
+                'provider': (
+                    'Le renouvellement récurrent avec consentement '
+                    'est actuellement disponible via Stripe.'
+                )
+            })
+
+        if recurring and (
+            subscription.duration_days_at_purchase is None
+            or not 28 <= subscription.duration_days_at_purchase <= 31
+        ):
+            raise serializers.ValidationError({
+                'subscription': (
+                    'Le plan ne peut pas être facturé mensuellement.'
+                )
+            })
+
+        stripe_secret_key = getattr(settings, 'STRIPE_SECRET_KEY', '')
+        if provider == 'stripe' and not stripe_secret_key:
+            raise serializers.ValidationError(
+                {'provider': 'Stripe n est pas configure sur le serveur.'}
+            )
+
         payment = Payment.objects.create(
             subscription=subscription,
             amount=amount,
@@ -405,18 +480,18 @@ class PaymentSerializer(serializers.ModelSerializer):
                 'subscription_id': str(subscription.id),
                 'plan_id': str(plan.id),
                 'market_zone': subscription.market_zone or '',
+                'recurring': recurring,
+                'auto_renew_consent_at': (
+                    subscription.auto_renew_consent_at.isoformat()
+                    if subscription.auto_renew_consent_at else None
+                ),
             },
         )
 
         if provider != 'stripe':
             return payment
 
-        if not settings.STRIPE_SECRET_KEY:
-            raise serializers.ValidationError(
-                {'provider': 'Stripe n est pas configure sur le serveur.'}
-            )
-
-        stripe.api_key = settings.STRIPE_SECRET_KEY
+        stripe.api_key = stripe_secret_key
 
         stripe_currency = str(currency).lower()
 
@@ -443,31 +518,44 @@ class PaymentSerializer(serializers.ModelSerializer):
             "?status=cancelled"
         )
 
+        line_item = {
+            'price_data': {
+                'currency': stripe_currency,
+                'product_data': {
+                    'name': f"EKEFLICKS - {plan.name}",
+                },
+                'unit_amount': unit_amount,
+            },
+            'quantity': 1,
+        }
+        if recurring:
+            line_item['price_data']['recurring'] = {'interval': 'month'}
+
         try:
             session = stripe.checkout.Session.create(
-                mode='payment',
+                mode='subscription' if recurring else 'payment',
                 client_reference_id=provider_reference,
                 customer_email=subscription.user.email,
                 success_url=success_url,
                 cancel_url=cancel_url,
-                line_items=[
-                    {
-                        'price_data': {
-                            'currency': stripe_currency,
-                            'product_data': {
-                                'name': f"EKEFLICKS - {plan.name}",
-                            },
-                            'unit_amount': unit_amount,
+                line_items=[line_item],
+                **({
+                    'subscription_data': {
+                        'metadata': {
+                            'local_subscription_id': str(subscription.id),
+                            'plan_id': str(plan.id),
+                            'market_zone': subscription.market_zone or '',
+                            'auto_renew_consent': 'true',
                         },
-                        'quantity': 1,
-                    }
-                ],
+                    },
+                } if recurring else {}),
                 metadata={
                     'payment_id': str(payment.id),
                     'subscription_id': str(subscription.id),
                     'plan_id': str(plan.id),
                     'provider_reference': provider_reference,
                     'market_zone': subscription.market_zone or '',
+                    'auto_renew_consent': 'true' if recurring else 'false',
                 },
             )
 

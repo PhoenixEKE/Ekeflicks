@@ -13,6 +13,7 @@ from .playback_views import (
 from .realtime_views import (
     SalonRealtimeTicketView,
 )
+from .turn_views import SalonIceServersView
 from .views import SalonViewSet
 from .matching_views import SalonSocialMatchingView
 from .icebreaker_views import SalonIcebreakerView
@@ -65,6 +66,11 @@ urlpatterns = [
         "salons/<uuid:pk>/realtime-ticket/",
         SalonRealtimeTicketView.as_view(),
         name="salon-realtime-ticket",
+    ),
+    path(
+        "salons/<uuid:pk>/ice-servers/",
+        SalonIceServersView.as_view(),
+        name="salon-ice-servers",
     ),
 ]
 

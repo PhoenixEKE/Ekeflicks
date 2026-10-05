@@ -7,6 +7,8 @@ import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/ui/users/change_password_page.dart';
 import 'package:app_ekeflicks/src/models/profile.dart';
 import 'package:app_ekeflicks/core/app_theme.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
+import 'package:app_ekeflicks/ui/subscription/subscription_management_card.dart';
 import 'package:app_ekeflicks/core/app_decorations.dart';
 import 'package:app_ekeflicks/services/geolocation_service.dart';
 import 'package:app_ekeflicks/widgets/dialog/country_selection_dialog.dart';
@@ -1031,23 +1033,32 @@ class _AccountPageState extends State<AccountPage>
     return FadeTransition(
       opacity: _fadeAnimation,
       child: SingleChildScrollView(
-        child: _buildSection(
-          title: loc?.facturation ?? 'Historique de facturation',
-          icon: Icons.receipt_long,
-          child:
-              _billingHistory == null
-                  ? _buildLoadingState()
-                  : _billingHistory!.isEmpty
-                  ? _buildEmptyState(
-                    icon: Icons.receipt,
-                    message: loc?.aucuneFacture ?? 'Aucune facture disponible',
-                  )
-                  : Column(
-                    children:
-                        _billingHistory!
-                            .map((item) => _buildBillingItem(item))
-                            .toList(),
-                  ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_isMainProfile) ...[
+              const SubscriptionManagementCard(),
+              const SizedBox(height: 24),
+            ],
+            _buildSection(
+              title: loc?.facturation ?? 'Historique de facturation',
+              icon: Icons.receipt_long,
+              child:
+                  _billingHistory == null
+                      ? _buildLoadingState()
+                      : _billingHistory!.isEmpty
+                          ? _buildEmptyState(
+                              icon: Icons.receipt,
+                              message: loc?.aucuneFacture ??
+                                  'Aucune facture disponible',
+                            )
+                          : Column(
+                              children: _billingHistory!
+                                  .map((item) => _buildBillingItem(item))
+                                  .toList(),
+                            ),
+            ),
+          ],
         ),
       ),
     );
@@ -1072,8 +1083,12 @@ class _AccountPageState extends State<AccountPage>
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
+                        SliverGridDelegateWithFixedCrossAxisCount(
+                           crossAxisCount: AppResponsive.contentGridColumns(
+                             context,
+                             desktop: 4,
+                             tv: 5,
+                           ),
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
                           childAspectRatio: 0.7,
@@ -1107,8 +1122,12 @@ class _AccountPageState extends State<AccountPage>
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
+                        SliverGridDelegateWithFixedCrossAxisCount(
+                           crossAxisCount: AppResponsive.contentGridColumns(
+                             context,
+                             desktop: 4,
+                             tv: 5,
+                           ),
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
                           childAspectRatio: 0.7,
@@ -1402,41 +1421,48 @@ class _AccountPageState extends State<AccountPage>
                 child: CircularProgressIndicator(color: AppTheme.primaryOrange),
               )
               : SafeArea(
-                child: Column(
-                  children: [
-                    // Header du profil
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: _buildProfileHeader(context, loc),
-                    ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: AppResponsive.contentMaxWidth(context),
+                      ),
+                      child: Column(
+                        children: [
+                          // Header du profil
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: _buildProfileHeader(context, loc),
+                          ),
 
-                    // Barre d'onglets
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: _buildTabBar(context, loc),
+                          // Barre d'onglets
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: _buildTabBar(context, loc),
+                            ),
+                          ),
+
+                          // Contenu des onglets
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: TabBarView(
+                                controller: _tabController,
+                                children: [
+                                  _buildProfileTab(context, loc),
+                                  _buildBillingTab(context, loc),
+                                  _buildFavoritesTab(context, loc),
+                                  _buildDownloadsTab(context, loc),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-
-                    // Contenu des onglets
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: [
-                            _buildProfileTab(context, loc),
-                            _buildBillingTab(context, loc),
-                            _buildFavoritesTab(context, loc),
-                            _buildDownloadsTab(context, loc),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
     );
   }
 }

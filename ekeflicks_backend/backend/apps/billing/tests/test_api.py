@@ -2,6 +2,8 @@ import hashlib
 import hmac
 import json
 import re
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.test import override_settings
 from django.core import mail
@@ -55,14 +57,97 @@ class BillingApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['status'], 'pending')
         self.assertEqual(response.data['plan']['id'], str(self.plan.id))
+        self.assertEqual(response.data['price_at_purchase'], '19.99')
+        self.assertEqual(response.data['currency_at_purchase'], 'EUR')
+        self.assertEqual(response.data['duration_days_at_purchase'], 30)
         self.assertTrue(any('Abonnement cree' in message.subject for message in mail.outbox))
         subscription_email = next(message for message in mail.outbox if 'Abonnement cree' in message.subject)
         self.assertIn('logo_dark.png', subscription_email.alternatives[0][0])
 
+    def test_auto_renew_requires_explicit_customer_consent(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            reverse('subscription-list'),
+            {
+                'plan_id': str(self.plan.id),
+                'auto_renew': True,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            str(response.data['auto_renew_consent']),
+            'Confirmez explicitement la mise en place du prélèvement récurrent.',
+        )
+        self.assertFalse(
+            self.user.subscriptions.filter(auto_renew=True).exists()
+        )
+
+    def test_monthly_subscription_stores_explicit_renewal_consent(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            reverse('subscription-list'),
+            {
+                'plan_id': str(self.plan.id),
+                'auto_renew': True,
+                'auto_renew_consent': True,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data['auto_renew'])
+        self.assertTrue(response.data['auto_renew_consent_at'])
+        self.assertFalse(response.data['cancel_at_period_end'])
+
+    @override_settings(STRIPE_SECRET_KEY='sk_test_recurring')
+    @patch('apps.billing.serializers.stripe.checkout.Session.create')
+    def test_explicit_monthly_consent_creates_recurring_stripe_checkout(
+        self,
+        create_session,
+    ):
+        create_session.return_value = SimpleNamespace(
+            id='cs_recurring_test',
+            url='https://checkout.stripe.test/session',
+        )
+        self.client.force_authenticate(user=self.user)
+        subscription_response = self.client.post(
+            reverse('subscription-list'),
+            {
+                'plan_id': str(self.plan.id),
+                'auto_renew_consent': True,
+            },
+            format='json',
+        )
+
+        payment_response = self.client.post(
+            reverse('payment-list'),
+            {
+                'subscription_id': subscription_response.data['id'],
+                'provider': 'stripe',
+            },
+            format='json',
+        )
+
+        self.assertEqual(payment_response.status_code, status.HTTP_201_CREATED)
+        call = create_session.call_args.kwargs
+        self.assertEqual(call['mode'], 'subscription')
+        self.assertEqual(
+            call['line_items'][0]['price_data']['recurring'],
+            {'interval': 'month'},
+        )
+        self.assertEqual(
+            call['subscription_data']['metadata']['auto_renew_consent'],
+            'true',
+        )
+
     def test_free_30_day_subscription_is_activated_without_payment(self):
         free_plan = SubscriptionPlan.objects.create(
-            name='Free 30 Days',
-            slug='free-30-days',
+            name='Free Test 30 Days',
+            slug='free-test-30-days',
             price='0.00',
             duration_days=30,
         )
@@ -81,8 +166,8 @@ class BillingApiTests(APITestCase):
 
     def test_best_price_returns_cheapest_active_plan(self):
         basic_plan = SubscriptionPlan.objects.create(
-            name='Basic',
-            slug='basic',
+            name='Basic Test',
+            slug='basic-test',
             price='5.00',
             currency='EUR',
             duration_days=30,
@@ -129,7 +214,7 @@ class BillingApiTests(APITestCase):
                 'amount': '1.00',
                 'currency': 'USD',
                 'status': 'success',
-                'provider': 'stripe',
+                'provider': 'cinetpay',
             },
             format='json',
         )
@@ -203,7 +288,7 @@ class BillingApiTests(APITestCase):
         ViewingSession.objects.create(
             profile=Profile.objects.get(user=viewer),
             content=content,
-            duration_watched=3000,
+            duration_watched=4500,
         )
         self.assertEqual(ProducerContentView.objects.filter(producer=producer).count(), 1)
         ProducerFinanceAccess.objects.create(

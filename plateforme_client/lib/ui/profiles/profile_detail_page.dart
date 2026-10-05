@@ -1,5 +1,6 @@
 // lib/ui/profiles/profile_detail_page.dart
 import 'package:flutter/material.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
 
@@ -576,7 +577,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage>
                     padding: const EdgeInsets.all(24),
                     child: Center(
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 500),
+                        constraints: BoxConstraints(maxWidth: AppResponsive.isTVSize(context) ? 720 : 500),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [

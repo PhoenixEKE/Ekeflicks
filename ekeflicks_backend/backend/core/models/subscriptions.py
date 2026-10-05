@@ -222,7 +222,17 @@ class Subscription(TimeStampedModel):
     expires_at = models.DateTimeField()
     cancelled_at = models.DateTimeField(null=True, blank=True)
 
-    auto_renew = models.BooleanField(default=True)
+    # Recurring billing is activated only after an explicit customer opt-in.
+    auto_renew = models.BooleanField(default=False)
+    auto_renew_consent_at = models.DateTimeField(null=True, blank=True)
+    stripe_subscription_id = models.CharField(
+        max_length=255,
+        unique=True,
+        null=True,
+        blank=True,
+    )
+    stripe_customer_id = models.CharField(max_length=255, blank=True, default='')
+    cancel_at_period_end = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'subscriptions'

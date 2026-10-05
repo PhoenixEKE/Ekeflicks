@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/widgets/footers/reusable_footer.dart';
 import 'subscription_step1_page.dart';
@@ -11,6 +12,7 @@ class SubscriptionStep2Page extends StatefulWidget {
   final String offerPrice;
   final String offerCurrency;
   final String planSlug;
+  final int durationDays;
   final String? accountEmail;
 
   const SubscriptionStep2Page({
@@ -19,6 +21,7 @@ class SubscriptionStep2Page extends StatefulWidget {
     required this.offerPrice,
     required this.offerCurrency,
     required this.planSlug,
+    this.durationDays = 30,
     this.accountEmail,
   });
 
@@ -31,6 +34,9 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
   late final AnimationController _controller;
   late final List<Animation<double>> _fadeAnimations;
   bool _isProcessingPayment = false;
+  bool _enableAutoRenew = false;
+
+  bool get _monthlyPlan => widget.durationDays >= 28 && widget.durationDays <= 31;
 
   final List<PaymentMethod> paymentMethods = [
     PaymentMethod(
@@ -122,7 +128,10 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
     try {
       final checkoutUrl = await context
           .read<UserProvider>()
-          .startStripeCheckout(widget.planSlug);
+          .startStripeCheckout(
+            widget.planSlug,
+            enableAutoRenew: _enableAutoRenew,
+          );
 
       final uri = Uri.parse(checkoutUrl);
 
@@ -153,23 +162,29 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
 
   String get _formattedOfferPrice {
     final parsed = double.tryParse(widget.offerPrice.replaceAll(',', '.'));
-
     final price =
         parsed != null && parsed == parsed.truncateToDouble()
             ? parsed.toInt().toString()
             : widget.offerPrice;
 
-    switch (widget.offerCurrency.toUpperCase()) {
-      case 'XOF':
-      case 'XAF':
-        return '$price FCFA';
-      case 'EUR':
-        return '$price €';
-      case 'USD':
-        return '$price ${r'$'}';
-      default:
-        return '$price ${widget.offerCurrency.toUpperCase()}';
+    final amount = switch (widget.offerCurrency.toUpperCase()) {
+      'XOF' || 'XAF' => price + ' FCFA',
+      'EUR' => price + ' €',
+      'USD' => price + ' ' + r'$',
+      _ => price + ' ' + widget.offerCurrency.toUpperCase(),
+    };
+
+    if (widget.durationDays >= 28 && widget.durationDays <= 31) {
+      return AppLocalizations.of(context)!.prixParMois(amount);
     }
+
+    final isFrench = Localizations.localeOf(context).languageCode == 'fr';
+    final period = widget.durationDays == 1
+        ? (isFrench ? '1 jour' : '1 day')
+        : (isFrench
+            ? widget.durationDays.toString() + ' jours'
+            : widget.durationDays.toString() + ' days');
+    return amount + ' / ' + period;
   }
 
   @override
@@ -211,7 +226,7 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
           ),
           child: Center(
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 1200),
+              constraints: BoxConstraints(maxWidth: AppResponsive.contentMaxWidth(context)),
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: theme.cardColor,
@@ -294,6 +309,34 @@ class _SubscriptionStep2PageState extends State<SubscriptionStep2Page>
                         textAlign: TextAlign.center,
                       ),
                     ),
+                    if (_monthlyPlan) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Card(
+                          child: CheckboxListTile(
+                            value: _enableAutoRenew,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            onChanged: _isProcessingPayment
+                                ? null
+                                : (value) => setState(
+                                      () => _enableAutoRenew = value ?? false,
+                                    ),
+                            title: Text(
+                              Localizations.localeOf(context).languageCode == 'fr'
+                                  ? 'Mettre en place le prélèvement mensuel automatique'
+                                  : 'Set up automatic monthly payments',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              Localizations.localeOf(context).languageCode == 'fr'
+                                  ? 'À votre demande uniquement. ${_formattedOfferPrice} sera prélevé chaque mois sur le moyen de paiement choisi. Vous pourrez arrêter le renouvellement à tout moment; votre accès restera valable jusqu’à la date d’échéance.'
+                                  : 'Only at your request. ${_formattedOfferPrice} will be charged monthly to your selected payment method. You can stop renewal at any time; access remains available through the expiry date.',
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     const SizedBox(height: 24),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
