@@ -3,11 +3,13 @@
 ## Formats pris en charge
 
 - **Pré-roll** : avant le contenu. Le lecteur peut lire une création HTTPS, ou le moteur SSAI peut la joindre au flux.
-- **Mid-roll** : aux repères en secondes enregistrés sur une campagne. Le lecteur côté client met en pause le contenu pendant la création; en SSAI, le repère est envoyé au moteur de stitching.
+- **Mid-roll** : aux repères en secondes enregistrés par film ou série dans une campagne. Le lecteur côté client met en pause le contenu pendant la création; en SSAI, le repère propre au titre est envoyé au moteur de stitching. Un ciblage sans titre garde les repères globaux historiques.
 - **Sur pause** : visuel et CTA affichés par le lecteur lorsque la lecture s’arrête. Ce placement reste côté lecteur, y compris sur Android TV.
 - Les lecteurs Android TV n’exécutent pas les créations vidéo côté client; ils acceptent une insertion SSAI et les publicités sur pause.
 
 Le lecteur n’insère pas VAST directement côté client. Une URL VAST est transmise au moteur SSAI; pour un pré-roll ou mid-roll côté lecteur, l’administration demande une URL HTTPS de fichier vidéo exploitable par BetterPlayer.
+
+Dans la régie, l’administrateur recherche les films et séries approuvés ayant une vidéo prête, les sélectionne par titre, puis configure les secondes de mid-roll pour chaque titre. L’API `GET /api/v1/admin/ad-campaigns/content-options/?search=...` alimente ce sélecteur; les campagnes renvoient `content_details` et `content_cue_points`. Les anciennes campagnes utilisent toujours `cue_points_seconds` comme repères globaux jusqu’à leur modification.
 
 ## Ciblage et choix du client
 

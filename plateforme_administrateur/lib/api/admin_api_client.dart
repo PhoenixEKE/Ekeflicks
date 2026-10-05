@@ -279,6 +279,14 @@ class AdminApiClient {
     return _results(await _request('GET', '/ad-campaigns/?$query'));
   }
 
+  Future<List<Map<String, dynamic>>> advertisingContents({String search = ''}) async {
+    final query = Uri(queryParameters: {
+      if (search.trim().isNotEmpty) 'search': search.trim(),
+    }).query;
+    final path = '/ad-campaigns/content-options/${query.isEmpty ? '' : '?$query'}';
+    return _results(await _request('GET', path));
+  }
+
   Future<Map<String, dynamic>> advertisingAnalytics({int days = 30}) async =>
       Map<String, dynamic>.from(
         await _request('GET', '/advertising/analytics/?days=$days') as Map,

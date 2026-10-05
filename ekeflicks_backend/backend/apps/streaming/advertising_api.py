@@ -96,11 +96,19 @@ def _campaigns_for(profile, content, placement, country, watched, consented, now
     ]
 
 
+def _campaign_cue_points(campaign, content):
+    content_points = campaign.content_cue_points or {}
+    content_key = str(content.pk)
+    if content_key in content_points:
+        return content_points[content_key] or []
+    return campaign.cue_points_seconds or []
+
+
 def _cue_schedule(profile, content, country, watched, consented, now):
     points = set()
     for campaign in _campaigns_for(profile, content, "midroll", country, watched, consented, now):
         points.update(
-            int(point) for point in (campaign.cue_points_seconds or [])
+            int(point) for point in _campaign_cue_points(campaign, content)
             if str(point).isdigit() and int(point) > 0
         )
     return sorted(points)
@@ -287,7 +295,7 @@ class AdDecisionView(APIView):
                 if slot == "midroll":
                     campaigns_by_point = {}
                     for campaign in server_candidates:
-                        for point in campaign.cue_points_seconds or []:
+                        for point in _campaign_cue_points(campaign, asset.content):
                             if str(point).isdigit() and int(point) > 0:
                                 campaigns_by_point.setdefault(int(point), []).append(campaign)
                     for point, point_candidates in sorted(campaigns_by_point.items()):

@@ -40,6 +40,7 @@ class AdCampaign(TimeStampedModel):
     target_age_max = models.PositiveSmallIntegerField(null=True, blank=True)
     contents = models.ManyToManyField(Content, blank=True, related_name="ad_campaigns")
     cue_points_seconds = models.JSONField(default=list, blank=True)
+    content_cue_points = models.JSONField(default=dict, blank=True)
 
     active_from = models.DateTimeField(null=True, blank=True)
     active_until = models.DateTimeField(null=True, blank=True)

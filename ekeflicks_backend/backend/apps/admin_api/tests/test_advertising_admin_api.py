@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.admin_api.security import totp
-from core.models import AdCampaign, AdminMFADevice, User
+from core.models import AdCampaign, AdminMFADevice, Content, User, VideoAsset
 
 
 class AdminAdvertisingApiTests(APITestCase):
@@ -63,6 +63,92 @@ class AdminAdvertisingApiTests(APITestCase):
         archived = self.client.delete(f"/api/v1/admin/ad-campaigns/{created.data['id']}/")
         self.assertEqual(archived.status_code, 204)
         self.assertEqual(AdCampaign.objects.get(pk=created.data["id"]).status, "archived")
+
+    def test_content_options_search_returns_ready_approved_movies_and_series(self):
+        film = Content.objects.create(
+            title="Film ciblé",
+            type="movie",
+            duration=105,
+            producer_submission_status="approved",
+        )
+        series = Content.objects.create(
+            title="Série ciblée",
+            type="series",
+            duration=45,
+            producer_submission_status="approved",
+        )
+        for content, name in ((film, "film"), (series, "series")):
+            VideoAsset.objects.create(
+                content=content,
+                hls_master_url=f"https://cdn.example.test/{name}/master.m3u8",
+                dash_manifest_url=f"https://cdn.example.test/{name}/manifest.mpd",
+                status="ready",
+                moderation_status="approved",
+                duration_seconds=content.duration * 60,
+                published_at=timezone.now(),
+            )
+        pending = Content.objects.create(
+            title="Film non approuvé",
+            type="movie",
+            producer_submission_status="pending",
+        )
+        VideoAsset.objects.create(
+            content=pending,
+            hls_master_url="https://cdn.example.test/pending/master.m3u8",
+            dash_manifest_url="https://cdn.example.test/pending/manifest.mpd",
+            status="ready",
+            moderation_status="approved",
+            published_at=timezone.now(),
+        )
+
+        response = self.client.get("/api/v1/admin/ad-campaigns/content-options/?search=Film")
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual([item["title"] for item in response.data], ["Film ciblé"])
+        self.assertEqual(response.data[0]["type"], "movie")
+        self.assertEqual(response.data[0]["duration_seconds"], 105 * 60)
+
+        all_titles = self.client.get("/api/v1/admin/ad-campaigns/content-options/")
+        self.assertEqual({item["title"] for item in all_titles.data}, {"Film ciblé", "Série ciblée"})
+
+    def test_campaign_saves_midroll_positions_per_selected_title(self):
+        content = Content.objects.create(
+            title="Le film des repères",
+            type="movie",
+            duration=100,
+            producer_submission_status="approved",
+        )
+        VideoAsset.objects.create(
+            content=content,
+            hls_master_url="https://cdn.example.test/cues/master.m3u8",
+            dash_manifest_url="https://cdn.example.test/cues/manifest.mpd",
+            status="ready",
+            moderation_status="approved",
+            duration_seconds=6000,
+            published_at=timezone.now(),
+        )
+        payload = {
+            "name": "Mid-roll ciblé",
+            "status": "draft",
+            "delivery_mode": "client_side",
+            "formats": ["midroll"],
+            "media_url": "https://ads.example.test/creative.mp4",
+            "content_ids": [content.pk],
+            "content_cue_points": {str(content.pk): [600, 1200]},
+        }
+
+        created = self.client.post("/api/v1/admin/ad-campaigns/", payload, format="json")
+
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["content_cue_points"], {str(content.pk): [600, 1200]})
+        self.assertEqual(created.data["content_details"][0]["title"], "Le film des repères")
+        self.assertEqual(created.data["content_details"][0]["duration_seconds"], 6000)
+
+        payload["name"] = "Repères manquants"
+        payload["content_cue_points"] = {}
+        rejected = self.client.post("/api/v1/admin/ad-campaigns/", payload, format="json")
+        self.assertEqual(rejected.status_code, 400)
+        self.assertIn("content_cue_points", rejected.data)
 
     def test_ssai_pause_placement_is_rejected(self):
         response = self.client.post("/api/v1/admin/ad-campaigns/", {

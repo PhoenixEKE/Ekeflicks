@@ -427,13 +427,16 @@ class _CampaignEditorState extends State<_CampaignEditor> {
   late final TextEditingController _cues;
   late final TextEditingController _ageMin;
   late final TextEditingController _ageMax;
-  late final TextEditingController _contentIds;
   late final TextEditingController _duration;
   late final TextEditingController _activeFrom;
   late final TextEditingController _activeUntil;
   late final TextEditingController _skipAfter;
   late final TextEditingController _frequency;
   late final TextEditingController _priority;
+  late final TextEditingController _contentSearch;
+  final Map<String, Map<String, dynamic>> _selectedContents = {};
+  final Map<String, TextEditingController> _cueControllers = {};
+  late Future<List<Map<String, dynamic>>> _contentOptionsFuture;
   late final Set<String> _formats;
   late String _delivery;
   late String _status;
@@ -455,25 +458,56 @@ class _CampaignEditorState extends State<_CampaignEditor> {
     _cues = TextEditingController(text: _join(data['cue_points_seconds']));
     _ageMin = TextEditingController(text: data['target_age_min']?.toString() ?? '');
     _ageMax = TextEditingController(text: data['target_age_max']?.toString() ?? '');
-    _contentIds = TextEditingController(text: _join(data['content_ids']));
     _duration = TextEditingController(text: data['media_duration_seconds']?.toString() ?? '');
     _activeFrom = TextEditingController(text: _localDateTime(data['active_from']));
     _activeUntil = TextEditingController(text: _localDateTime(data['active_until']));
     _skipAfter = TextEditingController(text: data['skip_after_seconds']?.toString() ?? '');
     _frequency = TextEditingController(text: data['frequency_cap_per_day']?.toString() ?? '3');
     _priority = TextEditingController(text: data['priority']?.toString() ?? '0');
+    _contentSearch = TextEditingController();
     _formats = Set<String>.from((data['formats'] as List? ?? const ['preroll']).map((e) => e.toString()));
     _delivery = data['delivery_mode']?.toString() ?? 'client_side';
     _status = data['status']?.toString() ?? 'draft';
+
+    final detailRows = data['content_details'] as List? ?? const [];
+    for (final row in detailRows) {
+      if (row is Map) {
+        final content = Map<String, dynamic>.from(row);
+        _selectedContents[_id(content['id'])] = content;
+      }
+    }
+    for (final id in data['content_ids'] as List? ?? const []) {
+      _selectedContents.putIfAbsent(_id(id), () => {'id': id, 'title': 'Titre sélectionné'});
+    }
+
+    final contentCues = data['content_cue_points'] is Map
+        ? Map<String, dynamic>.from(data['content_cue_points'] as Map)
+        : <String, dynamic>{};
+    for (final entry in _selectedContents.entries) {
+      final points = contentCues[entry.key] ?? data['cue_points_seconds'];
+      _cueControllers[entry.key] = TextEditingController(text: _join(points));
+    }
+    _contentOptionsFuture = context.read<AdminApiClient>().advertisingContents();
   }
 
+  String _id(dynamic value) => value?.toString() ?? '';
   String _join(dynamic value) => value is List ? value.join(', ') : '';
-
   List<String> _csv(String value) => value.split(',').map((item) => item.trim()).where((item) => item.isNotEmpty).toList();
-
   List<int> _ints(String value) => _csv(value).map(int.parse).toSet().toList()..sort();
-
   int? _optionalInt(String value) => value.trim().isEmpty ? null : int.tryParse(value.trim());
+
+  String _title(Map<String, dynamic> content) =>
+      content['title']?.toString().trim().isNotEmpty == true ? content['title'].toString() : 'Titre sélectionné';
+
+  String _runtime(Map<String, dynamic> content) {
+    final seconds = int.tryParse(content['duration_seconds']?.toString() ?? '');
+    final declaredMinutes = int.tryParse(content['duration']?.toString() ?? '');
+    final minutes = seconds != null && seconds > 0 ? (seconds / 60).ceil() : declaredMinutes;
+    if (minutes == null || minutes <= 0) return 'Durée non renseignée';
+    return '${minutes ~/ 60} h ${minutes % 60} min';
+  }
+
+  String _typeLabel(dynamic value) => value == 'series' ? 'Série' : 'Film';
 
   String _localDateTime(dynamic value) {
     if (value == null || value.toString().trim().isEmpty) return '';
@@ -488,40 +522,77 @@ class _CampaignEditorState extends State<_CampaignEditor> {
     return parsed.toUtc().toIso8601String();
   }
 
-  Map<String, dynamic> _payload() => {
-        'name': _name.text.trim(),
-        'advertiser': _advertiser.text.trim(),
-        'status': _status,
-        'delivery_mode': _delivery,
-        'formats': _formats.toList(),
-        'media_url': _media.text.trim(),
-        'vast_tag_url': _vast.text.trim(),
-        'image_url': _image.text.trim(),
-        'media_duration_seconds': int.tryParse(_duration.text) ?? 0,
-        'active_from': _utcDateTime(_activeFrom.text),
-        'active_until': _utcDateTime(_activeUntil.text),
-        'cta_label': _ctaLabel.text.trim(),
-        'cta_url': _cta.text.trim(),
-        'target_countries': _csv(_countries.text).map((e) => e.toUpperCase()).toList(),
-        'contextual_genres': _csv(_genres.text),
-        'interest_tags': _csv(_interests.text),
-        'target_age_min': _optionalInt(_ageMin.text),
-        'target_age_max': _optionalInt(_ageMax.text),
-        'content_ids': _ints(_contentIds.text),
-        'cue_points_seconds': _ints(_cues.text),
-        'frequency_cap_per_day': int.tryParse(_frequency.text) ?? 3,
-        'priority': int.tryParse(_priority.text) ?? 0,
-        'skip_after_seconds': _optionalInt(_skipAfter.text),
-      };
+  void _searchContentOptions(String value) {
+    setState(() {
+      _contentOptionsFuture = context.read<AdminApiClient>().advertisingContents(search: value);
+    });
+  }
+
+  void _toggleContent(Map<String, dynamic> content, bool selected) {
+    final id = _id(content['id']);
+    setState(() {
+      if (selected) {
+        _selectedContents[id] = content;
+        _cueControllers.putIfAbsent(id, () => TextEditingController());
+      } else {
+        _selectedContents.remove(id);
+        _cueControllers.remove(id)?.dispose();
+      }
+    });
+  }
+
+  Map<String, dynamic> _payload() {
+    final selectedIds = _selectedContents.values.map((content) => content['id']).toList();
+    final perContentCues = <String, List<int>>{};
+    if (_formats.contains('midroll') && _selectedContents.isNotEmpty) {
+      for (final entry in _selectedContents.entries) {
+        final points = _ints(_cueControllers[entry.key]?.text ?? '');
+        if (points.isEmpty) {
+          throw FormatException('Ajoutez un repère mid-roll pour « ${_title(entry.value)} ».');
+        }
+        perContentCues[entry.key] = points;
+      }
+    }
+
+    return {
+      'name': _name.text.trim(),
+      'advertiser': _advertiser.text.trim(),
+      'status': _status,
+      'delivery_mode': _delivery,
+      'formats': _formats.toList(),
+      'media_url': _media.text.trim(),
+      'vast_tag_url': _vast.text.trim(),
+      'image_url': _image.text.trim(),
+      'media_duration_seconds': int.tryParse(_duration.text) ?? 0,
+      'active_from': _utcDateTime(_activeFrom.text),
+      'active_until': _utcDateTime(_activeUntil.text),
+      'cta_label': _ctaLabel.text.trim(),
+      'cta_url': _cta.text.trim(),
+      'target_countries': _csv(_countries.text).map((e) => e.toUpperCase()).toList(),
+      'contextual_genres': _csv(_genres.text),
+      'interest_tags': _csv(_interests.text),
+      'target_age_min': _optionalInt(_ageMin.text),
+      'target_age_max': _optionalInt(_ageMax.text),
+      'content_ids': selectedIds,
+      'content_cue_points': perContentCues,
+      'cue_points_seconds': _selectedContents.isEmpty ? _ints(_cues.text) : [],
+      'frequency_cap_per_day': int.tryParse(_frequency.text) ?? 3,
+      'priority': int.tryParse(_priority.text) ?? 0,
+      'skip_after_seconds': _optionalInt(_skipAfter.text),
+    };
+  }
 
   @override
   void dispose() {
     for (final field in [
       _name, _advertiser, _media, _vast, _image, _ctaLabel, _cta, _countries,
-      _genres, _interests, _cues, _ageMin, _ageMax, _contentIds, _duration,
-      _activeFrom, _activeUntil, _skipAfter, _frequency, _priority,
+      _genres, _interests, _cues, _ageMin, _ageMax, _duration, _activeFrom,
+      _activeUntil, _skipAfter, _frequency, _priority, _contentSearch,
     ]) {
       field.dispose();
+    }
+    for (final controller in _cueControllers.values) {
+      controller.dispose();
     }
     super.dispose();
   }
@@ -530,7 +601,7 @@ class _CampaignEditorState extends State<_CampaignEditor> {
   Widget build(BuildContext context) => AlertDialog(
         title: Text(widget.campaign == null ? 'Créer une campagne' : 'Modifier la campagne'),
         content: SizedBox(
-          width: 680,
+          width: 760,
           child: Form(
             key: _formKey,
             child: SingleChildScrollView(
@@ -565,7 +636,26 @@ class _CampaignEditorState extends State<_CampaignEditor> {
                   _field(_vast, 'URL VAST HTTPS (création SSAI)'),
                   _field(_image, 'URL visuel HTTPS (publicité sur pause)'),
                   _field(_duration, 'Durée vidéo en secondes', keyboardType: TextInputType.number),
-                  _field(_cues, 'Repères mid-roll en secondes (ex. 600, 1200)'),
+                  _buildContentPicker(),
+                  if (_formats.contains('midroll') && _selectedContents.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Position du mid-roll par titre (secondes)', style: AppTheme.textBodyBold),
+                    ),
+                    for (final entry in _selectedContents.entries)
+                      _field(
+                        _cueControllers[entry.key]!,
+                        '${_title(entry.value)} — repères (ex. 600, 1200)',
+                        required: true,
+                      ),
+                  ],
+                  if (_selectedContents.isEmpty)
+                    _field(
+                      _cues,
+                      'Repères mid-roll globaux en secondes (ex. 600, 1200)',
+                      required: _formats.contains('midroll'),
+                    ),
                   Row(children: [
                     Expanded(child: _field(_activeFrom, 'Début de diffusion (heure locale)', keyboardType: TextInputType.datetime)),
                     const SizedBox(width: 8),
@@ -580,7 +670,6 @@ class _CampaignEditorState extends State<_CampaignEditor> {
                     const SizedBox(width: 8),
                     Expanded(child: _field(_ageMax, 'Âge max.', keyboardType: TextInputType.number)),
                   ]),
-                  _field(_contentIds, 'ID de contenus ciblés (séparés par des virgules, vide = tous)'),
                   Row(children: [
                     Expanded(child: _field(_frequency, 'Max. impressions / jour', keyboardType: TextInputType.number)),
                     const SizedBox(width: 8),
@@ -602,7 +691,7 @@ class _CampaignEditorState extends State<_CampaignEditor> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Les habitudes et l’âge sont utilisés uniquement pour les profils adultes ayant activé la personnalisation. Les repères mid-roll sont définis manuellement aux transitions souhaitées.',
+                    'Les repères sont enregistrés par titre; sans titre sélectionné, les secondes saisies s’appliquent à tous les contenus éligibles. Les habitudes et l’âge ne servent au ciblage qu’avec le consentement adulte.',
                     style: TextStyle(fontSize: 12),
                   ),
                 ],
@@ -628,18 +717,99 @@ class _CampaignEditorState extends State<_CampaignEditor> {
         ],
       );
 
+  Widget _buildContentPicker() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 12),
+          Text('Films et séries diffusés', style: AppTheme.textBodyBold),
+          const SizedBox(height: 4),
+          const Text('Sans sélection, la campagne peut cibler tous les contenus approuvés.', style: TextStyle(fontSize: 12)),
+          const SizedBox(height: 8),
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: _contentOptionsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Text('Impossible de charger le catalogue : ${snapshot.error}');
+              }
+              final options = snapshot.data ?? const <Map<String, dynamic>>[];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: _contentSearch,
+                    onSubmitted: _searchContentOptions,
+                    decoration: InputDecoration(
+                      labelText: 'Rechercher un film ou une série',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        tooltip: 'Rechercher',
+                        onPressed: () => _searchContentOptions(_contentSearch.text),
+                        icon: const Icon(Icons.search),
+                      ),
+                    ),
+                  ),
+                  if (_selectedContents.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 2,
+                      children: _selectedContents.entries.map((entry) => InputChip(
+                        label: Text(_title(entry.value)),
+                        onDeleted: () => _toggleContent(entry.value, false),
+                      )).toList(),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (options.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('Aucun film ou série approuvé trouvé.'),
+                    )
+                  else
+                    SizedBox(
+                      height: 220,
+                      child: ListView.separated(
+                        itemCount: options.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final content = options[index];
+                          final id = _id(content['id']);
+                          final isSelected = _selectedContents.containsKey(id);
+                          return CheckboxListTile(
+                            dense: true,
+                            value: isSelected,
+                            title: Text(_title(content), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text('${_typeLabel(content['type'])} · ${_runtime(content)}'),
+                            onChanged: (value) => _toggleContent(content, value == true),
+                            controlAffinity: ListTileControlAffinity.leading,
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      );
+
   Widget _formatChip(String value, String label) => FilterChip(
         label: Text(label),
         selected: _formats.contains(value),
         onSelected: _delivery == 'ssai' && value == 'pause'
             ? null
             : (selected) => setState(() {
-          if (selected) {
-            _formats.add(value);
-          } else {
-            _formats.remove(value);
-          }
-        }),
+                  if (selected) {
+                    _formats.add(value);
+                  } else {
+                    _formats.remove(value);
+                  }
+                }),
       );
 
   Widget _field(

@@ -60,11 +60,11 @@ class AdvertisingPlaybackApiTests(APITestCase):
         )
         self.client.force_authenticate(user=self.user)
 
-    def _decision(self, *, placement="preroll", platform="web", session_id=None):
+    def _decision(self, *, placement="preroll", platform="web", session_id=None, asset=None):
         return self.client.post(
             "/api/v1/ads/decision/",
             {
-                "asset_id": str(self.asset.pk),
+                "asset_id": str((asset or self.asset).pk),
                 "profile_id": str(self.profile.pk),
                 "placement": placement,
                 "platform": platform,
@@ -175,16 +175,54 @@ class AdvertisingPlaybackApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["delivery"], "none")
 
+    def test_midroll_schedule_uses_positions_for_the_current_selected_title(self):
+        series = Content.objects.create(
+            title="Série de positions",
+            type="series",
+            duration=50,
+            producer_submission_status="approved",
+        )
+        series_asset = VideoAsset.objects.create(
+            content=series,
+            hls_master_url="https://cdn.ekeflicks.test/series/master.m3u8",
+            dash_manifest_url="https://cdn.ekeflicks.test/series/manifest.mpd",
+            status="ready",
+            moderation_status="approved",
+            published_at=timezone.now(),
+        )
+        film_campaign = self._campaign(
+            name="Repères film",
+            formats=["midroll"],
+            cue_points_seconds=[1800],
+            content_cue_points={str(self.content.pk): [600, 1200]},
+        )
+        film_campaign.contents.add(self.content)
+        series_campaign = self._campaign(
+            name="Repères série",
+            formats=["midroll"],
+            cue_points_seconds=[2400],
+            content_cue_points={str(series.pk): [900]},
+        )
+        series_campaign.contents.add(series)
+
+        film_schedule = self._decision().data["ad_schedule"]
+        series_schedule = self._decision(asset=series_asset).data["ad_schedule"]
+
+        self.assertEqual(film_schedule, [600, 1200])
+        self.assertEqual(series_schedule, [900])
+
     def test_ssai_midroll_can_share_session_with_client_preroll(self):
         self._campaign(name="Client pre-roll")
-        self._campaign(
+        ssai_midroll = self._campaign(
             name="SSAI mid-roll",
             delivery_mode="ssai",
             formats=["midroll"],
             media_url="",
             vast_tag_url="https://ads.vendor.test/midroll.vast",
             cue_points_seconds=[600],
+            content_cue_points={str(self.content.pk): [720]},
         )
+        ssai_midroll.contents.add(self.content)
         endpoint = "https://stitcher.vendor.test/session"
         mock_response = MagicMock()
         mock_response.geturl.return_value = endpoint
@@ -208,7 +246,7 @@ class AdvertisingPlaybackApiTests(APITestCase):
         self.assertEqual(response.data["delivery"], "ssai")
         self.assertEqual(response.data["ad"]["delivery_mode"], "client_side")
         self.assertEqual(response.data["ssai_breaks"][0]["placement"], "midroll")
-        self.assertEqual(response.data["ssai_breaks"][0]["cue_point_seconds"], 600)
+        self.assertEqual(response.data["ssai_breaks"][0]["cue_point_seconds"], 720)
 
     def test_ssai_uses_allowlisted_https_manifest_and_records_fills(self):
         campaign = self._campaign(
