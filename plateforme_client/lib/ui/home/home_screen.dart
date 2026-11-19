@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -23,6 +25,8 @@ import 'package:app_ekeflicks/ui/pages/eke_ai_assistant_page.dart';
 import 'package:app_ekeflicks/services/eke_ai_service.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
 import 'package:app_ekeflicks/models/eke_ai_models.dart';
+import 'package:app_ekeflicks/ui/subscription/subscription_offers_widget.dart';
+import 'package:app_ekeflicks/ui/pages/ekeroom_intro_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -523,6 +527,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                 contentProvider.popularContent,
                                 context,
                               ),
+                              const SizedBox(height: 28),
+                              _buildEkeRoomPromo(context),
+                              if (!context.read<UserProvider>().hasActiveSubscription) ...[
+                                const SizedBox(height: 28),
+                                _buildHomeSubscriptionOffers(),
+                              ],
                             ],
                           ),
                         ),
@@ -533,6 +543,81 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSelectedSubscriptionOffer(SubscriptionOffer offer) async {
+    if (kIsWeb) {
+      if (mounted) {
+        Navigator.of(context).pushNamed('/signup', arguments: {'plan_slug': offer.planSlug});
+      }
+      return;
+    }
+    final route = '/signup?plan_slug=${Uri.encodeQueryComponent(offer.planSlug)}';
+    final uri = Uri(scheme: 'https', host: 'ekeflicks.com', fragment: route);
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible d’ouvrir le navigateur.')),
+      );
+    }
+  }
+
+  Widget _buildHomeSubscriptionOffers() {
+    final english = Localizations.localeOf(context).languageCode == 'en';
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1100),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              english ? 'Choose the plan that suits you' : 'Choisissez votre offre d’abonnement',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              english ? 'Watch African films and series on all your screens.' : 'Retrouvez les films et séries africains sur tous vos écrans.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 18),
+            Center(child: SubscriptionOffersWidget(onOfferSelected: _openSelectedSubscriptionOffer)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEkeRoomPromo(BuildContext context) {
+    final english = Localizations.localeOf(context).languageCode == 'en';
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.of(context).pushNamed('/ekeroom'),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Row(
+            children: [
+              const Icon(Icons.groups_rounded, size: 42, color: AppTheme.primaryOrange),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('EkeRoom', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    Text(english
+                        ? 'Share a film night with friends, even when you are apart.'
+                        : 'Partagez une séance de cinéma avec vos proches, même à distance.'),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded),
+            ],
           ),
         ),
       ),
