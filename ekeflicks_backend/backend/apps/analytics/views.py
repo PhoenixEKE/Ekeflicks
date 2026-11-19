@@ -3,6 +3,8 @@ from rest_framework import permissions as drf_permissions
 from rest_framework import filters, permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
+from rest_framework.exceptions import ValidationError
 
 from apps.analytics.serializers import (
     AudienceCountryPeakHoursQuerySerializer,
@@ -28,7 +30,7 @@ from apps.analytics.services import (
     views_by_country,
     views_by_minute,
 )
-from core.models import DailyStat, ProducerContentView, ProducerCountryCurrency, ProducerRevenueSetting
+from core.models import DailyStat, PlaybackLaterEvent, ProducerContentView, ProducerCountryCurrency, ProducerRevenueSetting, Content
 
 
 class DailyStatViewSet(viewsets.ReadOnlyModelViewSet):
@@ -649,17 +651,12 @@ class AppSessionAnalyticsViewSet(
     ]
 
     def get_permissions(self):
-        if self.action in (
-            'analytics',
-            'dimensions',
-        ):
-            permission_classes = [
-                drf_permissions.IsAdminUser,
-            ]
+        if self.action == 'playback_later':
+            permission_classes = [drf_permissions.AllowAny]
+        elif self.action in ('analytics', 'dimensions'):
+            permission_classes = [drf_permissions.IsAdminUser]
         else:
-            permission_classes = [
-                drf_permissions.IsAuthenticated,
-            ]
+            permission_classes = [drf_permissions.IsAuthenticated]
 
         return [
             permission()
@@ -759,6 +756,31 @@ class AppSessionAnalyticsViewSet(
                 'results': rows,
             },
             status=drf_status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=False,
+        methods=['post'],
+        url_path='playback-later',
+        permission_classes=[drf_permissions.AllowAny],
+        authentication_classes=[],
+        throttle_classes=[AnonRateThrottle],
+    )
+    def playback_later(self, request):
+        content_id = request.data.get('content_id')
+        content = None
+        if content_id not in (None, ''):
+            try:
+                content = Content.objects.filter(pk=content_id).first()
+            except (TypeError, ValueError):
+                content = None
+            if content is None:
+                raise ValidationError({'content_id': 'Contenu introuvable.'})
+
+        event = PlaybackLaterEvent.objects.create(content=content)
+        return Response(
+            {'accepted': True, 'event_id': event.pk},
+            status=status.HTTP_202_ACCEPTED,
         )
 
     @action(
