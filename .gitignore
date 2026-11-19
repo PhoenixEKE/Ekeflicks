@@ -1,0 +1,53 @@
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python / Django
+__pycache__/
+*.py[cod]
+*.sqlite3
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+**/logs/*
+!**/logs/.gitkeep
+**/media/
+**/test_media/
+**/staticfiles/
+**/celerybeat-schedule*
+.venv/
+venv/
+
+# Flutter / Dart / native builds
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub-cache/
+**/.pub/
+**/build/
+**/coverage/
+**/ios/Pods/
+**/macos/Pods/
+**/Flutter/ephemeral/
+**/DerivedData/
+**/local.properties
+
+# Generated media and local tooling
+*.old
+*.save
+*.bak
+*.tmp

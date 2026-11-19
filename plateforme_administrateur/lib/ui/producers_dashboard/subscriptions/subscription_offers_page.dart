@@ -1,0 +1,1313 @@
+import 'package:flutter/material.dart';
+import 'package:plateforme_administrateur/api/admin_api_client.dart';
+import 'package:plateforme_administrateur/core/core.dart';
+import 'package:provider/provider.dart';
+
+class SubscriptionOffersPage extends StatefulWidget {
+  const SubscriptionOffersPage({super.key});
+
+  @override
+  State<SubscriptionOffersPage> createState() =>
+      _SubscriptionOffersPageState();
+}
+
+class _SubscriptionOffersPageState extends State<SubscriptionOffersPage> {
+  static const zones = <String>[
+    'UEMOA',
+    'AFRICA_OTHER',
+    'EUROPE',
+    'USA',
+    'GLOBAL',
+  ];
+
+  static const zoneLabels = <String, String>{
+    'UEMOA': 'UEMOA',
+    'AFRICA_OTHER': 'Afrique hors UEMOA',
+    'EUROPE': 'Europe',
+    'USA': 'États-Unis',
+    'GLOBAL': 'Global',
+  };
+
+  static const commercialPlanSlugs = <String>{
+    'standard',
+    'premium',
+    'premium-tv',
+  };
+
+  String _zone = 'UEMOA';
+
+  late Future<List<Map<String, dynamic>>> _offersFuture;
+  late Future<List<Map<String, dynamic>>> _plansFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    final api = context.read<AdminApiClient>();
+
+    _offersFuture = api.subscriptionOffers(zone: _zone);
+    _plansFuture = api.subscriptionPlans();
+  }
+
+  void _refresh() {
+    setState(_reload);
+  }
+
+  String _currencyLabel(String? currency) {
+    switch ((currency ?? '').toUpperCase()) {
+      case 'XOF':
+      case 'XAF':
+        return 'FCFA';
+      case 'EUR':
+        return '€';
+      case 'USD':
+        return '\$';
+      default:
+        return currency ?? '';
+    }
+  }
+
+  Map<String, dynamic>? _freePlan(
+    List<Map<String, dynamic>> plans,
+  ) {
+    for (final plan in plans) {
+      if (plan['slug']?.toString() == 'free-30-days') {
+        return plan;
+      }
+    }
+    return null;
+  }
+
+  List<Map<String, dynamic>> _commercialPlans(
+    List<Map<String, dynamic>> plans,
+  ) {
+    return plans
+        .where(
+          (plan) => commercialPlanSlugs.contains(
+            plan['slug']?.toString(),
+          ),
+        )
+        .toList();
+  }
+
+  Future<void> _openOfferForm({
+    Map<String, dynamic>? offer,
+    required List<Map<String, dynamic>> plans,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _SubscriptionOfferDialog(
+        offer: offer,
+        defaultZone: _zone,
+        plans: plans,
+      ),
+    );
+
+    if (result == true && mounted) {
+      _refresh();
+    }
+  }
+
+  Future<void> _editFreePlan(
+    Map<String, dynamic> plan,
+  ) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => _FreePlanDialog(plan: plan),
+    );
+
+    if (result == true && mounted) {
+      _refresh();
+    }
+  }
+
+  Future<void> _toggleActive(
+    Map<String, dynamic> offer,
+  ) async {
+    final api = context.read<AdminApiClient>();
+
+    try {
+      final current = offer['is_active'] == true;
+
+      await api.updateSubscriptionOffer(
+        offer['id'],
+        {'is_active': !current},
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            current
+                ? 'Grille désactivée.'
+                : 'Grille activée.',
+          ),
+        ),
+      );
+
+      _refresh();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $e')),
+      );
+    }
+  }
+
+  Future<void> _deactivate(
+    Map<String, dynamic> offer,
+  ) async {
+    final api = context.read<AdminApiClient>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Désactiver la grille ?'),
+        content: Text(
+          'Cette action désactivera la grille '
+          '${offer['plan_name'] ?? offer['plan_slug'] ?? ''} '
+          'pour ${zoneLabels[offer['zone']] ?? offer['zone']}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, true),
+            child: const Text('Désactiver'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await api.deleteSubscriptionOffer(offer['id']);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Grille désactivée.'),
+        ),
+      );
+
+      _refresh();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $e')),
+      );
+    }
+  }
+
+  Widget _freePlanCard(
+    Map<String, dynamic> plan,
+  ) {
+    final active = plan['is_active'] == true;
+    final duration = plan['duration_days'] ?? 30;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.card_giftcard_rounded,
+              size: 34,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    plan['name']?.toString() ??
+                        'Gratuit 30 jours',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 17,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Offre globale • 0 • $duration jours',
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Disponible indépendamment des '
+                    'grilles tarifaires régionales.',
+                    style: AppTheme.textCaption,
+                  ),
+                ],
+              ),
+            ),
+            Chip(
+              label: Text(
+                active ? 'ACTIF' : 'INACTIF',
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Modifier',
+              onPressed: () => _editFreePlan(plan),
+              icon: const Icon(Icons.edit),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: _plansFuture,
+          builder: (context, plansSnapshot) {
+            if (plansSnapshot.connectionState !=
+                ConnectionState.done) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+
+            if (plansSnapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Erreur plans : ${plansSnapshot.error}',
+                ),
+              );
+            }
+
+            final allPlans =
+                plansSnapshot.data ??
+                const <Map<String, dynamic>>[];
+
+            final freePlan = _freePlan(allPlans);
+            final commercialPlans =
+                _commercialPlans(allPlans);
+
+            return Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Grilles tarifaires',
+                        style: AppTheme.textTitle.copyWith(
+                          fontSize: 24,
+                        ),
+                      ),
+                    ),
+                    FilledButton.icon(
+                      onPressed:
+                          commercialPlans.isEmpty
+                              ? null
+                              : () => _openOfferForm(
+                                  plans:
+                                      commercialPlans,
+                                ),
+                      icon: const Icon(Icons.add),
+                      label: const Text(
+                        'Ajouter une grille',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                if (freePlan != null) ...[
+                  Text(
+                    'Offre gratuite',
+                    style: AppTheme.textTitle.copyWith(
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _freePlanCard(freePlan),
+                  const SizedBox(height: 20),
+                ],
+
+                Text(
+                  'Offres commerciales régionales',
+                  style: AppTheme.textTitle.copyWith(
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SegmentedButton<String>(
+                    segments:
+                        zones
+                            .map(
+                              (zone) =>
+                                  ButtonSegment<String>(
+                                    value: zone,
+                                    label: Text(
+                                      zoneLabels[zone] ??
+                                          zone,
+                                    ),
+                                  ),
+                            )
+                            .toList(),
+                    selected: {_zone},
+                    onSelectionChanged: (selection) {
+                      setState(() {
+                        _zone = selection.first;
+                        _offersFuture = context
+                            .read<AdminApiClient>()
+                            .subscriptionOffers(
+                              zone: _zone,
+                            );
+                      });
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                Expanded(
+                  child: FutureBuilder<
+                    List<Map<String, dynamic>>
+                  >(
+                    future: _offersFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState !=
+                          ConnectionState.done) {
+                        return const Center(
+                          child:
+                              CircularProgressIndicator(),
+                        );
+                      }
+
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Text(
+                            'Erreur : ${snapshot.error}',
+                          ),
+                        );
+                      }
+
+                      final rows =
+                          snapshot.data ??
+                          const <
+                            Map<String, dynamic>
+                          >[];
+
+                      if (rows.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisSize:
+                                MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons
+                                    .price_change_outlined,
+                                size: 48,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Aucune grille pour '
+                                '${zoneLabels[_zone] ?? _zone}.',
+                              ),
+                              const SizedBox(height: 12),
+                              FilledButton.icon(
+                                onPressed: () =>
+                                    _openOfferForm(
+                                      plans:
+                                          commercialPlans,
+                                    ),
+                                icon:
+                                    const Icon(Icons.add),
+                                label: const Text(
+                                  'Créer une grille',
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.separated(
+                        itemCount: rows.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final row = rows[index];
+
+                          final currency =
+                              _currencyLabel(
+                                row['currency']
+                                    ?.toString(),
+                              );
+
+                          final planName =
+                              row['plan_name']
+                                          ?.toString()
+                                          .isNotEmpty ==
+                                      true
+                                  ? row['plan_name']
+                                      .toString()
+                                  : row['plan_slug']
+                                          ?.toString() ??
+                                      '';
+
+                          return Card(
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.all(
+                                    16,
+                                  ),
+                              child: Wrap(
+                                spacing: 18,
+                                runSpacing: 12,
+                                crossAxisAlignment:
+                                    WrapCrossAlignment
+                                        .center,
+                                children: [
+                                  SizedBox(
+                                    width: 170,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment
+                                              .start,
+                                      children: [
+                                        Text(
+                                          planName,
+                                          style:
+                                              const TextStyle(
+                                                fontWeight:
+                                                    FontWeight
+                                                        .bold,
+                                                fontSize: 16,
+                                              ),
+                                        ),
+                                        Text(
+                                          row['plan_slug']
+                                                  ?.toString() ??
+                                              '',
+                                          style: AppTheme
+                                              .textCaption,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 125,
+                                    child: Text(
+                                      '${row['price']} $currency',
+                                      style:
+                                          const TextStyle(
+                                            fontWeight:
+                                                FontWeight
+                                                    .bold,
+                                          ),
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 105,
+                                    child: Text(
+                                      '${row['max_profiles']} profil(s)',
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 120,
+                                    child: Text(
+                                      '${row['max_devices']} appareil(s)',
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 85,
+                                    child: Text(
+                                      row['max_quality']
+                                              ?.toString() ??
+                                          '',
+                                    ),
+                                  ),
+                                  if (row['tv_enabled'] ==
+                                      true)
+                                    const Chip(
+                                      label:
+                                          Text('TV'),
+                                    ),
+                                  Chip(
+                                    label: Text(
+                                      row['is_active'] ==
+                                              true
+                                          ? 'ACTIF'
+                                          : 'INACTIF',
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Modifier',
+                                    onPressed: () =>
+                                        _openOfferForm(
+                                          offer: row,
+                                          plans:
+                                              commercialPlans,
+                                        ),
+                                    icon: const Icon(
+                                      Icons.edit,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip:
+                                        row['is_active'] ==
+                                                true
+                                            ? 'Désactiver'
+                                            : 'Activer',
+                                    onPressed: () =>
+                                        _toggleActive(
+                                          row,
+                                        ),
+                                    icon: Icon(
+                                      row['is_active'] ==
+                                              true
+                                          ? Icons
+                                              .toggle_on
+                                          : Icons
+                                              .toggle_off,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip:
+                                        'Supprimer',
+                                    onPressed: () =>
+                                        _deactivate(row),
+                                    icon: const Icon(
+                                      Icons
+                                          .delete_outline,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _FreePlanDialog extends StatefulWidget {
+  const _FreePlanDialog({
+    required this.plan,
+  });
+
+  final Map<String, dynamic> plan;
+
+  @override
+  State<_FreePlanDialog> createState() =>
+      _FreePlanDialogState();
+}
+
+class _FreePlanDialogState
+    extends State<_FreePlanDialog> {
+  late final TextEditingController _duration;
+  late bool _active;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _duration = TextEditingController(
+      text:
+          widget.plan['duration_days']?.toString() ??
+          '30',
+    );
+
+    _active = widget.plan['is_active'] == true;
+  }
+
+  @override
+  void dispose() {
+    _duration.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final duration = int.tryParse(
+      _duration.text.trim(),
+    );
+
+    if (duration == null || duration <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Durée invalide.'),
+        ),
+      );
+      return;
+    }
+
+    final api = context.read<AdminApiClient>();
+
+    setState(() => _saving = true);
+
+    try {
+      await api.updateSubscriptionPlan(
+        widget.plan['id'],
+        {
+          'name': 'Gratuit $duration jours',
+          'duration_days': duration,
+          'is_active': _active,
+        },
+      );
+
+      if (!mounted) return;
+
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur : $e'),
+        ),
+      );
+
+      setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text(
+        'Modifier l’offre gratuite',
+      ),
+      content: SizedBox(
+        width: 430,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _duration,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Durée gratuite (jours)',
+              ),
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Offre gratuite active',
+              ),
+              value: _active,
+              onChanged: (value) {
+                setState(() => _active = value);
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed:
+              _saving
+                  ? null
+                  : () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child:
+              _saving
+                  ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child:
+                        CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                  )
+                  : const Text('Enregistrer'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SubscriptionOfferDialog
+    extends StatefulWidget {
+  const _SubscriptionOfferDialog({
+    required this.defaultZone,
+    required this.plans,
+    this.offer,
+  });
+
+  final Map<String, dynamic>? offer;
+  final String defaultZone;
+  final List<Map<String, dynamic>> plans;
+
+  @override
+  State<_SubscriptionOfferDialog> createState() =>
+      _SubscriptionOfferDialogState();
+}
+
+class _SubscriptionOfferDialogState
+    extends State<_SubscriptionOfferDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  late final TextEditingController _price;
+  late final TextEditingController _currency;
+  late final TextEditingController _duration;
+  late final TextEditingController _profiles;
+  late final TextEditingController _devices;
+  late final TextEditingController _displayOrder;
+  late final TextEditingController _features;
+
+  late String _zone;
+  late String _quality;
+
+  String? _planId;
+
+  bool _ads = false;
+  bool _download = false;
+  bool _tv = false;
+  bool _active = true;
+  bool _saving = false;
+
+  bool get _editing => widget.offer != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final offer = widget.offer;
+
+    _planId = offer?['plan']?.toString();
+
+    if (_planId == null && widget.plans.isNotEmpty) {
+      _planId = widget.plans.first['id'].toString();
+    }
+
+    _price = TextEditingController(
+      text: offer?['price']?.toString() ?? '',
+    );
+
+    _currency = TextEditingController(
+      text:
+          offer?['currency']?.toString() ??
+          (_zoneDefaultCurrency(
+            offer?['zone']?.toString() ??
+                widget.defaultZone,
+          )),
+    );
+
+    _duration = TextEditingController(
+      text:
+          offer?['duration_days']?.toString() ??
+          '30',
+    );
+
+    _profiles = TextEditingController(
+      text:
+          offer?['max_profiles']?.toString() ??
+          '1',
+    );
+
+    _devices = TextEditingController(
+      text:
+          offer?['max_devices']?.toString() ??
+          '1',
+    );
+
+    _displayOrder = TextEditingController(
+      text:
+          offer?['display_order']?.toString() ??
+          '0',
+    );
+
+    final featureList = offer?['features'];
+
+    _features = TextEditingController(
+      text:
+          featureList is List
+              ? featureList.join('\n')
+              : '',
+    );
+
+    _zone =
+        offer?['zone']?.toString() ??
+        widget.defaultZone;
+
+    _quality =
+        offer?['max_quality']?.toString() ??
+        'HD';
+
+    _ads = offer?['ads_included'] == true;
+    _download =
+        offer?['download_enabled'] == true;
+    _tv = offer?['tv_enabled'] == true;
+    _active = offer?['is_active'] != false;
+  }
+
+  static String _zoneDefaultCurrency(
+    String zone,
+  ) {
+    switch (zone) {
+      case 'UEMOA':
+        return 'XOF';
+      case 'EUROPE':
+        return 'EUR';
+      default:
+        return 'USD';
+    }
+  }
+
+  @override
+  void dispose() {
+    _price.dispose();
+    _currency.dispose();
+    _duration.dispose();
+    _profiles.dispose();
+    _devices.dispose();
+    _displayOrder.dispose();
+    _features.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_planId == null) {
+      return;
+    }
+
+    final data = <String, dynamic>{
+      if (!_editing) 'plan': _planId,
+      'zone': _zone,
+      'price': _price.text.trim(),
+      'currency':
+          _currency.text.trim().toUpperCase(),
+      'duration_days':
+          int.parse(_duration.text.trim()),
+      'max_profiles':
+          int.parse(_profiles.text.trim()),
+      'max_devices':
+          int.parse(_devices.text.trim()),
+      'max_quality': _quality,
+      'ads_included': _ads,
+      'download_enabled': _download,
+      'tv_enabled': _tv,
+      'features':
+          _features.text
+              .split('\n')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList(),
+      'display_order':
+          int.parse(_displayOrder.text.trim()),
+      'is_active': _active,
+    };
+
+    final api = context.read<AdminApiClient>();
+
+    setState(() => _saving = true);
+
+    try {
+      if (_editing) {
+        await api.updateSubscriptionOffer(
+          widget.offer!['id'],
+          data,
+        );
+      } else {
+        await api.createSubscriptionOffer(data);
+      }
+
+      if (!mounted) return;
+
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur : $e'),
+        ),
+      );
+
+      setState(() => _saving = false);
+    }
+  }
+
+  String? _required(String? value) {
+    if (value == null ||
+        value.trim().isEmpty) {
+      return 'Champ obligatoire';
+    }
+    return null;
+  }
+
+  String? _positiveInt(String? value) {
+    final parsed = int.tryParse(value ?? '');
+
+    if (parsed == null || parsed < 0) {
+      return 'Valeur invalide';
+    }
+
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        _editing
+            ? 'Modifier la grille'
+            : 'Ajouter une grille',
+      ),
+      content: SizedBox(
+        width: 760,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: [
+                SizedBox(
+                  width: 240,
+                  child:
+                      DropdownButtonFormField<String>(
+                    value: _planId,
+                    decoration:
+                        const InputDecoration(
+                      labelText: 'Plan',
+                    ),
+                    items:
+                        widget.plans.map((plan) {
+                      final id =
+                          plan['id'].toString();
+
+                      final name =
+                          plan['name']
+                                  ?.toString() ??
+                              plan['slug']
+                                  ?.toString() ??
+                              id;
+
+                      return DropdownMenuItem<
+                          String>(
+                        value: id,
+                        child: Text(name),
+                      );
+                    }).toList(),
+                    onChanged:
+                        _editing
+                            ? null
+                            : (value) {
+                              setState(() {
+                                _planId = value;
+                              });
+                            },
+                  ),
+                ),
+
+                SizedBox(
+                  width: 220,
+                  child:
+                      DropdownButtonFormField<String>(
+                    value: _zone,
+                    decoration:
+                        const InputDecoration(
+                      labelText: 'Zone',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'UEMOA',
+                        child: Text('UEMOA'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'AFRICA_OTHER',
+                        child: Text(
+                          'Afrique hors UEMOA',
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'EUROPE',
+                        child: Text('Europe'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'USA',
+                        child:
+                            Text('États-Unis'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'GLOBAL',
+                        child: Text('Global'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+
+                      setState(() {
+                        _zone = value;
+
+                        if (!_editing) {
+                          _currency.text =
+                              _zoneDefaultCurrency(
+                                value,
+                              );
+                        }
+                      });
+                    },
+                  ),
+                ),
+
+                SizedBox(
+                  width: 160,
+                  child: TextFormField(
+                    controller: _price,
+                    decoration:
+                        const InputDecoration(
+                      labelText: 'Prix',
+                    ),
+                    keyboardType:
+                        const TextInputType
+                            .numberWithOptions(
+                      decimal: true,
+                    ),
+                    validator: _required,
+                  ),
+                ),
+
+                SizedBox(
+                  width: 120,
+                  child: TextFormField(
+                    controller: _currency,
+                    decoration:
+                        const InputDecoration(
+                      labelText: 'Devise',
+                      hintText: 'XOF',
+                    ),
+                    validator: _required,
+                  ),
+                ),
+
+                SizedBox(
+                  width: 150,
+                  child: TextFormField(
+                    controller: _duration,
+                    decoration:
+                        const InputDecoration(
+                      labelText: 'Durée (jours)',
+                    ),
+                    keyboardType:
+                        TextInputType.number,
+                    validator: _positiveInt,
+                  ),
+                ),
+
+                SizedBox(
+                  width: 150,
+                  child: TextFormField(
+                    controller: _profiles,
+                    decoration:
+                        const InputDecoration(
+                      labelText: 'Profils',
+                    ),
+                    keyboardType:
+                        TextInputType.number,
+                    validator: _positiveInt,
+                  ),
+                ),
+
+                SizedBox(
+                  width: 150,
+                  child: TextFormField(
+                    controller: _devices,
+                    decoration:
+                        const InputDecoration(
+                      labelText: 'Appareils',
+                    ),
+                    keyboardType:
+                        TextInputType.number,
+                    validator: _positiveInt,
+                  ),
+                ),
+
+                SizedBox(
+                  width: 180,
+                  child:
+                      DropdownButtonFormField<String>(
+                    value: _quality,
+                    decoration:
+                        const InputDecoration(
+                      labelText: 'Qualité',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'SD',
+                        child: Text('SD'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'HD',
+                        child: Text('HD'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'FULL_HD',
+                        child: Text('Full HD'),
+                      ),
+                      DropdownMenuItem(
+                        value: '4K',
+                        child: Text('4K'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _quality = value;
+                        });
+                      }
+                    },
+                  ),
+                ),
+
+                SizedBox(
+                  width: 150,
+                  child: TextFormField(
+                    controller: _displayOrder,
+                    decoration:
+                        const InputDecoration(
+                      labelText: 'Ordre',
+                    ),
+                    keyboardType:
+                        TextInputType.number,
+                    validator: _positiveInt,
+                  ),
+                ),
+
+                SizedBox(
+                  width: 700,
+                  child: TextFormField(
+                    controller: _features,
+                    minLines: 3,
+                    maxLines: 6,
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'Fonctionnalités',
+                      helperText:
+                          'Une fonctionnalité par ligne',
+                    ),
+                  ),
+                ),
+
+                SizedBox(
+                  width: 210,
+                  child: SwitchListTile(
+                    value: _ads,
+                    title:
+                        const Text('Publicités'),
+                    onChanged: (value) {
+                      setState(() => _ads = value);
+                    },
+                  ),
+                ),
+
+                SizedBox(
+                  width: 210,
+                  child: SwitchListTile(
+                    value: _download,
+                    title: const Text(
+                      'Téléchargement',
+                    ),
+                    onChanged: (value) {
+                      setState(
+                        () => _download = value,
+                      );
+                    },
+                  ),
+                ),
+
+                SizedBox(
+                  width: 210,
+                  child: SwitchListTile(
+                    value: _tv,
+                    title:
+                        const Text('Accès TV'),
+                    onChanged: (value) {
+                      setState(() => _tv = value);
+                    },
+                  ),
+                ),
+
+                SizedBox(
+                  width: 210,
+                  child: SwitchListTile(
+                    value: _active,
+                    title: const Text('Actif'),
+                    onChanged: (value) {
+                      setState(
+                        () => _active = value,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed:
+              _saving
+                  ? null
+                  : () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child:
+              _saving
+                  ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child:
+                        CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                  )
+                  : Text(
+                    _editing
+                        ? 'Enregistrer'
+                        : 'Créer',
+                  ),
+        ),
+      ],
+    );
+  }
+}

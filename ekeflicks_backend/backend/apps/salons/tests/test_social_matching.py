@@ -1,0 +1,445 @@
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+
+from rest_framework.test import APITestCase
+
+from apps.profiles.social_models import SocialProfile
+from core.models.profiles import (
+    Profile,
+    ProfileType,
+)
+
+from apps.salons.models import Salon
+from apps.salons.services import (
+    create_salon,
+    join_salon,
+)
+from apps.salons.social_matching import (
+    match_users_for_salon,
+)
+
+
+User = get_user_model()
+
+
+def _enable_social_discovery(profile):
+    social, _ = SocialProfile.objects.get_or_create(
+        profile=profile,
+        defaults={
+            "display_name": profile.name,
+            "is_discoverable": True,
+        },
+    )
+
+    if not social.is_discoverable:
+        social.is_discoverable = True
+        social.save(
+            update_fields=(
+                "is_discoverable",
+                "updated_at",
+            )
+        )
+
+    return social
+
+
+class SalonSocialMatchingTests(APITestCase):
+    def setUp(self):
+        self.profile_type = (
+            ProfileType.objects.create(
+                name="G5-3D",
+            )
+        )
+
+        self.host = self._user(
+            "host-g53d@example.com",
+            country="FR",
+        )
+
+        self.member = self._user(
+            "member-g53d@example.com",
+            country="FR",
+        )
+
+        self.candidate_same_country = self._user(
+            "candidate-fr-g53d@example.com",
+            country="FR",
+        )
+
+        self.candidate_other_country = self._user(
+            "candidate-ci-g53d@example.com",
+            country="CI",
+        )
+
+        self.inactive = self._user(
+            "inactive-g53d@example.com",
+            country="FR",
+        )
+        self.inactive.is_active = False
+        self.inactive.save(
+            update_fields=("is_active",)
+        )
+
+        self.salon = create_salon(
+            host=self.host,
+            name="G5-3D Salon",
+            visibility=Salon.VISIBILITY_PUBLIC,
+            capacity=10,
+        )
+
+    def _user(self, email, country=""):
+        user = User.objects.create_user(
+            email=email,
+            password="test-pass-123",
+            country_code=country,
+        )
+
+        profile = (
+            Profile.objects
+            .filter(
+                user=user,
+                is_active=True,
+            )
+            .order_by("created_at", "pk")
+            .first()
+        )
+
+        if profile is None:
+            profile = (
+                Profile.objects
+                .filter(user=user)
+                .order_by("created_at", "pk")
+                .first()
+            )
+
+        if profile is None:
+            profile = Profile.objects.create(
+                user=user,
+                type=self.profile_type,
+                name=email.split("@")[0],
+                country_code=country,
+                is_active=True,
+            )
+        else:
+            profile.type = self.profile_type
+            profile.country_code = country
+            profile.is_active = True
+
+            profile.save(
+                update_fields=(
+                    "type",
+                    "country_code",
+                    "is_active",
+                    "updated_at",
+                )
+            )
+
+        _enable_social_discovery(profile)
+
+        return user
+
+    def test_requester_is_excluded(self):
+        results = match_users_for_salon(
+            salon=self.salon,
+            requester=self.host,
+        )
+
+        ids = {
+            match.user.pk
+            for match in results
+        }
+
+        self.assertNotIn(
+            self.host.pk,
+            ids,
+        )
+
+    def test_inactive_user_is_excluded(self):
+        results = match_users_for_salon(
+            salon=self.salon,
+            requester=self.host,
+        )
+
+        ids = {
+            match.user.pk
+            for match in results
+        }
+
+        self.assertNotIn(
+            self.inactive.pk,
+            ids,
+        )
+
+    def test_existing_active_member_is_excluded(self):
+        join_salon(
+            salon=self.salon,
+            user=self.member,
+        )
+
+        results = match_users_for_salon(
+            salon=self.salon,
+            requester=self.host,
+        )
+
+        ids = {
+            match.user.pk
+            for match in results
+        }
+
+        self.assertNotIn(
+            self.member.pk,
+            ids,
+        )
+
+    def test_matching_uses_eke_ia_community_fallback(self):
+        results = match_users_for_salon(
+            salon=self.salon,
+            requester=self.host,
+        )
+
+        by_id = {
+            match.user.pk: match
+            for match in results
+        }
+
+        match = by_id[
+            self.candidate_same_country.pk
+        ]
+
+        self.assertIn(
+            "community_discovery",
+            match.reasons,
+        )
+
+        self.assertEqual(
+            match.score,
+            5,
+        )
+
+    def test_deterministic_ordering(self):
+        first = match_users_for_salon(
+            salon=self.salon,
+            requester=self.host,
+        )
+
+        second = match_users_for_salon(
+            salon=self.salon,
+            requester=self.host,
+        )
+
+        self.assertEqual(
+            [
+                item.user.pk
+                for item in first
+            ],
+            [
+                item.user.pk
+                for item in second
+            ],
+        )
+
+    def test_limit_is_enforced(self):
+        results = match_users_for_salon(
+            salon=self.salon,
+            requester=self.host,
+            limit=1,
+        )
+
+        self.assertEqual(
+            len(results),
+            1,
+        )
+
+    def test_closed_salon_has_no_matches(self):
+        self.salon.status = (
+            Salon.STATUS_CLOSED
+        )
+        self.salon.save(
+            update_fields=(
+                "status",
+                "updated_at",
+            )
+        )
+
+        results = match_users_for_salon(
+            salon=self.salon,
+            requester=self.host,
+        )
+
+        self.assertEqual(
+            results,
+            tuple(),
+        )
+
+    def test_api_requires_authentication(self):
+        url = reverse(
+            "salon-social-matches",
+            kwargs={
+                "pk": self.salon.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(
+            response.status_code,
+            401,
+        )
+
+    def test_active_member_can_request_matches(self):
+        join_salon(
+            salon=self.salon,
+            user=self.member,
+        )
+
+        self.client.force_authenticate(
+            user=self.member
+        )
+
+        url = reverse(
+            "salon-social-matches",
+            kwargs={
+                "pk": self.salon.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertEqual(
+            response.data["salon_id"],
+            str(self.salon.pk),
+        )
+
+        self.assertGreater(
+            len(response.data["matches"]),
+            0,
+        )
+
+        expected_match_fields = {
+            "user_id",
+            "profile_id",
+            "display_name",
+            "avatar_url",
+            "score",
+            "reasons",
+        }
+
+        for item in response.data["matches"]:
+            self.assertEqual(
+                set(item.keys()),
+                expected_match_fields,
+            )
+
+            for forbidden in (
+                "email",
+                "phone",
+                "country_code",
+                "profile_name",
+                "common_genre_ids",
+                "common_content_ids",
+            ):
+                self.assertNotIn(
+                    forbidden,
+                    item,
+                )
+
+        ids = {
+            str(item["user_id"])
+            for item in response.data[
+                "matches"
+            ]
+        }
+
+        self.assertNotIn(
+            str(self.member.pk),
+            ids,
+        )
+
+        self.assertNotIn(
+            str(self.host.pk),
+            ids,
+        )
+
+    def test_outsider_cannot_request_matches(self):
+        outsider = self.candidate_other_country
+
+        self.client.force_authenticate(
+            user=outsider
+        )
+
+        url = reverse(
+            "salon-social-matches",
+            kwargs={
+                "pk": self.salon.pk,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(
+            response.status_code,
+            403,
+        )
+
+    def test_hidden_social_profile_is_not_returned(self):
+        hidden_profile = (
+            Profile.objects
+            .filter(
+                user=self.candidate_same_country,
+                is_active=True,
+            )
+            .order_by("created_at", "pk")
+            .first()
+        )
+
+        self.assertIsNotNone(
+            hidden_profile,
+        )
+
+        hidden_social = SocialProfile.objects.get(
+            profile=hidden_profile,
+        )
+
+        hidden_social.is_discoverable = False
+        hidden_social.save(
+            update_fields=(
+                "is_discoverable",
+                "updated_at",
+            )
+        )
+
+        candidates = match_users_for_salon(
+            salon=self.salon,
+            requester=self.host,
+            limit=20,
+        )
+
+        ids = {
+            match.user.pk
+            for match in candidates
+        }
+
+        self.assertNotIn(
+            self.candidate_same_country.pk,
+            ids,
+        )
+
+        self.assertIn(
+            self.candidate_other_country.pk,
+            ids,
+        )
+
+        for match in candidates:
+            social = SocialProfile.objects.get(
+                profile=match.profile,
+            )
+
+            self.assertTrue(
+                social.is_discoverable,
+            )
+

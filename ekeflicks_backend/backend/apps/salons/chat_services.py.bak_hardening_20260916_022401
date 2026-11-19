@@ -1,0 +1,228 @@
+from __future__ import annotations
+
+from typing import Any
+
+from django.db import transaction
+from django.utils import timezone
+from rest_framework.exceptions import (
+    PermissionDenied,
+    ValidationError,
+)
+
+from .chat_serializers import (
+    SalonMessageCreateSerializer,
+)
+from .models import (
+    Salon,
+    SalonMember,
+    SalonMessage,
+)
+from .realtime_services import (
+    require_realtime_member,
+)
+
+
+G5_3N_CHAT_VERSION = "g5_3n_v1"
+
+
+@transaction.atomic
+def create_salon_message(
+    *,
+    salon: Salon,
+    user: Any,
+    text: str,
+    mention_ids=None,
+) -> SalonMessage:
+    salon = (
+        Salon.objects
+        .select_for_update()
+        .get(pk=salon.pk)
+    )
+
+    require_realtime_member(
+        salon=salon,
+        user=user,
+    )
+
+    serializer = SalonMessageCreateSerializer(
+        data={
+            "text": text,
+            "mention_ids": (
+                mention_ids or []
+            ),
+        }
+    )
+
+    serializer.is_valid(
+        raise_exception=True,
+    )
+
+    requested_ids = list(
+        dict.fromkeys(
+            serializer.validated_data[
+                "mention_ids"
+            ]
+        )
+    )
+
+    active_ids = list(
+        SalonMember.objects
+        .filter(
+            salon=salon,
+            left_at__isnull=True,
+            user_id__in=requested_ids,
+        )
+        .values_list(
+            "user_id",
+            flat=True,
+        )
+    )
+
+    if set(active_ids) != set(requested_ids):
+        raise ValidationError(
+            {
+                "mention_ids": (
+                    "Mention targets must be "
+                    "active Salon members."
+                )
+            }
+        )
+
+    message = SalonMessage.objects.create(
+        salon=salon,
+        author=user,
+        text=serializer.validated_data[
+            "text"
+        ],
+    )
+
+    if active_ids:
+        message.mentions.set(
+            active_ids
+        )
+
+    return message
+
+def salon_message_history(
+    *,
+    salon: Salon,
+    user: Any,
+):
+    require_realtime_member(
+        salon=salon,
+        user=user,
+    )
+
+    return (
+        SalonMessage.objects
+        .filter(
+            salon=salon,
+        )
+        .select_related(
+            "author",
+            "deleted_by",
+        )
+        .prefetch_related(
+            "mentions",
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )
+    )
+
+
+
+@transaction.atomic
+def moderate_delete_salon_message(
+    *,
+    salon: Salon,
+    user: Any,
+    message: SalonMessage,
+) -> SalonMessage:
+    salon = (
+        Salon.objects
+        .select_for_update()
+        .get(pk=salon.pk)
+    )
+
+    if salon.status != Salon.STATUS_OPEN:
+        raise ValidationError(
+            {"salon": "This salon is closed."}
+        )
+
+    if (
+        salon.host_id != user.pk
+        and not getattr(
+            user,
+            "is_staff",
+            False,
+        )
+    ):
+        raise PermissionDenied(
+            "Only the current host or a platform "
+            "moderator can moderate Salon messages."
+        )
+
+    message = (
+        SalonMessage.objects
+        .select_for_update()
+        .filter(
+            pk=message.pk,
+            salon=salon,
+        )
+        .first()
+    )
+
+    if message is None:
+        raise ValidationError(
+            {
+                "message":
+                "Salon message not found."
+            }
+        )
+
+    if message.is_deleted:
+        return message
+
+    message.is_deleted = True
+    message.deleted_at = timezone.now()
+    message.deleted_by = user
+
+    message.save(
+        update_fields=(
+            "is_deleted",
+            "deleted_at",
+            "deleted_by",
+        )
+    )
+
+    return message
+
+def validate_reaction(
+    *,
+    reaction: str,
+) -> str:
+    allowed = {
+        "like",
+        "love",
+        "laugh",
+        "wow",
+        "clap",
+        "fire",
+    }
+
+    value = str(
+        reaction or ""
+    ).strip().lower()
+
+    if value not in allowed:
+        raise ValidationError(
+            {
+                "reaction": (
+                    "Unsupported reaction."
+                )
+            }
+        )
+
+    return value

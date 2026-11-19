@@ -1,0 +1,109 @@
+from __future__ import annotations
+
+from typing import Any
+
+from django.db import transaction
+from rest_framework.exceptions import ValidationError
+
+from .chat_serializers import (
+    SalonMessageCreateSerializer,
+)
+from .models import (
+    Salon,
+    SalonMessage,
+)
+from .realtime_services import (
+    require_realtime_member,
+)
+
+
+G5_3N_CHAT_VERSION = "g5_3n_v1"
+
+
+@transaction.atomic
+def create_salon_message(
+    *,
+    salon: Salon,
+    user: Any,
+    text: str,
+) -> SalonMessage:
+    salon = (
+        Salon.objects
+        .select_for_update()
+        .get(pk=salon.pk)
+    )
+
+    require_realtime_member(
+        salon=salon,
+        user=user,
+    )
+
+    serializer = SalonMessageCreateSerializer(
+        data={
+            "text": text,
+        }
+    )
+
+    serializer.is_valid(
+        raise_exception=True,
+    )
+
+    return SalonMessage.objects.create(
+        salon=salon,
+        author=user,
+        text=serializer.validated_data["text"],
+    )
+
+
+def salon_message_history(
+    *,
+    salon: Salon,
+    user: Any,
+):
+    require_realtime_member(
+        salon=salon,
+        user=user,
+    )
+
+    return (
+        SalonMessage.objects
+        .filter(
+            salon=salon,
+        )
+        .select_related(
+            "author",
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )
+    )
+
+
+def validate_reaction(
+    *,
+    reaction: str,
+) -> str:
+    allowed = {
+        "like",
+        "love",
+        "laugh",
+        "wow",
+        "clap",
+        "fire",
+    }
+
+    value = str(
+        reaction or ""
+    ).strip().lower()
+
+    if value not in allowed:
+        raise ValidationError(
+            {
+                "reaction": (
+                    "Unsupported reaction."
+                )
+            }
+        )
+
+    return value

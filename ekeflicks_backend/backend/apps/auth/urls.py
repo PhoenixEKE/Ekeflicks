@@ -1,0 +1,79 @@
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
+from .views import (
+    AccountClosureRequestViewSet,
+    EmailChangeSupportRequestViewSet,
+    ProducerSupportRequestViewSet,
+    LoginView,
+    LogoutView,
+    MeView,
+    PasswordResetConfirmView,
+    PasswordChangeView,
+    PasswordResetRequestView,
+    PersonalInfoView,
+    RegisterView,
+    ResendEmailVerificationView,
+    VerifyEmailView,
+    WebLoginView,
+    WebLogoutView,
+    WebRegisterView,
+    WebTokenRefreshView,
+    WebProducerRegisterView,
+    ProducerOnboardingView,
+    ProducerAgreementCurrentView,
+    ProducerAgreementSignView,
+    ProducerAgreementDocumentView,
+    ProducerPrivacyPreferencesView,
+)
+
+router = DefaultRouter()
+router.register('account-closure-requests', AccountClosureRequestViewSet, basename='account-closure-request')
+router.register('email-change-support-requests', EmailChangeSupportRequestViewSet, basename='email-change-support-request')
+router.register('producer-support-requests', ProducerSupportRequestViewSet, basename='producer-support-request')
+
+urlpatterns = [
+    path('login/', LoginView.as_view(), name='login'),
+    path('web/login/', WebLoginView.as_view(), name='web-login'),
+    path('web/register/', WebRegisterView.as_view(), name='web-register'),
+    path(
+        'web/producer/register/',
+        WebProducerRegisterView.as_view(),
+        name='web-producer-register',
+    ),
+    path(
+        'producer/onboarding/',
+        ProducerOnboardingView.as_view(),
+        name='producer-onboarding',
+    ),
+    path(
+        'producer/agreement/',
+        ProducerAgreementCurrentView.as_view(),
+        name='producer-agreement-current',
+    ),
+    path(
+        'producer/agreement/sign/',
+        ProducerAgreementSignView.as_view(),
+        name='producer-agreement-sign',
+    ),
+    path(
+        'producer/agreement/document/',
+        ProducerAgreementDocumentView.as_view(),
+        name='producer-agreement-document',
+    ),
+    path('web/refresh/', WebTokenRefreshView.as_view(), name='web-token-refresh'),
+    path('web/logout/', WebLogoutView.as_view(), name='web-logout'),
+    path('register/', RegisterView.as_view(), name='register'),
+    path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh_compat'),
+    path('me/', MeView.as_view(), name='me'),
+    path('personal-info/', PersonalInfoView.as_view(), name='personal-info'),
+    path('producer/privacy-preferences/', ProducerPrivacyPreferencesView.as_view(), name='producer-privacy-preferences'),
+    path('verify-email/', VerifyEmailView.as_view(), name='verify-email'),
+    path('resend-email-verification/', ResendEmailVerificationView.as_view(), name='resend-email-verification'),
+    path('password/change/', PasswordChangeView.as_view(), name='password-change'),
+    path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
+    path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+    path('logout/', LogoutView.as_view(), name='logout'),
+    path('', include(router.urls)),
+]

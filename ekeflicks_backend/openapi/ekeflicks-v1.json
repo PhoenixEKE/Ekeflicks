@@ -1,0 +1,381 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "EkeFlicks API",
+    "version": "v1",
+    "description": "API de la plateforme de streaming EkeFlicks"
+  },
+  "servers": [
+    {
+      "url": "https://api.ekeflicks.com/api/v1",
+      "description": "Production server"
+    }
+  ],
+  "security": [
+    {
+      "Bearer": []
+    }
+  ],
+  "paths": {
+    "/auth/login/": {
+      "post": {
+        "operationId": "auth_login_create",
+        "description": "Login with email or phone",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Login"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "schema": {
+              "$ref": "#/definitions/LoginResponse"
+            }
+          }
+        },
+        "tags": ["auth"]
+      },
+      "parameters": []
+    },
+    "/avatars/": {
+      "get": {
+        "operationId": "avatars_list",
+        "summary": "Lister les avatars disponibles",
+        "description": "Retourne publiquement les avatars disponibles afin qu'un utilisateur puisse en choisir un avant son inscription.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/AvatarList"
+            }
+          }
+        },
+        "tags": ["avatars"],
+        "security": []
+      },
+      "post": {
+        "operationId": "avatars_create",
+        "summary": "Ajouter un avatar",
+        "description": "Ajoute un avatar dans le bucket B2 configure. Reserve au staff.",
+        "parameters": [
+          {
+            "name": "file",
+            "in": "formData",
+            "required": true,
+            "type": "file"
+          },
+          {
+            "name": "name",
+            "in": "formData",
+            "required": false,
+            "type": "string",
+            "maxLength": 100
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/Avatar"
+            }
+          }
+        },
+        "consumes": [
+          "multipart/form-data",
+          "application/x-www-form-urlencoded"
+        ],
+        "tags": ["avatars"]
+      },
+      "parameters": []
+    },
+    "/avatars/{avatar_path}/": {
+      "delete": {
+        "operationId": "avatars_delete",
+        "summary": "Supprimer un avatar",
+        "description": "Supprime l'objet du bucket B2 d'avatars. Reserve au staff.",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Avatar supprime."
+          },
+          "404": {
+            "description": "Avatar introuvable."
+          }
+        },
+        "tags": ["avatars"]
+      },
+      "parameters": [
+        {
+          "name": "avatar_path",
+          "in": "path",
+          "required": true,
+          "type": "string"
+        }
+      ]
+    },
+    "/subscription-plans/best-price/": {
+      "get": {
+        "operationId": "subscription-plans_best_price",
+        "description": "Return the cheapest active plan for the public home page.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "best_price": {
+                  "type": "string",
+                  "format": "decimal"
+                },
+                "currency": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["subscription-plans"]
+      },
+      "parameters": []
+    }
+  },
+  "definitions": {
+    "Login": {
+      "required": ["email", "password"],
+      "type": "object",
+      "properties": {
+        "email": {
+          "title": "Email",
+          "description": "Email address or phone number",
+          "type": "string",
+          "minLength": 1
+        },
+        "password": {
+          "title": "Password",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "LoginResponse": {
+      "type": "object",
+      "properties": {
+        "access": {
+          "type": "string",
+          "description": "JWT access token"
+        },
+        "refresh": {
+          "type": "string",
+          "description": "JWT refresh token"
+        },
+        "has_active_subscription": {
+          "type": "boolean",
+          "description": "Indicates if the user has an active subscription"
+        }
+      }
+    },
+    "Avatar": {
+      "required": ["name", "path", "url"],
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "title": "Path",
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "title": "Url",
+          "type": "string",
+          "format": "uri",
+          "minLength": 1
+        }
+      }
+    },
+    "AvatarList": {
+      "required": ["avatars"],
+      "type": "object",
+      "properties": {
+        "avatars": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Avatar"
+          }
+        }
+      }
+    },
+    "User": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string",
+          "format": "uuid",
+          "readOnly": true
+        },
+        "email": {
+          "title": "Email",
+          "type": "string",
+          "readOnly": true,
+          "x-nullable": true
+        },
+        "firstname": {
+          "title": "Firstname",
+          "type": "string",
+          "maxLength": 100
+        },
+        "lastname": {
+          "title": "Lastname",
+          "type": "string",
+          "maxLength": 100
+        },
+        "phone": {
+          "title": "Phone",
+          "type": "string",
+          "maxLength": 20
+        },
+        "country_code": {
+          "title": "Country code",
+          "type": "string",
+          "maxLength": 2
+        },
+        "is_active": {
+          "title": "Is active",
+          "type": "boolean",
+          "readOnly": true
+        },
+        "is_verified": {
+          "title": "Is verified",
+          "type": "boolean",
+          "readOnly": true
+        },
+        "is_producer": {
+          "title": "Is producer",
+          "type": "boolean",
+          "readOnly": true
+        },
+        "producer_company": {
+          "title": "Producer company",
+          "type": "string",
+          "maxLength": 255
+        },
+        "created_at": {
+          "title": "Created at",
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        }
+      }
+    },
+    "UserPersonalInfo": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string",
+          "format": "uuid",
+          "readOnly": true
+        },
+        "email": {
+          "title": "Email",
+          "type": "string",
+          "readOnly": true,
+          "x-nullable": true
+        },
+        "firstname": {
+          "title": "Firstname",
+          "type": "string",
+          "maxLength": 100
+        },
+        "lastname": {
+          "title": "Lastname",
+          "type": "string",
+          "maxLength": 100
+        },
+        "phone": {
+          "title": "Phone",
+          "type": "string",
+          "maxLength": 20
+        },
+        "country_code": {
+          "title": "Country code",
+          "type": "string",
+          "maxLength": 2
+        },
+        "is_verified": {
+          "title": "Is verified",
+          "type": "boolean",
+          "readOnly": true
+        },
+        "created_at": {
+          "title": "Created at",
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        }
+      }
+    },
+    "UserCreate": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "title": "Email",
+          "type": "string",
+          "format": "email"
+        },
+        "password": {
+          "title": "Password",
+          "type": "string",
+          "minLength": 8
+        },
+        "firstname": {
+          "title": "Firstname",
+          "type": "string",
+          "maxLength": 100
+        },
+        "lastname": {
+          "title": "Lastname",
+          "type": "string",
+          "maxLength": 100
+        },
+        "phone": {
+          "title": "Phone",
+          "type": "string",
+          "maxLength": 20
+        },
+        "country_code": {
+          "title": "Country code",
+          "type": "string",
+          "maxLength": 2
+        },
+        "avatar_url": {
+          "title": "Avatar url",
+          "type": "string",
+          "format": "uri",
+          "x-nullable": true
+        },
+        "profile_name": {
+          "title": "Profile name",
+          "type": "string"
+        },
+        "profile_type": {
+          "title": "Profile type",
+          "type": "string",
+          "default": "main"
+        }
+      }
+    }
+  }
+}

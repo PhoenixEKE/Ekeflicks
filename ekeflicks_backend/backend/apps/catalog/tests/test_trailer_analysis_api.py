@@ -1,0 +1,661 @@
+from unittest.mock import patch
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from core.models import (
+    Content,
+    Season,
+    TrailerAnalysisReport,
+)
+
+from apps.catalog.serializers import (
+    ContentListSerializer,
+    ContentDetailSerializer,
+    SeasonSerializer,
+)
+from apps.catalog.trailer_analysis import schedule_trailer_analysis
+from django.utils import timezone
+
+
+class TrailerAnalysisApiTests(APITestCase):
+    def setUp(self):
+        self.content = Content.objects.create(
+            title="Trailer QC Movie",
+            description="Trailer QC API test",
+            type="movie",
+            release_year=2026,
+            popularity_score=90,
+            trending_score=95,
+        )
+
+        self.series = Content.objects.create(
+            title="Trailer QC Series",
+            description="Trailer QC season API test",
+            type="series",
+            release_year=2026,
+            popularity_score=80,
+            trending_score=85,
+        )
+
+        self.season = Season.objects.create(
+            content=self.series,
+            season_number=1,
+            title="Season 1",
+        )
+
+    def _assert_qc(
+        self,
+        payload,
+        expected_status,
+        expected_conformity,
+    ):
+        self.assertEqual(
+            payload["trailer_analysis_status"],
+            expected_status,
+        )
+
+        self.assertEqual(
+            payload["trailer_technical_conformity"],
+            expected_conformity,
+        )
+
+        # Le rapport complet et ses champs sensibles
+        # ne doivent jamais être exposés par ces serializers.
+        self.assertNotIn(
+            "source_path",
+            payload,
+        )
+
+        self.assertNotIn(
+            "technical_metadata",
+            payload,
+        )
+
+        self.assertNotIn(
+            "error_message",
+            payload,
+        )
+
+    def test_content_without_report_is_not_started(self):
+        payload = ContentListSerializer(
+            self.content
+        ).data
+
+        self._assert_qc(
+            payload,
+            "not_started",
+            None,
+        )
+
+    def test_content_detail_without_report_is_not_started(self):
+        payload = ContentDetailSerializer(
+            self.content
+        ).data
+
+        self._assert_qc(
+            payload,
+            "not_started",
+            None,
+        )
+
+    def test_season_without_report_is_not_started(self):
+        payload = SeasonSerializer(
+            self.season
+        ).data
+
+        self._assert_qc(
+            payload,
+            "not_started",
+            None,
+        )
+
+    def test_content_status_matrix(self):
+        report = TrailerAnalysisReport.objects.create(
+            content=self.content,
+            status=TrailerAnalysisReport.STATUS_PENDING,
+            source_path="private/content/trailer.mp4",
+        )
+
+        cases = (
+            TrailerAnalysisReport.STATUS_PENDING,
+            TrailerAnalysisReport.STATUS_ANALYZING,
+            TrailerAnalysisReport.STATUS_REVIEW_REQUIRED,
+            TrailerAnalysisReport.STATUS_FAILED,
+        )
+
+        for report_status in cases:
+            with self.subTest(
+                report_status=report_status,
+            ):
+                report.status = report_status
+                report.technical_metadata = {}
+                report.save(
+                    update_fields=[
+                        "status",
+                        "technical_metadata",
+                        "updated_at",
+                    ]
+                )
+
+                payload = ContentListSerializer(
+                    self.content
+                ).data
+
+                self._assert_qc(
+                    payload,
+                    report_status,
+                    None,
+                )
+
+    def test_season_status_matrix(self):
+        report = TrailerAnalysisReport.objects.create(
+            season=self.season,
+            status=TrailerAnalysisReport.STATUS_PENDING,
+            source_path="private/season/trailer.mp4",
+        )
+
+        cases = (
+            TrailerAnalysisReport.STATUS_PENDING,
+            TrailerAnalysisReport.STATUS_ANALYZING,
+            TrailerAnalysisReport.STATUS_REVIEW_REQUIRED,
+            TrailerAnalysisReport.STATUS_FAILED,
+        )
+
+        for report_status in cases:
+            with self.subTest(
+                report_status=report_status,
+            ):
+                report.status = report_status
+                report.technical_metadata = {}
+                report.save(
+                    update_fields=[
+                        "status",
+                        "technical_metadata",
+                        "updated_at",
+                    ]
+                )
+
+                payload = SeasonSerializer(
+                    self.season
+                ).data
+
+                self._assert_qc(
+                    payload,
+                    report_status,
+                    None,
+                )
+
+
+    def test_content_serializer_exposes_trailer_analyzed_at(self):
+        analyzed_at = timezone.now()
+
+        TrailerAnalysisReport.objects.create(
+            content=self.content,
+            status=TrailerAnalysisReport.STATUS_PASSED,
+            source_path="private/content/trailer.mp4",
+            analyzed_at=analyzed_at,
+        )
+
+        payload = ContentDetailSerializer(
+            self.content
+        ).data
+
+        self.assertIn(
+            "trailer_analyzed_at",
+            payload,
+        )
+        self.assertIsNotNone(
+            payload["trailer_analyzed_at"]
+        )
+
+    def test_season_serializer_exposes_trailer_analyzed_at(self):
+        analyzed_at = timezone.now()
+
+        TrailerAnalysisReport.objects.create(
+            season=self.season,
+            status=TrailerAnalysisReport.STATUS_PASSED,
+            source_path="private/season/trailer.mp4",
+            analyzed_at=analyzed_at,
+        )
+
+        payload = SeasonSerializer(
+            self.season
+        ).data
+
+        self.assertIn(
+            "trailer_analyzed_at",
+            payload,
+        )
+        self.assertIsNotNone(
+            payload["trailer_analyzed_at"]
+        )
+
+
+    @patch(
+        "apps.catalog.trailer_analysis."
+        "analyze_trailer.delay"
+    )
+    def test_content_replacement_hides_old_conformity(
+        self,
+        mocked_delay,
+    ):
+        old_conformity = {
+            "status": "conform",
+            "checks": [
+                {
+                    "code": "old_video",
+                    "status": "passed",
+                }
+            ],
+        }
+
+        report = TrailerAnalysisReport.objects.create(
+            content=self.content,
+            status=TrailerAnalysisReport.STATUS_PASSED,
+            source_path="private/content/old.mp4",
+            technical_metadata={
+                "technical_specification_conformity": (
+                    old_conformity
+                ),
+                "old_probe": True,
+            },
+        )
+
+        self.content.trailer_temp_path = (
+            "private/content/new.mp4"
+        )
+        self.content.save(
+            update_fields=[
+                "trailer_temp_path",
+                "updated_at",
+            ]
+        )
+
+        with self.captureOnCommitCallbacks(
+            execute=True
+        ):
+            reset_report = schedule_trailer_analysis(
+                self.content
+            )
+
+        self.assertEqual(
+            reset_report.pk,
+            report.pk,
+        )
+
+        payload = ContentDetailSerializer(
+            self.content
+        ).data
+
+        self._assert_qc(
+            payload,
+            "pending",
+            None,
+        )
+
+        serialized = str(payload)
+
+        self.assertNotIn(
+            "old_video",
+            serialized,
+        )
+        self.assertNotIn(
+            "old_probe",
+            serialized,
+        )
+
+        mocked_delay.assert_called_once_with(
+            str(report.pk)
+        )
+
+    @patch(
+        "apps.catalog.trailer_analysis."
+        "analyze_trailer.delay"
+    )
+    def test_season_replacement_hides_old_conformity(
+        self,
+        mocked_delay,
+    ):
+        old_conformity = {
+            "status": "conform",
+            "checks": [
+                {
+                    "code": "old_season_video",
+                    "status": "passed",
+                }
+            ],
+        }
+
+        report = TrailerAnalysisReport.objects.create(
+            season=self.season,
+            status=TrailerAnalysisReport.STATUS_PASSED,
+            source_path="private/season/old.mp4",
+            technical_metadata={
+                "technical_specification_conformity": (
+                    old_conformity
+                ),
+                "old_probe": True,
+            },
+        )
+
+        self.season.trailer_temp_path = (
+            "private/season/new.mp4"
+        )
+        self.season.save(
+            update_fields=[
+                "trailer_temp_path",
+                "updated_at",
+            ]
+        )
+
+        with self.captureOnCommitCallbacks(
+            execute=True
+        ):
+            reset_report = schedule_trailer_analysis(
+                self.season
+            )
+
+        self.assertEqual(
+            reset_report.pk,
+            report.pk,
+        )
+
+        payload = SeasonSerializer(
+            self.season
+        ).data
+
+        self._assert_qc(
+            payload,
+            "pending",
+            None,
+        )
+
+        serialized = str(payload)
+
+        self.assertNotIn(
+            "old_season_video",
+            serialized,
+        )
+        self.assertNotIn(
+            "old_probe",
+            serialized,
+        )
+
+        mocked_delay.assert_called_once_with(
+            str(report.pk)
+        )
+
+
+    def test_content_passed_exposes_conformity_only(self):
+        conformity = {
+            "status": "conform",
+            "checks": [
+                {
+                    "code": "video_codec",
+                    "status": "passed",
+                }
+            ],
+        }
+
+        TrailerAnalysisReport.objects.create(
+            content=self.content,
+            status=TrailerAnalysisReport.STATUS_PASSED,
+            source_path="private/content/secret.mp4",
+            technical_metadata={
+                "technical_specification_conformity": (
+                    conformity
+                ),
+                "internal_probe": {
+                    "secret": True,
+                },
+            },
+        )
+
+        payload = ContentDetailSerializer(
+            self.content
+        ).data
+
+        self._assert_qc(
+            payload,
+            "passed",
+            conformity,
+        )
+
+        serialized = str(payload)
+
+        self.assertNotIn(
+            "private/content/secret.mp4",
+            serialized,
+        )
+
+        self.assertNotIn(
+            "internal_probe",
+            serialized,
+        )
+
+    def test_season_passed_exposes_conformity_only(self):
+        conformity = {
+            "status": "review_required",
+            "checks": [
+                {
+                    "code": "duration",
+                    "status": "review_required",
+                }
+            ],
+        }
+
+        TrailerAnalysisReport.objects.create(
+            season=self.season,
+            status=TrailerAnalysisReport.STATUS_PASSED,
+            source_path="private/season/secret.mp4",
+            technical_metadata={
+                "technical_specification_conformity": (
+                    conformity
+                ),
+                "internal_probe": {
+                    "secret": True,
+                },
+            },
+        )
+
+        payload = SeasonSerializer(
+            self.season
+        ).data
+
+        self._assert_qc(
+            payload,
+            "passed",
+            conformity,
+        )
+
+        serialized = str(payload)
+
+        self.assertNotIn(
+            "private/season/secret.mp4",
+            serialized,
+        )
+
+        self.assertNotIn(
+            "internal_probe",
+            serialized,
+        )
+
+    def test_malformed_content_conformity_returns_null(self):
+        TrailerAnalysisReport.objects.create(
+            content=self.content,
+            status=TrailerAnalysisReport.STATUS_PASSED,
+            technical_metadata={
+                "technical_specification_conformity": (
+                    "invalid"
+                ),
+            },
+        )
+
+        payload = ContentListSerializer(
+            self.content
+        ).data
+
+        self._assert_qc(
+            payload,
+            "passed",
+            None,
+        )
+
+    def test_malformed_season_conformity_returns_null(self):
+        TrailerAnalysisReport.objects.create(
+            season=self.season,
+            status=TrailerAnalysisReport.STATUS_PASSED,
+            technical_metadata={
+                "technical_specification_conformity": [
+                    "invalid"
+                ],
+            },
+        )
+
+        payload = SeasonSerializer(
+            self.season
+        ).data
+
+        self._assert_qc(
+            payload,
+            "passed",
+            None,
+        )
+
+    def test_content_list_api_exposes_trailer_qc(self):
+        TrailerAnalysisReport.objects.create(
+            content=self.content,
+            status=TrailerAnalysisReport.STATUS_ANALYZING,
+            source_path="private/list/trailer.mp4",
+        )
+
+        response = self.client.get(
+            reverse("content-list")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        results = (
+            response.data["results"]
+            if isinstance(response.data, dict)
+            and "results" in response.data
+            else response.data
+        )
+
+        item = next(
+            entry
+            for entry in results
+            if str(entry["id"]) == str(self.content.id)
+        )
+
+        self._assert_qc(
+            item,
+            "analyzing",
+            None,
+        )
+
+        self.assertNotIn(
+            "private/list/trailer.mp4",
+            str(item),
+        )
+
+    def test_content_detail_api_exposes_trailer_qc(self):
+        conformity = {
+            "status": "conform",
+            "checks": [],
+        }
+
+        TrailerAnalysisReport.objects.create(
+            content=self.content,
+            status=TrailerAnalysisReport.STATUS_PASSED,
+            source_path="private/detail/trailer.mp4",
+            technical_metadata={
+                "technical_specification_conformity": (
+                    conformity
+                ),
+            },
+        )
+
+        response = self.client.get(
+            reverse(
+                "content-detail",
+                args=[self.content.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self._assert_qc(
+            response.data,
+            "passed",
+            conformity,
+        )
+
+        self.assertNotIn(
+            "private/detail/trailer.mp4",
+            str(response.data),
+        )
+
+    def test_season_detail_api_exposes_trailer_qc(self):
+        conformity = {
+            "status": "conform",
+            "checks": [
+                {
+                    "code": "video_codec",
+                    "status": "passed",
+                }
+            ],
+        }
+
+        TrailerAnalysisReport.objects.create(
+            season=self.season,
+            status=TrailerAnalysisReport.STATUS_PASSED,
+            source_path=(
+                "private/season/api-secret-trailer.mp4"
+            ),
+            technical_metadata={
+                "technical_specification_conformity": (
+                    conformity
+                ),
+                "internal_probe": {
+                    "secret": True,
+                },
+            },
+        )
+
+        response = self.client.get(
+            reverse(
+                "season-detail",
+                args=[self.season.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self._assert_qc(
+            response.data,
+            "passed",
+            conformity,
+        )
+
+        serialized = str(response.data)
+
+        self.assertNotIn(
+            "private/season/api-secret-trailer.mp4",
+            serialized,
+        )
+
+        self.assertNotIn(
+            "internal_probe",
+            serialized,
+        )

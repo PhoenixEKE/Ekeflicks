@@ -1,0 +1,42 @@
+from rest_framework import serializers
+
+from .models import SalonMessage
+
+
+class SalonMessageSerializer(
+    serializers.ModelSerializer
+):
+    author_id = serializers.UUIDField(
+        read_only=True,
+    )
+
+    class Meta:
+        model = SalonMessage
+        fields = (
+            "id",
+            "salon_id",
+            "author_id",
+            "text",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
+class SalonMessageCreateSerializer(
+    serializers.Serializer
+):
+    text = serializers.CharField(
+        max_length=1000,
+        allow_blank=False,
+        trim_whitespace=True,
+    )
+
+    def validate_text(self, value):
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError(
+                "Message text cannot be empty."
+            )
+
+        return value

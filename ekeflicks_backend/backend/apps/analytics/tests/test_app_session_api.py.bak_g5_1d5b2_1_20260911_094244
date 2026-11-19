@@ -1,0 +1,551 @@
+import uuid
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from django.test import TestCase
+from django.urls import resolve, reverse
+
+from rest_framework.test import APIRequestFactory
+
+from apps.analytics.serializers import (
+    AppSessionEventSerializer,
+)
+from apps.analytics.views import (
+    AppSessionAnalyticsViewSet,
+)
+
+from core.models import (
+    Profile,
+    ProfileType,
+    User,
+)
+
+
+class AppSessionEventSerializerTests(
+    TestCase
+):
+    def base_payload(self):
+        return {
+            'event':
+                'start',
+
+            'profile_id':
+                str(
+                    uuid.uuid4()
+                ),
+
+            'session_id':
+                str(
+                    uuid.uuid4()
+                ),
+
+            'platform':
+                'android',
+
+            'device_type':
+                'mobile',
+
+            'app_version':
+                '1.0.0',
+
+            'timezone':
+                'Africa/Abidjan',
+        }
+
+    def test_start_is_valid(self):
+        serializer = (
+            AppSessionEventSerializer(
+                data=self.base_payload()
+            )
+        )
+
+        self.assertTrue(
+            serializer.is_valid(),
+            serializer.errors,
+        )
+
+    def test_end_with_duration_is_valid(self):
+        payload = self.base_payload()
+
+        payload.update(
+            {
+                'event':
+                    'end',
+
+                'duration_seconds':
+                    420,
+            }
+        )
+
+        serializer = (
+            AppSessionEventSerializer(
+                data=payload
+            )
+        )
+
+        self.assertTrue(
+            serializer.is_valid(),
+            serializer.errors,
+        )
+
+    def test_start_rejects_duration(self):
+        payload = self.base_payload()
+
+        payload[
+            'duration_seconds'
+        ] = 1
+
+        serializer = (
+            AppSessionEventSerializer(
+                data=payload
+            )
+        )
+
+        self.assertFalse(
+            serializer.is_valid()
+        )
+
+    def test_rejects_unknown_event(self):
+        payload = self.base_payload()
+
+        payload['event'] = 'pause'
+
+        serializer = (
+            AppSessionEventSerializer(
+                data=payload
+            )
+        )
+
+        self.assertFalse(
+            serializer.is_valid()
+        )
+
+    def test_requires_profile_id(self):
+        payload = self.base_payload()
+
+        payload.pop(
+            'profile_id'
+        )
+
+        serializer = (
+            AppSessionEventSerializer(
+                data=payload
+            )
+        )
+
+        self.assertFalse(
+            serializer.is_valid()
+        )
+
+    def test_requires_session_id(self):
+        payload = self.base_payload()
+
+        payload.pop(
+            'session_id'
+        )
+
+        serializer = (
+            AppSessionEventSerializer(
+                data=payload
+            )
+        )
+
+        self.assertFalse(
+            serializer.is_valid()
+        )
+
+    def test_rejects_negative_duration(self):
+        payload = self.base_payload()
+
+        payload.update(
+            {
+                'event':
+                    'end',
+
+                'duration_seconds':
+                    -1,
+            }
+        )
+
+        serializer = (
+            AppSessionEventSerializer(
+                data=payload
+            )
+        )
+
+        self.assertFalse(
+            serializer.is_valid()
+        )
+
+
+class AppSessionAPITests(
+    TestCase
+):
+    def setUp(self):
+        self.factory = (
+            APIRequestFactory()
+        )
+
+        self.user = User.objects.create_user(
+            email=(
+                'app-session-owner'
+                '@example.com'
+            ),
+            password='test-password',
+        )
+
+        self.other_user = (
+            User.objects.create_user(
+                email=(
+                    'app-session-other'
+                    '@example.com'
+                ),
+                password='test-password',
+            )
+        )
+
+        self.profile_type = (
+            ProfileType.objects.create(
+                name='main',
+            )
+        )
+
+        self.profile = (
+            Profile.objects.create(
+                user=self.user,
+                type=self.profile_type,
+                name='Main',
+            )
+        )
+
+        self.other_profile = (
+            Profile.objects.create(
+                user=self.other_user,
+                type=self.profile_type,
+                name='Other',
+            )
+        )
+
+        self.session_id = (
+            uuid.uuid4()
+        )
+
+    def request(
+        self,
+        payload,
+        *,
+        user=None,
+    ):
+        request = self.factory.post(
+            '/api/v1/app-sessions/events/',
+            payload,
+            format='json',
+        )
+
+        request.user = (
+            user
+            if user is not None
+            else self.user
+        )
+
+        return request
+
+    def view(self):
+        return (
+            AppSessionAnalyticsViewSet
+            .as_view(
+                {
+                    'post':
+                        'events',
+                }
+            )
+        )
+
+    @patch(
+        'apps.analytics.tasks.'
+        'write_analytics_event_task.delay'
+    )
+    def test_start_owned_profile_is_accepted(
+        self,
+        delay,
+    ):
+        response = self.view()(
+            self.request(
+                {
+                    'event':
+                        'start',
+
+                    'profile_id':
+                        str(
+                            self.profile.id
+                        ),
+
+                    'session_id':
+                        str(
+                            self.session_id
+                        ),
+
+                    'platform':
+                        'android',
+
+                    'device_type':
+                        'mobile',
+
+                    'app_version':
+                        '1.0.0',
+
+                    'timezone':
+                        'Africa/Abidjan',
+                }
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            202,
+        )
+
+        self.assertTrue(
+            response.data[
+                'accepted'
+            ]
+        )
+
+        self.assertEqual(
+            response.data[
+                'event_name'
+            ],
+            'app_session_start',
+        )
+
+        self.assertEqual(
+            response.data[
+                'session_id'
+            ],
+            str(
+                self.session_id
+            ),
+        )
+
+        delay.assert_called_once()
+
+        event = (
+            delay.call_args.args[0]
+        )
+
+        self.assertEqual(
+            event['user_id'],
+            str(
+                self.user.id
+            ),
+        )
+
+        self.assertEqual(
+            event['profile_id'],
+            str(
+                self.profile.id
+            ),
+        )
+
+        self.assertEqual(
+            event['session_id'],
+            self.session_id,
+        )
+
+        self.assertIsNone(
+            event[
+                'viewing_session_id'
+            ]
+        )
+
+    @patch(
+        'apps.analytics.tasks.'
+        'write_analytics_event_task.delay'
+    )
+    def test_end_owned_profile_is_accepted(
+        self,
+        delay,
+    ):
+        response = self.view()(
+            self.request(
+                {
+                    'event':
+                        'end',
+
+                    'profile_id':
+                        str(
+                            self.profile.id
+                        ),
+
+                    'session_id':
+                        str(
+                            self.session_id
+                        ),
+
+                    'duration_seconds':
+                        420,
+                }
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            202,
+        )
+
+        delay.assert_called_once()
+
+        event = (
+            delay.call_args.args[0]
+        )
+
+        self.assertEqual(
+            event['event_name'],
+            'app_session_end',
+        )
+
+        self.assertEqual(
+            event['properties'][
+                'duration_seconds'
+            ],
+            420,
+        )
+
+    @patch(
+        'apps.analytics.tasks.'
+        'write_analytics_event_task.delay'
+    )
+    def test_foreign_profile_is_rejected(
+        self,
+        delay,
+    ):
+        response = self.view()(
+            self.request(
+                {
+                    'event':
+                        'start',
+
+                    'profile_id':
+                        str(
+                            self.other_profile.id
+                        ),
+
+                    'session_id':
+                        str(
+                            self.session_id
+                        ),
+                }
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            400,
+        )
+
+        delay.assert_not_called()
+
+    @patch(
+        'apps.analytics.tasks.'
+        'write_analytics_event_task.delay'
+    )
+    def test_invalid_payload_is_rejected(
+        self,
+        delay,
+    ):
+        response = self.view()(
+            self.request(
+                {
+                    'event':
+                        'start',
+
+                    'profile_id':
+                        str(
+                            self.profile.id
+                        ),
+
+                    'session_id':
+                        str(
+                            self.session_id
+                        ),
+
+                    'duration_seconds':
+                        10,
+                }
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            400,
+        )
+
+        delay.assert_not_called()
+
+    def test_unauthenticated_is_rejected(self):
+        request = self.factory.post(
+            '/api/v1/app-sessions/events/',
+            {
+                'event':
+                    'start',
+
+                'profile_id':
+                    str(
+                        self.profile.id
+                    ),
+
+                'session_id':
+                    str(
+                        self.session_id
+                    ),
+            },
+            format='json',
+        )
+
+        request.user = SimpleNamespace(
+            pk=None,
+            is_authenticated=False,
+            is_staff=False,
+        )
+
+        response = self.view()(
+            request
+        )
+
+        self.assertIn(
+            response.status_code,
+            (
+                401,
+                403,
+            ),
+        )
+
+    def test_router_list_exists(self):
+        url = reverse(
+            'app-session-list'
+        )
+
+        self.assertEqual(
+            url,
+            '/api/v1/app-sessions/',
+        )
+
+        self.assertEqual(
+            resolve(url).url_name,
+            'app-session-list',
+        )
+
+    def test_router_events_exists(self):
+        url = reverse(
+            'app-session-events'
+        )
+
+        self.assertEqual(
+            url,
+            '/api/v1/app-sessions/events/',
+        )
+
+        self.assertEqual(
+            resolve(url).url_name,
+            'app-session-events',
+        )

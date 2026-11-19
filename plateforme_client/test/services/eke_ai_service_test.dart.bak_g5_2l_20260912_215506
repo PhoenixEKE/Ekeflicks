@@ -1,0 +1,190 @@
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http_mock_adapter/http_mock_adapter.dart';
+
+import 'package:app_ekeflicks/services/eke_ai_service.dart';
+
+void main() {
+  late Dio dio;
+  late DioAdapter adapter;
+  late EkeAIService service;
+
+  setUp(() {
+    dio = Dio(BaseOptions(baseUrl: 'https://api.ekeflicks.com/api/v1'));
+    adapter = DioAdapter(dio: dio);
+    service = EkeAIService(dio);
+  });
+
+  test('uses the public EKE IA status route', () async {
+    adapter.onGet(
+      '/eke-ai/status/',
+      (server) => server.reply(200, {
+        'api_version': 'g5_2k_v1',
+        'capabilities': [
+          'chat',
+          'explain',
+          'feedback',
+          'for-you',
+          'search',
+          'status',
+        ],
+      }),
+    );
+
+    final result = await service.status();
+
+    expect(result.apiVersion, 'g5_2k_v1');
+    expect(result.capabilities, contains('for-you'));
+    expect(result.capabilities, contains('chat'));
+  });
+
+  test('forYou parses grounded recommendation contents', () async {
+    adapter.onGet(
+      '/eke-ai/for-you/',
+      (server) => server.reply(200, {
+        'api_version': 'g5_2k_v1',
+        'results': [
+          {
+            'content': {
+              'id': 'content-1',
+              'title': 'Film test',
+              'poster_url': 'https://cdn.ekeflicks.com/poster.webp',
+            },
+            'score': 0.91,
+            'reason': 'Parce que vous aimez ce genre',
+          },
+        ],
+      }),
+      queryParameters: {'limit': 5},
+    );
+
+    final result = await service.forYou(limit: 5);
+
+    expect(result.items, hasLength(1));
+    expect(result.items.first.id, 'content-1');
+    expect(result.items.first.title, 'Film test');
+    expect(result.items.first.score, 0.91);
+  });
+
+  test('search sends query and limit to the EKE IA route', () async {
+    adapter.onPost(
+      '/eke-ai/search/',
+      (server) => server.reply(200, {
+        'api_version': 'g5_2k_v1',
+        'results': [
+          {'id': '42', 'title': 'Résultat EKE IA'},
+        ],
+      }),
+      data: {'query': 'film', 'limit': 7},
+    );
+
+    final result = await service.search(' film ', limit: 7);
+
+    expect(result.items.single.id, '42');
+    expect(result.items.single.title, 'Résultat EKE IA');
+  });
+
+  test('chat sends spectator message and parses answer', () async {
+    adapter.onPost(
+      '/eke-ai/chat/',
+      (server) => server.reply(200, {
+        'api_version': 'g5_2k_v1',
+        'message': 'Voici une sélection.',
+        'recommendations': [
+          {'id': '7', 'title': 'Découverte'},
+        ],
+      }),
+      data: {
+        'message': 'Aide-moi à découvrir un contenu',
+        'limit': 10,
+      },
+    );
+
+    final result = await service.chat(
+      'Aide-moi à découvrir un contenu',
+      limit: 10,
+    );
+
+    expect(result.message, 'Voici une sélection.');
+    expect(result.items.single.title, 'Découverte');
+  });
+
+  test('explain sends only the selected content id', () async {
+    adapter.onPost(
+      '/eke-ai/explain/',
+      (server) => server.reply(200, {
+        'api_version': 'g5_2k_v1',
+        'explanation': 'Ce contenu correspond à vos préférences.',
+      }),
+      data: {'content_id': 'content-9'},
+    );
+
+    final result = await service.explain('content-9');
+
+    expect(
+      result.explanation,
+      'Ce contenu correspond à vos préférences.',
+    );
+  });
+
+  test('feedback sends grounded interaction without local mutation', () async {
+    adapter.onPost(
+      '/eke-ai/feedback/',
+      (server) => server.reply(200, {
+        'api_version': 'g5_2k_v1',
+        'status': 'ok',
+      }),
+      data: {
+        'content_id': 'content-5',
+        'action': 'favorite',
+      },
+    );
+
+    final result = await service.feedback(
+      contentId: 'content-5',
+      action: 'favorite',
+    );
+
+    expect(result['status'], 'ok');
+  });
+
+  test('limits are clamped to backend public contract', () async {
+    adapter.onGet(
+      '/eke-ai/for-you/',
+      (server) => server.reply(200, {'results': []}),
+      queryParameters: {'limit': 50},
+    );
+
+    await service.forYou(limit: 500);
+
+    adapter.onPost(
+      '/eke-ai/chat/',
+      (server) => server.reply(200, {'results': []}),
+      data: {'message': 'test', 'limit': 20},
+    );
+
+    await service.chat('test', limit: 500);
+  });
+
+  test('empty search and chat are rejected before HTTP', () async {
+    expect(
+      () => service.search('   '),
+      throwsA(isA<ArgumentError>()),
+    );
+    expect(
+      () => service.chat('   '),
+      throwsA(isA<ArgumentError>()),
+    );
+  });
+
+  test('service does not create its own authentication contract', () {
+    final source = jsonEncode({
+      'apiVersion': EkeAIService.apiVersion,
+    });
+
+    expect(source, contains('g5_2l_v1'));
+    expect(dio.options.headers['Authorization'], isNull);
+  });
+}

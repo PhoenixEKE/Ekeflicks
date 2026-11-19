@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 144" role="img" aria-label="Mobile Money">
+  <rect width="240" height="144" rx="20" fill="#fff"/>
+  <rect x="14" y="14" width="212" height="116" rx="14" fill="#f5f7fa" stroke="#d8dee8" stroke-width="4"/>
+  <rect x="34" y="31" width="57" height="82" rx="10" fill="#ff9d00"/>
+  <rect x="41" y="39" width="43" height="58" rx="4" fill="#fff"/>
+  <circle cx="62.5" cy="105" r="4" fill="#fff"/>
+  <path d="M49 57h27M49 66h20M49 75h24" fill="none" stroke="#ff9d00" stroke-linecap="round" stroke-width="5"/>
+  <path d="M104 55h25l9 16 10-16h24v38h-17V75l-13 18h-9l-12-18v18h-17z" fill="#26354a"/>
+  <path d="M177 55h18c13 0 22 7 22 19s-9 19-22 19h-18zm17 25c4 0 7-2 7-6s-3-6-7-6h-2v12z" fill="#ff9d00"/>
+</svg>

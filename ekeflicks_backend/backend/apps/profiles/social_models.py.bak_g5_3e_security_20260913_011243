@@ -1,0 +1,57 @@
+from django.db import models
+
+from core.models.profiles import Profile
+
+
+class SocialProfile(models.Model):
+    """
+    Public social identity attached to one viewing Profile.
+
+    Private account/profile fields remain outside this model.
+    """
+
+    profile = models.OneToOneField(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="social_profile",
+    )
+
+    display_name = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+
+    bio = models.CharField(
+        max_length=280,
+        blank=True,
+    )
+
+    is_discoverable = models.BooleanField(
+        default=True,
+        db_index=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        db_table = "social_profiles"
+
+    def __str__(self):
+        return (
+            self.display_name
+            or self.profile.name
+            or str(self.profile_id)
+        )
+
+    @property
+    def public_display_name(self):
+        return (
+            self.display_name.strip()
+            or self.profile.name
+        )

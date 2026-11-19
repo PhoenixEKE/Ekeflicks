@@ -1,0 +1,532 @@
+from .chat_serializers import SalonMessageSerializer
+from .chat_services import (
+    moderate_delete_salon_message,
+    salon_message_history,
+)
+from django.db.models import Q
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from .models import Salon
+from .quota_services import get_salon_quota_status
+from .serializers import (
+    SalonCreateSerializer,
+    SalonHostTransferSerializer,
+    SalonHostLeavePolicySerializer,
+    SalonJoinCodeSerializer,
+    SalonSerializer,
+    SalonMemberKickSerializer,
+)
+from .throttles import SalonMutationThrottle
+from .services import (
+    close_salon,
+    join_salon,
+    join_salon_by_code,
+    rotate_salon_join_code,
+    leave_salon,
+    leave_salon_as_host,
+    update_salon_host_leave_policy,
+    transfer_salon_host,
+    kick_salon_member,
+)
+
+
+class SalonViewSet(viewsets.ModelViewSet):
+    permission_classes = (IsAuthenticated,)
+    http_method_names = (
+        "get",
+        "post",
+        "head",
+        "options",
+    )
+
+    def get_throttles(self):
+        if self.request.method in {
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+        }:
+            return [
+                SalonMutationThrottle()
+            ]
+
+        return super().get_throttles()
+
+    def get_queryset(self):
+        user = self.request.user
+
+        return (
+            Salon.objects
+            .select_related("host", "content")
+            .prefetch_related("memberships")
+            .filter(
+                Q(visibility=Salon.VISIBILITY_PUBLIC)
+                | Q(host=user)
+                | Q(
+                    memberships__user=user,
+                    memberships__left_at__isnull=True,
+                )
+            )
+            .distinct()
+        )
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return SalonCreateSerializer
+        return SalonSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        salon = serializer.save()
+
+        return Response(
+            SalonSerializer(
+                salon,
+                context={"request": request},
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=False,
+        methods=("post",),
+        url_path="join-by-code",
+    )
+    def join_by_code(
+        self,
+        request,
+    ):
+        serializer = SalonJoinCodeSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        membership = join_salon_by_code(
+            join_code=(
+                serializer.validated_data[
+                    "join_code"
+                ]
+            ),
+            user=request.user,
+        )
+
+        salon = membership.salon
+
+        return Response(
+            SalonSerializer(
+                salon,
+                context={
+                    "request": request,
+                },
+            ).data
+        )
+
+
+    @action(
+        detail=True,
+        methods=("post",),
+        url_path="join",
+    )
+    def join(self, request, pk=None):
+        salon = self.get_object()
+
+        join_salon(
+            salon=salon,
+            user=request.user,
+        )
+
+        salon.refresh_from_db()
+
+        return Response(
+            SalonSerializer(
+                salon,
+                context={"request": request},
+            ).data,
+        )
+
+    @action(
+        detail=True,
+        methods=("get", "post"),
+        url_path="join-code",
+    )
+    def join_code(
+        self,
+        request,
+        pk=None,
+    ):
+        salon = self.get_object()
+
+        if salon.host_id != request.user.pk:
+            from rest_framework.exceptions import (
+                PermissionDenied,
+            )
+
+            raise PermissionDenied(
+                "Only the current host can manage "
+                "the Salon join code."
+            )
+
+        if request.method == "POST":
+            salon = rotate_salon_join_code(
+                salon=salon,
+                user=request.user,
+            )
+
+        return Response(
+            {
+                "salon_id": str(salon.pk),
+                "join_code": salon.join_code,
+            }
+        )
+
+
+    @action(
+        detail=True,
+        methods=("post",),
+        url_path="leave",
+    )
+    def leave(self, request, pk=None):
+        salon = self.get_object()
+
+        leave_salon(
+            salon=salon,
+            user=request.user,
+        )
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
+        )
+
+    @action(
+        detail=True,
+        methods=("get", "post"),
+        url_path="host-leave-policy",
+        url_name="host-leave-policy",
+    )
+    def host_leave_policy(
+        self,
+        request,
+        pk=None,
+    ):
+        salon = self.get_object()
+
+        if salon.host_id != request.user.pk:
+            from rest_framework.exceptions import (
+                PermissionDenied,
+            )
+
+            raise PermissionDenied(
+                "Only the current host can manage "
+                "the host leave policy."
+            )
+
+        if request.method == "POST":
+            serializer = (
+                SalonHostLeavePolicySerializer(
+                    data=request.data,
+                )
+            )
+
+            serializer.is_valid(
+                raise_exception=True,
+            )
+
+            salon = update_salon_host_leave_policy(
+                salon=salon,
+                user=request.user,
+                host_leave_policy=(
+                    serializer.validated_data[
+                        "host_leave_policy"
+                    ]
+                ),
+            )
+
+        return Response(
+            {
+                "salon_id": str(salon.pk),
+                "host_leave_policy": (
+                    salon.host_leave_policy
+                ),
+            }
+        )
+
+    @action(
+        detail=True,
+        methods=("post",),
+        url_path="host-leave",
+        url_name="host-leave",
+    )
+    def host_leave(
+        self,
+        request,
+        pk=None,
+    ):
+        salon = self.get_object()
+
+        salon = leave_salon_as_host(
+            salon=salon,
+            user=request.user,
+        )
+
+        return Response(
+            SalonSerializer(
+                salon,
+                context=self.get_serializer_context(),
+            ).data
+        )
+
+    @action(
+        detail=True,
+        methods=("post",),
+        url_path="transfer-host",
+    )
+    def transfer_host(
+        self,
+        request,
+        pk=None,
+    ):
+        salon = self.get_object()
+
+        serializer = SalonHostTransferSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        from django.contrib.auth import (
+            get_user_model,
+        )
+
+        User = get_user_model()
+
+        target_user_id = (
+            serializer.validated_data[
+                "target_user_id"
+            ]
+        )
+
+        try:
+            target_user = User.objects.get(
+                pk=target_user_id
+            )
+        except User.DoesNotExist:
+            from rest_framework.exceptions import (
+                ValidationError,
+            )
+
+            raise ValidationError(
+                {
+                    "target_user_id":
+                    "Target user does not exist."
+                }
+            )
+
+        salon = transfer_salon_host(
+            salon=salon,
+            user=request.user,
+            target_user=target_user,
+        )
+
+        salon.refresh_from_db()
+
+        return Response(
+            SalonSerializer(
+                salon,
+                context={"request": request},
+            ).data,
+        )
+
+
+
+    @action(
+        detail=True,
+        methods=("post",),
+        url_path="kick",
+    )
+    def kick(
+        self,
+        request,
+        pk=None,
+    ):
+        salon = self.get_object()
+
+        serializer = SalonMemberKickSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        from django.contrib.auth import get_user_model
+        from rest_framework.exceptions import ValidationError
+
+        User = get_user_model()
+
+        target_user_id = (
+            serializer.validated_data[
+                "target_user_id"
+            ]
+        )
+
+        try:
+            target_user = User.objects.get(
+                pk=target_user_id
+            )
+        except User.DoesNotExist:
+            raise ValidationError(
+                {
+                    "target_user_id":
+                    "Target user does not exist."
+                }
+            )
+
+        kick_salon_member(
+            salon=salon,
+            user=request.user,
+            target_user=target_user,
+        )
+
+        salon.refresh_from_db()
+
+        return Response(
+            SalonSerializer(
+                salon,
+                context={"request": request},
+            ).data,
+        )
+
+
+    @action(
+        detail=True,
+        methods=("post",),
+        url_path="close",
+    )
+    def close(self, request, pk=None):
+        salon = self.get_object()
+
+        salon = close_salon(
+            salon=salon,
+            user=request.user,
+        )
+
+        return Response(
+            SalonSerializer(
+                salon,
+                context={"request": request},
+            ).data,
+        )
+
+
+
+    @action(
+        detail=False,
+        methods=("get",),
+        url_path="quota",
+    )
+    def quota(
+        self,
+        request,
+    ):
+        return Response(
+            get_salon_quota_status(
+                user=request.user,
+            )
+        )
+
+    @action(
+        detail=True,
+        methods=("post",),
+        url_path=(
+            r"messages/"
+            r"(?P<message_id>"
+            r"[0-9a-fA-F-]{36}"
+            r")/delete"
+        ),
+    )
+    def delete_message(
+        self,
+        request,
+        pk=None,
+        message_id=None,
+    ):
+        salon = self.get_object()
+
+        try:
+            message = SalonMessage.objects.get(
+                pk=message_id,
+                salon=salon,
+            )
+        except SalonMessage.DoesNotExist:
+            from rest_framework.exceptions import (
+                ValidationError,
+            )
+
+            raise ValidationError(
+                {
+                    "message":
+                    "Salon message not found."
+                }
+            )
+
+        message = moderate_delete_salon_message(
+            salon=salon,
+            user=request.user,
+            message=message,
+        )
+
+        return Response(
+            SalonMessageSerializer(
+                message
+            ).data
+        )
+
+
+    @action(
+        detail=True,
+        methods=("get",),
+        url_path="messages",
+    )
+    def messages(
+        self,
+        request,
+        pk=None,
+    ):
+        salon = self.get_object()
+
+        queryset = salon_message_history(
+            salon=salon,
+            user=request.user,
+        )
+
+        page = self.paginate_queryset(
+            queryset
+        )
+
+        if page is not None:
+            serializer = SalonMessageSerializer(
+                page,
+                many=True,
+            )
+
+            return self.get_paginated_response(
+                serializer.data
+            )
+
+        serializer = SalonMessageSerializer(
+            queryset,
+            many=True,
+        )
+
+        return Response(
+            serializer.data
+        )

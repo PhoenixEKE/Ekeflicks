@@ -1,0 +1,67 @@
+from django.shortcuts import get_object_or_404
+
+from rest_framework import generics
+from rest_framework.permissions import IsAuthenticated
+
+from apps.recommendations.user_context import (
+    resolve_active_profile,
+)
+
+from .social_models import SocialProfile
+from .social_serializers import (
+    OwnSocialProfileSerializer,
+    PublicSocialProfileSerializer,
+)
+
+
+def get_or_create_social_profile(profile):
+    social, _ = SocialProfile.objects.get_or_create(
+        profile=profile,
+        defaults={
+            "display_name": profile.name,
+            "is_discoverable": False,
+        },
+    )
+    return social
+
+
+class OwnSocialProfileView(
+    generics.RetrieveUpdateAPIView
+):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = OwnSocialProfileSerializer
+
+    def get_object(self):
+        profile = resolve_active_profile(
+            user=self.request.user,
+        )
+
+        return get_or_create_social_profile(
+            profile
+        )
+
+
+class PublicSocialProfileView(
+    generics.RetrieveAPIView
+):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = PublicSocialProfileSerializer
+
+    def get_object(self):
+        queryset = (
+            SocialProfile.objects
+            .select_related(
+                "profile",
+                "profile__user",
+            )
+            .filter(
+                profile__is_active=True,
+                profile__user__is_active=True,
+                is_discoverable=True,
+            )
+        )
+
+        return get_object_or_404(
+            queryset,
+            profile_id=self.kwargs["profile_id"],
+        )

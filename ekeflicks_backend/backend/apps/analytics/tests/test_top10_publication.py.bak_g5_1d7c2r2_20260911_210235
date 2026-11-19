@@ -1,0 +1,431 @@
+from datetime import timedelta
+from unittest.mock import patch
+
+from django.test import TestCase
+from django.utils import timezone
+
+from apps.analytics.services import (
+    publish_global_top10,
+)
+from core.models import Content
+from core.models.recommendations import (
+    Top10Entry,
+    Top10Snapshot,
+)
+
+
+class Top10PublicationTests(TestCase):
+    def setUp(self):
+        self.end = timezone.now()
+
+    def _content(
+        self,
+        title,
+        *,
+        status='approved',
+        available_from=None,
+        available_until=None,
+    ):
+        return Content.objects.create(
+            title=title,
+            type='movie',
+            producer_submission_status=status,
+            available_from=available_from,
+            available_until=available_until,
+        )
+
+    def _row(
+        self,
+        content,
+        *,
+        qualified=10,
+        watch=100,
+        viewers=5,
+        completed=2,
+        rate=50.0,
+    ):
+        return {
+            'dimension': 'content',
+            'value': str(content.id),
+            'rank': 1,
+            'events': 10,
+            'play_starts': 10,
+            'qualified_views': qualified,
+            'unique_viewers': viewers,
+            'watch_seconds': watch,
+            'completed_views': completed,
+            'qualification_rate_percent': rate,
+            'completion_percent_avg': 60.0,
+        }
+
+    @patch(
+        'apps.analytics.services.'
+        'content_dimension_ranking'
+    )
+    def test_publishes_eligible_ranked_content(
+        self,
+        ranking,
+    ):
+        first = self._content('First')
+        second = self._content('Second')
+
+        ranking.return_value = [
+            self._row(
+                first,
+                qualified=20,
+            ),
+            self._row(
+                second,
+                qualified=10,
+            ),
+        ]
+
+        snapshot = publish_global_top10(
+            end_at=self.end,
+        )
+
+        self.assertTrue(
+            snapshot.is_published
+        )
+
+        entries = list(
+            snapshot.entries.order_by(
+                'position'
+            )
+        )
+
+        self.assertEqual(
+            [e.content_id for e in entries],
+            [
+                first.id,
+                second.id,
+            ],
+        )
+
+        self.assertEqual(
+            [e.position for e in entries],
+            [1, 2],
+        )
+
+        ranking.assert_called_once()
+
+        positional = ranking.call_args.args
+        kwargs = ranking.call_args.kwargs
+
+        self.assertEqual(
+            positional[0],
+            self.end - timedelta(days=7),
+        )
+
+        self.assertEqual(
+            positional[1],
+            self.end,
+        )
+
+        self.assertEqual(
+            kwargs['dimension'],
+            'content',
+        )
+
+        self.assertEqual(
+            kwargs['limit'],
+            100,
+        )
+
+    @patch(
+        'apps.analytics.services.'
+        'content_dimension_ranking'
+    )
+    def test_excludes_non_approved_content(
+        self,
+        ranking,
+    ):
+        pending = self._content(
+            'Pending',
+            status='pending',
+        )
+
+        approved = self._content(
+            'Approved',
+        )
+
+        ranking.return_value = [
+            self._row(pending),
+            self._row(approved),
+        ]
+
+        snapshot = publish_global_top10(
+            end_at=self.end,
+        )
+
+        self.assertEqual(
+            list(
+                snapshot.entries.values_list(
+                    'content_id',
+                    flat=True,
+                )
+            ),
+            [approved.id],
+        )
+
+    @patch(
+        'apps.analytics.services.'
+        'content_dimension_ranking'
+    )
+    def test_excludes_content_outside_availability(
+        self,
+        ranking,
+    ):
+        today = timezone.localdate()
+
+        future = self._content(
+            'Future',
+            available_from=(
+                today + timedelta(days=1)
+            ),
+        )
+
+        expired = self._content(
+            'Expired',
+            available_until=(
+                today - timedelta(days=1)
+            ),
+        )
+
+        valid = self._content(
+            'Valid',
+            available_from=today,
+            available_until=today,
+        )
+
+        ranking.return_value = [
+            self._row(future),
+            self._row(expired),
+            self._row(valid),
+        ]
+
+        snapshot = publish_global_top10(
+            end_at=self.end,
+        )
+
+        self.assertEqual(
+            list(
+                snapshot.entries.values_list(
+                    'content_id',
+                    flat=True,
+                )
+            ),
+            [valid.id],
+        )
+
+    @patch(
+        'apps.analytics.services.'
+        'content_dimension_ranking'
+    )
+    def test_empty_analytics_publishes_empty_snapshot(
+        self,
+        ranking,
+    ):
+        ranking.return_value = []
+
+        snapshot = publish_global_top10(
+            end_at=self.end,
+        )
+
+        self.assertTrue(
+            snapshot.is_published
+        )
+
+        self.assertEqual(
+            snapshot.entries.count(),
+            0,
+        )
+
+    @patch(
+        'apps.analytics.services.'
+        'content_dimension_ranking'
+    )
+    def test_limits_product_top10_to_ten(
+        self,
+        ranking,
+    ):
+        contents = [
+            self._content(
+                f'Content {i}'
+            )
+            for i in range(12)
+        ]
+
+        ranking.return_value = [
+            self._row(
+                content,
+                qualified=100 - i,
+            )
+            for i, content
+            in enumerate(contents)
+        ]
+
+        snapshot = publish_global_top10(
+            end_at=self.end,
+        )
+
+        self.assertEqual(
+            snapshot.entries.count(),
+            10,
+        )
+
+        self.assertEqual(
+            list(
+                snapshot.entries
+                .order_by('position')
+                .values_list(
+                    'position',
+                    flat=True,
+                )
+            ),
+            list(range(1, 11)),
+        )
+
+    @patch(
+        'apps.analytics.services.'
+        'content_dimension_ranking'
+    )
+    def test_tracks_position_movements(
+        self,
+        ranking,
+    ):
+        first = self._content('First')
+        second = self._content('Second')
+        newcomer = self._content('New')
+
+        ranking.return_value = [
+            self._row(first),
+            self._row(second),
+        ]
+
+        old = publish_global_top10(
+            end_at=(
+                self.end
+                - timedelta(hours=1)
+            ),
+        )
+
+        self.assertTrue(old.is_published)
+
+        ranking.return_value = [
+            self._row(second),
+            self._row(first),
+            self._row(newcomer),
+        ]
+
+        current = publish_global_top10(
+            end_at=self.end,
+        )
+
+        entries = {
+            e.content_id: e
+            for e in current.entries.all()
+        }
+
+        second_entry = entries[second.id]
+
+        self.assertEqual(
+            second_entry.previous_position,
+            2,
+        )
+        self.assertEqual(
+            second_entry.position,
+            1,
+        )
+        self.assertEqual(
+            second_entry.position_change,
+            1,
+        )
+        self.assertEqual(
+            second_entry.movement,
+            Top10Entry.MOVEMENT_UP,
+        )
+
+        first_entry = entries[first.id]
+
+        self.assertEqual(
+            first_entry.previous_position,
+            1,
+        )
+        self.assertEqual(
+            first_entry.position,
+            2,
+        )
+        self.assertEqual(
+            first_entry.position_change,
+            -1,
+        )
+        self.assertEqual(
+            first_entry.movement,
+            Top10Entry.MOVEMENT_DOWN,
+        )
+
+        new_entry = entries[newcomer.id]
+
+        self.assertIsNone(
+            new_entry.previous_position
+        )
+        self.assertIsNone(
+            new_entry.position_change
+        )
+        self.assertEqual(
+            new_entry.movement,
+            Top10Entry.MOVEMENT_NEW,
+        )
+
+    @patch(
+        'apps.analytics.services.'
+        'content_dimension_ranking'
+    )
+    def test_unchanged_position(
+        self,
+        ranking,
+    ):
+        content = self._content('Stable')
+
+        ranking.return_value = [
+            self._row(content)
+        ]
+
+        publish_global_top10(
+            end_at=(
+                self.end
+                - timedelta(hours=1)
+            ),
+        )
+
+        current = publish_global_top10(
+            end_at=self.end,
+        )
+
+        entry = current.entries.get()
+
+        self.assertEqual(
+            entry.previous_position,
+            1,
+        )
+
+        self.assertEqual(
+            entry.position_change,
+            0,
+        )
+
+        self.assertEqual(
+            entry.movement,
+            Top10Entry.MOVEMENT_UNCHANGED,
+        )
+
+    def test_rejects_non_v1_window(self):
+        with self.assertRaisesMessage(
+            ValueError,
+            'G5-1D7 v1 requires a 7-day window',
+        ):
+            publish_global_top10(
+                end_at=self.end,
+                window_days=30,
+            )

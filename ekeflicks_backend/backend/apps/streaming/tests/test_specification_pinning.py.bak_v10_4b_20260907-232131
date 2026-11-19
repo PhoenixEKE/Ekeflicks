@@ -1,0 +1,250 @@
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from django.test import SimpleTestCase
+
+from apps.streaming.tasks import (
+    _content_technical_specification,
+    _master_technical_specification,
+    _trailer_technical_specification,
+)
+
+
+class SpecificationPinningTests(SimpleTestCase):
+
+    def _content(
+        self,
+        *,
+        specification_id=None,
+        specification=None,
+    ):
+        return SimpleNamespace(
+            technical_specification_id=(
+                specification_id
+            ),
+            technical_specification=(
+                specification
+            ),
+        )
+
+    @patch(
+        "apps.streaming.tasks."
+        "_published_technical_specification"
+    )
+    def test_pinned_content_uses_exact_pin(
+        self,
+        published,
+    ):
+        pinned = object()
+        future = object()
+
+        published.return_value = future
+
+        content = self._content(
+            specification_id="spec-17",
+            specification=pinned,
+        )
+
+        result = (
+            _content_technical_specification(
+                content
+            )
+        )
+
+        self.assertIs(result, pinned)
+        published.assert_not_called()
+
+    @patch(
+        "apps.streaming.tasks."
+        "_published_technical_specification"
+    )
+    def test_unpinned_content_uses_published(
+        self,
+        published,
+    ):
+        current = object()
+        published.return_value = current
+
+        content = self._content()
+
+        result = (
+            _content_technical_specification(
+                content
+            )
+        )
+
+        self.assertIs(result, current)
+        published.assert_called_once_with()
+
+    @patch(
+        "apps.streaming.tasks."
+        "_published_technical_specification"
+    )
+    def test_film_master_uses_content_pin(
+        self,
+        published,
+    ):
+        pinned = object()
+
+        content = self._content(
+            specification_id="spec-film",
+            specification=pinned,
+        )
+
+        asset = SimpleNamespace(
+            episode_id=None,
+            content=content,
+        )
+
+        result = (
+            _master_technical_specification(
+                asset
+            )
+        )
+
+        self.assertIs(result, pinned)
+        published.assert_not_called()
+
+    @patch(
+        "apps.streaming.tasks."
+        "_published_technical_specification"
+    )
+    def test_episode_master_uses_episode_content_pin(
+        self,
+        published,
+    ):
+        pinned = object()
+
+        episode_content = self._content(
+            specification_id="spec-series",
+            specification=pinned,
+        )
+
+        wrong_asset_content = self._content()
+
+        asset = SimpleNamespace(
+            episode_id="episode-1",
+            episode=SimpleNamespace(
+                content=episode_content
+            ),
+            content=wrong_asset_content,
+        )
+
+        result = (
+            _master_technical_specification(
+                asset
+            )
+        )
+
+        self.assertIs(result, pinned)
+        published.assert_not_called()
+
+    @patch(
+        "apps.streaming.tasks."
+        "_published_technical_specification"
+    )
+    def test_content_trailer_uses_content_pin(
+        self,
+        published,
+    ):
+        pinned = object()
+
+        content = self._content(
+            specification_id="spec-content",
+            specification=pinned,
+        )
+
+        report = SimpleNamespace(
+            content_id="content-1",
+            content=content,
+            season_id=None,
+            season=None,
+        )
+
+        result = (
+            _trailer_technical_specification(
+                report
+            )
+        )
+
+        self.assertIs(result, pinned)
+        published.assert_not_called()
+
+    @patch(
+        "apps.streaming.tasks."
+        "_published_technical_specification"
+    )
+    def test_season_trailer_uses_season_content_pin(
+        self,
+        published,
+    ):
+        pinned = object()
+
+        content = self._content(
+            specification_id="spec-season",
+            specification=pinned,
+        )
+
+        report = SimpleNamespace(
+            content_id=None,
+            content=None,
+            season_id="season-1",
+            season=SimpleNamespace(
+                content=content
+            ),
+        )
+
+        result = (
+            _trailer_technical_specification(
+                report
+            )
+        )
+
+        self.assertIs(result, pinned)
+        published.assert_not_called()
+
+    @patch(
+        "apps.streaming.tasks."
+        "_published_technical_specification"
+    )
+    def test_future_published_spec_does_not_move_pin(
+        self,
+        published,
+    ):
+        pinned_v17 = object()
+        future_v18 = object()
+
+        published.return_value = future_v18
+
+        content = self._content(
+            specification_id="spec-17",
+            specification=pinned_v17,
+        )
+
+        film_asset = SimpleNamespace(
+            episode_id=None,
+            content=content,
+        )
+
+        trailer_report = SimpleNamespace(
+            content_id="content-1",
+            content=content,
+            season_id=None,
+            season=None,
+        )
+
+        self.assertIs(
+            _master_technical_specification(
+                film_asset
+            ),
+            pinned_v17,
+        )
+
+        self.assertIs(
+            _trailer_technical_specification(
+                trailer_report
+            ),
+            pinned_v17,
+        )
+
+        published.assert_not_called()

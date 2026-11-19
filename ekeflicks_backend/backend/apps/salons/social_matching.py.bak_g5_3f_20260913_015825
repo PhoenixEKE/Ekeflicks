@@ -1,0 +1,290 @@
+from __future__ import annotations
+
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Any
+
+from django.contrib.auth import get_user_model
+from django.db.models import Q
+
+from core.models.interactions import (
+    Favorite,
+    Like,
+    Rating,
+    WatchHistory,
+)
+from core.models.profiles import Profile
+
+from apps.profiles.social_models import SocialProfile
+
+from .models import Salon, SalonMember
+
+
+User = get_user_model()
+
+MAX_MATCH_RESULTS = 20
+
+
+@dataclass(frozen=True)
+class SocialMatch:
+    user: Any
+    profile: Profile
+    score: int
+    reasons: tuple[str, ...]
+    common_genre_ids: tuple[int, ...]
+    common_content_ids: tuple[str, ...]
+
+
+def _active_profile(user):
+    return (
+        Profile.objects
+        .filter(
+            user=user,
+            is_active=True,
+        )
+        .order_by("created_at", "pk")
+        .first()
+    )
+
+
+def _interaction_content_ids(profile):
+    if profile is None:
+        return set()
+
+    content_ids = set()
+
+    content_ids.update(
+        str(value)
+        for value in WatchHistory.objects
+        .filter(profile=profile)
+        .values_list("content_id", flat=True)
+    )
+
+    content_ids.update(
+        str(value)
+        for value in Favorite.objects
+        .filter(profile=profile)
+        .values_list("content_id", flat=True)
+    )
+
+    content_ids.update(
+        str(value)
+        for value in Like.objects
+        .filter(profile=profile)
+        .values_list("content_id", flat=True)
+    )
+
+    content_ids.update(
+        str(value)
+        for value in Rating.objects
+        .filter(profile=profile)
+        .values_list("content_id", flat=True)
+    )
+
+    return content_ids
+
+
+def _genre_ids_for_content_ids(content_ids):
+    if not content_ids:
+        return set()
+
+    from core.models.content import Content
+
+    return set(
+        Content.objects
+        .filter(pk__in=content_ids)
+        .values_list("genres__id", flat=True)
+        .exclude(genres__id__isnull=True)
+    )
+
+
+def _profile_signal(profile):
+    content_ids = _interaction_content_ids(profile)
+
+    return {
+        "content_ids": content_ids,
+        "genre_ids": _genre_ids_for_content_ids(
+            content_ids
+        ),
+    }
+
+
+def _eligible_users(*, salon, requester):
+    excluded_user_ids = set(
+        SalonMember.objects
+        .filter(
+            salon=salon,
+            left_at__isnull=True,
+        )
+        .values_list("user_id", flat=True)
+    )
+
+    excluded_user_ids.add(requester.pk)
+
+    active_profile_user_ids = (
+        Profile.objects
+        .filter(is_active=True)
+        .values_list("user_id", flat=True)
+    )
+
+    return (
+        User.objects
+        .filter(
+            is_active=True,
+            pk__in=active_profile_user_ids,
+        )
+        .exclude(pk__in=excluded_user_ids)
+        .distinct()
+        .order_by("pk")
+    )
+
+
+def _score_candidate(
+    *,
+    requester,
+    requester_profile,
+    requester_signal,
+    candidate,
+    candidate_profile,
+    candidate_signal,
+):
+    score = 0
+    reasons = []
+
+    requester_contents = requester_signal["content_ids"]
+    candidate_contents = candidate_signal["content_ids"]
+
+    common_contents = tuple(
+        sorted(
+            requester_contents
+            & candidate_contents
+        )
+    )
+
+    requester_genres = requester_signal["genre_ids"]
+    candidate_genres = candidate_signal["genre_ids"]
+
+    common_genres = tuple(
+        sorted(
+            requester_genres
+            & candidate_genres
+        )
+    )
+
+    if common_contents:
+        contribution = min(
+            50,
+            len(common_contents) * 10,
+        )
+        score += contribution
+        reasons.append("shared_content_taste")
+
+    if common_genres:
+        contribution = min(
+            30,
+            len(common_genres) * 6,
+        )
+        score += contribution
+        reasons.append("shared_genres")
+
+    requester_country = (
+        requester_profile.country_code
+        or requester.country_code
+        or ""
+    ).upper()
+
+    candidate_country = (
+        candidate_profile.country_code
+        or candidate.country_code
+        or ""
+    ).upper()
+
+    if (
+        requester_country
+        and candidate_country
+        and requester_country == candidate_country
+    ):
+        score += 15
+        reasons.append("same_country")
+
+    if not reasons:
+        score += 1
+        reasons.append("active_community_member")
+
+    return SocialMatch(
+        user=candidate,
+        profile=candidate_profile,
+        score=min(score, 100),
+        reasons=tuple(reasons),
+        common_genre_ids=common_genres,
+        common_content_ids=common_contents,
+    )
+
+
+def match_users_for_salon(
+    *,
+    salon,
+    requester,
+    limit=10,
+):
+    if salon.status != Salon.STATUS_OPEN:
+        return tuple()
+
+    limit = max(
+        1,
+        min(int(limit), MAX_MATCH_RESULTS),
+    )
+
+    requester_profile = _active_profile(
+        requester
+    )
+
+    if requester_profile is None:
+        return tuple()
+
+    requester_signal = _profile_signal(
+        requester_profile
+    )
+
+    results = []
+
+    for candidate in _eligible_users(
+        salon=salon,
+        requester=requester,
+    ):
+        candidate_profile = _active_profile(
+            candidate
+        )
+
+        if candidate_profile is None:
+            continue
+
+        if not SocialProfile.objects.filter(
+            profile=candidate_profile,
+            is_discoverable=True,
+        ).exists():
+            continue
+
+        candidate_signal = _profile_signal(
+            candidate_profile
+        )
+
+        results.append(
+            _score_candidate(
+                requester=requester,
+                requester_profile=requester_profile,
+                requester_signal=requester_signal,
+                candidate=candidate,
+                candidate_profile=candidate_profile,
+                candidate_signal=candidate_signal,
+            )
+        )
+
+    results.sort(
+        key=lambda item: (
+            -item.score,
+            str(item.user.pk),
+        )
+    )
+
+    return tuple(results[:limit])

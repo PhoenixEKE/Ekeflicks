@@ -1,0 +1,105 @@
+import logging
+
+from django.core.files.storage import default_storage
+
+
+logger = logging.getLogger(__name__)
+
+
+def season_temporary_paths(season):
+    paths = {
+        season.poster_temp_path,
+        season.backdrop_temp_path,
+        season.trailer_temp_path,
+    }
+
+    return {
+        str(path or '').strip()
+        for path in paths
+        if str(path or '').strip()
+    }
+
+
+def draft_temporary_paths(content):
+    paths = {
+        content.poster_temp_path,
+        content.backdrop_temp_path,
+        content.trailer_temp_path,
+        content.director_image_temp_path,
+        content.screenwriter_image_temp_path,
+    }
+
+    people = (
+        list(content.producer_team or [])
+        + list(content.cast_team or [])
+    )
+
+    for person in people:
+        if not isinstance(person, dict):
+            continue
+
+        temporary_path = str(
+            person.get('image_temp_path') or ''
+        ).strip()
+
+        if temporary_path:
+            paths.add(temporary_path)
+
+    for season in content.seasons.all():
+        paths.update(
+            season_temporary_paths(season)
+        )
+
+    return {
+        str(path or '').strip()
+        for path in paths
+        if str(path or '').strip()
+    }
+
+
+def delete_season_temporary_media(season):
+    deleted = 0
+    errors = 0
+
+    for temporary_path in season_temporary_paths(season):
+        try:
+            if default_storage.exists(temporary_path):
+                default_storage.delete(temporary_path)
+                deleted += 1
+        except Exception:
+            errors += 1
+            logger.exception(
+                'Impossible de supprimer le media '
+                'temporaire %s de la saison %s.',
+                temporary_path,
+                season.id,
+            )
+
+    return {
+        'deleted': deleted,
+        'errors': errors,
+    }
+
+
+def delete_draft_temporary_media(content):
+    deleted = 0
+    errors = 0
+
+    for temporary_path in draft_temporary_paths(content):
+        try:
+            if default_storage.exists(temporary_path):
+                default_storage.delete(temporary_path)
+                deleted += 1
+        except Exception:
+            errors += 1
+            logger.exception(
+                'Impossible de supprimer le média temporaire %s '
+                'du brouillon %s.',
+                temporary_path,
+                content.id,
+            )
+
+    return {
+        'deleted': deleted,
+        'errors': errors,
+    }

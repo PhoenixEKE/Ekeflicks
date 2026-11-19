@@ -1,0 +1,786 @@
+import 'package:plateforme_producteurs/models/producer_onboarding.dart';
+import 'package:plateforme_producteurs/services/api_client.dart';
+
+class ProducerService {
+  ProducerService._();
+
+  static final ProducerService instance = ProducerService._();
+
+  final ApiClient _api = ApiClient.instance;
+
+  Future<ProducerAccount> getOnboarding() async {
+    final response = await _api.get(
+      '/api/v1/auth/producer/onboarding/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de récupérer le dossier Producteur.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse Producteur invalide.');
+    }
+
+    return ProducerAccount.fromJson(data);
+  }
+
+  Future<ProducerAccount> updateOnboarding({
+    required String companyName,
+    required String legalName,
+    required String legalForm,
+    required String registrationNumber,
+    String? taxNumber,
+    String? countryCode,
+    String? address,
+    String? city,
+    String? phone,
+    required String representativeName,
+    String? representativeRole,
+  }) async {
+    final response = await _api.patch(
+      '/api/v1/auth/producer/onboarding/',
+      authenticated: true,
+      body: {
+        'company_name': companyName.trim(),
+        'legal_name': legalName.trim(),
+        'legal_form': legalForm.trim(),
+        'registration_number': registrationNumber.trim(),
+        'tax_number': taxNumber?.trim() ?? '',
+        'country_code': countryCode?.trim().toUpperCase() ?? '',
+        'address': address?.trim() ?? '',
+        'city': city?.trim() ?? '',
+        'phone': phone?.trim() ?? '',
+        'representative_name': representativeName.trim(),
+        'representative_role': representativeRole?.trim() ?? '',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback:
+              'Impossible d’enregistrer les informations professionnelles.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse Producteur invalide.');
+    }
+
+    return ProducerAccount.fromJson(data);
+  }
+
+  Future<void> resendEmailVerification() async {
+    final response = await _api.post(
+      '/api/v1/auth/resend-email-verification/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de renvoyer l’email de vérification.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  Future<void> verifyEmail(String token) async {
+    final response = await _api.get(
+      '/api/v1/auth/verify-email/?token=${Uri.encodeQueryComponent(token)}',
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Lien de vérification invalide ou expiré.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  Future<ProducerAgreement> getCurrentAgreement() async {
+    final response = await _api.get(
+      '/api/v1/auth/producer/agreement/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de récupérer le contrat EKEFLICKS.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse contrat invalide.');
+    }
+
+    final agreementData = data['agreement'];
+
+    if (agreementData is Map) {
+      final merged = <String, dynamic>{
+        ...data,
+        ...Map<String, dynamic>.from(agreementData),
+      };
+
+      return ProducerAgreement.fromJson(merged);
+    }
+
+    return ProducerAgreement.fromJson(data);
+  }
+
+  Future<List<int>> downloadAgreement({
+    bool download = true,
+    bool signed = false,
+  }) async {
+    final params = <String>[];
+
+    if (signed) {
+      params.add('signed=1');
+    }
+
+    if (download) {
+      params.add('download=1');
+    }
+
+    final query = params.isEmpty ? '' : '?${params.join('&')}';
+
+    final path = '/api/v1/auth/producer/agreement/document/$query';
+
+    final response = await _api.getBytes(path, authenticated: true);
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de télécharger le contrat EKEFLICKS.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    return response.bodyBytes;
+  }
+
+  Future<ProducerAgreement> signAgreement() async {
+    final response = await _api.post(
+      '/api/v1/auth/producer/agreement/sign/',
+      authenticated: true,
+      body: const {'accepted': true},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de signer le contrat EKEFLICKS.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de signature invalide.');
+    }
+
+    final agreementData = data['agreement'];
+
+    if (agreementData is Map) {
+      return ProducerAgreement.fromJson(
+        Map<String, dynamic>.from(agreementData),
+      );
+    }
+
+    return ProducerAgreement.fromJson(data);
+  }
+
+  Future<List<int>> getGenreIdsByNames(Iterable<String> names) async {
+    final response = await _api.get('/api/v1/genres/', authenticated: true);
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de récupérer les genres.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    List<dynamic> rows;
+
+    if (data is List) {
+      rows = data;
+    } else if (data is Map && data['results'] is List) {
+      rows = data['results'] as List<dynamic>;
+    } else {
+      throw const ApiException('Réponse des genres invalide.');
+    }
+
+    final byName = <String, int>{};
+
+    for (final row in rows) {
+      if (row is! Map) continue;
+
+      final rawName = row['name'];
+      final rawId = row['id'];
+
+      if (rawName is! String) continue;
+
+      final id = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+
+      if (id == null) continue;
+
+      byName[rawName.trim().toLowerCase()] = id;
+    }
+
+    final ids = <int>[];
+    final missing = <String>[];
+
+    for (final name in names) {
+      final id = byName[name.trim().toLowerCase()];
+
+      if (id == null) {
+        missing.add(name);
+      } else {
+        ids.add(id);
+      }
+    }
+
+    if (missing.isNotEmpty) {
+      throw ApiException(
+        'Genres introuvables sur le serveur : ${missing.join(', ')}.',
+      );
+    }
+
+    return ids;
+  }
+
+  Future<Map<String, dynamic>> createContent({
+    required String title,
+    required String description,
+    required String type,
+    int? releaseYear,
+    List<int> genreIds = const [],
+    String? synopsis,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/contents/',
+      authenticated: true,
+      body: {
+        'title': title.trim(),
+        'description': description.trim(),
+        'synopsis': synopsis?.trim() ?? description.trim(),
+        'type': type,
+        if (releaseYear != null) 'release_year': releaseYear,
+        if (genreIds.isNotEmpty) 'genre_ids': genreIds,
+      },
+    );
+
+    if (response.statusCode != 201) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de créer le contenu.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de création de contenu invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> updateContent({
+    required String contentId,
+    String? title,
+    String? description,
+    String? synopsis,
+    String? type,
+    int? releaseYear,
+    List<int>? genreIds,
+    String? language,
+    String? country,
+    String? directorName,
+    String? screenwriterName,
+    List<Map<String, dynamic>>? producerTeam,
+    List<Map<String, dynamic>>? castTeam,
+  }) async {
+    final body = <String, dynamic>{};
+
+    if (title != null) {
+      body['title'] = title.trim();
+    }
+
+    if (description != null) {
+      body['description'] = description.trim();
+    }
+
+    if (synopsis != null) {
+      body['synopsis'] = synopsis.trim();
+    }
+
+    if (type != null) {
+      body['type'] = type;
+    }
+
+    if (releaseYear != null) {
+      body['release_year'] = releaseYear;
+    }
+
+    if (genreIds != null) {
+      body['genre_ids'] = genreIds;
+    }
+
+    if (language != null) {
+      body['language'] = language.trim();
+    }
+
+    if (country != null) {
+      body['country'] = country.trim();
+    }
+
+    if (directorName != null) {
+      body['director_name'] = directorName.trim();
+    }
+
+    if (screenwriterName != null) {
+      body['screenwriter_name'] = screenwriterName.trim();
+    }
+
+    if (producerTeam != null) {
+      body['producer_team'] = producerTeam;
+    }
+
+    if (castTeam != null) {
+      body['cast_team'] = castTeam;
+    }
+
+    final response = await _api.patch(
+      '/api/v1/contents/$contentId/',
+      authenticated: true,
+      body: body,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de sauvegarder le brouillon.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de sauvegarde invalide.');
+    }
+
+    return data;
+  }
+
+  Future<List<Map<String, dynamic>>> getMyContents({
+    String? type,
+    String? submissionStatus,
+  }) async {
+    final params = <String, String>{};
+
+    if (type != null && type.isNotEmpty) {
+      params['type'] = type;
+    }
+
+    if (submissionStatus != null && submissionStatus.isNotEmpty) {
+      params['producer_status'] = submissionStatus;
+    }
+
+    final uri = Uri(
+      path: '/api/v1/contents/mine/',
+      queryParameters: params.isEmpty ? null : params,
+    );
+
+    final response = await _api.get(uri.toString(), authenticated: true);
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de charger vos contenus.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is List) {
+      return data.whereType<Map<String, dynamic>>().toList();
+    }
+
+    if (data is Map<String, dynamic>) {
+      final results = data['results'];
+
+      if (results is List) {
+        return results.whereType<Map<String, dynamic>>().toList();
+      }
+    }
+
+    throw const ApiException('Réponse contenus invalide.');
+  }
+
+  Future<Map<String, dynamic>> getContent(String contentId) async {
+    final response = await _api.get(
+      '/api/v1/contents/$contentId/',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de charger le brouillon.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse contenu invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> uploadContentMedia({
+    required String contentId,
+    required String mediaType,
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final allowedTypes = {'poster', 'backdrop', 'trailer'};
+    if (!allowedTypes.contains(mediaType)) {
+      throw const ApiException('Type de média non supporté.');
+    }
+
+    final response = await _api.postMultipart(
+      '/api/v1/contents/$contentId/upload-$mediaType/',
+      authenticated: true,
+      bytes: bytes,
+      filename: filename,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(response, fallback: 'Impossible d’envoyer le média.'),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse média invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> createTrailerUploadSession({
+    required String contentId,
+    required String filename,
+    required int sizeBytes,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/contents/$contentId/trailer-upload-session/',
+      authenticated: true,
+      body: {'filename': filename, 'size_bytes': sizeBytes},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de préparer l’envoi du trailer.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de session trailer invalide.');
+    }
+
+    final uploadUrl = data['upload_url'];
+    final completionToken = data['completion_token'];
+
+    if (uploadUrl is! String ||
+        uploadUrl.isEmpty ||
+        completionToken is! String ||
+        completionToken.isEmpty) {
+      throw const ApiException('Session d’upload trailer incomplète.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> completeTrailerUpload({
+    required String contentId,
+    required String completionToken,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/contents/$contentId/trailer-upload-complete/',
+      authenticated: true,
+      body: {'completion_token': completionToken},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de confirmer l’envoi du trailer.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de confirmation trailer invalide.');
+    }
+
+    return data;
+  }
+
+  Future<List<Map<String, dynamic>>> getMyVideoAssets({
+    String? contentId,
+  }) async {
+    final query = contentId == null || contentId.isEmpty
+        ? ''
+        : '?content=${Uri.encodeQueryComponent(contentId)}';
+
+    final response = await _api.get(
+      '/api/v1/video-assets/mine/$query',
+      authenticated: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de charger vos ressources vidéo.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is List) {
+      return data.whereType<Map<String, dynamic>>().toList();
+    }
+
+    if (data is Map<String, dynamic>) {
+      final results = data['results'];
+
+      if (results is List) {
+        return results.whereType<Map<String, dynamic>>().toList();
+      }
+    }
+
+    throw const ApiException('Réponse ressources vidéo invalide.');
+  }
+
+  Future<Map<String, dynamic>> createVideoAsset({
+    required String contentId,
+    required String title,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/video-assets/',
+      authenticated: true,
+      body: {'content_id': contentId, 'title': title.trim()},
+    );
+
+    if (response.statusCode != 201) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de créer la ressource vidéo.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse ressource vidéo invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> createSourceUploadSession({
+    required String assetId,
+    required String filename,
+    required int sizeBytes,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/video-assets/$assetId/source-upload-session/',
+      authenticated: true,
+      body: {'filename': filename, 'size_bytes': sizeBytes},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de préparer l’envoi de la vidéo.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de session d’upload invalide.');
+    }
+
+    final uploadUrl = data['upload_url'];
+    final completionToken = data['completion_token'];
+
+    if (uploadUrl is! String ||
+        uploadUrl.isEmpty ||
+        completionToken is! String ||
+        completionToken.isEmpty) {
+      throw const ApiException('Session d’upload incomplète.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> completeSourceUpload({
+    required String assetId,
+    required String completionToken,
+  }) async {
+    final response = await _api.post(
+      '/api/v1/video-assets/$assetId/source-upload-complete/',
+      authenticated: true,
+      body: {'completion_token': completionToken},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de confirmer l’envoi de la vidéo.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de confirmation d’upload invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> uploadVideoSource({
+    required String assetId,
+    required Stream<List<int>> stream,
+    required int length,
+    required String filename,
+  }) async {
+    final response = await _api.postMultipartStream(
+      '/api/v1/video-assets/$assetId/upload-source/',
+      authenticated: true,
+      stream: stream,
+      length: length,
+      filename: filename,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible d’envoyer la vidéo source.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse upload vidéo invalide.');
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> submitContent({
+    required String contentId,
+    String producerNotes = '',
+  }) async {
+    final response = await _api.post(
+      '/api/v1/contents/$contentId/submit/',
+      authenticated: true,
+      body: {'producer_notes': producerNotes.trim()},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _api.errorMessage(
+          response,
+          fallback: 'Impossible de soumettre le contenu.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final data = _api.decode(response);
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Réponse de soumission invalide.');
+    }
+
+    return data;
+  }
+}

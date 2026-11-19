@@ -1,0 +1,1076 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from defusedxml import ElementTree
+from defusedxml.common import (
+    DTDForbidden,
+    DefusedXmlException,
+    EntitiesForbidden,
+    ExternalReferenceForbidden,
+)
+
+
+MAX_XML_SIZE_BYTES = 2 * 1024 * 1024
+
+ALLOWED_EXTENSIONS = {
+    ".xml",
+}
+
+ALLOWED_MIME_TYPES = {
+    "application/xml",
+    "text/xml",
+    "application/octet-stream",
+}
+
+SCHEMA_ROOT = "ekeflicks-metadata"
+SCHEMA_VERSION = "1.0"
+
+XML_CONTENT_TYPE_MAP = {
+    "film": "movie",
+    "series": "series",
+}
+
+
+XML_LANGUAGE_NORMALIZATION = {
+    "fr": "Français",
+    "fra": "Français",
+    "fre": "Français",
+    "français": "Français",
+    "francais": "Français",
+    "en": "Anglais",
+    "eng": "Anglais",
+    "english": "Anglais",
+    "anglais": "Anglais",
+}
+
+
+XML_COUNTRY_NORMALIZATION = {
+    "ci": "Côte d'Ivoire",
+    "civ": "Côte d'Ivoire",
+    "côte d'ivoire": "Côte d'Ivoire",
+    "cote d'ivoire": "Côte d'Ivoire",
+}
+
+
+def _normalize_language_value(
+    value: Any,
+) -> str:
+    cleaned = str(
+        value or ""
+    ).strip()
+
+    if not cleaned:
+        return cleaned
+
+    return XML_LANGUAGE_NORMALIZATION.get(
+        cleaned.casefold(),
+        cleaned,
+    )
+
+
+def _normalize_country_value(
+    value: Any,
+) -> str:
+    cleaned = str(
+        value or ""
+    ).strip()
+
+    if not cleaned:
+        return cleaned
+
+    return XML_COUNTRY_NORMALIZATION.get(
+        cleaned.casefold(),
+        cleaned,
+    )
+
+
+def _append_unsupported_optional_value_warning(
+    warnings: list[dict[str, Any]],
+    *,
+    field: str,
+    value: Any,
+) -> None:
+    cleaned = str(
+        value or ""
+    ).strip()
+
+    if not cleaned:
+        return
+
+    warnings.append(
+        {
+            "code": "unsupported_optional_value",
+            "field": field,
+            "value": cleaned,
+            "message": (
+                "Value is preserved but is not "
+                "recognized by the current "
+                "EKEFLICKS normalization map."
+            ),
+        }
+    )
+
+
+SCALAR_CONTENT_FIELDS = {
+    "title": "title",
+    "original-title": "original_title",
+    "synopsis": "synopsis",
+    "long-synopsis": "description",
+    "production-year": "release_year",
+    "age-rating": "age_rating",
+    "duration-minutes": "duration",
+    "original-language": "language",
+    "country-of-origin": "country",
+}
+
+LIST_CONTENT_FIELDS = {
+    "genres": ("genre", "genres"),
+    "directors": ("director", "directors"),
+    "cast": ("person", "cast"),
+    "screenwriters": ("screenwriter", "screenwriters"),
+    "producers": ("producer", "producers"),
+    "audio-languages": ("language", "audio_languages"),
+    "subtitle-languages": ("language", "subtitle_languages"),
+}
+
+ALLOWED_CONTENT_CHILDREN = (
+    set(SCALAR_CONTENT_FIELDS)
+    | set(LIST_CONTENT_FIELDS)
+    | {"seasons"}
+)
+
+ALLOWED_ROOT_ATTRIBUTES = {
+    "version",
+}
+
+ALLOWED_CONTENT_ATTRIBUTES = {
+    "type",
+}
+
+ALLOWED_SEASON_ATTRIBUTES = {
+    "number",
+}
+
+ALLOWED_EPISODE_ATTRIBUTES = {
+    "number",
+}
+
+
+class XmlMetadataError(ValueError):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+@dataclass(frozen=True)
+class XmlMetadataPreview:
+    schema: str
+    schema_version: str
+    valid: bool
+    recognized: dict[str, Any]
+    warnings: list[dict[str, Any]]
+    errors: list[dict[str, Any]]
+    ignored_fields: list[str]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "schema_version": self.schema_version,
+            "valid": self.valid,
+            "recognized": self.recognized,
+            "warnings": self.warnings,
+            "errors": self.errors,
+            "ignored_fields": self.ignored_fields,
+        }
+
+
+def _error(
+    code: str,
+    message: str,
+) -> XmlMetadataError:
+    return XmlMetadataError(
+        code,
+        message,
+    )
+
+
+def _clean_text(value: str | None) -> str:
+    return (value or "").strip()
+
+
+def _child_elements(
+    element,
+    tag: str,
+):
+    return [
+        child
+        for child in list(element)
+        if child.tag == tag
+    ]
+
+
+def _single_child(
+    element,
+    tag: str,
+):
+    matches = _child_elements(
+        element,
+        tag,
+    )
+
+    if len(matches) > 1:
+        raise _error(
+            "xml_duplicate_field",
+            f"Duplicate scalar field: {tag}",
+        )
+
+    if not matches:
+        return None
+
+    return matches[0]
+
+
+def _single_text(
+    element,
+    tag: str,
+) -> str | None:
+    child = _single_child(
+        element,
+        tag,
+    )
+
+    if child is None:
+        return None
+
+    value = _clean_text(child.text)
+
+    return value or None
+
+
+def _positive_int(
+    raw: str | None,
+    *,
+    field: str,
+) -> int | None:
+    if raw is None:
+        return None
+
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise _error(
+            "xml_invalid_value",
+            f"{field} must be an integer.",
+        )
+
+    if value <= 0:
+        raise _error(
+            "xml_invalid_value",
+            f"{field} must be greater than zero.",
+        )
+
+    return value
+
+
+def _validate_attributes(
+    element,
+    allowed: set[str],
+    *,
+    path: str,
+    warnings: list[dict[str, Any]],
+) -> None:
+    for name in element.attrib:
+        if name in allowed:
+            continue
+
+        warnings.append(
+            {
+                "code": "unknown_attribute",
+                "path": path,
+                "attribute": name,
+            }
+        )
+
+
+def _collect_unknown_children(
+    element,
+    allowed: set[str],
+    *,
+    path: str,
+    warnings: list[dict[str, Any]],
+    ignored_fields: list[str],
+) -> None:
+    for child in list(element):
+        if child.tag in allowed:
+            continue
+
+        child_path = f"{path}/{child.tag}"
+
+        ignored_fields.append(
+            child_path
+        )
+
+        warnings.append(
+            {
+                "code": "unknown_field",
+                "path": child_path,
+            }
+        )
+
+
+def _list_values(
+    content,
+    container_tag: str,
+    item_tag: str,
+    *,
+    warnings: list[dict[str, Any]],
+    ignored_fields: list[str],
+) -> list[str]:
+    container = _single_child(
+        content,
+        container_tag,
+    )
+
+    if container is None:
+        return []
+
+    container_path = (
+        "/ekeflicks-metadata/content/"
+        f"{container_tag}"
+    )
+
+    _validate_attributes(
+        container,
+        set(),
+        path=container_path,
+        warnings=warnings,
+    )
+
+    _collect_unknown_children(
+        container,
+        {
+            item_tag,
+        },
+        path=container_path,
+        warnings=warnings,
+        ignored_fields=ignored_fields,
+    )
+
+    values = []
+
+    for child in list(container):
+        if child.tag != item_tag:
+            continue
+
+        item_path = (
+            f"{container_path}/{item_tag}"
+        )
+
+        _validate_attributes(
+            child,
+            set(),
+            path=item_path,
+            warnings=warnings,
+        )
+
+        value = _clean_text(child.text)
+
+        if value:
+            values.append(value)
+
+    return values
+
+
+def _normalize_content(
+    content,
+    *,
+    warnings: list[dict[str, Any]],
+    ignored_fields: list[str],
+) -> dict[str, Any]:
+    _validate_attributes(
+        content,
+        ALLOWED_CONTENT_ATTRIBUTES,
+        path="/ekeflicks-metadata/content",
+        warnings=warnings,
+    )
+
+    _collect_unknown_children(
+        content,
+        ALLOWED_CONTENT_CHILDREN,
+        path="/ekeflicks-metadata/content",
+        warnings=warnings,
+        ignored_fields=ignored_fields,
+    )
+
+    raw_type = _clean_text(
+        content.attrib.get("type")
+    ).lower()
+
+    if not raw_type:
+        raise _error(
+            "xml_invalid_content_type",
+            "Content type is required.",
+        )
+
+    normalized_type = XML_CONTENT_TYPE_MAP.get(
+        raw_type
+    )
+
+    if normalized_type is None:
+        raise _error(
+            "xml_invalid_content_type",
+            f"Unsupported content type: {raw_type}",
+        )
+
+    normalized: dict[str, Any] = {
+        "type": normalized_type,
+    }
+
+    for xml_tag, target_field in SCALAR_CONTENT_FIELDS.items():
+        value = _single_text(
+            content,
+            xml_tag,
+        )
+
+        if value is None:
+            continue
+
+        if target_field in {
+            "release_year",
+            "duration",
+        }:
+            normalized[target_field] = _positive_int(
+                value,
+                field=xml_tag,
+            )
+        else:
+            normalized[target_field] = value
+
+    for (
+        container_tag,
+        (
+            item_tag,
+            target_field,
+        ),
+    ) in LIST_CONTENT_FIELDS.items():
+        values = _list_values(
+            content,
+            container_tag,
+            item_tag,
+            warnings=warnings,
+            ignored_fields=ignored_fields,
+        )
+
+        if values:
+            normalized[target_field] = values
+
+    directors = normalized.get(
+        "directors",
+        [],
+    )
+
+    if len(directors) > 1:
+        warnings.append(
+            {
+                "code": "multiple_directors_truncated",
+                "count": len(directors),
+            }
+        )
+
+    screenwriters = normalized.get(
+        "screenwriters",
+        [],
+    )
+
+    if len(screenwriters) > 1:
+        warnings.append(
+            {
+                "code": "multiple_screenwriters_truncated",
+                "count": len(screenwriters),
+            }
+        )
+
+    return normalized
+
+
+def _normalize_episode(
+    episode,
+    *,
+    season_number: int,
+    warnings: list[dict[str, Any]],
+    ignored_fields: list[str],
+) -> dict[str, Any]:
+    _validate_attributes(
+        episode,
+        ALLOWED_EPISODE_ATTRIBUTES,
+        path=(
+            "/ekeflicks-metadata/content/"
+            f"seasons/season[{season_number}]/episode"
+        ),
+        warnings=warnings,
+    )
+
+    number = _positive_int(
+        episode.attrib.get("number"),
+        field="episode number",
+    )
+
+    if number is None:
+        raise _error(
+            "xml_invalid_value",
+            "Episode number is required.",
+        )
+
+    allowed = {
+        "title",
+        "description",
+        "duration-minutes",
+    }
+
+    _collect_unknown_children(
+        episode,
+        allowed,
+        path=(
+            "/ekeflicks-metadata/content/"
+            f"seasons/season[{season_number}]/"
+            f"episodes/episode[{number}]"
+        ),
+        warnings=warnings,
+        ignored_fields=ignored_fields,
+    )
+
+    normalized = {
+        "episode_number": number,
+    }
+
+    title = _single_text(
+        episode,
+        "title",
+    )
+
+    description = _single_text(
+        episode,
+        "description",
+    )
+
+    duration = _single_text(
+        episode,
+        "duration-minutes",
+    )
+
+    if title is not None:
+        normalized["title"] = title
+
+    if description is not None:
+        normalized["description"] = description
+
+    if duration is not None:
+        normalized["duration"] = _positive_int(
+            duration,
+            field="episode duration-minutes",
+        )
+
+    return normalized
+
+
+def _normalize_seasons(
+    content,
+    *,
+    warnings: list[dict[str, Any]],
+    ignored_fields: list[str],
+) -> list[dict[str, Any]]:
+    seasons_container = _single_child(
+        content,
+        "seasons",
+    )
+
+    if seasons_container is None:
+        return []
+
+    seasons = []
+    seen_seasons = set()
+
+    for season in list(seasons_container):
+        if season.tag != "season":
+            ignored_fields.append(
+                (
+                    "/ekeflicks-metadata/content/"
+                    f"seasons/{season.tag}"
+                )
+            )
+
+            warnings.append(
+                {
+                    "code": "unknown_field",
+                    "path": (
+                        "/ekeflicks-metadata/content/"
+                        f"seasons/{season.tag}"
+                    ),
+                }
+            )
+
+            continue
+
+        _validate_attributes(
+            season,
+            ALLOWED_SEASON_ATTRIBUTES,
+            path="/ekeflicks-metadata/content/seasons/season",
+            warnings=warnings,
+        )
+
+        number = _positive_int(
+            season.attrib.get("number"),
+            field="season number",
+        )
+
+        if number is None:
+            raise _error(
+                "xml_invalid_value",
+                "Season number is required.",
+            )
+
+        if number in seen_seasons:
+            raise _error(
+                "xml_duplicate_season_number",
+                f"Duplicate season number: {number}",
+            )
+
+        seen_seasons.add(number)
+
+        allowed = {
+            "title",
+            "description",
+            "episodes",
+        }
+
+        _collect_unknown_children(
+            season,
+            allowed,
+            path=(
+                "/ekeflicks-metadata/content/"
+                f"seasons/season[{number}]"
+            ),
+            warnings=warnings,
+            ignored_fields=ignored_fields,
+        )
+
+        normalized = {
+            "season_number": number,
+            "episodes": [],
+        }
+
+        title = _single_text(
+            season,
+            "title",
+        )
+
+        description = _single_text(
+            season,
+            "description",
+        )
+
+        if title is not None:
+            normalized["title"] = title
+
+        if description is not None:
+            normalized["description"] = description
+
+        episodes_container = _single_child(
+            season,
+            "episodes",
+        )
+
+        seen_episodes = set()
+
+        if episodes_container is not None:
+            for episode in list(
+                episodes_container
+            ):
+                if episode.tag != "episode":
+                    ignored_fields.append(
+                        (
+                            "/ekeflicks-metadata/content/"
+                            f"seasons/season[{number}]/"
+                            f"episodes/{episode.tag}"
+                        )
+                    )
+
+                    warnings.append(
+                        {
+                            "code": "unknown_field",
+                            "path": (
+                                "/ekeflicks-metadata/content/"
+                                f"seasons/season[{number}]/"
+                                f"episodes/{episode.tag}"
+                            ),
+                        }
+                    )
+
+                    continue
+
+                normalized_episode = _normalize_episode(
+                    episode,
+                    season_number=number,
+                    warnings=warnings,
+                    ignored_fields=ignored_fields,
+                )
+
+                episode_number = normalized_episode[
+                    "episode_number"
+                ]
+
+                if episode_number in seen_episodes:
+                    raise _error(
+                        "xml_duplicate_episode_number",
+                        (
+                            "Duplicate episode number "
+                            f"{episode_number} in season {number}"
+                        ),
+                    )
+
+                seen_episodes.add(
+                    episode_number
+                )
+
+                normalized["episodes"].append(
+                    normalized_episode
+                )
+
+        seasons.append(
+            normalized
+        )
+
+    return seasons
+
+
+def parse_xml_metadata_bytes(
+    data: bytes,
+) -> XmlMetadataPreview:
+    if not data:
+        raise _error(
+            "xml_empty",
+            "XML file is empty.",
+        )
+
+    if len(data) > MAX_XML_SIZE_BYTES:
+        raise _error(
+            "xml_too_large",
+            "XML file exceeds the 2 MiB limit.",
+        )
+
+    # The complete payload is already bounded to MAX_XML_SIZE_BYTES,
+    # so scanning all bytes remains bounded and prevents forbidden
+    # declarations from bypassing a prefix-only inspection.
+    upper = data.upper()
+
+    if (
+        b"HTTP://WWW.W3.ORG/2001/XINCLUDE"
+        in upper
+        or b"<XI:INCLUDE" in upper
+    ):
+        raise _error(
+            "xml_xinclude_forbidden",
+            "XInclude is forbidden.",
+        )
+
+    if b"<!DOCTYPE" in upper:
+        raise _error(
+            "xml_doctype_forbidden",
+            "DOCTYPE declarations are forbidden.",
+        )
+
+    if b"<!ENTITY" in upper:
+        raise _error(
+            "xml_entity_forbidden",
+            "Entity declarations are forbidden.",
+        )
+
+    try:
+        root = ElementTree.fromstring(
+            data,
+            forbid_dtd=True,
+            forbid_entities=True,
+            forbid_external=True,
+        )
+
+    except DTDForbidden as exc:
+        raise _error(
+            "xml_doctype_forbidden",
+            "DOCTYPE declarations are forbidden.",
+        ) from exc
+
+    except (
+        EntitiesForbidden,
+        ExternalReferenceForbidden,
+    ) as exc:
+        raise _error(
+            "xml_entity_forbidden",
+            "XML entities and external references are forbidden.",
+        ) from exc
+
+    except ElementTree.ParseError as exc:
+        raise _error(
+            "xml_malformed",
+            "Malformed XML document.",
+        ) from exc
+
+    except DefusedXmlException as exc:
+        raise _error(
+            "xml_malformed",
+            "Unsafe XML document.",
+        ) from exc
+
+    if root.tag != SCHEMA_ROOT:
+        raise _error(
+            "xml_unsupported_root",
+            (
+                f"Expected root <{SCHEMA_ROOT}>, "
+                f"got <{root.tag}>."
+            ),
+        )
+
+    warnings: list[dict[str, Any]] = []
+    ignored_fields: list[str] = []
+
+    _validate_attributes(
+        root,
+        ALLOWED_ROOT_ATTRIBUTES,
+        path="/ekeflicks-metadata",
+        warnings=warnings,
+    )
+
+    version = _clean_text(
+        root.attrib.get("version")
+    )
+
+    if version != SCHEMA_VERSION:
+        raise _error(
+            "xml_unsupported_version",
+            (
+                f"Unsupported XML schema version: "
+                f"{version or '<missing>'}"
+            ),
+        )
+
+    content_nodes = _child_elements(
+        root,
+        "content",
+    )
+
+    if not content_nodes:
+        raise _error(
+            "xml_missing_content",
+            "XML document must contain one content element.",
+        )
+
+    if len(content_nodes) > 1:
+        raise _error(
+            "xml_duplicate_field",
+            "XML document must contain only one content element.",
+        )
+
+    _collect_unknown_children(
+        root,
+        {
+            "content",
+        },
+        path="/ekeflicks-metadata",
+        warnings=warnings,
+        ignored_fields=ignored_fields,
+    )
+
+    content = content_nodes[0]
+
+    normalized_content = _normalize_content(
+        content,
+        warnings=warnings,
+        ignored_fields=ignored_fields,
+    )
+
+    if "language" in normalized_content:
+        raw_language = str(
+            normalized_content["language"]
+            or ""
+        ).strip()
+
+        if (
+            raw_language
+            and raw_language.casefold()
+            not in XML_LANGUAGE_NORMALIZATION
+        ):
+            _append_unsupported_optional_value_warning(
+                warnings,
+                field="language",
+                value=raw_language,
+            )
+
+        normalized_content["language"] = (
+            _normalize_language_value(
+                raw_language
+            )
+        )
+
+    if "audio_languages" in normalized_content:
+        normalized_audio_languages = []
+
+        for value in normalized_content[
+            "audio_languages"
+        ]:
+            raw_value = str(
+                value or ""
+            ).strip()
+
+            if (
+                raw_value
+                and raw_value.casefold()
+                not in XML_LANGUAGE_NORMALIZATION
+            ):
+                _append_unsupported_optional_value_warning(
+                    warnings,
+                    field="audio_languages",
+                    value=raw_value,
+                )
+
+            normalized_audio_languages.append(
+                _normalize_language_value(
+                    raw_value
+                )
+            )
+
+        normalized_content[
+            "audio_languages"
+        ] = normalized_audio_languages
+
+    if "subtitle_languages" in normalized_content:
+        normalized_subtitle_languages = []
+
+        for value in normalized_content[
+            "subtitle_languages"
+        ]:
+            raw_value = str(
+                value or ""
+            ).strip()
+
+            if (
+                raw_value
+                and raw_value.casefold()
+                not in XML_LANGUAGE_NORMALIZATION
+            ):
+                _append_unsupported_optional_value_warning(
+                    warnings,
+                    field="subtitle_languages",
+                    value=raw_value,
+                )
+
+            normalized_subtitle_languages.append(
+                _normalize_language_value(
+                    raw_value
+                )
+            )
+
+        normalized_content[
+            "subtitle_languages"
+        ] = normalized_subtitle_languages
+
+    if "country" in normalized_content:
+        raw_country = str(
+            normalized_content["country"]
+            or ""
+        ).strip()
+
+        if (
+            raw_country
+            and raw_country.casefold()
+            not in XML_COUNTRY_NORMALIZATION
+        ):
+            _append_unsupported_optional_value_warning(
+                warnings,
+                field="country",
+                value=raw_country,
+            )
+
+        normalized_content["country"] = (
+            _normalize_country_value(
+                raw_country
+            )
+        )
+
+    seasons = _normalize_seasons(
+        content,
+        warnings=warnings,
+        ignored_fields=ignored_fields,
+    )
+
+    if (
+        normalized_content["type"]
+        != "series"
+        and seasons
+    ):
+        raise _error(
+            "xml_invalid_value",
+            "Seasons are only allowed for series content.",
+        )
+
+    return XmlMetadataPreview(
+        schema=SCHEMA_ROOT,
+        schema_version=SCHEMA_VERSION,
+        valid=True,
+        recognized={
+            "content": normalized_content,
+            "seasons": seasons,
+        },
+        warnings=warnings,
+        errors=[],
+        ignored_fields=ignored_fields,
+    )
+
+
+def validate_xml_upload_metadata(
+    *,
+    filename: str,
+    content_type: str | None,
+    size: int,
+) -> None:
+    extension = Path(
+        filename or ""
+    ).suffix.lower()
+
+    if extension not in ALLOWED_EXTENSIONS:
+        raise _error(
+            "xml_invalid_extension",
+            "Only .xml files are accepted.",
+        )
+
+    if size <= 0:
+        raise _error(
+            "xml_empty",
+            "XML file is empty.",
+        )
+
+    if size > MAX_XML_SIZE_BYTES:
+        raise _error(
+            "xml_too_large",
+            "XML file exceeds the 2 MiB limit.",
+        )
+
+    mime = (
+        content_type
+        or "application/octet-stream"
+    ).split(
+        ";",
+        1,
+    )[0].strip().lower()
+
+    if mime not in ALLOWED_MIME_TYPES:
+        raise _error(
+            "xml_invalid_mime",
+            f"Unsupported XML MIME type: {mime}",
+        )

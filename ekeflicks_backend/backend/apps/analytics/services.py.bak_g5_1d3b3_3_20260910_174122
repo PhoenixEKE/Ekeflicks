@@ -1,0 +1,1670 @@
+from decimal import Decimal, ROUND_HALF_UP
+
+from django.db.models import Count, Sum, Value
+from django.db.models.functions import Coalesce, TruncMinute
+from django.utils import timezone
+
+from core.models import (
+    ProducerContentView,
+    ProducerCountryCurrency,
+    ProducerPayoutRequest,
+    ProducerRevenueSetting,
+    ViewingSession,
+)
+
+
+def revenue_settings():
+    setting, _created = ProducerRevenueSetting.objects.get_or_create(pk=1)
+    return setting
+
+
+def producer_currency(producer):
+    country_code = (producer.country_code or '').upper()
+    if country_code:
+        currency = ProducerCountryCurrency.objects.filter(
+            country_code=country_code,
+            is_active=True,
+        ).first()
+        if currency:
+            return currency.currency, Decimal(currency.eur_to_currency_rate)
+    return 'EUR', Decimal('1')
+
+
+def convert_eur_for_producer(amount_eur, producer):
+    currency, rate = producer_currency(producer)
+    amount_local = (Decimal(amount_eur) * rate).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+    return currency, amount_local
+
+
+def _total_seconds_for_session(session):
+    if session.episode and session.episode.duration:
+        return int(session.episode.duration) * 60
+    if session.content.duration:
+        return int(session.content.duration) * 60
+    if session.was_completed and session.duration_watched:
+        return int(session.duration_watched)
+    return 0
+
+
+def record_producer_viewing_session(session):
+    session = (
+        ViewingSession.objects.select_related(
+            'profile',
+            'profile__user',
+            'content',
+            'content__producer',
+            'episode',
+        )
+        .get(pk=session.pk)
+    )
+    producer = session.content.producer
+    if not producer:
+        return None
+
+    setting = revenue_settings()
+    if not setting.remuneration_enabled or not producer.producer_remuneration_enabled:
+        return None
+
+    if ProducerContentView.objects.filter(viewing_session=session).exists():
+        return session.producer_view
+
+    total_seconds = _total_seconds_for_session(session)
+    if total_seconds <= 0:
+        return None
+
+    watched_seconds = int(session.duration_watched or 0)
+    progress_percent = (Decimal(watched_seconds) * Decimal('100')) / Decimal(total_seconds)
+    if progress_percent < Decimal(setting.eligible_progress_percent):
+        return None
+
+    amount_eur = (Decimal(setting.rate_per_1000_views_eur) / Decimal('1000')).quantize(
+        Decimal('0.000001'),
+        rounding=ROUND_HALF_UP,
+    )
+    currency, amount_local = convert_eur_for_producer(amount_eur, producer)
+    return ProducerContentView.objects.create(
+        viewing_session=session,
+        producer=producer,
+        content=session.content,
+        episode=session.episode,
+        watched_seconds=watched_seconds,
+        total_seconds=total_seconds,
+        progress_percent=progress_percent.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+        viewer_country_code=(session.profile.user.country_code or '').upper(),
+        amount_eur=amount_eur,
+        currency=currency,
+        amount_local=amount_local,
+    )
+
+
+def clickhouse_client():
+    from django.conf import settings
+
+    if not getattr(settings, 'CLICKHOUSE_HOST', None):
+        return None
+    try:
+        import clickhouse_connect
+    except Exception:
+        return None
+
+    try:
+        return clickhouse_connect.get_client(
+            host=settings.CLICKHOUSE_HOST,
+            port=settings.CLICKHOUSE_PORT,
+            username=getattr(settings, 'CLICKHOUSE_USER', None) or 'default',
+            password=getattr(settings, 'CLICKHOUSE_PASSWORD', None) or '',
+            database=getattr(settings, 'CLICKHOUSE_DATABASE', None) or 'ekeflicks',
+            connect_timeout=1,
+            send_receive_timeout=1,
+        )
+    except Exception:
+        return None
+
+
+def clickhouse_status():
+    client = clickhouse_client()
+    if not client:
+        return {'enabled': False, 'available': False}
+    try:
+        client.query('SELECT 1')
+        return {'enabled': True, 'available': True}
+    except Exception as exc:
+        return {'enabled': True, 'available': False, 'error': str(exc)}
+
+
+def _filtered_sessions(request, queryset=None):
+    queryset = queryset or ViewingSession.objects.select_related('profile__user', 'content__producer', 'content')
+    params = request.query_params
+
+    if not request.user.is_staff and getattr(request.user, 'is_producer', False):
+        queryset = queryset.filter(content__producer=request.user)
+
+    content_id = params.get('content')
+    producer_id = params.get('producer')
+    country = params.get('country')
+    start = params.get('start')
+    end = params.get('end')
+
+    if content_id:
+        queryset = queryset.filter(content_id=content_id)
+    if producer_id and request.user.is_staff:
+        queryset = queryset.filter(content__producer_id=producer_id)
+    if country:
+        queryset = queryset.filter(profile__user__country_code__iexact=country)
+    if start:
+        queryset = queryset.filter(start_time__date__gte=start)
+    if end:
+        queryset = queryset.filter(start_time__date__lte=end)
+
+    return queryset
+
+
+def views_by_minute(request):
+    queryset = _filtered_sessions(request)
+    rows = (
+        queryset.annotate(
+            minute=TruncMinute('start_time'),
+            country=Coalesce('profile__user__country_code', Value('')),
+        )
+        .values('minute', 'country', 'content_id', 'content__title')
+        .annotate(views=Count('id'), watch_seconds=Sum('duration_watched'))
+        .order_by('minute', 'country', 'content__title')
+    )
+    return [
+        {
+            'minute': row['minute'],
+            'country': row['country'],
+            'content_id': str(row['content_id']),
+            'content_title': row['content__title'],
+            'views': row['views'],
+            'watch_seconds': row['watch_seconds'] or 0,
+        }
+        for row in rows
+    ]
+
+
+def views_by_country(request):
+    queryset = _filtered_sessions(request)
+    rows = (
+        queryset.annotate(country=Coalesce('profile__user__country_code', Value('')))
+        .values('country')
+        .annotate(views=Count('id'), watch_seconds=Sum('duration_watched'))
+        .order_by('-views', 'country')
+    )
+    return list(rows)
+
+
+def dashboard_summary(request):
+    sessions = _filtered_sessions(request)
+    producer_views = ProducerContentView.objects.all()
+    payout_requests = ProducerPayoutRequest.objects.all()
+    if not request.user.is_staff and getattr(request.user, 'is_producer', False):
+        producer_views = producer_views.filter(producer=request.user)
+        payout_requests = payout_requests.filter(producer=request.user)
+
+    return {
+        'generated_at': timezone.now(),
+        'clickhouse': clickhouse_status(),
+        'total_views': sessions.count(),
+        'total_watch_seconds': sessions.aggregate(total=Sum('duration_watched'))['total'] or 0,
+        'eligible_producer_views': producer_views.count(),
+        'producer_revenue_eur': producer_views.aggregate(total=Sum('amount_eur'))['total'] or 0,
+        'pending_payout_requests': payout_requests.filter(status='pending').count(),
+        'approved_payout_requests': payout_requests.filter(status='approved').count(),
+        'paid_payout_requests': payout_requests.filter(status='paid').count(),
+        'views_by_country': views_by_country(request),
+    }
+
+
+# =========================================================
+# CLICKHOUSE ANALYTICS EVENTS
+# =========================================================
+
+import json
+import uuid
+from datetime import datetime, timezone as dt_timezone
+
+from django.core.cache import cache
+
+
+ANALYTICS_EVENT_COLUMNS = [
+    'event_id',
+    'event_name',
+    'event_version',
+    'occurred_at',
+    'user_id',
+    'profile_id',
+    'profile_type',
+    'content_id',
+    'episode_id',
+    'producer_id',
+    'content_type',
+    'genres',
+    'country_code',
+    'timezone',
+    'interface_language',
+    'query_language',
+    'audio_language',
+    'subtitle_language',
+    'platform',
+    'device_type',
+    'app_version',
+    'session_id',
+    'viewing_session_id',
+    'watch_seconds',
+    'position_seconds',
+    'duration_seconds',
+    'completion_percent',
+    'search_query',
+    'recommendation_source',
+    'recommendation_context',
+    'properties',
+    'is_internal',
+    'is_test',
+]
+
+
+_UUID_FIELDS = (
+    'user_id',
+    'profile_id',
+    'content_id',
+    'episode_id',
+    'producer_id',
+    'session_id',
+    'viewing_session_id',
+)
+
+
+def _analytics_uuid(value, *, nullable=True):
+    if value in (None, ''):
+        if nullable:
+            return None
+        return uuid.uuid4()
+
+    if isinstance(value, uuid.UUID):
+        return value
+
+    return uuid.UUID(str(value))
+
+
+def _analytics_datetime(value):
+    if value in (None, ''):
+        return datetime.now(dt_timezone.utc)
+
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        parsed = datetime.fromisoformat(
+            str(value).replace('Z', '+00:00')
+        )
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt_timezone.utc)
+
+    return parsed.astimezone(dt_timezone.utc)
+
+
+def normalize_analytics_event(payload):
+    payload = dict(payload or {})
+
+    event_name = str(payload.get('event_name') or '').strip()
+    if not event_name:
+        raise ValueError('event_name is required')
+
+    event_id = _analytics_uuid(
+        payload.get('event_id'),
+        nullable=False,
+    )
+
+    content_type = str(
+        payload.get('content_type') or ''
+    ).strip().lower()
+
+    if content_type not in ('', 'movie', 'series'):
+        raise ValueError(
+            'content_type must be movie, series, or empty'
+        )
+
+    properties = payload.get('properties', {})
+
+    if isinstance(properties, str):
+        try:
+            decoded = json.loads(properties)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                'properties must contain valid JSON'
+            ) from exc
+        properties = decoded
+
+    if not isinstance(properties, dict):
+        raise ValueError(
+            'properties must be a JSON object'
+        )
+
+    normalized = {
+        'event_id': event_id,
+        'event_name': event_name,
+        'event_version': int(
+            payload.get('event_version') or 1
+        ),
+        'occurred_at': _analytics_datetime(
+            payload.get('occurred_at')
+        ),
+
+        'user_id': None,
+        'profile_id': None,
+        'profile_type': str(
+            payload.get('profile_type') or ''
+        ),
+
+        'content_id': None,
+        'episode_id': None,
+        'producer_id': None,
+
+        'content_type': content_type,
+        'genres': [
+            str(value)
+            for value in (payload.get('genres') or [])
+        ],
+
+        'country_code': str(
+            payload.get('country_code') or ''
+        ).upper(),
+        'timezone': str(
+            payload.get('timezone') or 'UTC'
+        ),
+
+        'interface_language': str(
+            payload.get('interface_language') or ''
+        ).lower(),
+        'query_language': str(
+            payload.get('query_language') or ''
+        ).lower(),
+        'audio_language': str(
+            payload.get('audio_language') or ''
+        ).lower(),
+        'subtitle_language': str(
+            payload.get('subtitle_language') or ''
+        ).lower(),
+
+        'platform': str(
+            payload.get('platform') or ''
+        ).lower(),
+        'device_type': str(
+            payload.get('device_type') or ''
+        ).lower(),
+        'app_version': str(
+            payload.get('app_version') or ''
+        ),
+
+        'session_id': None,
+        'viewing_session_id': None,
+
+        'watch_seconds': max(
+            0,
+            int(payload.get('watch_seconds') or 0),
+        ),
+        'position_seconds': max(
+            0,
+            int(payload.get('position_seconds') or 0),
+        ),
+        'duration_seconds': max(
+            0,
+            int(payload.get('duration_seconds') or 0),
+        ),
+        'completion_percent': max(
+            0.0,
+            min(
+                100.0,
+                float(
+                    payload.get(
+                        'completion_percent',
+                        0,
+                    ) or 0
+                ),
+            ),
+        ),
+
+        'search_query': str(
+            payload.get('search_query') or ''
+        ),
+        'recommendation_source': str(
+            payload.get('recommendation_source') or ''
+        ),
+        'recommendation_context': str(
+            payload.get('recommendation_context') or ''
+        ),
+
+        'properties': json.dumps(
+            properties,
+            ensure_ascii=False,
+            separators=(',', ':'),
+            sort_keys=True,
+        ),
+
+        'is_internal': int(
+            bool(payload.get('is_internal', False))
+        ),
+        'is_test': int(
+            bool(payload.get('is_test', False))
+        ),
+    }
+
+    for field in _UUID_FIELDS:
+        normalized[field] = _analytics_uuid(
+            payload.get(field)
+        )
+
+    return normalized
+
+
+def analytics_event_exists(event_id, client=None):
+    event_id = _analytics_uuid(
+        event_id,
+        nullable=False,
+    )
+
+    client = client or clickhouse_client()
+
+    if client is None:
+        raise RuntimeError(
+            'ClickHouse is unavailable'
+        )
+
+    result = client.query(
+        '''
+        SELECT count()
+        FROM analytics_events
+        WHERE event_id = {event_id:UUID}
+        ''',
+        parameters={
+            'event_id': str(event_id),
+        },
+    )
+
+    return int(result.result_rows[0][0]) > 0
+
+
+def write_analytics_event(payload):
+    normalized = normalize_analytics_event(payload)
+
+    event_id = normalized['event_id']
+    lock_key = f'analytics:event:{event_id}'
+
+    acquired = cache.add(
+        lock_key,
+        '1',
+        timeout=60,
+    )
+
+    if not acquired:
+        return {
+            'event_id': str(event_id),
+            'status': 'locked',
+            'inserted': False,
+        }
+
+    try:
+        client = clickhouse_client()
+
+        if client is None:
+            raise RuntimeError(
+                'ClickHouse is unavailable'
+            )
+
+        if analytics_event_exists(
+            event_id,
+            client=client,
+        ):
+            return {
+                'event_id': str(event_id),
+                'status': 'duplicate',
+                'inserted': False,
+            }
+
+        row = [
+            normalized[column]
+            for column in ANALYTICS_EVENT_COLUMNS
+        ]
+
+        client.insert(
+            'analytics_events',
+            [row],
+            column_names=ANALYTICS_EVENT_COLUMNS,
+        )
+
+        return {
+            'event_id': str(event_id),
+            'status': 'inserted',
+            'inserted': True,
+        }
+
+    finally:
+        cache.delete(lock_key)
+
+
+def build_analytics_event(event_name, **payload):
+    event = dict(payload)
+
+    event['event_id'] = str(
+        _analytics_uuid(
+            event.get('event_id'),
+            nullable=False,
+        )
+    )
+
+    event['event_name'] = event_name
+
+    event.setdefault(
+        'occurred_at',
+        datetime.now(
+            dt_timezone.utc
+        ).isoformat(),
+    )
+
+    return event
+
+
+def enqueue_analytics_event(event_name, **payload):
+    from apps.analytics.tasks import write_analytics_event_task
+
+    event = build_analytics_event(
+        event_name,
+        **payload,
+    )
+
+    write_analytics_event_task.delay(event)
+
+    return event['event_id']
+
+
+# ---------------------------------------------------------------------------
+# G5-1D2 — Video analytics context
+# ---------------------------------------------------------------------------
+
+def build_video_analytics_event(
+    event_name,
+    viewing_session,
+    *,
+    position_seconds=None,
+    watch_seconds=None,
+    completion_percent=None,
+    platform='',
+    timezone_name='UTC',
+    interface_language='',
+    app_version='',
+    properties=None,
+    event_id=None,
+    occurred_at=None,
+):
+    """
+    Build an analytics event from a ViewingSession.
+
+    Important identifier semantics:
+    - analytics_events.session_id:
+      application lifecycle session (G5-1D5), intentionally unset here.
+    - analytics_events.viewing_session_id:
+      ViewingSession.session_id UUID.
+    - ViewingSession database PK is intentionally never exported.
+
+    This helper builds the payload only. It does not enqueue or write it.
+    """
+    allowed_names = {
+        'video_start',
+        'video_progress',
+        'video_complete',
+        'video_abandon',
+    }
+
+    if event_name not in allowed_names:
+        raise ValueError(
+            'Unsupported video analytics event: '
+            f'{event_name}'
+        )
+
+    session = viewing_session
+
+    content = session.content
+    profile = session.profile
+    user = profile.user
+    episode = session.episode
+
+    profile_type = ''
+    if getattr(profile, 'type_id', None):
+        profile_type_obj = getattr(profile, 'type', None)
+        if profile_type_obj is not None:
+            profile_type = (
+                getattr(profile_type_obj, 'name', '')
+                or ''
+            )
+
+    genres = list(
+        content.genres
+        .order_by('name')
+        .values_list('name', flat=True)
+    )
+
+    producer_id = (
+        str(content.producer_id)
+        if content.producer_id
+        else None
+    )
+
+    duration_seconds = 0
+
+    # Prefer the technical duration of the published/default video asset.
+    asset_queryset = content.video_assets.all()
+
+    if episode is not None:
+        asset_queryset = asset_queryset.filter(
+            episode=episode
+        )
+    else:
+        asset_queryset = asset_queryset.filter(
+            episode__isnull=True
+        )
+
+    asset = (
+        asset_queryset
+        .filter(is_default=True)
+        .order_by('-published_at', '-created_at')
+        .first()
+    )
+
+    if asset is None:
+        asset = (
+            asset_queryset
+            .order_by('-published_at', '-created_at')
+            .first()
+        )
+
+    if asset is not None and asset.duration_seconds:
+        duration_seconds = max(
+            0,
+            int(asset.duration_seconds),
+        )
+    elif content.duration:
+        # Content.duration is stored in minutes.
+        duration_seconds = max(
+            0,
+            int(content.duration) * 60,
+        )
+
+    # Strict analytics semantics:
+    #
+    # watch_seconds:
+    #   active watch-time DELTA represented by this event.
+    #
+    # position_seconds:
+    #   absolute player position represented by this event.
+    #
+    # Neither value is inferred from ViewingSession.duration_watched
+    # and neither value is inferred from the other metric.
+    resolved_watch_seconds = max(
+        0,
+        int(
+            0
+            if watch_seconds is None
+            else watch_seconds
+        ),
+    )
+
+    resolved_position_seconds = max(
+        0,
+        int(
+            0
+            if position_seconds is None
+            else position_seconds
+        ),
+    )
+
+    if completion_percent is None:
+        if duration_seconds > 0:
+            resolved_completion = min(
+                100.0,
+                (
+                    resolved_position_seconds
+                    * 100.0
+                    / duration_seconds
+                ),
+            )
+        else:
+            resolved_completion = (
+                100.0
+                if session.was_completed
+                else 0.0
+            )
+    else:
+        resolved_completion = max(
+            0.0,
+            min(
+                100.0,
+                float(completion_percent),
+            ),
+        )
+
+    event_properties = dict(properties or {})
+
+    if session.quality_played:
+        event_properties.setdefault(
+            'quality_played',
+            session.quality_played,
+        )
+
+    if asset is not None:
+        event_properties.setdefault(
+            'asset_id',
+            str(asset.id),
+        )
+
+    event_properties.setdefault(
+        'was_completed',
+        bool(session.was_completed),
+    )
+
+    return build_analytics_event(
+        event_name,
+        event_id=event_id,
+        occurred_at=occurred_at,
+        user_id=str(user.id),
+        profile_id=str(profile.id),
+        profile_type=profile_type,
+        content_id=str(content.id),
+        episode_id=(
+            str(episode.id)
+            if episode is not None
+            else None
+        ),
+        producer_id=producer_id,
+        content_type=content.type,
+        genres=genres,
+        country_code=(
+            getattr(user, 'country_code', '')
+            or ''
+        ),
+        timezone=timezone_name or 'UTC',
+        interface_language=interface_language or '',
+        platform=platform or '',
+        device_type=session.device_type or '',
+        app_version=app_version or '',
+        # Reserved for G5-1D5 application sessions.
+        session_id=None,
+        # UUID business identifier of ViewingSession.
+        viewing_session_id=str(session.session_id),
+        watch_seconds=resolved_watch_seconds,
+        position_seconds=resolved_position_seconds,
+        duration_seconds=duration_seconds,
+        completion_percent=resolved_completion,
+        properties=event_properties,
+    )
+
+
+# ---------------------------------------------------------------------------
+# G5-1D3 — Audience analytics
+# ---------------------------------------------------------------------------
+
+AUDIENCE_ACTIVITY_FILTER = """
+    profile_id IS NOT NULL
+    AND is_internal = 0
+    AND is_test = 0
+"""
+
+
+def audience_active_profiles(
+    *,
+    start_at,
+    end_at,
+    client=None,
+):
+    """
+    Count distinct active profiles in [start_at, end_at).
+
+    An active profile is a profile with at least one real analytics
+    event during the requested period.
+
+    Internal and test events are excluded.
+    """
+    client = client or clickhouse_client()
+
+    if client is None:
+        raise RuntimeError(
+            'ClickHouse is unavailable'
+        )
+
+    result = client.query(
+        f"""
+        SELECT uniqExact(profile_id)
+        FROM analytics_events
+        WHERE
+            {AUDIENCE_ACTIVITY_FILTER}
+            AND occurred_at >= {{start_at:DateTime64(3)}}
+            AND occurred_at < {{end_at:DateTime64(3)}}
+        """,
+        parameters={
+            'start_at': _analytics_datetime(start_at),
+            'end_at': _analytics_datetime(end_at),
+        },
+    )
+
+    return int(result.result_rows[0][0])
+
+
+def audience_snapshot(
+    *,
+    as_of,
+    client=None,
+):
+    """
+    Return rolling audience metrics ending at `as_of`.
+
+    DAU = unique active profiles during the previous 24 hours.
+    WAU = unique active profiles during the previous 7 days.
+    MAU = unique active profiles during the previous 30 days.
+
+    Stickiness = DAU / MAU * 100.
+    """
+    from datetime import timedelta
+
+    client = client or clickhouse_client()
+
+    if client is None:
+        raise RuntimeError(
+            'ClickHouse is unavailable'
+        )
+
+    end_at = _analytics_datetime(as_of)
+
+    dau = audience_active_profiles(
+        start_at=end_at - timedelta(days=1),
+        end_at=end_at,
+        client=client,
+    )
+
+    wau = audience_active_profiles(
+        start_at=end_at - timedelta(days=7),
+        end_at=end_at,
+        client=client,
+    )
+
+    mau = audience_active_profiles(
+        start_at=end_at - timedelta(days=30),
+        end_at=end_at,
+        client=client,
+    )
+
+    stickiness = (
+        round(
+            dau * 100.0 / mau,
+            2,
+        )
+        if mau
+        else 0.0
+    )
+
+    return {
+        'as_of': end_at.isoformat(),
+        'dau': dau,
+        'wau': wau,
+        'mau': mau,
+        'stickiness_percent': stickiness,
+    }
+
+
+def audience_by_dimension(
+    *,
+    start_at,
+    end_at,
+    dimension,
+    client=None,
+):
+    """
+    Count distinct active profiles by an approved analytics dimension.
+    """
+    allowed_dimensions = {
+        'country_code',
+        'profile_type',
+        'platform',
+        'device_type',
+        'interface_language',
+    }
+
+    if dimension not in allowed_dimensions:
+        raise ValueError(
+            f'Unsupported audience dimension: {dimension}'
+        )
+
+    client = client or clickhouse_client()
+
+    if client is None:
+        raise RuntimeError(
+            'ClickHouse is unavailable'
+        )
+
+    result = client.query(
+        f"""
+        SELECT
+            {dimension},
+            uniqExact(profile_id) AS active_profiles
+        FROM analytics_events
+        WHERE
+            {AUDIENCE_ACTIVITY_FILTER}
+            AND occurred_at >= {{start_at:DateTime64(3)}}
+            AND occurred_at < {{end_at:DateTime64(3)}}
+        GROUP BY {dimension}
+        ORDER BY
+            active_profiles DESC,
+            {dimension} ASC
+        """,
+        parameters={
+            'start_at': _analytics_datetime(start_at),
+            'end_at': _analytics_datetime(end_at),
+        },
+    )
+
+    return [
+        {
+            dimension: (
+                value
+                if value is not None
+                else ''
+            ),
+            'active_profiles': int(active_profiles),
+        }
+        for value, active_profiles
+        in result.result_rows
+    ]
+
+
+AUDIENCE_RETENTION_DAYS = (
+    1,
+    3,
+    7,
+    14,
+    30,
+)
+
+
+def audience_retention(
+    *,
+    cohort_start,
+    cohort_end,
+    client=None,
+):
+    """
+    Return daily first-activity cohorts with exact-day retention.
+
+    cohort_start is inclusive.
+    cohort_end is exclusive.
+
+    Cohort membership:
+        first real analytics activity date of profile.
+
+    D1/D3/D7/D14/D30:
+        same profile has at least one real activity exactly
+        N calendar days after cohort_date.
+
+    Dates are evaluated from occurred_at stored in UTC.
+    """
+    client = client or clickhouse_client()
+
+    if client is None:
+        raise RuntimeError(
+            'ClickHouse is unavailable'
+        )
+
+    start_date = _analytics_datetime(
+        cohort_start
+    ).date()
+
+    end_date = _analytics_datetime(
+        cohort_end
+    ).date()
+
+    if end_date <= start_date:
+        raise ValueError(
+            'cohort_end must be after cohort_start'
+        )
+
+    result = client.query(
+        f"""
+        WITH
+            first_activity AS
+            (
+                SELECT
+                    profile_id,
+                    min(toDate(occurred_at)) AS cohort_date
+                FROM analytics_events
+                WHERE
+                    {AUDIENCE_ACTIVITY_FILTER}
+                GROUP BY profile_id
+            ),
+            activity_days AS
+            (
+                SELECT DISTINCT
+                    profile_id,
+                    toDate(occurred_at) AS activity_date
+                FROM analytics_events
+                WHERE
+                    {AUDIENCE_ACTIVITY_FILTER}
+            ),
+            cohorts AS
+            (
+                SELECT
+                    profile_id,
+                    cohort_date
+                FROM first_activity
+                WHERE
+                    cohort_date >= {{cohort_start:Date}}
+                    AND cohort_date < {{cohort_end:Date}}
+            )
+        SELECT
+            c.cohort_date,
+            uniqExact(c.profile_id) AS cohort_size,
+
+            uniqExactIf(
+                c.profile_id,
+                a.activity_date =
+                    addDays(c.cohort_date, 1)
+            ) AS d1,
+
+            uniqExactIf(
+                c.profile_id,
+                a.activity_date =
+                    addDays(c.cohort_date, 3)
+            ) AS d3,
+
+            uniqExactIf(
+                c.profile_id,
+                a.activity_date =
+                    addDays(c.cohort_date, 7)
+            ) AS d7,
+
+            uniqExactIf(
+                c.profile_id,
+                a.activity_date =
+                    addDays(c.cohort_date, 14)
+            ) AS d14,
+
+            uniqExactIf(
+                c.profile_id,
+                a.activity_date =
+                    addDays(c.cohort_date, 30)
+            ) AS d30
+
+        FROM cohorts AS c
+
+        LEFT JOIN activity_days AS a
+            ON c.profile_id = a.profile_id
+
+        GROUP BY c.cohort_date
+        ORDER BY c.cohort_date ASC
+        """,
+        parameters={
+            'cohort_start': start_date,
+            'cohort_end': end_date,
+        },
+    )
+
+    rows = []
+
+    for (
+        cohort_date,
+        cohort_size,
+        d1,
+        d3,
+        d7,
+        d14,
+        d30,
+    ) in result.result_rows:
+
+        cohort_size = int(cohort_size)
+
+        counts = {
+            1: int(d1),
+            3: int(d3),
+            7: int(d7),
+            14: int(d14),
+            30: int(d30),
+        }
+
+        row = {
+            'cohort_date': cohort_date.isoformat(),
+            'cohort_size': cohort_size,
+        }
+
+        for day in AUDIENCE_RETENTION_DAYS:
+            count = counts[day]
+
+            row[f'd{day}'] = count
+            row[f'd{day}_percent'] = (
+                round(
+                    count * 100.0 / cohort_size,
+                    2,
+                )
+                if cohort_size
+                else 0.0
+            )
+
+        rows.append(row)
+
+    return rows
+
+
+def audience_retention_summary(rows):
+    """
+    Weighted retention summary across cohort rows.
+
+    Percentages are computed from retained profiles / cohort profiles,
+    not from the average of daily percentages.
+    """
+    rows = list(rows or [])
+
+    cohort_size = sum(
+        int(row.get('cohort_size') or 0)
+        for row in rows
+    )
+
+    result = {
+        'cohort_size': cohort_size,
+    }
+
+    for day in AUDIENCE_RETENTION_DAYS:
+        retained = sum(
+            int(row.get(f'd{day}') or 0)
+            for row in rows
+        )
+
+        result[f'd{day}'] = retained
+
+        result[f'd{day}_percent'] = (
+            round(
+                retained * 100.0 / cohort_size,
+                2,
+            )
+            if cohort_size
+            else 0.0
+        )
+
+    return result
+
+
+
+
+
+def audience_hourly_activity(
+    *,
+    start_at,
+    end_at,
+    country_code=None,
+    client=None,
+):
+    """
+    Return active profiles and event volume by local hour.
+
+    ClickHouse first aggregates by:
+      - event timezone
+      - real UTC calendar date
+      - UTC hour
+      - profile
+
+    Python then converts each aggregated bucket using its real date,
+    preserving DST / summer-winter timezone transitions.
+
+    country_code is only a filter and never determines timezone.
+    """
+    from collections import defaultdict
+    from datetime import (
+        datetime as _datetime,
+        time as _time,
+        timezone as _timezone,
+    )
+    from zoneinfo import (
+        ZoneInfo,
+        ZoneInfoNotFoundError,
+    )
+
+    client = client or clickhouse_client()
+
+    if client is None:
+        raise RuntimeError(
+            'ClickHouse is unavailable'
+        )
+
+    start_at = _analytics_datetime(start_at)
+    end_at = _analytics_datetime(end_at)
+
+    if end_at <= start_at:
+        raise ValueError(
+            'end_at must be after start_at'
+        )
+
+    country_code = (
+        str(country_code or '')
+        .strip()
+        .upper()
+    )
+
+    country_filter = ""
+
+    parameters = {
+        'start_at': start_at,
+        'end_at': end_at,
+    }
+
+    if country_code:
+        country_filter = """
+            AND country_code = {country_code:String}
+        """
+        parameters['country_code'] = (
+            country_code
+        )
+
+    result = client.query(
+        f"""
+        SELECT
+            if(
+                timezone = '',
+                'UTC',
+                timezone
+            ) AS event_timezone,
+
+            toDate(
+                occurred_at
+            ) AS utc_date,
+
+            toHour(
+                occurred_at
+            ) AS utc_hour,
+
+            profile_id,
+
+            count() AS events
+
+        FROM analytics_events
+
+        WHERE
+            {AUDIENCE_ACTIVITY_FILTER}
+
+            AND occurred_at >= {{start_at:DateTime64(3)}}
+
+            AND occurred_at < {{end_at:DateTime64(3)}}
+
+            {country_filter}
+
+        GROUP BY
+            event_timezone,
+            utc_date,
+            utc_hour,
+            profile_id
+        """,
+        parameters=parameters,
+    )
+
+    profiles_by_hour = defaultdict(set)
+    events_by_hour = defaultdict(int)
+
+    for (
+        event_timezone,
+        utc_date,
+        utc_hour,
+        profile_id,
+        event_count,
+    ) in result.result_rows:
+
+        timezone_name = (
+            str(
+                event_timezone
+                or 'UTC'
+            )
+            .strip()
+            or 'UTC'
+        )
+
+        try:
+            tz = ZoneInfo(
+                timezone_name
+            )
+        except ZoneInfoNotFoundError:
+            tz = ZoneInfo('UTC')
+
+        utc_dt = _datetime.combine(
+            utc_date,
+            _time(
+                hour=int(
+                    utc_hour
+                )
+            ),
+            tzinfo=_timezone.utc,
+        )
+
+        local_hour = int(
+            utc_dt
+            .astimezone(tz)
+            .hour
+        )
+
+        profiles_by_hour[
+            local_hour
+        ].add(
+            str(profile_id)
+        )
+
+        events_by_hour[
+            local_hour
+        ] += int(
+            event_count
+        )
+
+    return [
+        {
+            'hour': hour,
+            'active_profiles': len(
+                profiles_by_hour.get(
+                    hour,
+                    set(),
+                )
+            ),
+            'events': int(
+                events_by_hour.get(
+                    hour,
+                    0,
+                )
+            ),
+        }
+        for hour in range(24)
+    ]
+
+
+def audience_peak_hours(
+    *,
+    start_at,
+    end_at,
+    country_code=None,
+    limit=5,
+    client=None,
+):
+    """
+    Return the strongest local audience hours.
+
+    Ranking:
+    1. active_profiles DESC
+    2. events DESC
+    3. hour ASC
+    """
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            'limit must be an integer'
+        ) from exc
+
+    if limit < 1 or limit > 24:
+        raise ValueError(
+            'limit must be between 1 and 24'
+        )
+
+    rows = audience_hourly_activity(
+        start_at=start_at,
+        end_at=end_at,
+        country_code=country_code,
+        client=client,
+    )
+
+    ranked = sorted(
+        rows,
+        key=lambda row: (
+            -row['active_profiles'],
+            -row['events'],
+            row['hour'],
+        ),
+    )
+
+    return ranked[:limit]
+
+
+
+
+
+def audience_peak_hours_by_country(
+    *,
+    start_at,
+    end_at,
+    limit_per_country=3,
+    client=None,
+):
+    """
+    Return peak local audience hours grouped by country.
+
+    ClickHouse aggregates by:
+      country / timezone / real UTC date / UTC hour / profile.
+
+    Python performs only timezone bucket conversion and ranking.
+    Real UTC date preserves DST behavior.
+
+    country_code never determines timezone.
+    """
+    from collections import defaultdict
+    from datetime import (
+        datetime as _datetime,
+        time as _time,
+        timezone as _timezone,
+    )
+    from zoneinfo import (
+        ZoneInfo,
+        ZoneInfoNotFoundError,
+    )
+
+    try:
+        limit_per_country = int(
+            limit_per_country
+        )
+    except (
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise ValueError(
+            'limit_per_country must be an integer'
+        ) from exc
+
+    if (
+        limit_per_country < 1
+        or limit_per_country > 24
+    ):
+        raise ValueError(
+            'limit_per_country must be between 1 and 24'
+        )
+
+    client = (
+        client
+        or clickhouse_client()
+    )
+
+    if client is None:
+        raise RuntimeError(
+            'ClickHouse is unavailable'
+        )
+
+    start_at = _analytics_datetime(
+        start_at
+    )
+
+    end_at = _analytics_datetime(
+        end_at
+    )
+
+    if end_at <= start_at:
+        raise ValueError(
+            'end_at must be after start_at'
+        )
+
+    result = client.query(
+        f"""
+        SELECT
+            country_code,
+
+            if(
+                timezone = '',
+                'UTC',
+                timezone
+            ) AS event_timezone,
+
+            toDate(
+                occurred_at
+            ) AS utc_date,
+
+            toHour(
+                occurred_at
+            ) AS utc_hour,
+
+            profile_id,
+
+            count() AS events
+
+        FROM analytics_events
+
+        WHERE
+            {AUDIENCE_ACTIVITY_FILTER}
+
+            AND country_code != ''
+
+            AND occurred_at >= {{start_at:DateTime64(3)}}
+
+            AND occurred_at < {{end_at:DateTime64(3)}}
+
+        GROUP BY
+            country_code,
+            event_timezone,
+            utc_date,
+            utc_hour,
+            profile_id
+        """,
+        parameters={
+            'start_at': start_at,
+            'end_at': end_at,
+        },
+    )
+
+    profiles = defaultdict(
+        lambda: defaultdict(set)
+    )
+
+    events = defaultdict(
+        lambda: defaultdict(int)
+    )
+
+    for (
+        country_code,
+        event_timezone,
+        utc_date,
+        utc_hour,
+        profile_id,
+        event_count,
+    ) in result.result_rows:
+
+        country = str(
+            country_code
+            or ''
+        ).upper()
+
+        timezone_name = (
+            str(
+                event_timezone
+                or 'UTC'
+            )
+            .strip()
+            or 'UTC'
+        )
+
+        try:
+            tz = ZoneInfo(
+                timezone_name
+            )
+        except ZoneInfoNotFoundError:
+            tz = ZoneInfo('UTC')
+
+        utc_dt = _datetime.combine(
+            utc_date,
+            _time(
+                hour=int(
+                    utc_hour
+                )
+            ),
+            tzinfo=_timezone.utc,
+        )
+
+        local_hour = int(
+            utc_dt
+            .astimezone(tz)
+            .hour
+        )
+
+        profiles[
+            country
+        ][
+            local_hour
+        ].add(
+            str(profile_id)
+        )
+
+        events[
+            country
+        ][
+            local_hour
+        ] += int(
+            event_count
+        )
+
+    output = []
+
+    for country in sorted(
+        profiles
+    ):
+        rows = [
+            {
+                'hour': hour,
+                'active_profiles': len(
+                    profiles[
+                        country
+                    ].get(
+                        hour,
+                        set(),
+                    )
+                ),
+                'events': int(
+                    events[
+                        country
+                    ].get(
+                        hour,
+                        0,
+                    )
+                ),
+            }
+            for hour in range(24)
+        ]
+
+        rows.sort(
+            key=lambda row: (
+                -row[
+                    'active_profiles'
+                ],
+                -row[
+                    'events'
+                ],
+                row[
+                    'hour'
+                ],
+            )
+        )
+
+        output.append(
+            {
+                'country_code': (
+                    country
+                ),
+                'peak_hours': rows[
+                    :limit_per_country
+                ],
+            }
+        )
+
+    return output

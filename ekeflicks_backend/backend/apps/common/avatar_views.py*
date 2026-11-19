@@ -1,0 +1,89 @@
+from rest_framework import permissions
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+
+class AvatarListView(APIView):
+    """Return the selectable avatars."""
+    
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, _request):
+        avatars = [
+            {'name': 'Afrique-du-Sud', 'path': 'Afrique-du-Sud.png', 'url': '/media/avatars/Afrique-du-Sud.png'},
+            {'name': 'Algérie', 'path': 'Algérie.png', 'url': '/media/avatars/Algérie.png'},
+            {'name': 'Angleterre', 'path': 'Angleterre.png', 'url': '/media/avatars/Angleterre.png'},
+            {'name': 'Angola', 'path': 'Angola.png', 'url': '/media/avatars/Angola.png'},
+            {'name': 'Argentine', 'path': 'Argentine.png', 'url': '/media/avatars/Argentine.png'},
+            {'name': 'Australie', 'path': 'Australie.png', 'url': '/media/avatars/Australie.png'},
+            {'name': 'Brésil', 'path': 'Brésil.png', 'url': '/media/avatars/Brésil.png'},
+            {'name': 'Canada', 'path': 'Canada.png', 'url': '/media/avatars/Canada.png'},
+            {'name': 'Chine', 'path': 'Chine.png', 'url': '/media/avatars/Chine.png'},
+            {'name': 'Côte-d\'Ivoire', 'path': 'Côte-d\'Ivoire.png', 'url': '/media/avatars/Côte-d\'Ivoire.png'},
+            {'name': 'Cameroun', 'path': 'Cameroun.png', 'url': '/media/avatars/Cameroun.png'},
+            {'name': 'Espagne', 'path': 'Espagne.png', 'url': '/media/avatars/Espagne.png'},
+            {'name': 'États-Unis', 'path': 'États-Unis.png', 'url': '/media/avatars/États-Unis.png'},
+            {'name': 'France', 'path': 'France.png', 'url': '/media/avatars/France.png'},
+            {'name': 'Gabon', 'path': 'Gabon.png', 'url': '/media/avatars/Gabon.png'},
+            {'name': 'Ghana', 'path': 'Ghana.png', 'url': '/media/avatars/Ghana.png'},
+            {'name': 'Guinée', 'path': 'Guinée.png', 'url': '/media/avatars/Guinée.png'},
+            {'name': 'Italie', 'path': 'Italie.png', 'url': '/media/avatars/Italie.png'},
+            {'name': 'Japon', 'path': 'Japon.png', 'url': '/media/avatars/Japon.png'},
+            {'name': 'Kenya', 'path': 'Kenya.png', 'url': '/media/avatars/Kenya.png'},
+            {'name': 'Mali', 'path': 'Mali.png', 'url': '/media/avatars/Mali.png'},
+            {'name': 'Maroc', 'path': 'Maroc.png', 'url': '/media/avatars/Maroc.png'},
+            {'name': 'Niger', 'path': 'Niger.png', 'url': '/media/avatars/Niger.png'},
+            {'name': 'Nigeria', 'path': 'Nigeria.png', 'url': '/media/avatars/Nigeria.png'},
+            {'name': 'Pays-Bas', 'path': 'Pays-Bas.png', 'url': '/media/avatars/Pays-Bas.png'},
+            {'name': 'Portugal', 'path': 'Portugal.png', 'url': '/media/avatars/Portugal.png'},
+            {'name': 'République-Démocratique-du-Congo', 'path': 'République-Démocratique-du-Congo.png', 'url': '/media/avatars/République-Démocratique-du-Congo.png'},
+            {'name': 'Royaume-Uni', 'path': 'Royaume-Uni.png', 'url': '/media/avatars/Royaume-Uni.png'},
+            {'name': 'Sénégal', 'path': 'Sénégal.png', 'url': '/media/avatars/Sénégal.png'},
+            {'name': 'Suisse', 'path': 'Suisse.png', 'url': '/media/avatars/Suisse.png'},
+        ]
+        return Response({'avatars': avatars})from rest_framework import permissions
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+
+class AvatarListView(APIView):
+    """Return the selectable avatars."""
+    
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, _request):
+        avatars = [
+            {'name': 'Afrique-du-Sud', 'path': 'Afrique-du-Sud.png', 'url': '/media/avatars/Afrique-du-Sud.png'},
+            {'name': 'Algérie', 'path': 'Algérie.png', 'url': '/media/avatars/Algérie.png'},
+            {'name': 'Angleterre', 'path': 'Angleterre.png', 'url': '/media/avatars/Angleterre.png'},
+            {'name': 'Angola', 'path': 'Angola.png', 'url': '/media/avatars/Angola.png'},
+            {'name': 'Argentine', 'path': 'Argentine.png', 'url': '/media/avatars/Argentine.png'},
+            {'name': 'Australie', 'path': 'Australie.png', 'url': '/media/avatars/Australie.png'},
+            {'name': 'Brésil', 'path': 'Brésil.png', 'url': '/media/avatars/Brésil.png'},
+            {'name': 'Canada', 'path': 'Canada.png', 'url': '/media/avatars/Canada.png'},
+            {'name': 'Chine', 'path': 'Chine.png', 'url': '/media/avatars/Chine.png'},
+            {'name': 'Côte-d\'Ivoire', 'path': 'Côte-d\'Ivoire.png', 'url': '/media/avatars/Côte-d\'Ivoire.png'},
+            {'name': 'Cameroun', 'path': 'Cameroun.png', 'url': '/media/avatars/Cameroun.png'},
+            {'name': 'Espagne', 'path': 'Espagne.png', 'url': '/media/avatars/Espagne.png'},
+            {'name': 'États-Unis', 'path': 'États-Unis.png', 'url': '/media/avatars/États-Unis.png'},
+            {'name': 'France', 'path': 'France.png', 'url': '/media/avatars/France.png'},
+            {'name': 'Gabon', 'path': 'Gabon.png', 'url': '/media/avatars/Gabon.png'},
+            {'name': 'Ghana', 'path': 'Ghana.png', 'url': '/media/avatars/Ghana.png'},
+            {'name': 'Guinée', 'path': 'Guinée.png', 'url': '/media/avatars/Guinée.png'},
+            {'name': 'Italie', 'path': 'Italie.png', 'url': '/media/avatars/Italie.png'},
+            {'name': 'Japon', 'path': 'Japon.png', 'url': '/media/avatars/Japon.png'},
+            {'name': 'Kenya', 'path': 'Kenya.png', 'url': '/media/avatars/Kenya.png'},
+            {'name': 'Mali', 'path': 'Mali.png', 'url': '/media/avatars/Mali.png'},
+            {'name': 'Maroc', 'path': 'Maroc.png', 'url': '/media/avatars/Maroc.png'},
+            {'name': 'Niger', 'path': 'Niger.png', 'url': '/media/avatars/Niger.png'},
+            {'name': 'Nigeria', 'path': 'Nigeria.png', 'url': '/media/avatars/Nigeria.png'},
+            {'name': 'Pays-Bas', 'path': 'Pays-Bas.png', 'url': '/media/avatars/Pays-Bas.png'},
+            {'name': 'Portugal', 'path': 'Portugal.png', 'url': '/media/avatars/Portugal.png'},
+            {'name': 'République-Démocratique-du-Congo', 'path': 'République-Démocratique-du-Congo.png', 'url': '/media/avatars/République-Démocratique-du-Congo.png'},
+            {'name': 'Royaume-Uni', 'path': 'Royaume-Uni.png', 'url': '/media/avatars/Royaume-Uni.png'},
+            {'name': 'Sénégal', 'path': 'Sénégal.png', 'url': '/media/avatars/Sénégal.png'},
+            {'name': 'Suisse', 'path': 'Suisse.png', 'url': '/media/avatars/Suisse.png'},
+        ]
+        return Response({'avatars': avatars})

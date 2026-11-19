@@ -1,0 +1,404 @@
+import html
+import base64
+import hashlib
+import hmac
+import posixpath
+import re
+import time
+from urllib.parse import parse_qsl, urlencode, urlsplit
+
+from django.conf import settings
+from django.http import HttpResponse, HttpResponseForbidden, HttpResponseNotFound
+from django.shortcuts import redirect
+
+from core.services.b2 import get_b2_client, generate_b2_presigned_get_url
+
+
+SIGNED_VIDEO_PREFIXES = ("movies/", "series/")
+
+PUBLIC_BUCKETS = {
+    "posters": "B2_POSTER_BUCKET",
+    "backdrops": "B2_BACKDROP_BUCKET",
+    "avatars": "B2_AVATAR_BUCKET",
+    "trailers": "B2_TRAILER_BUCKET",
+}
+
+SIGNED_BUCKETS = {
+    "subtitles": "B2_SUBTITLE_BUCKET",
+}
+
+
+def _urlsafe_hmac(secret, payload):
+    digest = hmac.new(
+        str(secret).encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+def _validate_signature(request):
+    query_items = list(request.GET.items())
+
+    signature = request.GET.get("ef_sig", "")
+    expiry = request.GET.get("ef_exp", "")
+    asset_id = request.GET.get("ef_asset", "")
+    profile_id = request.GET.get("ef_profile", "")
+    user_id = request.GET.get("ef_user", "")
+
+    if not all([signature, expiry, asset_id, profile_id, user_id]):
+        return False
+
+    try:
+        if int(expiry) < int(time.time()):
+            return False
+    except (TypeError, ValueError):
+        return False
+
+    unsigned_items = [
+        (key, value)
+        for key, value in query_items
+        if key != "ef_sig"
+    ]
+
+    unsigned_query = urlencode(unsigned_items)
+
+    canonical_path = request.path
+    if canonical_path.startswith("/cdn/"):
+        canonical_path = canonical_path[4:]
+
+    payload = f"{canonical_path}|{unsigned_query}"
+
+    expected = _urlsafe_hmac(
+        getattr(settings, "STREAMING_SIGNING_SECRET", settings.SECRET_KEY),
+        payload,
+    )
+
+    return hmac.compare_digest(signature, expected)
+
+
+def _signed_url(request, path):
+    params = [
+        ("ef_exp", request.GET["ef_exp"]),
+        ("ef_asset", request.GET["ef_asset"]),
+        ("ef_profile", request.GET["ef_profile"]),
+        ("ef_user", request.GET["ef_user"]),
+    ]
+
+    query = urlencode(params)
+    payload = f"/{path}|{query}"
+
+    signature = _urlsafe_hmac(
+        getattr(settings, "STREAMING_SIGNING_SECRET", settings.SECRET_KEY),
+        payload,
+    )
+
+    params.append(("ef_sig", signature))
+
+    return f"/{path}?{urlencode(params)}"
+
+
+def _dash_scope_path(path):
+    """
+    Return the directory scope used to authorize DASH fragments.
+    Example:
+    movies/<content>/dash/chunk_0_00001.m4s
+    -> movies/<content>/dash/
+    """
+    directory = posixpath.dirname(path.rstrip("/"))
+    return f"{directory}/"
+
+
+def _signed_dash_template_url(request, object_path, template_path):
+    """
+    Sign a DASH SegmentTemplate using the DASH directory as HMAC scope.
+
+    The template placeholders must remain untouched because the player
+    substitutes $RepresentationID$ / $Number...$ after reading the MPD.
+    """
+    directory = posixpath.dirname(object_path)
+
+    parts = urlsplit(template_path)
+
+    if parts.scheme or parts.netloc:
+        child_path = parts.path.lstrip("/")
+    else:
+        child_path = posixpath.normpath(
+            posixpath.join(directory, parts.path)
+        )
+
+    params = [
+        ("ef_exp", request.GET["ef_exp"]),
+        ("ef_asset", request.GET["ef_asset"]),
+        ("ef_profile", request.GET["ef_profile"]),
+        ("ef_user", request.GET["ef_user"]),
+    ]
+
+    query = urlencode(params)
+
+    scope_path = _dash_scope_path(child_path)
+    payload = f"/{scope_path}|{query}"
+
+    signature = _urlsafe_hmac(
+        getattr(
+            settings,
+            "STREAMING_SIGNING_SECRET",
+            settings.SECRET_KEY,
+        ),
+        payload,
+    )
+
+    params.append(("ef_sig", signature))
+
+    return f"/{child_path}?{urlencode(params)}"
+
+
+def _validate_dash_fragment_signature(request, media_path):
+    """
+    Validate DASH .m4s fragments against their containing directory scope.
+    """
+    signature = request.GET.get("ef_sig", "")
+    expiry = request.GET.get("ef_exp", "")
+    asset_id = request.GET.get("ef_asset", "")
+    profile_id = request.GET.get("ef_profile", "")
+    user_id = request.GET.get("ef_user", "")
+
+    if not all([
+        signature,
+        expiry,
+        asset_id,
+        profile_id,
+        user_id,
+    ]):
+        return False
+
+    try:
+        if int(expiry) < int(time.time()):
+            return False
+    except (TypeError, ValueError):
+        return False
+
+    params = [
+        ("ef_exp", expiry),
+        ("ef_asset", asset_id),
+        ("ef_profile", profile_id),
+        ("ef_user", user_id),
+    ]
+
+    query = urlencode(params)
+
+    scope_path = _dash_scope_path(media_path)
+
+    payload = f"/{scope_path}|{query}"
+
+    expected = _urlsafe_hmac(
+        getattr(
+            settings,
+            "STREAMING_SIGNING_SECRET",
+            settings.SECRET_KEY,
+        ),
+        payload,
+    )
+
+    return hmac.compare_digest(
+        signature,
+        expected,
+    )
+
+
+def _rewrite_mpd(request, object_path, content):
+    """
+    Rewrite DASH SegmentTemplate URLs with scoped CDN signatures.
+    """
+
+    pattern = re.compile(
+        r'(?P<attribute>initialization|media)="(?P<value>[^"]+)"'
+    )
+
+    def replace(match):
+        attribute = match.group("attribute")
+        value = match.group("value")
+
+        signed = _signed_dash_template_url(
+            request,
+            object_path,
+            value,
+        )
+
+        escaped_signed = html.escape(
+            signed,
+            quote=True,
+        )
+
+        return f'{attribute}="{escaped_signed}"'
+
+    return pattern.sub(replace, content)
+
+
+def _rewrite_m3u8(request, object_path, content):
+    directory = posixpath.dirname(object_path)
+    output = []
+
+    for line in content.splitlines():
+        stripped = line.strip()
+
+        if not stripped or stripped.startswith("#"):
+            output.append(line)
+            continue
+
+        parts = urlsplit(stripped)
+
+        if parts.scheme or parts.netloc:
+            child_path = parts.path.lstrip("/")
+        else:
+            child_path = posixpath.normpath(
+                posixpath.join(directory, parts.path)
+            )
+
+        output.append(_signed_url(request, child_path))
+
+    return "\n".join(output) + "\n"
+
+
+def cdn_media(request, media_path):
+    media_path = media_path.lstrip("/")
+
+    #
+    # VIDEO HLS : movies/... ou series/...
+    #
+    if media_path.startswith(SIGNED_VIDEO_PREFIXES):
+        if media_path.endswith(".m4s"):
+            signature_valid = _validate_dash_fragment_signature(
+                request,
+                media_path,
+            )
+        else:
+            signature_valid = _validate_signature(request)
+
+        if not signature_valid:
+            return HttpResponseForbidden(
+                "Invalid or expired media signature"
+            )
+
+        bucket = settings.B2_VIDEO_BUCKET
+        object_key = media_path
+
+        if media_path.endswith(".mpd"):
+            client = get_b2_client()
+
+            try:
+                response = client.get_object(
+                    Bucket=bucket,
+                    Key=object_key,
+                )
+            except Exception:
+                return HttpResponseNotFound("Media not found")
+
+            raw = response["Body"].read()
+
+            try:
+                manifest = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                return HttpResponseNotFound("Invalid DASH manifest")
+
+            rewritten = _rewrite_mpd(
+                request,
+                object_key,
+                manifest,
+            )
+
+            response = HttpResponse(
+                rewritten,
+                content_type="application/dash+xml",
+            )
+
+            response["Cache-Control"] = "private, no-store"
+            return response
+
+        if media_path.endswith(".m3u8"):
+            client = get_b2_client()
+
+            try:
+                response = client.get_object(
+                    Bucket=bucket,
+                    Key=object_key,
+                )
+            except Exception:
+                return HttpResponseNotFound("Media not found")
+
+            raw = response["Body"].read()
+
+            try:
+                playlist = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                return HttpResponseNotFound("Invalid playlist")
+
+            rewritten = _rewrite_m3u8(
+                request,
+                object_key,
+                playlist,
+            )
+
+            response = HttpResponse(
+                rewritten,
+                content_type="application/vnd.apple.mpegurl",
+            )
+
+            response["Cache-Control"] = "private, no-store"
+            return response
+
+        url = generate_b2_presigned_get_url(
+            bucket,
+            object_key,
+            expires_in=300,
+        )
+
+        return redirect(url)
+
+    #
+    # SUBTITLES SIGNÉS
+    #
+    first_component = media_path.split("/", 1)[0]
+
+    if first_component in SIGNED_BUCKETS:
+        if not _validate_signature(request):
+            return HttpResponseForbidden("Invalid or expired media signature")
+
+        bucket = getattr(
+            settings,
+            SIGNED_BUCKETS[first_component],
+        )
+
+        object_key = media_path.split("/", 1)[1]
+
+        url = generate_b2_presigned_get_url(
+            bucket,
+            object_key,
+            expires_in=300,
+        )
+
+        return redirect(url)
+
+    #
+    # MÉDIAS VISUELS / TRAILERS
+    #
+    if first_component in PUBLIC_BUCKETS:
+        bucket = getattr(
+            settings,
+            PUBLIC_BUCKETS[first_component],
+        )
+
+        try:
+            object_key = media_path.split("/", 1)[1]
+        except IndexError:
+            return HttpResponseNotFound("Media not found")
+
+        url = generate_b2_presigned_get_url(
+            bucket,
+            object_key,
+            expires_in=300,
+        )
+
+        return redirect(url)
+
+    return HttpResponseNotFound("Unknown media path")

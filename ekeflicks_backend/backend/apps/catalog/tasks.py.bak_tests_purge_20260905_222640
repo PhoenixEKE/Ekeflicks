@@ -1,0 +1,78 @@
+import logging
+from datetime import timedelta
+
+from celery import shared_task
+from django.db import transaction
+from django.utils import timezone
+
+from apps.catalog.draft_cleanup import delete_draft_temporary_media
+from apps.catalog.models import Content
+
+
+logger = logging.getLogger(__name__)
+
+DRAFT_RETENTION_DAYS = 120
+
+
+@shared_task
+def purge_expired_producer_drafts():
+    cutoff = timezone.now() - timedelta(
+        days=DRAFT_RETENTION_DAYS,
+    )
+
+    candidate_ids = list(
+        Content.objects.filter(
+            producer_submission_status='draft',
+            updated_at__lte=cutoff,
+        ).values_list('id', flat=True)
+    )
+
+    deleted = 0
+    skipped = 0
+    storage_errors = 0
+
+    for content_id in candidate_ids:
+        with transaction.atomic():
+            content = (
+                Content.objects.select_for_update()
+                .filter(id=content_id)
+                .first()
+            )
+
+            if content is None:
+                skipped += 1
+                continue
+
+            # Revalidation sous verrou :
+            # une sauvegarde récente ou un changement de statut
+            # protège immédiatement le contenu.
+            if (
+                content.producer_submission_status != 'draft'
+                or content.updated_at > cutoff
+            ):
+                skipped += 1
+                continue
+
+            cleanup_result = delete_draft_temporary_media(
+                content,
+            )
+
+            storage_errors += cleanup_result['errors']
+
+            content.delete()
+            deleted += 1
+
+    result = {
+        'candidates': len(candidate_ids),
+        'deleted': deleted,
+        'skipped': skipped,
+        'storage_errors': storage_errors,
+        'retention_days': DRAFT_RETENTION_DAYS,
+    }
+
+    logger.info(
+        'Purge automatique brouillons producteurs : %s',
+        result,
+    )
+
+    return result

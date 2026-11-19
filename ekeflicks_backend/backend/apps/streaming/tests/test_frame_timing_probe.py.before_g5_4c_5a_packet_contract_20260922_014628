@@ -1,0 +1,534 @@
+from unittest.mock import patch
+
+from django.test import SimpleTestCase
+
+from apps.streaming.tasks import (
+    _probe_frame_timing,
+)
+
+
+class _FakePipe:
+    def __init__(self, lines):
+        self._lines = iter(lines)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._lines)
+
+    def close(self):
+        pass
+
+    def read(self):
+        return ""
+
+
+class _FakeProcess:
+    def __init__(
+        self,
+        lines,
+        returncode=0,
+    ):
+        self.stdout = _FakePipe(lines)
+        self.stderr = _FakePipe([])
+        self._returncode = returncode
+
+    def communicate(
+        self,
+        input=None,
+        timeout=None,
+    ):
+        stdout = "".join(
+            list(self.stdout)
+        )
+
+        stderr = "".join(
+            list(self.stderr)
+        )
+
+        return stdout, stderr
+
+    def wait(self, timeout=None):
+        return self._returncode
+
+    @property
+    def returncode(self):
+        return self._returncode
+
+    def poll(self):
+        return self._returncode
+
+    def kill(self):
+        self._returncode = -9
+
+
+class FrameTimingProbeTests(
+    SimpleTestCase
+):
+    def _run(self, timestamps):
+        lines = (
+            f"{value},{value}\n"
+            for value in timestamps
+        )
+
+        process = _FakeProcess(lines)
+
+        with patch(
+            "apps.streaming.tasks."
+            "subprocess.Popen",
+            return_value=process,
+        ) as mocked:
+            result = _probe_frame_timing(
+                "/tmp/master.mp4"
+            )
+
+        command = mocked.call_args.args[0]
+
+        self.assertIn(
+            "-show_frames",
+            command,
+        )
+        self.assertIn(
+            "csv=p=0",
+            command,
+        )
+        self.assertNotIn(
+            "json",
+            command,
+        )
+
+        return result
+
+    def test_cfr_is_preserved(self):
+        timestamps = [
+            index * 0.04
+            for index in range(1000)
+        ]
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertTrue(
+            result["available"]
+        )
+        self.assertTrue(
+            result["is_constant"]
+        )
+        self.assertEqual(
+            result["frame_count"],
+            1000,
+        )
+        self.assertEqual(
+            result[
+                "median_delta_seconds"
+            ],
+            0.04,
+        )
+
+    def test_vfr_is_preserved(self):
+        timestamps = [0.0]
+
+        for index in range(
+            1,
+            1000,
+        ):
+            step = (
+                0.08
+                if index == 500
+                else 0.04
+            )
+
+            timestamps.append(
+                timestamps[-1] + step
+            )
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertTrue(
+            result["available"]
+        )
+        self.assertFalse(
+            result["is_constant"]
+        )
+        self.assertEqual(
+            result[
+                "median_delta_seconds"
+            ],
+            0.04,
+        )
+
+    def test_report_timestamps_are_bounded(
+        self
+    ):
+        timestamps = [
+            index * 0.04
+            for index in range(2000)
+        ]
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertEqual(
+            result["frame_count"],
+            2000,
+        )
+        self.assertEqual(
+            len(
+                result["timestamps"]
+            ),
+            500,
+        )
+        self.assertTrue(
+            result[
+                "timestamps_truncated"
+            ]
+        )
+
+    def test_exact_even_median_is_preserved(
+        self
+    ):
+        timestamps = [
+            0.0,
+            0.04,
+            0.08,
+            0.14,
+            0.20,
+        ]
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertEqual(
+            result[
+                "median_delta_seconds"
+            ],
+            0.05,
+        )
+
+    def test_invalid_or_insufficient_data(
+        self
+    ):
+        result = self._run(
+            [0.0, 0.04]
+        )
+
+        self.assertFalse(
+            result["available"]
+        )
+        self.assertIsNone(
+            result["is_constant"]
+        )
+        self.assertEqual(
+            result["frame_count"],
+            2,
+        )
+
+    def test_large_input_crosses_chunk_boundary(
+        self
+    ):
+        timestamps = [
+            index * 0.04
+            for index in range(50010)
+        ]
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertTrue(
+            result["available"]
+        )
+        self.assertTrue(
+            result["is_constant"]
+        )
+        self.assertEqual(
+            result["frame_count"],
+            50010,
+        )
+        self.assertEqual(
+            len(
+                result["timestamps"]
+            ),
+            500,
+        )
+
+
+class FrameTimingTimeoutTests(
+    SimpleTestCase
+):
+    def test_process_uses_devnull_for_stderr(
+        self
+    ):
+        process = _FakeProcess(
+            [
+                "0.0,0.0\n",
+                "0.04,0.04\n",
+                "0.08,0.08\n",
+            ]
+        )
+
+        with patch(
+            "apps.streaming.tasks."
+            "subprocess.Popen",
+            return_value=process,
+        ) as mocked:
+            result = _probe_frame_timing(
+                "/tmp/master.mp4"
+            )
+
+        self.assertTrue(
+            result["available"]
+        )
+
+        self.assertIs(
+            mocked.call_args.kwargs[
+                "stderr"
+            ],
+            __import__(
+                "subprocess"
+            ).DEVNULL,
+        )
+
+
+class FrameTimingBoundaryTests(
+    FrameTimingProbeTests
+):
+    def test_absolute_tolerance_below_2ms_passes(
+        self
+    ):
+        timestamps = [
+            0.0,
+            0.04,
+            0.081999,
+            0.121999,
+            0.161999,
+        ]
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertTrue(
+            result["is_constant"]
+        )
+
+    def test_absolute_tolerance_exact_2ms_passes(
+        self
+    ):
+        timestamps = [
+            0.0,
+            0.04,
+            0.082,
+            0.122,
+            0.162,
+        ]
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertTrue(
+            result["is_constant"]
+        )
+
+    def test_absolute_tolerance_over_2ms_fails(
+        self
+    ):
+        timestamps = [
+            0.0,
+            0.04,
+            0.082001,
+            0.122001,
+            0.162001,
+        ]
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertFalse(
+            result["is_constant"]
+        )
+
+    def test_relative_5_percent_exact_passes(
+        self
+    ):
+        # médiane attendue = 0.1
+        # tolérance relative = 0.005
+        timestamps = [
+            0.0,
+            0.1,
+            0.205,
+            0.305,
+            0.405,
+        ]
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertEqual(
+            result["median_delta_seconds"],
+            0.1,
+        )
+        self.assertEqual(
+            result["tolerance_seconds"],
+            0.005,
+        )
+        self.assertTrue(
+            result["is_constant"]
+        )
+
+    def test_relative_over_5_percent_fails(
+        self
+    ):
+        timestamps = [
+            0.0,
+            0.1,
+            0.205001,
+            0.305001,
+            0.405001,
+        ]
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertFalse(
+            result["is_constant"]
+        )
+
+    def test_odd_median_exact(self):
+        timestamps = [
+            0.0,
+            0.04,
+            0.08,
+            0.13,
+        ]
+
+        # deltas :
+        # 0.04, 0.04, 0.05
+        result = self._run(
+            timestamps
+        )
+
+        self.assertEqual(
+            result["median_delta_seconds"],
+            0.04,
+        )
+
+    def test_zero_delta_is_ignored(self):
+        timestamps = [
+            0.0,
+            0.04,
+            0.04,
+            0.08,
+            0.12,
+        ]
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertTrue(
+            result["available"]
+        )
+        self.assertTrue(
+            result["is_constant"]
+        )
+        self.assertEqual(
+            result["frame_count"],
+            5,
+        )
+
+    def test_negative_delta_is_ignored(self):
+        timestamps = [
+            0.0,
+            0.04,
+            0.03,
+            0.07,
+            0.11,
+        ]
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertTrue(
+            result["available"]
+        )
+        self.assertTrue(
+            result["is_constant"]
+        )
+
+    def test_single_anomaly_in_long_sequence_fails(
+        self
+    ):
+        timestamps = [0.0]
+
+        for index in range(
+            1,
+            20000,
+        ):
+            step = (
+                0.08
+                if index == 15000
+                else 0.04
+            )
+
+            timestamps.append(
+                timestamps[-1] + step
+            )
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertFalse(
+            result["is_constant"]
+        )
+        self.assertEqual(
+            result["median_delta_seconds"],
+            0.04,
+        )
+
+    def test_multiple_chunks_keep_exact_decision(
+        self
+    ):
+        timestamps = [0.0]
+
+        for index in range(
+            1,
+            120005,
+        ):
+            step = (
+                0.08
+                if index == 100001
+                else 0.04
+            )
+
+            timestamps.append(
+                timestamps[-1] + step
+            )
+
+        result = self._run(
+            timestamps
+        )
+
+        self.assertFalse(
+            result["is_constant"]
+        )
+        self.assertEqual(
+            result["frame_count"],
+            120005,
+        )
+        self.assertEqual(
+            len(result["timestamps"]),
+            500,
+        )

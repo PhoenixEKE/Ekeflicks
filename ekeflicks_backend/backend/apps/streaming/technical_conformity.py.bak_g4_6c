@@ -1,0 +1,2881 @@
+import math
+import re
+
+from core.models import TechnicalSpecification
+
+
+def _published_specification():
+    return (
+        TechnicalSpecification.objects
+        .filter(is_published=True)
+        .order_by(
+            "-published_at",
+            "-created_at",
+        )
+        .first()
+    )
+
+
+def _rule_map(specification):
+    rules = {}
+
+    if specification is None:
+        return rules
+
+    sections = (
+        specification.sections
+        if isinstance(
+            specification.sections,
+            list,
+        )
+        else []
+    )
+
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+
+        items = section.get("items") or []
+
+        if not isinstance(items, list):
+            continue
+
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+
+            key = str(
+                item.get("rule_key") or ""
+            ).strip()
+
+            if not key:
+                continue
+
+            rules[key] = {
+                "label": str(
+                    item.get("label") or ""
+                ).strip(),
+                "value": str(
+                    item.get("value") or ""
+                ).strip(),
+                "required": bool(
+                    item.get("required")
+                ),
+                "auto_validation": bool(
+                    item.get("auto_validation")
+                ),
+                "delivery_levels": (
+                    item.get("delivery_levels")
+                    if isinstance(
+                        item.get("delivery_levels"),
+                        list,
+                    )
+                    else []
+                ),
+                "rule_type": str(
+                    item.get("rule_type") or ""
+                ).strip(),
+                "expected": item.get("expected"),
+                "severity": str(
+                    item.get("severity") or ""
+                ).strip().lower(),
+            }
+
+    return rules
+
+
+def _parse_allowed_fps(value):
+    numbers = re.findall(
+        r"\d+(?:[.,]\d+)?",
+        value or "",
+    )
+
+    result = []
+
+    for raw in numbers:
+        try:
+            fps = float(
+                raw.replace(",", ".")
+            )
+        except ValueError:
+            continue
+
+        if fps > 0:
+            result.append(fps)
+
+    return result
+
+
+def _fps_matches(actual, allowed):
+    if actual is None:
+        return False
+
+    try:
+        actual = float(actual)
+    except (TypeError, ValueError):
+        return False
+
+    # 23.976 et 29.97 peuvent être exposés
+    # légèrement différemment selon le conteneur.
+    return any(
+        math.isclose(
+            actual,
+            expected,
+            rel_tol=0,
+            abs_tol=0.02,
+        )
+        for expected in allowed
+    )
+
+
+def _container_names(format_data):
+    raw = str(
+        (format_data or {}).get(
+            "format_name"
+        )
+        or ""
+    ).lower()
+
+    return {
+        part.strip()
+        for part in raw.split(",")
+        if part.strip()
+    }
+
+
+def _is_mov_container(format_data):
+    names = _container_names(format_data)
+
+    # ffprobe identifie souvent MOV/MP4 ensemble
+    # via mov,mp4,m4a,3gp,3g2,mj2.
+    format_long_name = str(
+        (format_data or {}).get(
+            "format_long_name"
+        )
+        or ""
+    ).lower()
+
+    filename = str(
+        (format_data or {}).get(
+            "filename"
+        )
+        or ""
+    ).lower()
+
+    if filename.endswith(".mov"):
+        return True
+
+    # Si filename absent, on ne considère pas le
+    # groupe QuickTime générique comme MOV avec certitude.
+    return (
+        "quicktime" in format_long_name
+        and "mov" in names
+        and filename.endswith(".mov")
+    )
+
+
+def _field_order(video_stream):
+    return str(
+        (video_stream or {}).get(
+            "field_order"
+        )
+        or ""
+    ).strip().lower()
+
+
+def _is_progressive(video_stream):
+    value = _field_order(video_stream)
+
+    if not value or value == "unknown":
+        # L'absence ou l'indétermination FFprobe est
+        # classée "à vérifier", jamais automatiquement
+        # considérée comme une preuve de scan progressif.
+        return None
+
+    if value == "progressive":
+        return True
+
+    return False
+
+
+
+def _filtered_specification_for_rule_prefix(
+    specification,
+    prefix,
+):
+    """
+    Vue légère d'une TechnicalSpecification limitée
+    aux règles machine d'un préfixe donné.
+
+    Aucun enregistrement DB n'est créé ou modifié.
+    """
+    if specification is None:
+        return None
+
+    prefix = str(prefix or "").strip()
+
+    class _SpecificationView:
+        pass
+
+    view = _SpecificationView()
+
+    view.id = specification.id
+    view.version = specification.version
+
+    filtered_sections = []
+
+    sections = (
+        specification.sections
+        if isinstance(
+            specification.sections,
+            list,
+        )
+        else []
+    )
+
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+
+        items = section.get("items") or []
+
+        if not isinstance(items, list):
+            continue
+
+        selected = []
+
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+
+            rule_key = str(
+                item.get("rule_key") or ""
+            ).strip()
+
+            if not rule_key.startswith(prefix):
+                continue
+
+            if not item.get("auto_validation"):
+                continue
+
+            selected.append(dict(item))
+
+        if not selected:
+            continue
+
+        filtered_sections.append({
+            "key": section.get("key"),
+            "title": section.get("title"),
+            "description": section.get(
+                "description"
+            ),
+            "items": selected,
+        })
+
+    view.sections = filtered_sections
+
+    return view
+
+
+def _trailer_metadata_for_master_engine(
+    metadata,
+):
+    """
+    Ajoute les alias master.* strictement nécessaires
+    à la réutilisation du moteur générique existant.
+
+    Les données FFprobe ne sont pas modifiées.
+    """
+    return (
+        dict(metadata)
+        if isinstance(metadata, dict)
+        else {}
+    )
+
+
+
+def evaluate_master_conformity(
+    *,
+    metadata,
+    frame_rate=None,
+    delivery_level="distribution",
+    specification=None,
+):
+    """
+    Évalue uniquement les règles marquées
+    auto_validation=True dans la spec publiée.
+
+    Retour :
+      conform
+      non_conform
+      review_required
+      unavailable
+    """
+    if specification is None:
+        specification = _published_specification()
+
+    delivery_level = str(
+        delivery_level or "distribution"
+    ).strip().lower()
+
+    if delivery_level not in {
+        "premium",
+        "standard",
+        "distribution",
+    }:
+        delivery_level = "distribution"
+
+    if specification is None:
+        return {
+            "status": "unavailable",
+            "blocking": False,
+            "specification_id": None,
+            "specification_version": "",
+            "checks": [],
+            "blocking_errors": [],
+            "warnings": [
+                "Aucune spécification technique publiée."
+            ],
+        }
+
+    rules = _rule_map(specification)
+
+    profile_rules = []
+
+    for rule_key, rule in rules.items():
+        if not rule.get("auto_validation"):
+            continue
+
+        if not str(rule_key).startswith("master."):
+            continue
+
+        levels = rule.get("delivery_levels") or []
+
+        if levels and delivery_level not in levels:
+            continue
+
+        rule_type = rule.get("rule_type") or ""
+
+        if not rule_type:
+            continue
+
+        profile_rules.append(
+            (rule_key, rule)
+        )
+
+    streams = (
+        metadata.get("streams")
+        if isinstance(metadata, dict)
+        else []
+    ) or []
+
+    format_data = (
+        metadata.get("format")
+        if isinstance(metadata, dict)
+        else {}
+    ) or {}
+
+    video_stream = next(
+        (
+            stream
+            for stream in streams
+            if isinstance(stream, dict)
+            and stream.get("codec_type")
+            == "video"
+        ),
+        None,
+    )
+
+    checks = []
+    errors = []
+    warnings = []
+
+    def rule_is_blocking(rule):
+        severity = str(
+            rule.get("severity") or ""
+        ).strip().lower()
+
+        if severity:
+            return severity == "blocking"
+
+        return bool(rule.get("required"))
+
+    def expected_value(rule):
+        expected = rule.get("expected")
+
+        if expected is not None:
+            return expected
+
+        return rule.get("value")
+
+    def normalized_container():
+        filename = str(
+            format_data.get("filename") or ""
+        ).strip().lower()
+
+        if filename.endswith(".mov"):
+            return "mov"
+
+        if filename.endswith(".mp4"):
+            return "mp4"
+
+        names = _container_names(format_data)
+
+        if "mp4" in names and "mov" not in names:
+            return "mp4"
+
+        if "mov" in names and "mp4" not in names:
+            return "mov"
+
+        return ""
+
+    def safe_int(value):
+        try:
+            if value in (None, "", "N/A"):
+                return 0
+            return int(float(value))
+        except (TypeError, ValueError):
+            return 0
+
+    def first_audio_stream():
+        return next(
+            (
+                stream
+                for stream in streams
+                if isinstance(stream, dict)
+                and stream.get(
+                    "codec_type"
+                ) == "audio"
+            ),
+            None,
+        )
+
+    def audio_pcm_bit_depth():
+        """
+        Retourne la profondeur PCM nominale.
+
+        Priorité :
+        1. bits_per_sample FFprobe ;
+        2. bits_per_raw_sample FFprobe ;
+        3. nom du codec PCM, ex. pcm_s24le.
+
+        sample_fmt n'est volontairement pas utilisé
+        comme autorité : un PCM 24 bits peut être
+        manipulé dans un conteneur de samples 32 bits.
+        """
+        audio_stream = first_audio_stream()
+
+        if not audio_stream:
+            return 0
+
+        bits = safe_int(
+            audio_stream.get(
+                "bits_per_sample"
+            )
+        )
+
+        if bits > 0:
+            return bits
+
+        bits = safe_int(
+            audio_stream.get(
+                "bits_per_raw_sample"
+            )
+        )
+
+        if bits > 0:
+            return bits
+
+        codec = str(
+            audio_stream.get(
+                "codec_name"
+            )
+            or ""
+        ).strip().lower()
+
+        match = re.match(
+            r"^pcm_[suf](\d+)(?:le|be)?$",
+            codec,
+        )
+
+        if match:
+            return int(match.group(1))
+
+        return 0
+
+    def video_bit_depth():
+        bits = safe_int(
+            (video_stream or {}).get(
+                "bits_per_raw_sample"
+            )
+        )
+
+        if bits > 0:
+            return bits
+
+        pix_fmt = str(
+            (video_stream or {}).get(
+                "pix_fmt"
+            )
+            or ""
+        ).lower()
+
+        match = re.search(
+            r"(?:p|le|be)(10|12|16)(?:le|be)?$",
+            pix_fmt,
+        )
+
+        if match:
+            return int(match.group(1))
+
+        return 8 if pix_fmt else 0
+
+    def normalized_prores_profile():
+        if not video_stream:
+            return ""
+
+        codec = str(
+            video_stream.get("codec_name") or ""
+        ).strip().lower()
+
+        if codec not in {
+            "prores",
+            "prores_ks",
+            "prores_aw",
+        }:
+            return ""
+
+        raw_profile = str(
+            video_stream.get("profile") or ""
+        ).strip().lower()
+
+        normalized = (
+            raw_profile
+            .replace("apple prores", "")
+            .replace("prores", "")
+            .replace("_", " ")
+            .replace("-", " ")
+            .strip()
+        )
+
+        aliases = {
+            "proxy": "proxy",
+            "lt": "lt",
+            "standard": "standard",
+            "422": "standard",
+            "422 standard": "standard",
+            "hq": "hq",
+            "422 hq": "hq",
+            "4444": "4444",
+            "4444 xq": "xq",
+            "xq": "xq",
+        }
+
+        if normalized in aliases:
+            return aliases[normalized]
+
+        compact = normalized.replace(" ", "")
+
+        if compact in {
+            "422hq",
+            "hq",
+        }:
+            return "hq"
+
+        if compact in {
+            "4444xq",
+            "xq",
+        }:
+            return "xq"
+
+        if compact == "4444":
+            return "4444"
+
+        tag = str(
+            video_stream.get("codec_tag_string") or ""
+        ).strip().lower()
+
+        # Apple ProRes fourcc courants.
+        tag_profiles = {
+            "apco": "proxy",
+            "apcs": "lt",
+            "apcn": "standard",
+            "apch": "hq",
+            "ap4h": "4444",
+            "ap4x": "xq",
+        }
+
+        return tag_profiles.get(tag, "")
+
+    def video_bitrate():
+        return safe_int(
+            (video_stream or {}).get(
+                "bit_rate"
+            )
+            or format_data.get(
+                "bit_rate"
+            )
+        )
+
+    def frame_rate_is_constant():
+        if not video_stream:
+            return None
+
+        avg = str(
+            video_stream.get(
+                "avg_frame_rate"
+            )
+            or ""
+        ).strip()
+
+        raw = str(
+            video_stream.get(
+                "r_frame_rate"
+            )
+            or ""
+        ).strip()
+
+        if not avg or not raw:
+            return None
+
+        def parse_rate(value):
+            if value in {
+                "",
+                "0/0",
+                "N/A",
+            }:
+                return None
+
+            try:
+                if "/" in value:
+                    numerator, denominator = (
+                        value.split("/", 1)
+                    )
+                    denominator = float(
+                        denominator
+                    )
+
+                    if denominator == 0:
+                        return None
+
+                    return (
+                        float(numerator)
+                        / denominator
+                    )
+
+                return float(value)
+            except (
+                TypeError,
+                ValueError,
+                ZeroDivisionError,
+            ):
+                return None
+
+        avg_value = parse_rate(avg)
+        raw_value = parse_rate(raw)
+
+        if (
+            avg_value is None
+            or raw_value is None
+        ):
+            return None
+
+        return math.isclose(
+            avg_value,
+            raw_value,
+            rel_tol=0,
+            abs_tol=0.02,
+        )
+
+    def add_check(
+        *,
+        rule_key,
+        status,
+        actual,
+        expected,
+        message,
+        blocking,
+    ):
+        checks.append({
+            "rule_key": rule_key,
+            "status": status,
+            "actual": actual,
+            "expected": expected,
+            "message": message,
+            "blocking": blocking,
+        })
+
+        if status == "failed":
+            if blocking:
+                errors.append(message)
+            else:
+                warnings.append(message)
+
+        if status == "review":
+            warnings.append(message)
+
+    # --------------------------------------------------
+    # FPS
+    # --------------------------------------------------
+    fps_rule = rules.get(
+        "master.allowed_fps"
+    )
+
+    if (
+        fps_rule
+        and fps_rule["auto_validation"]
+    ):
+        allowed = _parse_allowed_fps(
+            fps_rule["value"]
+        )
+
+        if not video_stream:
+            add_check(
+                rule_key="master.allowed_fps",
+                status="failed",
+                actual=None,
+                expected=fps_rule["value"],
+                message=(
+                    "Impossible de vérifier le framerate : "
+                    "aucun flux vidéo détecté."
+                ),
+                blocking=True,
+            )
+        elif not allowed:
+            add_check(
+                rule_key="master.allowed_fps",
+                status="review",
+                actual=frame_rate,
+                expected=fps_rule["value"],
+                message=(
+                    "La règle FPS publiée ne peut pas "
+                    "être interprétée automatiquement."
+                ),
+                blocking=False,
+            )
+        elif _fps_matches(
+            frame_rate,
+            allowed,
+        ):
+            add_check(
+                rule_key="master.allowed_fps",
+                status="passed",
+                actual=frame_rate,
+                expected=allowed,
+                message="Framerate conforme.",
+                blocking=True,
+            )
+        else:
+            add_check(
+                rule_key="master.allowed_fps",
+                status="failed",
+                actual=frame_rate,
+                expected=allowed,
+                message=(
+                    "Framerate non conforme : "
+                    f"{frame_rate!s} fps. "
+                    "Valeurs autorisées : "
+                    + ", ".join(
+                        f"{value:g}"
+                        for value in allowed
+                    )
+                    + " fps."
+                ),
+                blocking=True,
+            )
+
+    # --------------------------------------------------
+    # PROGRESSIF
+    # --------------------------------------------------
+    progressive_rule = rules.get(
+        "master.progressive"
+    )
+
+    if (
+        progressive_rule
+        and progressive_rule[
+            "auto_validation"
+        ]
+    ):
+        progressive = _is_progressive(
+            video_stream
+        )
+
+        actual_field_order = _field_order(
+            video_stream
+        ) or None
+
+        if not video_stream:
+            add_check(
+                rule_key="master.progressive",
+                status="failed",
+                actual=None,
+                expected=(
+                    progressive_rule["value"]
+                ),
+                message=(
+                    "Impossible de vérifier le scan : "
+                    "aucun flux vidéo détecté."
+                ),
+                blocking=True,
+            )
+        elif progressive is True:
+            add_check(
+                rule_key="master.progressive",
+                status="passed",
+                actual=actual_field_order,
+                expected="progressif",
+                message="Scan progressif conforme.",
+                blocking=True,
+            )
+        elif progressive is False:
+            add_check(
+                rule_key="master.progressive",
+                status="failed",
+                actual=actual_field_order,
+                expected="progressif",
+                message=(
+                    "Vidéo entrelacée détectée "
+                    f"(field_order={actual_field_order}). "
+                    "La livraison doit être progressive."
+                ),
+                blocking=True,
+            )
+        else:
+            add_check(
+                rule_key="master.progressive",
+                status="review",
+                actual=actual_field_order,
+                expected="progressif",
+                message=(
+                    "FFprobe ne fournit pas assez "
+                    "d'informations pour confirmer "
+                    "le scan progressif."
+                ),
+                blocking=False,
+            )
+
+    # --------------------------------------------------
+    # H.264 DANS MOV
+    # --------------------------------------------------
+    h264_rule = rules.get(
+        "master.h264_container"
+    )
+
+    if (
+        h264_rule
+        and h264_rule["auto_validation"]
+    ):
+        codec = str(
+            (video_stream or {}).get(
+                "codec_name"
+            )
+            or ""
+        ).lower()
+
+        filename = str(
+            format_data.get("filename")
+            or ""
+        )
+
+        if not video_stream:
+            add_check(
+                rule_key="master.h264_container",
+                status="failed",
+                actual=None,
+                expected=h264_rule["value"],
+                message=(
+                    "Impossible de vérifier "
+                    "le codec/conteneur : "
+                    "aucun flux vidéo détecté."
+                ),
+                blocking=True,
+            )
+        elif (
+            codec in {"h264", "avc1"}
+            and _is_mov_container(
+                format_data
+            )
+        ):
+            add_check(
+                rule_key="master.h264_container",
+                status="failed",
+                actual={
+                    "codec": codec,
+                    "filename": filename,
+                    "format_name": (
+                        format_data.get(
+                            "format_name"
+                        )
+                    ),
+                },
+                expected=h264_rule["value"],
+                message=(
+                    "H.264 encapsulé dans MOV détecté. "
+                    "Le cahier des charges exige "
+                    "un conteneur MP4 pour une source H.264."
+                ),
+                blocking=True,
+            )
+        else:
+            add_check(
+                rule_key="master.h264_container",
+                status="passed",
+                actual={
+                    "codec": codec,
+                    "filename": filename,
+                    "format_name": (
+                        format_data.get(
+                            "format_name"
+                        )
+                    ),
+                },
+                expected=h264_rule["value"],
+                message=(
+                    "Association codec/conteneur conforme."
+                ),
+                blocking=True,
+            )
+
+
+    # --------------------------------------------------
+    # PROFILS DE LIVRAISON V1.3+
+    # --------------------------------------------------
+    for rule_key, rule in profile_rules:
+        rule_type = rule.get("rule_type")
+        expected = expected_value(rule)
+        blocking = rule_is_blocking(rule)
+
+        actual = None
+        passed = None
+        review_message = None
+
+        if rule_type == "container_allowed":
+            actual = normalized_container()
+
+            if not actual:
+                review_message = (
+                    "Le conteneur ne peut pas être "
+                    "déterminé avec certitude."
+                )
+            else:
+                allowed = {
+                    str(value).strip().lower()
+                    for value in (
+                        expected
+                        if isinstance(
+                            expected,
+                            list,
+                        )
+                        else []
+                    )
+                }
+
+                passed = actual in allowed
+
+        elif rule_type == "video_codec_allowed":
+            actual = str(
+                (video_stream or {}).get(
+                    "codec_name"
+                )
+                or ""
+            ).strip().lower()
+
+            if not actual:
+                review_message = (
+                    "Le codec vidéo ne peut pas "
+                    "être déterminé."
+                )
+            else:
+                allowed = {
+                    str(value).strip().lower()
+                    for value in (
+                        expected
+                        if isinstance(
+                            expected,
+                            list,
+                        )
+                        else []
+                    )
+                }
+
+                aliases = {
+                    "prores_ks": "prores",
+                    "prores_aw": "prores",
+                    "hevc": "hevc",
+                    "h265": "hevc",
+                    "h264": "h264",
+                    "avc1": "h264",
+                }
+
+                normalized = aliases.get(
+                    actual,
+                    actual,
+                )
+
+                passed = normalized in allowed
+
+        elif rule_type == "prores_profile_allowed":
+            expected = expected_value(rule)
+
+            allowed = {
+                str(value).strip().lower()
+                for value in (
+                    expected
+                    if isinstance(expected, list)
+                    else []
+                )
+                if str(value).strip()
+            }
+
+            codec = str(
+                (video_stream or {}).get(
+                    "codec_name"
+                )
+                or ""
+            ).strip().lower()
+
+            actual = normalized_prores_profile()
+
+            if not video_stream:
+                add_check(
+                    rule_key=rule_key,
+                    status="failed",
+                    actual=None,
+                    expected=sorted(allowed),
+                    message=(
+                        "Impossible de vérifier le profil "
+                        "ProRes : aucun flux vidéo détecté."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            elif codec not in {
+                "prores",
+                "prores_ks",
+                "prores_aw",
+            }:
+                add_check(
+                    rule_key=rule_key,
+                    status="failed",
+                    actual={
+                        "codec": codec or None,
+                        "profile": (
+                            (video_stream or {}).get(
+                                "profile"
+                            )
+                        ),
+                    },
+                    expected=sorted(allowed),
+                    message=(
+                        "Le codec vidéo n'est pas ProRes ; "
+                        "le profil ProRes requis ne peut "
+                        "donc pas être validé."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            elif not allowed:
+                add_check(
+                    rule_key=rule_key,
+                    status="review",
+                    actual=actual or None,
+                    expected=expected,
+                    message=(
+                        "La liste des profils ProRes "
+                        "autorisés est invalide."
+                    ),
+                    blocking=False,
+                )
+
+            elif not actual:
+                add_check(
+                    rule_key=rule_key,
+                    status="review",
+                    actual={
+                        "profile": (
+                            (video_stream or {}).get(
+                                "profile"
+                            )
+                        ),
+                        "codec_tag_string": (
+                            (video_stream or {}).get(
+                                "codec_tag_string"
+                            )
+                        ),
+                    },
+                    expected=sorted(allowed),
+                    message=(
+                        "Le codec ProRes est détecté mais "
+                        "son profil exact ne peut pas être "
+                        "déterminé automatiquement."
+                    ),
+                    blocking=False,
+                )
+
+            elif actual in allowed:
+                add_check(
+                    rule_key=rule_key,
+                    status="passed",
+                    actual=actual,
+                    expected=sorted(allowed),
+                    message=(
+                        "Profil ProRes conforme."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            else:
+                add_check(
+                    rule_key=rule_key,
+                    status="failed",
+                    actual=actual,
+                    expected=sorted(allowed),
+                    message=(
+                        "Profil ProRes non conforme : "
+                        f"{actual}. Profils autorisés : "
+                        + ", ".join(sorted(allowed))
+                        + "."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            # Cette branche produit déjà son check complet.
+            # Ne pas retomber dans le traitement générique
+            # situé en fin de boucle.
+            continue
+
+        elif rule_type == "min_resolution":
+            width = safe_int(
+                (video_stream or {}).get(
+                    "width"
+                )
+            )
+            height = safe_int(
+                (video_stream or {}).get(
+                    "height"
+                )
+            )
+
+            actual = {
+                "width": width,
+                "height": height,
+            }
+
+            if not width or not height:
+                review_message = (
+                    "La résolution vidéo ne peut "
+                    "pas être déterminée."
+                )
+            elif isinstance(expected, dict):
+                min_width = safe_int(
+                    expected.get("width")
+                )
+                min_height = safe_int(
+                    expected.get("height")
+                )
+
+                passed = (
+                    width >= min_width
+                    and height >= min_height
+                )
+            else:
+                review_message = (
+                    "La règle de résolution est "
+                    "ininterprétable."
+                )
+
+        elif rule_type == "resolution_allowed_profiles":
+            width = safe_int(
+                (video_stream or {}).get(
+                    "width"
+                )
+            )
+            height = safe_int(
+                (video_stream or {}).get(
+                    "height"
+                )
+            )
+
+            actual = {
+                "width": width,
+                "height": height,
+            }
+
+            if not width or not height:
+                review_message = (
+                    "La résolution vidéo ne peut "
+                    "pas être déterminée."
+                )
+
+            elif not isinstance(expected, list):
+                review_message = (
+                    "La liste des profils de résolution "
+                    "est ininterprétable."
+                )
+
+            else:
+                allowed_profiles = []
+
+                for profile in expected:
+                    if not isinstance(profile, dict):
+                        continue
+
+                    profile_width = safe_int(
+                        profile.get("width")
+                    )
+                    profile_height = safe_int(
+                        profile.get("height")
+                    )
+
+                    if (
+                        profile_width > 0
+                        and profile_height > 0
+                    ):
+                        allowed_profiles.append(
+                            {
+                                "width": profile_width,
+                                "height": profile_height,
+                                "label": (
+                                    profile.get("label")
+                                    or (
+                                        f"{profile_width}"
+                                        "x"
+                                        f"{profile_height}"
+                                    )
+                                ),
+                            }
+                        )
+
+                if not allowed_profiles:
+                    review_message = (
+                        "Aucun profil de résolution "
+                        "exploitable n'est défini."
+                    )
+
+                else:
+                    passed = any(
+                        (
+                            width
+                            == profile["width"]
+                            and height
+                            == profile["height"]
+                        )
+                        for profile
+                        in allowed_profiles
+                    )
+
+                    expected = allowed_profiles
+
+        elif rule_type == "min_video_bitrate":
+            width = safe_int(
+                (video_stream or {}).get(
+                    "width"
+                )
+            )
+            height = safe_int(
+                (video_stream or {}).get(
+                    "height"
+                )
+            )
+            bitrate = video_bitrate()
+
+            actual = {
+                "width": width,
+                "height": height,
+                "bitrate_bps": bitrate,
+            }
+
+            if not isinstance(expected, dict):
+                review_message = (
+                    "La règle de bitrate est "
+                    "ininterprétable."
+                )
+            else:
+                min_width = safe_int(
+                    expected.get("min_width")
+                )
+                max_width = safe_int(
+                    expected.get("max_width")
+                )
+                min_height = safe_int(
+                    expected.get("min_height")
+                )
+                max_height = safe_int(
+                    expected.get("max_height")
+                )
+                required_bitrate = safe_int(
+                    expected.get("bitrate_bps")
+                )
+
+                applies = (
+                    (not min_width or width >= min_width)
+                    and (
+                        not max_width
+                        or width <= max_width
+                    )
+                    and (
+                        not min_height
+                        or height >= min_height
+                    )
+                    and (
+                        not max_height
+                        or height <= max_height
+                    )
+                )
+
+                if not applies:
+                    continue
+
+                if bitrate <= 0:
+                    review_message = (
+                        "Le bitrate vidéo ne peut "
+                        "pas être déterminé."
+                    )
+                else:
+                    passed = (
+                        bitrate
+                        >= required_bitrate
+                    )
+
+        elif rule_type == "audio_stream_required":
+            audio_stream = next(
+                (
+                    stream
+                    for stream in streams
+                    if isinstance(stream, dict)
+                    and stream.get(
+                        "codec_type"
+                    ) == "audio"
+                ),
+                None,
+            )
+
+            if audio_stream is None:
+                add_check(
+                    rule_key=rule_key,
+                    status="failed",
+                    actual=False,
+                    expected=True,
+                    message=(
+                        "Aucune piste audio n'est présente "
+                        "dans le master."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            else:
+                add_check(
+                    rule_key=rule_key,
+                    status="passed",
+                    actual=True,
+                    expected=True,
+                    message=(
+                        "Piste audio détectée."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            # Cette branche produit déjà son check complet.
+            # Ne pas retomber dans le traitement générique
+            # situé en fin de boucle.
+            continue
+
+        elif rule_type == "audio_sample_rate":
+            actual = safe_int(
+                (next(
+                    (
+                        stream
+                        for stream in streams
+                        if isinstance(
+                            stream,
+                            dict,
+                        )
+                        and stream.get(
+                            "codec_type"
+                        ) == "audio"
+                    ),
+                    {},
+                ) or {}).get(
+                    "sample_rate"
+                )
+            )
+
+            required_rate = safe_int(
+                expected
+            )
+
+            if actual <= 0:
+                review_message = (
+                    "La fréquence audio ne peut "
+                    "pas être déterminée."
+                )
+            else:
+                passed = (
+                    actual == required_rate
+                )
+
+        elif rule_type == "audio_codec_allowed":
+            audio_stream = next(
+                (
+                    stream
+                    for stream in streams
+                    if isinstance(stream, dict)
+                    and stream.get(
+                        "codec_type"
+                    ) == "audio"
+                ),
+                None,
+            )
+
+            actual = str(
+                (audio_stream or {}).get(
+                    "codec_name"
+                )
+                or ""
+            ).strip().lower()
+
+            if not actual:
+                review_message = (
+                    "Le codec audio ne peut pas "
+                    "être déterminé."
+                )
+            else:
+                allowed = {
+                    str(value).strip().lower()
+                    for value in (
+                        expected
+                        if isinstance(
+                            expected,
+                            list,
+                        )
+                        else []
+                    )
+                }
+
+                passed = actual in allowed
+
+        elif rule_type == "audio_channels_allowed":
+            audio_stream = first_audio_stream()
+
+            expected = expected_value(rule)
+
+            allowed = set()
+
+            if isinstance(expected, list):
+                for value in expected:
+                    try:
+                        channels = int(value)
+                    except (
+                        TypeError,
+                        ValueError,
+                    ):
+                        continue
+
+                    if channels > 0:
+                        allowed.add(channels)
+
+            actual_channels = safe_int(
+                (audio_stream or {}).get(
+                    "channels"
+                )
+            )
+
+            actual = {
+                "channels": actual_channels,
+                "channel_layout": (
+                    (audio_stream or {}).get(
+                        "channel_layout"
+                    )
+                ),
+            }
+
+            if audio_stream is None:
+                add_check(
+                    rule_key=rule_key,
+                    status="failed",
+                    actual=actual,
+                    expected=sorted(allowed),
+                    message=(
+                        "Impossible de vérifier les "
+                        "canaux audio : aucune piste "
+                        "audio détectée."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            elif not allowed:
+                add_check(
+                    rule_key=rule_key,
+                    status="review",
+                    actual=actual,
+                    expected=expected,
+                    message=(
+                        "La liste des nombres de canaux "
+                        "audio autorisés est invalide."
+                    ),
+                    blocking=False,
+                )
+
+            elif actual_channels <= 0:
+                add_check(
+                    rule_key=rule_key,
+                    status="review",
+                    actual=actual,
+                    expected=sorted(allowed),
+                    message=(
+                        "Le nombre de canaux audio "
+                        "ne peut pas être déterminé."
+                    ),
+                    blocking=False,
+                )
+
+            elif actual_channels in allowed:
+                add_check(
+                    rule_key=rule_key,
+                    status="passed",
+                    actual=actual,
+                    expected=sorted(allowed),
+                    message=(
+                        "Configuration des canaux "
+                        "audio conforme."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            else:
+                add_check(
+                    rule_key=rule_key,
+                    status="failed",
+                    actual=actual,
+                    expected=sorted(allowed),
+                    message=(
+                        "Configuration audio non conforme : "
+                        f"{actual_channels} canal/canaux. "
+                        "Configurations autorisées : "
+                        + ", ".join(
+                            str(value)
+                            for value in sorted(allowed)
+                        )
+                        + " canaux."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            # Branche entièrement traitée ici.
+            continue
+
+        elif rule_type == "audio_pcm_bit_depth":
+            audio_stream = first_audio_stream()
+
+            expected = expected_value(rule)
+
+            try:
+                required_bits = int(expected)
+            except (
+                TypeError,
+                ValueError,
+            ):
+                required_bits = 0
+
+            codec = str(
+                (audio_stream or {}).get(
+                    "codec_name"
+                )
+                or ""
+            ).strip().lower()
+
+            actual_bits = audio_pcm_bit_depth()
+
+            actual = {
+                "codec": codec or None,
+                "bits": actual_bits or None,
+                "bits_per_sample": (
+                    (audio_stream or {}).get(
+                        "bits_per_sample"
+                    )
+                ),
+                "bits_per_raw_sample": (
+                    (audio_stream or {}).get(
+                        "bits_per_raw_sample"
+                    )
+                ),
+                "sample_fmt": (
+                    (audio_stream or {}).get(
+                        "sample_fmt"
+                    )
+                ),
+            }
+
+            if audio_stream is None:
+                add_check(
+                    rule_key=rule_key,
+                    status="failed",
+                    actual=actual,
+                    expected=required_bits or expected,
+                    message=(
+                        "Impossible de vérifier la "
+                        "profondeur PCM : aucune piste "
+                        "audio détectée."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            elif not required_bits:
+                add_check(
+                    rule_key=rule_key,
+                    status="review",
+                    actual=actual,
+                    expected=expected,
+                    message=(
+                        "La profondeur PCM requise "
+                        "est invalide."
+                    ),
+                    blocking=False,
+                )
+
+            elif not codec.startswith("pcm_"):
+                add_check(
+                    rule_key=rule_key,
+                    status="failed",
+                    actual=actual,
+                    expected=required_bits,
+                    message=(
+                        "La piste audio n'est pas PCM ; "
+                        "la profondeur PCM requise "
+                        "ne peut pas être satisfaite."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            elif not actual_bits:
+                add_check(
+                    rule_key=rule_key,
+                    status="review",
+                    actual=actual,
+                    expected=required_bits,
+                    message=(
+                        "La piste PCM est détectée mais "
+                        "sa profondeur nominale ne peut "
+                        "pas être déterminée."
+                    ),
+                    blocking=False,
+                )
+
+            elif actual_bits == required_bits:
+                add_check(
+                    rule_key=rule_key,
+                    status="passed",
+                    actual=actual,
+                    expected=required_bits,
+                    message=(
+                        f"PCM {required_bits} bits conforme."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            else:
+                add_check(
+                    rule_key=rule_key,
+                    status="failed",
+                    actual=actual,
+                    expected=required_bits,
+                    message=(
+                        "Profondeur PCM non conforme : "
+                        f"{actual_bits} bits. "
+                        f"{required_bits} bits requis."
+                    ),
+                    blocking=rule_is_blocking(rule),
+                )
+
+            # Branche entièrement traitée ici.
+            continue
+
+        elif rule_type == "bit_depth_allowed":
+            actual = video_bit_depth()
+
+            if actual <= 0:
+                review_message = (
+                    "La profondeur de couleur "
+                    "ne peut pas être déterminée."
+                )
+            else:
+                allowed = {
+                    safe_int(value)
+                    for value in (
+                        expected
+                        if isinstance(
+                            expected,
+                            list,
+                        )
+                        else []
+                    )
+                }
+
+                passed = actual in allowed
+
+        elif rule_type == "constant_frame_rate":
+            timing = (
+                metadata.get(
+                    "frame_timing_qc"
+                )
+                if isinstance(
+                    metadata,
+                    dict,
+                )
+                else {}
+            ) or {}
+
+            measured_constant = (
+                timing.get(
+                    "is_constant"
+                )
+                if isinstance(
+                    timing,
+                    dict,
+                )
+                else None
+            )
+
+            actual = {
+                "avg_frame_rate": (
+                    (video_stream or {}).get(
+                        "avg_frame_rate"
+                    )
+                ),
+                "r_frame_rate": (
+                    (video_stream or {}).get(
+                        "r_frame_rate"
+                    )
+                ),
+                "timestamp_analysis": timing,
+            }
+
+            if measured_constant is not None:
+                passed = (
+                    bool(measured_constant)
+                    is bool(expected)
+                )
+
+            else:
+                # Fallback léger pour les anciens rapports
+                # ou lorsque la sonde temporelle est absente.
+                stream_constant = (
+                    frame_rate_is_constant()
+                )
+
+                if stream_constant is None:
+                    review_message = (
+                        "FFprobe ne fournit pas assez "
+                        "d'informations pour confirmer "
+                        "un framerate constant."
+                    )
+                elif stream_constant is False:
+                    passed = False
+                else:
+                    # avg/r_frame_rate identiques ne sont
+                    # pas une preuve suffisante à eux seuls.
+                    review_message = (
+                        "Les framerates déclarés sont "
+                        "cohérents, mais les timestamps "
+                        "réels n'ont pas pu être vérifiés."
+                    )
+
+        elif rule_type in {
+            "color_space_sdr",
+            "color_space_hdr",
+        }:
+            actual = {
+                "color_space": (
+                    (video_stream or {}).get(
+                        "color_space"
+                    )
+                ),
+                "color_primaries": (
+                    (video_stream or {}).get(
+                        "color_primaries"
+                    )
+                ),
+                "color_transfer": (
+                    (video_stream or {}).get(
+                        "color_transfer"
+                    )
+                ),
+            }
+
+            # SDR/HDR ne doit pas être deviné lorsque
+            # les tags FFprobe sont absents/ambigus.
+            primaries = str(
+                actual.get(
+                    "color_primaries"
+                )
+                or ""
+            ).lower()
+
+            color_space = str(
+                actual.get(
+                    "color_space"
+                )
+                or ""
+            ).lower()
+
+            transfer = str(
+                actual.get(
+                    "color_transfer"
+                )
+                or ""
+            ).lower()
+
+            if rule_type == "color_space_sdr":
+                hdr_markers = {
+                    "smpte2084",
+                    "arib-std-b67",
+                }
+
+                if transfer in hdr_markers:
+                    continue
+
+                if not primaries and not color_space:
+                    review_message = (
+                        "Les métadonnées colorimétriques "
+                        "SDR sont absentes."
+                    )
+                elif isinstance(expected, dict):
+                    allowed_primaries = {
+                        str(value).lower()
+                        for value in (
+                            expected.get(
+                                "color_primaries"
+                            )
+                            or []
+                        )
+                    }
+
+                    allowed_spaces = {
+                        str(value).lower()
+                        for value in (
+                            expected.get(
+                                "color_space"
+                            )
+                            or []
+                        )
+                    }
+
+                    passed = (
+                        (
+                            not allowed_primaries
+                            or primaries
+                            in allowed_primaries
+                        )
+                        and (
+                            not allowed_spaces
+                            or color_space
+                            in allowed_spaces
+                        )
+                    )
+
+            else:
+                hdr_markers = {
+                    "smpte2084",
+                    "arib-std-b67",
+                }
+
+                if transfer not in hdr_markers:
+                    continue
+
+                if not primaries:
+                    review_message = (
+                        "HDR détecté mais les primaires "
+                        "colorimétriques sont absentes."
+                    )
+                elif isinstance(expected, dict):
+                    allowed_primaries = {
+                        str(value).lower()
+                        for value in (
+                            expected.get(
+                                "color_primaries"
+                            )
+                            or []
+                        )
+                    }
+
+                    passed = (
+                        not allowed_primaries
+                        or primaries
+                        in allowed_primaries
+                    )
+
+        elif (
+            rule_type
+            == "max_keyframe_interval_seconds"
+        ):
+            keyframe_qc = (
+                metadata.get("keyframe_qc")
+                if isinstance(
+                    metadata,
+                    dict,
+                )
+                else {}
+            ) or {}
+
+            max_interval = (
+                keyframe_qc.get(
+                    "max_interval_seconds"
+                )
+                if isinstance(
+                    keyframe_qc,
+                    dict,
+                )
+                else None
+            )
+
+            actual = {
+                "max_interval_seconds": (
+                    max_interval
+                ),
+                "keyframe_count": (
+                    keyframe_qc.get(
+                        "keyframe_count"
+                    )
+                    if isinstance(
+                        keyframe_qc,
+                        dict,
+                    )
+                    else 0
+                ),
+            }
+
+            try:
+                maximum_allowed = float(
+                    expected
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
+                maximum_allowed = None
+
+            try:
+                actual_interval = float(
+                    max_interval
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
+                actual_interval = None
+
+            if maximum_allowed is None:
+                review_message = (
+                    "La règle d'intervalle "
+                    "keyframe est invalide."
+                )
+            elif actual_interval is None:
+                review_message = (
+                    "L'intervalle réel entre "
+                    "keyframes ne peut pas être "
+                    "déterminé."
+                )
+            else:
+                passed = (
+                    actual_interval
+                    <= maximum_allowed + 0.001
+                )
+
+        else:
+            continue
+
+        if review_message is not None:
+            add_check(
+                rule_key=rule_key,
+                status="review",
+                actual=actual,
+                expected=expected,
+                message=review_message,
+                blocking=False,
+            )
+            continue
+
+        if passed:
+            add_check(
+                rule_key=rule_key,
+                status="passed",
+                actual=actual,
+                expected=expected,
+                message=(
+                    f"Règle {rule_key} conforme "
+                    f"pour le profil "
+                    f"{delivery_level}."
+                ),
+                blocking=blocking,
+            )
+        else:
+            add_check(
+                rule_key=rule_key,
+                status="failed",
+                actual=actual,
+                expected=expected,
+                message=(
+                    f"Règle {rule_key} non conforme "
+                    f"pour le profil "
+                    f"{delivery_level}."
+                ),
+                blocking=blocking,
+            )
+
+    if errors:
+        status = "non_conform"
+    elif warnings:
+        status = "review_required"
+    else:
+        status = "conform"
+
+    return {
+        "status": status,
+        "blocking": bool(errors),
+        "specification_id": str(
+            specification.id
+        ),
+        "specification_version": (
+            specification.version
+        ),
+        "delivery_level": delivery_level,
+        "checks": checks,
+        "blocking_errors": errors,
+        "warnings": warnings,
+    }
+
+
+def evaluate_trailer_conformity(
+    *,
+    metadata,
+    frame_rate=None,
+    delivery_level="distribution",
+    specification=None,
+):
+    """
+    Évalue uniquement les règles trailer.*
+    auto_validation=True de la spécification.
+
+    Le moteur master existant reste inchangé.
+    """
+    if specification is None:
+        specification = _published_specification()
+
+    if specification is None:
+        return {
+            "status": "unavailable",
+            "blocking": False,
+            "specification_id": None,
+            "specification_version": None,
+            "delivery_level": str(
+                delivery_level
+                or "distribution"
+            ),
+            "checks": [],
+            "blocking_errors": [],
+            "warnings": [
+                (
+                    "Aucune spécification technique "
+                    "n'est disponible."
+                )
+            ],
+        }
+
+    trailer_spec = (
+        _filtered_specification_for_rule_prefix(
+            specification,
+            "trailer.",
+        )
+    )
+
+    rules = _rule_map(trailer_spec)
+
+    if not rules:
+        return {
+            "status": "unavailable",
+            "blocking": False,
+            "specification_id": str(
+                specification.id
+            ),
+            "specification_version": (
+                specification.version
+            ),
+            "delivery_level": str(
+                delivery_level
+                or "distribution"
+            ),
+            "checks": [],
+            "blocking_errors": [],
+            "warnings": [
+                (
+                    "La spécification ne contient "
+                    "aucune règle machine trailer."
+                )
+            ],
+        }
+
+    delivery_level = str(
+        delivery_level or "distribution"
+    ).strip().lower()
+
+    if delivery_level not in {
+        "premium",
+        "standard",
+        "distribution",
+    }:
+        delivery_level = "distribution"
+
+    metadata = (
+        _trailer_metadata_for_master_engine(
+            metadata
+        )
+    )
+
+    checks = []
+    errors = []
+    warnings = []
+
+    def safe_int(value):
+        try:
+            if value in (
+                None,
+                "",
+                "N/A",
+            ):
+                return None
+
+            return int(
+                float(value)
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return None
+
+    def first_audio_stream():
+        return next(
+            (
+                stream
+                for stream in streams
+                if isinstance(
+                    stream,
+                    dict,
+                )
+                and stream.get(
+                    "codec_type"
+                ) == "audio"
+            ),
+            None,
+        )
+
+    def normalized_container():
+        filename = str(
+            format_data.get(
+                "filename"
+            )
+            or ""
+        ).strip().lower()
+
+        if filename.endswith(".mov"):
+            return "mov"
+
+        if filename.endswith(".mp4"):
+            return "mp4"
+
+        names = _container_names(
+            format_data
+        )
+
+        if (
+            "mp4" in names
+            and "mov" not in names
+        ):
+            return "mp4"
+
+        if (
+            "mov" in names
+            and "mp4" not in names
+        ):
+            return "mov"
+
+        return ""
+
+    def frame_rate_is_constant():
+        timing = (
+            metadata.get(
+                "frame_timing_qc"
+            )
+            if isinstance(
+                metadata,
+                dict,
+            )
+            else {}
+        ) or {}
+
+        if isinstance(
+            timing,
+            dict,
+        ):
+            measured = timing.get(
+                "is_constant"
+            )
+
+            if measured is not None:
+                return bool(measured)
+
+        if not video_stream:
+            return None
+
+        avg = str(
+            video_stream.get(
+                "avg_frame_rate"
+            )
+            or ""
+        ).strip()
+
+        raw = str(
+            video_stream.get(
+                "r_frame_rate"
+            )
+            or ""
+        ).strip()
+
+        if not avg or not raw:
+            return None
+
+        def parse_rate(value):
+            if value in {
+                "",
+                "0/0",
+                "N/A",
+            }:
+                return None
+
+            try:
+                if "/" in value:
+                    numerator, denominator = (
+                        value.split(
+                            "/",
+                            1,
+                        )
+                    )
+
+                    denominator = float(
+                        denominator
+                    )
+
+                    if denominator == 0:
+                        return None
+
+                    return (
+                        float(numerator)
+                        / denominator
+                    )
+
+                return float(value)
+
+            except (
+                TypeError,
+                ValueError,
+                ZeroDivisionError,
+            ):
+                return None
+
+        avg_value = parse_rate(avg)
+        raw_value = parse_rate(raw)
+
+        if (
+            avg_value is None
+            or raw_value is None
+        ):
+            return None
+
+        # Comme pour le master :
+        # des taux déclarés identiques ne constituent
+        # pas une preuve CFR suffisante sans mesure
+        # des timestamps réels.
+        if math.isclose(
+            avg_value,
+            raw_value,
+            rel_tol=0,
+            abs_tol=0.02,
+        ):
+            return None
+
+        return False
+
+    def add_check(
+        *,
+        rule_key,
+        status,
+        actual,
+        expected,
+        message,
+        blocking,
+    ):
+        item = {
+            "rule_key": rule_key,
+            "status": status,
+            "actual": actual,
+            "expected": expected,
+            "message": message,
+            "blocking": bool(blocking),
+        }
+
+        checks.append(item)
+
+        if status == "failed":
+            if blocking:
+                errors.append(message)
+            else:
+                warnings.append(message)
+        elif status == "review":
+            warnings.append(message)
+
+    def rule_is_blocking(rule):
+        return (
+            str(
+                rule.get("severity") or ""
+            ).strip().lower()
+            == "blocking"
+        )
+
+    format_data = (
+        metadata.get("format")
+        if isinstance(
+            metadata.get("format"),
+            dict,
+        )
+        else {}
+    )
+
+    streams = (
+        metadata.get("streams")
+        if isinstance(
+            metadata.get("streams"),
+            list,
+        )
+        else []
+    )
+
+    video_stream = next(
+        (
+            stream
+            for stream in streams
+            if isinstance(stream, dict)
+            and stream.get("codec_type")
+            == "video"
+        ),
+        {},
+    )
+
+    audio_stream = (
+        first_audio_stream()
+        or {}
+    )
+
+    for rule_key, rule in rules.items():
+        if not rule.get("auto_validation"):
+            continue
+
+        levels = {
+            str(level).strip().lower()
+            for level in (
+                rule.get("delivery_levels")
+                or []
+            )
+        }
+
+        if (
+            levels
+            and delivery_level not in levels
+        ):
+            continue
+
+        rule_type = str(
+            rule.get("rule_type") or ""
+        ).strip()
+
+        expected = rule.get("expected")
+        blocking = rule_is_blocking(rule)
+
+        actual = None
+        passed = False
+        review_message = None
+
+        if rule_type == "container_allowed":
+            actual = normalized_container()
+
+            allowed = {
+                str(value).strip().lower()
+                for value in (
+                    expected
+                    if isinstance(
+                        expected,
+                        list,
+                    )
+                    else []
+                )
+            }
+
+            if not actual:
+                review_message = (
+                    "Le conteneur du trailer "
+                    "ne peut pas être déterminé."
+                )
+            else:
+                passed = actual in allowed
+
+        elif rule_type == "video_codec_allowed":
+            actual = str(
+                video_stream.get(
+                    "codec_name"
+                )
+                or ""
+            ).strip().lower()
+
+            allowed = {
+                str(value).strip().lower()
+                for value in (
+                    expected
+                    if isinstance(
+                        expected,
+                        list,
+                    )
+                    else []
+                )
+            }
+
+            if not actual:
+                review_message = (
+                    "Le codec vidéo du trailer "
+                    "ne peut pas être déterminé."
+                )
+            else:
+                passed = actual in allowed
+
+        elif rule_type == "min_resolution":
+            width = safe_int(
+                video_stream.get("width")
+            )
+            height = safe_int(
+                video_stream.get("height")
+            )
+
+            actual = {
+                "width": width,
+                "height": height,
+            }
+
+            expected_width = safe_int(
+                (
+                    expected or {}
+                ).get("width")
+                if isinstance(
+                    expected,
+                    dict,
+                )
+                else None
+            )
+
+            expected_height = safe_int(
+                (
+                    expected or {}
+                ).get("height")
+                if isinstance(
+                    expected,
+                    dict,
+                )
+                else None
+            )
+
+            if (
+                width is None
+                or height is None
+                or expected_width is None
+                or expected_height is None
+            ):
+                review_message = (
+                    "La résolution du trailer "
+                    "ne peut pas être confirmée."
+                )
+            else:
+                passed = (
+                    width >= expected_width
+                    and height >= expected_height
+                )
+
+        elif rule_type == "allowed_fps":
+            actual = frame_rate
+
+            allowed_fps = []
+
+            if isinstance(expected, list):
+                for value in expected:
+                    try:
+                        allowed_fps.append(
+                            float(value)
+                        )
+                    except (
+                        TypeError,
+                        ValueError,
+                    ):
+                        pass
+
+            if actual is None:
+                review_message = (
+                    "Le framerate du trailer "
+                    "ne peut pas être déterminé."
+                )
+            else:
+                passed = _fps_matches(
+                    actual,
+                    allowed_fps,
+                )
+
+        elif (
+            rule_type
+            == "constant_frame_rate"
+        ):
+            actual = frame_rate_is_constant()
+
+            if actual is None:
+                review_message = (
+                    "Le caractère CFR/VFR du "
+                    "trailer ne peut pas être "
+                    "confirmé."
+                )
+            else:
+                passed = bool(actual)
+
+        elif rule_type == "progressive":
+            field_order = _field_order(
+                video_stream
+            )
+
+            actual = field_order
+
+            progressive = _is_progressive(
+                video_stream
+            )
+
+            if progressive is None:
+                review_message = (
+                    "FFprobe ne fournit pas assez "
+                    "d'informations pour confirmer "
+                    "le scan progressif du trailer."
+                )
+            else:
+                passed = progressive
+
+        elif (
+            rule_type
+            == "audio_stream_required"
+        ):
+            actual = bool(audio_stream)
+            passed = bool(audio_stream)
+
+        elif rule_type == "audio_codec_allowed":
+            actual = str(
+                audio_stream.get(
+                    "codec_name"
+                )
+                or ""
+            ).strip().lower()
+
+            allowed = {
+                str(value).strip().lower()
+                for value in (
+                    expected
+                    if isinstance(
+                        expected,
+                        list,
+                    )
+                    else []
+                )
+            }
+
+            if not audio_stream:
+                review_message = (
+                    "Aucune piste audio ne permet "
+                    "de contrôler le codec audio."
+                )
+            elif not actual:
+                review_message = (
+                    "Le codec audio du trailer "
+                    "ne peut pas être déterminé."
+                )
+            else:
+                passed = actual in allowed
+
+        elif rule_type == "audio_sample_rate":
+            actual = safe_int(
+                audio_stream.get(
+                    "sample_rate"
+                )
+            )
+
+            expected_rate = safe_int(
+                expected
+            )
+
+            if (
+                actual is None
+                or expected_rate is None
+            ):
+                review_message = (
+                    "La fréquence audio du trailer "
+                    "ne peut pas être confirmée."
+                )
+            else:
+                passed = (
+                    actual == expected_rate
+                )
+
+        elif rule_type in {
+            "color_space_sdr",
+            "color_space_hdr",
+        }:
+            color_space = str(
+                video_stream.get(
+                    "color_space"
+                )
+                or ""
+            ).strip().lower()
+
+            primaries = str(
+                video_stream.get(
+                    "color_primaries"
+                )
+                or ""
+            ).strip().lower()
+
+            transfer = str(
+                video_stream.get(
+                    "color_transfer"
+                )
+                or ""
+            ).strip().lower()
+
+            actual = {
+                "color_space": (
+                    color_space or None
+                ),
+                "color_primaries": (
+                    primaries or None
+                ),
+                "color_transfer": (
+                    transfer or None
+                ),
+            }
+
+            hdr = transfer in {
+                "smpte2084",
+                "arib-std-b67",
+            }
+
+            if (
+                rule_type
+                == "color_space_sdr"
+            ):
+                if hdr:
+                    continue
+
+                allowed_spaces = {
+                    str(value).lower()
+                    for value in (
+                        (expected or {}).get(
+                            "color_space"
+                        )
+                        if isinstance(
+                            expected,
+                            dict,
+                        )
+                        else []
+                    )
+                }
+
+                allowed_primaries = {
+                    str(value).lower()
+                    for value in (
+                        (expected or {}).get(
+                            "color_primaries"
+                        )
+                        if isinstance(
+                            expected,
+                            dict,
+                        )
+                        else []
+                    )
+                }
+
+                if (
+                    not color_space
+                    and not primaries
+                ):
+                    review_message = (
+                        "Les métadonnées "
+                        "colorimétriques SDR du "
+                        "trailer sont absentes."
+                    )
+                else:
+                    passed = (
+                        (
+                            not allowed_spaces
+                            or color_space
+                            in allowed_spaces
+                        )
+                        and (
+                            not allowed_primaries
+                            or primaries
+                            in allowed_primaries
+                        )
+                    )
+
+            else:
+                if not hdr:
+                    continue
+
+                allowed_primaries = {
+                    str(value).lower()
+                    for value in (
+                        (expected or {}).get(
+                            "color_primaries"
+                        )
+                        if isinstance(
+                            expected,
+                            dict,
+                        )
+                        else []
+                    )
+                }
+
+                if not primaries:
+                    review_message = (
+                        "HDR détecté mais les "
+                        "primaires colorimétriques "
+                        "du trailer sont absentes."
+                    )
+                else:
+                    passed = (
+                        not allowed_primaries
+                        or primaries
+                        in allowed_primaries
+                    )
+
+        elif rule_type == "duration_range":
+            try:
+                actual = float(
+                    format_data.get(
+                        "duration"
+                    )
+                    or metadata.get(
+                        "duration_seconds"
+                    )
+                    or 0
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
+                actual = 0.0
+
+            try:
+                minimum = float(
+                    (expected or {}).get(
+                        "min_seconds"
+                    )
+                )
+                maximum = float(
+                    (expected or {}).get(
+                        "max_seconds"
+                    )
+                )
+            except (
+                AttributeError,
+                TypeError,
+                ValueError,
+            ):
+                minimum = None
+                maximum = None
+
+            if (
+                actual <= 0
+                or minimum is None
+                or maximum is None
+            ):
+                review_message = (
+                    "La durée du trailer ne peut "
+                    "pas être confirmée."
+                )
+            else:
+                passed = (
+                    minimum
+                    <= actual
+                    <= maximum
+                )
+
+        else:
+            continue
+
+        if review_message is not None:
+            add_check(
+                rule_key=rule_key,
+                status="review",
+                actual=actual,
+                expected=expected,
+                message=review_message,
+                blocking=False,
+            )
+            continue
+
+        if passed:
+            add_check(
+                rule_key=rule_key,
+                status="passed",
+                actual=actual,
+                expected=expected,
+                message=(
+                    f"Règle {rule_key} conforme "
+                    f"pour le trailer "
+                    f"{delivery_level}."
+                ),
+                blocking=blocking,
+            )
+        else:
+            add_check(
+                rule_key=rule_key,
+                status="failed",
+                actual=actual,
+                expected=expected,
+                message=(
+                    f"Règle {rule_key} non conforme "
+                    f"pour le trailer "
+                    f"{delivery_level}."
+                ),
+                blocking=blocking,
+            )
+
+    if errors:
+        status = "non_conform"
+    elif warnings:
+        status = "review_required"
+    else:
+        status = "conform"
+
+    return {
+        "status": status,
+        "blocking": bool(errors),
+        "specification_id": str(
+            specification.id
+        ),
+        "specification_version": (
+            specification.version
+        ),
+        "delivery_level": delivery_level,
+        "checks": checks,
+        "blocking_errors": errors,
+        "warnings": warnings,
+    }
