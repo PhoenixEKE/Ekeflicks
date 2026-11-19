@@ -14,12 +14,14 @@ import 'ui/users/reset_password_page.dart';
 import 'ui/users/sign_up_page.dart';
 import 'ui/pages/notifications_page.dart';
 import 'ui/pages/unsubscribe_page.dart';
+import 'ui/pages/ekeroom_intro_page.dart';
 
 /// Configuration des routes de l'application.
 Map<String, WidgetBuilder> getAppRoutes() {
   return {
     '/': (context) => const SplashScreen(),
     '/faq': (context) => const FaqPage(),
+    '/ekeroom': (context) => const EkeRoomIntroPage(),
     '/login': (context) => const LoginPage(),
     '/forgot-password': (context) => const ForgotPasswordPage(),
     '/reset-password': (context) => const ResetPasswordPage(),
