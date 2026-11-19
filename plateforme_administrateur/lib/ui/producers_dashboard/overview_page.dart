@@ -56,6 +56,8 @@ class _OverviewPageState extends State<OverviewPage> {
         ('Publiés', stats['published'], Icons.check_circle, const Color(0xFF4CAF50)),
         ('À modérer', stats['pending_moderation'], Icons.fact_check, const Color(0xFFFF7675)),
         ('Revenu mensuel', '${stats['monthly_revenue']} €', Icons.euro, const Color(0xFF00B894)),
+        ('Plus tard ce mois-ci', stats['playback_later_month'] ?? 0, Icons.snooze, const Color(0xFFE17055)),
+        ('Plus tard au total', stats['playback_later_total'] ?? 0, Icons.history, const Color(0xFF636E72)),
       ];
       return Padding(
         padding: const EdgeInsets.all(12),
@@ -180,3 +182,4 @@ class _OverviewPageState extends State<OverviewPage> {
     }
   );
 }
+
