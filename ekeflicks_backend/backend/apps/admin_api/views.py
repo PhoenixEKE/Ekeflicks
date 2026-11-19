@@ -24,6 +24,7 @@ from apps.admin_api.serializers import (
 from apps.auth.serializers import AccountClosureRequestSerializer, EmailChangeSupportRequestSerializer
 from core.models.users import AccountClosureRequest, AdminMFADevice, EmailChangeSupportRequest, User, UserSession
 from core.models.content import Content
+from core.models.analytics import PlaybackLaterEvent
 from core.models.streaming import VideoAsset
 from core.models.subscriptions import Payment, Subscription
 from core.models.subscriptions import ProducerPayoutRequest
@@ -511,6 +512,8 @@ class AdminDashboardView(generics.GenericAPIView):
                                   + VideoAsset.objects.filter(moderation_status='pending').count(),
             'monthly_revenue': Payment.objects.filter(status='success', paid_at__gte=month_start)
                                       .aggregate(total=Sum('amount'))['total'] or 0,
+            'playback_later_month': PlaybackLaterEvent.objects.filter(created_at__gte=month_start).count(),
+            'playback_later_total': PlaybackLaterEvent.objects.count(),
         }
         activities = []
         for user in User.objects.filter(is_staff=False).order_by('-created_at')[:5]:
