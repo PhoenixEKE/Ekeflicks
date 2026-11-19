@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.exceptions import ValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from apps.analytics.serializers import (
     AudienceCountryPeakHoursQuerySerializer,
@@ -772,7 +773,7 @@ class AppSessionAnalyticsViewSet(
         if content_id not in (None, ''):
             try:
                 content = Content.objects.filter(pk=content_id).first()
-            except (TypeError, ValueError):
+            except (DjangoValidationError, TypeError, ValueError):
                 content = None
             if content is None:
                 raise ValidationError({'content_id': 'Contenu introuvable.'})
