@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
@@ -6,11 +7,14 @@ import 'package:app_ekeflicks/services/native_screen_retainer.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/core/app_responsive.dart';
 import 'package:app_ekeflicks/providers/locale_provider.dart';
+import 'package:app_ekeflicks/providers/user_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PlayerPage extends StatefulWidget {
   final String videoUrl;
   final String title;
   final String? imageUrl;
+  final String? contentId;
   final Duration? resumePosition;
   final bool isTrailer;
   final dynamic episodeData;
@@ -24,6 +28,7 @@ class PlayerPage extends StatefulWidget {
     required this.videoUrl,
     required this.title,
     this.imageUrl,
+    this.contentId,
     this.startPosition,
     this.resumePosition,
     this.isTrailer = false,
@@ -42,6 +47,7 @@ class PlayerPage extends StatefulWidget {
             videoUrl: args['videoUrl'] as String? ?? '',
             title: args['title'] as String? ?? 'Video',
             imageUrl: args['imageUrl'] as String?,
+            contentId: args['contentId'] as String?,
             resumePosition: args['resumePosition'] as Duration?,
             isTrailer: args['isTrailer'] as bool? ?? false,
             episodeData: args['episodeData'],
@@ -64,6 +70,9 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   bool _isFullscreen = true;
   bool _isInitialized = false;
   bool _hasError = false;
+  bool _controllerCreated = false;
+  bool _hasFinished = false;
+  bool _guestPromptOpen = false;
   bool _isBuffering = false;
   bool _isMobile = false;
   bool _isTV = false;
@@ -104,57 +113,60 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
 
   Future<void> _initializePlayer() async {
     try {
-      if (widget.videoUrl.isEmpty) {
-        throw Exception('URL vidéo vide');
-      }
+      if (widget.videoUrl.isEmpty) throw Exception('URL vidéo vide');
 
-      _controller =
-          VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
-            ..addListener(_videoListener)
-            ..setLooping(false);
-
-      _controller.addListener(() {
-        if (!mounted) return;
-        setState(() {
-          _isBuffering = _controller.value.isBuffering;
-        });
-      });
-
+      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      _controllerCreated = true;
+      _controller.addListener(_videoListener);
+      await _controller.setLooping(false);
       await _controller.initialize();
 
-      if (widget.resumePosition != null) {
-        await _controller.seekTo(widget.resumePosition!);
+      if (!mounted) {
+        _controller.removeListener(_videoListener);
+        await _controller.dispose();
+        _controllerCreated = false;
+        return;
       }
-
+      if (widget.resumePosition != null) await _controller.seekTo(widget.resumePosition!);
       await _controller.play();
-
-      setState(() {
-        _isInitialized = true;
-      });
+      if (mounted) setState(() => _isInitialized = true);
     } catch (e) {
-      setState(() {
-        _hasError = true;
-      });
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _isInitialized = false;
+        });
+      }
       debugPrint('Erreur initialisation lecteur: $e');
-      _controller.dispose();
+      if (_controllerCreated) {
+        _controller.removeListener(_videoListener);
+        await _controller.dispose();
+        _controllerCreated = false;
+      }
     }
   }
 
   void _videoListener() {
-    if (!mounted) return;
+    if (!mounted || !_controllerCreated || !_controller.value.isInitialized) return;
 
     if (_controller.value.hasError) {
-      setState(() {
-        _hasError = true;
-      });
+      setState(() => _hasError = true);
       return;
     }
 
-    if (_controller.value.position >= _controller.value.duration) {
+    final duration = _controller.value.duration;
+    final ended = duration > Duration.zero && _controller.value.position >= duration;
+    if (ended && !_hasFinished) {
+      _hasFinished = true;
       _controller.pause();
+      if (!context.read<UserProvider>().isLoggedIn) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showGuestPlaybackPrompt();
+        });
+      }
     }
 
-    setState(() {});
+    setState(() => _isBuffering = _controller.value.isBuffering);
   }
 
   void _setLandscape() {
@@ -178,8 +190,11 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _controller.removeListener(_videoListener);
-    _controller.dispose();
+    if (_controllerCreated) {
+      _controller.removeListener(_videoListener);
+      _controller.dispose();
+      _controllerCreated = false;
+    }
     NativeScreenRetainer.release();
     _setPortrait();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -188,10 +203,11 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_controllerCreated) return;
     if (state == AppLifecycleState.paused) {
       _controller.pause();
     } else if (state == AppLifecycleState.resumed) {
-      if (!_controller.value.isPlaying && !_controller.value.isBuffering) {
+      if (!_controller.value.isPlaying && !_controller.value.isBuffering && !_hasFinished) {
         _controller.play();
       }
     }
@@ -229,8 +245,79 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     setState(() {
       _hasError = false;
       _isInitialized = false;
+      _hasFinished = false;
     });
     _initializePlayer();
+  }
+
+  Future<void> _showGuestPlaybackPrompt() async {
+    if (!mounted || _guestPromptOpen || context.read<UserProvider>().isLoggedIn) return;
+    _guestPromptOpen = true;
+    final english = Localizations.localeOf(context).languageCode == 'en';
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(english ? 'Keep watching with EKEFLICKS' : 'Continuez avec EKEFLICKS'),
+          content: Text(english
+              ? 'Create an account to discover the full catalogue and choose your plan.'
+              : 'Créez un compte pour découvrir tout le catalogue et choisir votre offre.'),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _openWebRoute('/signup');
+              },
+              child: Text(english ? 'Subscribe' : 'S’abonner'),
+            ),
+            OutlinedButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _openWebRoute('/login');
+              },
+              child: Text(english ? 'Log in' : 'Connexion'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await _recordPlaybackLater();
+                if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+              },
+              child: Text(english ? 'Later' : 'Plus tard'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      _guestPromptOpen = false;
+    }
+  }
+
+  Future<void> _openWebRoute(String route) async {
+    if (kIsWeb) {
+      if (mounted) Navigator.of(context).pushNamed(route);
+      return;
+    }
+    final uri = Uri(scheme: 'https', host: 'ekeflicks.com', fragment: route);
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'en'
+            ? 'The browser could not be opened.'
+            : 'Impossible d’ouvrir le navigateur.')),
+      );
+    }
+  }
+
+  Future<void> _recordPlaybackLater() async {
+    try {
+      await context.read<UserProvider>().apiClient.dio.post(
+        '/app-sessions/playback-later/',
+        data: {if (widget.contentId != null) 'content_id': widget.contentId},
+      );
+    } catch (error) {
+      debugPrint('Enregistrement du clic « Plus tard » impossible: $error');
+    }
   }
 
   String? _getCurrentSubtitle(Duration position) {
