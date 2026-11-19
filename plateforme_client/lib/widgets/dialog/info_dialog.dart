@@ -75,7 +75,7 @@ class _InfoDialogState extends State<InfoDialog> {
   void _onTrailerChanged() {
     if (!mounted || _trailerController == null) return;
     final playing = _trailerController!.value.isPlaying;
-    if (playing != _isPlayingTrailer) setState(() => _isPlayingTrailer = playing);
+    setState(() => _isPlayingTrailer = playing);
   }
 
   @override
