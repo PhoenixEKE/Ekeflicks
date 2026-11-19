@@ -226,6 +226,7 @@ class ContentListSerializer(serializers.ModelSerializer):
             'original_title',
             'description',
             'type',
+            'country',
             'poster_url',
             'backdrop_url',
             'banner_url',
@@ -503,3 +504,4 @@ class ContentReviewSerializer(serializers.Serializer):
 
 class ContentRejectSerializer(serializers.Serializer):
     reason = serializers.CharField(required=True, allow_blank=False)
+
