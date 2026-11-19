@@ -187,3 +187,22 @@ class ProducerContentView(models.Model):
 
     def __str__(self):
         return f"{self.content.title} - {self.producer.email} - {self.amount_eur} EUR"
+
+
+class PlaybackLaterEvent(models.Model):
+    """Anonymous count of guests who postpone account creation after playback."""
+    content = models.ForeignKey(
+        Content,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='playback_later_events',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'playback_later_events'
+        indexes = [models.Index(fields=['content', 'created_at'], name='pb_later_content_created_ix')]
+
+    def __str__(self):
+        return f'Playback postponed at {self.created_at:%Y-%m-%d %H:%M}'

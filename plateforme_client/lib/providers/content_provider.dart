@@ -31,6 +31,7 @@ class ContentProvider with ChangeNotifier {
         ..._newReleases,
         ..._popularContent,
       }.toList();
+  List<Content> get catalogueContents => _allContent;
 
   Future<void> loadInitialContent(AppLocalizations _) async {
     _isLoading = true;

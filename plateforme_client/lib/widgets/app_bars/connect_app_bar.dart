@@ -7,6 +7,7 @@ import 'package:app_ekeflicks/providers/locale_provider.dart';
 import 'package:app_ekeflicks/providers/profile_provider.dart';
 import 'package:app_ekeflicks/providers/device_info_provider.dart';
 import 'package:app_ekeflicks/providers/user_provider.dart';
+import 'package:app_ekeflicks/providers/content_provider.dart';
 import 'package:app_ekeflicks/ui/pages/genre_page.dart';
 import 'package:app_ekeflicks/models/content_model.dart';
 import 'package:app_ekeflicks/ui/users/profile_switcher.dart';
@@ -118,48 +119,51 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
     AppLocalizations loc,
     ThemeData theme,
   ) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            _buildMenuWithSubmenu(context, loc.films, [
-              'Action',
-              'Comédie',
-              'Drame',
-              'Horreur',
-              'Science-fiction',
-            ], 'film-category'),
-            const SizedBox(width: 16),
-            _buildMenuWithSubmenu(context, loc.series, [
-              'Crime',
-              'Science-fiction',
-              'Comédie',
-              'Drama',
-              'Animation',
-            ], 'series-category'),
-            const SizedBox(width: 16),
-            _buildMenuWithSubmenu(context, loc.plus, [
-              loc.documentaires,
-              loc.telerealites,
-              loc.live,
-              'Sports',
-              'Kids',
-            ], 'plus-category'),
-            const SizedBox(width: 16),
-            _buildMenuWithSubmenu(context, loc.explorerParPays, [
-              'France',
-              'USA',
-              'Japon',
-              'Corée',
-              'Inde',
-            ], 'country'),
-          ],
-        ),
-      ),
+    return Consumer<ContentProvider>(
+      builder: (context, provider, _) {
+        final catalogue = provider.catalogueContents;
+        final films = catalogue.where((content) => content.isMovie).toList();
+        final series = catalogue.where((content) => content.isSeries).toList();
+        final filmGenres = _unique(films.expand((content) => content.genres));
+        final seriesGenres = _unique(series.expand((content) => content.genres));
+        final plusItems = _unique(catalogue.expand((content) => content.emissions));
+        final countries = _unique(catalogue.map((content) => content.country));
+        final menus = <Widget>[];
+
+        void addMenu(Widget menu) {
+          if (menus.isNotEmpty) menus.add(const SizedBox(width: 16));
+          menus.add(menu);
+        }
+
+        if (films.isNotEmpty) {
+          addMenu(_buildMenuWithSubmenu(context, loc.films, filmGenres.isEmpty ? ['Tous'] : filmGenres, 'film-category'));
+        }
+        if (series.isNotEmpty) {
+          addMenu(_buildMenuWithSubmenu(context, loc.series, seriesGenres.isEmpty ? ['Tous'] : seriesGenres, 'series-category'));
+        }
+        if (plusItems.isNotEmpty) {
+          addMenu(_buildMenuWithSubmenu(context, loc.plus, plusItems, 'plus-category'));
+        }
+        if (countries.isNotEmpty) {
+          addMenu(_buildMenuWithSubmenu(context, loc.explorerParPays, countries, 'country'));
+        }
+
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(mainAxisAlignment: MainAxisAlignment.start, children: menus),
+          ),
+        );
+      },
     );
   }
+
+  List<String> _unique(Iterable<String> values) => values
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .toSet()
+      .toList()
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
   Widget _buildActionIcons(
     BuildContext context,
@@ -579,12 +583,9 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
     List<String> subItems,
     String type,
   ) {
+    if (subItems.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
-    final deviceInfoProvider = Provider.of<DeviceInfoProvider>(
-      context,
-      listen: false,
-    );
-    final bool isTV = deviceInfoProvider.isTV;
+    final bool isTV = Provider.of<DeviceInfoProvider>(context, listen: false).isTV;
 
     return _HoverMenuWrapper(
       child: PopupMenuButton<String>(
@@ -596,53 +597,45 @@ class ConnectAppBar extends BaseAppBar implements PreferredSizeWidget {
             fontSize: isTV ? 20 : null,
           ),
         ),
-        onSelected: (value) => _navigateToGenrePage(context, value),
-        itemBuilder:
-            (context) =>
-                subItems
-                    .map(
-                      (sub) => PopupMenuItem<String>(
-                        value: sub,
-                        child: Text(
-                          sub,
-                          style: isTV ? theme.textTheme.titleMedium : null,
-                        ),
-                      ),
-                    )
-                    .toList(),
+        onSelected: (value) => _navigateToGenrePage(context, value, type),
+        itemBuilder: (context) => subItems
+            .map((sub) => PopupMenuItem<String>(
+                  value: sub,
+                  child: Text(sub, style: isTV ? theme.textTheme.titleMedium : null),
+                ))
+            .toList(),
       ),
     );
   }
 
-  void _navigateToGenrePage(BuildContext context, String genre) {
+  void _navigateToGenrePage(BuildContext context, String selection, String type) {
+    final contents = _getContentsForMenu(context, selection, type);
+    if (contents.isEmpty) return;
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (context) =>
-                GenrePage(genre: genre, contents: _getContentsForGenre(genre)),
+        builder: (context) => GenrePage(genre: selection, contents: contents),
       ),
     );
   }
 
-  List<Content> _getContentsForGenre(String genre) {
-    return List.generate(10, (index) {
-      double rating = (3.5 + index * 0.2).clamp(0.0, 5.0);
-      return Content(
-        id: 'genre_${genre}_$index',
-        title: '$genre Movie $index',
-        description: 'A great $genre movie',
-        imageUrl: 'https://picsum.photos/200/300?random=$genre$index',
-        posterUrl: 'https://picsum.photos/200/300?random=$genre$index',
-        videoUrl:
-            'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4',
-        type: ContentType.movie,
-        genres: [genre],
-        releaseYear: '202${index % 3}',
-        duration: Duration(minutes: 90 + index * 5),
-        rating: double.parse(rating.toStringAsFixed(1)),
-      );
-    });
+  List<Content> _getContentsForMenu(BuildContext context, String selection, String type) {
+    final all = context.read<ContentProvider>().catalogueContents;
+    final normalized = selection.trim().toLowerCase();
+    return all.where((content) {
+      switch (type) {
+        case 'film-category':
+          return content.isMovie && (normalized == 'tous' || content.genres.any((value) => value.toLowerCase() == normalized));
+        case 'series-category':
+          return content.isSeries && (normalized == 'tous' || content.genres.any((value) => value.toLowerCase() == normalized));
+        case 'plus-category':
+          return content.emissions.any((value) => value.toLowerCase() == normalized);
+        case 'country':
+          return content.country.toLowerCase() == normalized;
+        default:
+          return false;
+      }
+    }).toList();
   }
 
   void _confirmLogout(BuildContext context) {

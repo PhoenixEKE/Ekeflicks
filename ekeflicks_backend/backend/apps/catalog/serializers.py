@@ -226,6 +226,7 @@ class ContentListSerializer(serializers.ModelSerializer):
             'original_title',
             'description',
             'type',
+            'country',
             'poster_url',
             'backdrop_url',
             'banner_url',
@@ -260,6 +261,7 @@ class ContentListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id',
+            'country',
             'producer',
             'producer_email',
             'producer_submission_status',
@@ -503,3 +505,4 @@ class ContentReviewSerializer(serializers.Serializer):
 
 class ContentRejectSerializer(serializers.Serializer):
     reason = serializers.CharField(required=True, allow_blank=False)
+

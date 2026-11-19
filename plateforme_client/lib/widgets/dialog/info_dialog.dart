@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
 import 'package:app_ekeflicks/ui/player/player_page.dart';
 import 'package:app_ekeflicks/l10n/app_localizations.dart';
 import 'package:app_ekeflicks/models/content_model.dart';
+import 'package:app_ekeflicks/providers/content_provider.dart';
+import 'package:app_ekeflicks/providers/user_provider.dart';
 
 class InfoDialog extends StatefulWidget {
   final Content content;
@@ -20,7 +23,9 @@ class InfoDialog extends StatefulWidget {
 }
 
 class _InfoDialogState extends State<InfoDialog> {
-  late VideoPlayerController _trailerController;
+  VideoPlayerController? _trailerController;
+  late Content _content;
+  bool _isLoadingDetail = true;
   bool _isPlayingTrailer = false;
   bool _isExpanded = false;
   bool _showFullCast = false;
@@ -30,53 +35,152 @@ class _InfoDialogState extends State<InfoDialog> {
   @override
   void initState() {
     super.initState();
-    _trailerController = VideoPlayerController.networkUrl(
-        Uri.parse(
-          widget.content.videoUrl.isNotEmpty
-              ? widget.content.videoUrl
-              : 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4',
-        ),
-      )
-      ..initialize()
-          .then((_) {
-            if (mounted) setState(() {});
-          })
-          .catchError((e) {
-            debugPrint('Error initializing video: $e');
-            if (mounted) setState(() {});
-          });
+    _content = widget.content;
+    _loadContentDetail();
+  }
+
+  Future<void> _loadContentDetail() async {
+    try {
+      final detail = await context.read<ContentProvider>().loadDetail(_content.id);
+      if (!mounted) return;
+      setState(() => _content = detail);
+    } catch (error) {
+      debugPrint('Chargement du détail du contenu impossible: $error');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingDetail = false);
+        await _initializeTrailer(_content.trailerUrl);
+      }
+    }
+  }
+
+  Future<void> _initializeTrailer(String source) async {
+    if (source.trim().isEmpty || _trailerController != null) return;
+    final controller = VideoPlayerController.networkUrl(Uri.parse(source));
+    _trailerController = controller;
+    controller.addListener(_onTrailerChanged);
+    try {
+      await controller.initialize();
+      if (mounted) setState(() {});
+    } catch (error) {
+      debugPrint('Initialisation de la bande-annonce impossible: $error');
+      if (identical(_trailerController, controller)) {
+        _trailerController = null;
+        controller.removeListener(_onTrailerChanged);
+        await controller.dispose();
+      }
+    }
+  }
+
+  void _onTrailerChanged() {
+    if (!mounted || _trailerController == null) return;
+    final playing = _trailerController!.value.isPlaying;
+    setState(() => _isPlayingTrailer = playing);
   }
 
   @override
   void dispose() {
-    _trailerController.dispose();
+    _trailerController?.removeListener(_onTrailerChanged);
+    _trailerController?.dispose();
     _similarContentController.dispose();
     _castController.dispose();
     super.dispose();
   }
 
   void _toggleTrailerPlayback() {
-    if (!_trailerController.value.isInitialized) return;
-
-    setState(() {
-      _isPlayingTrailer = !_isPlayingTrailer;
-      _isPlayingTrailer
-          ? _trailerController.play()
-          : _trailerController.pause();
-    });
+    final controller = _trailerController;
+    if (controller == null || !controller.value.isInitialized) return;
+    if (controller.value.isPlaying) {
+      controller.pause();
+    } else {
+      controller.play();
+    }
+    setState(() {});
   }
 
   void _playContent(BuildContext context) {
-    Navigator.pop(context);
-    Navigator.push(
-      context,
+    final isLoggedIn = context.read<UserProvider>().isLoggedIn;
+    String videoUrl;
+    Episode? episode;
+
+    if (!isLoggedIn) {
+      videoUrl = _content.trailerUrl;
+      if (videoUrl.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bande-annonce indisponible pour ce contenu.')),
+        );
+        return;
+      }
+    } else if (_content.isSeries) {
+      final seasons = List<Season>.of(_content.seasonList)
+        ..sort((a, b) => a.number.compareTo(b.number));
+      for (final season in seasons) {
+        final episodes = List<Episode>.of(season.episodes)
+          ..sort((a, b) => a.number.compareTo(b.number));
+        if (episodes.isNotEmpty) {
+          episode = episodes.first;
+          break;
+        }
+      }
+      if (episode == null || episode.videoUrl.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Le premier épisode n’est pas encore disponible.')),
+        );
+        return;
+      }
+      videoUrl = episode.videoUrl;
+    } else {
+      videoUrl = _content.videoUrl;
+      if (videoUrl.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vidéo indisponible pour ce contenu.')),
+        );
+        return;
+      }
+    }
+
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    navigator.push(
       MaterialPageRoute(
-        builder:
-            (context) => PlayerPage(
-              videoUrl: widget.content.videoUrl,
-              title: widget.content.title,
-              imageUrl: widget.content.posterUrl,
-            ),
+        builder: (_) => PlayerPage(
+          videoUrl: videoUrl,
+          title: episode == null ? _content.title : '${_content.title} • ${episode.title}',
+          imageUrl: episode?.imageUrl.isNotEmpty == true ? episode!.imageUrl : _content.posterUrl,
+          contentId: _content.id,
+          isTrailer: !isLoggedIn,
+          episodeData: episode,
+          isSeries: _content.isSeries,
+          seasons: _content.seasonList,
+        ),
+      ),
+    );
+  }
+
+  void _playEpisode(Episode episode) {
+    if (!context.read<UserProvider>().isLoggedIn) {
+      _playContent(context);
+      return;
+    }
+    if (episode.videoUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vidéo indisponible pour cet épisode.')),
+      );
+      return;
+    }
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => PlayerPage(
+          videoUrl: episode.videoUrl,
+          title: '${_content.title} • ${episode.title}',
+          imageUrl: episode.imageUrl.isNotEmpty ? episode.imageUrl : _content.posterUrl,
+          contentId: _content.id,
+          episodeData: episode,
+          isSeries: true,
+          seasons: _content.seasonList,
+        ),
       ),
     );
   }
@@ -130,7 +234,7 @@ class _InfoDialogState extends State<InfoDialog> {
           children: List.generate(
             5,
             (index) => Icon(
-              index < (widget.content.rating?.round() ?? 0)
+              index < (_content.rating?.round() ?? 0)
                   ? Icons.star
                   : Icons.star_border,
               color: theme.colorScheme.primary,
@@ -140,7 +244,7 @@ class _InfoDialogState extends State<InfoDialog> {
         ),
         const SizedBox(height: 4),
         Text(
-          '${widget.content.rating?.toStringAsFixed(1) ?? '0.0'}/5',
+          '${_content.rating?.toStringAsFixed(1) ?? '0.0'}/5',
           style: theme.textTheme.bodyMedium,
         ),
       ],
@@ -250,10 +354,10 @@ class _InfoDialogState extends State<InfoDialog> {
     final loc = AppLocalizations.of(context)!;
 
     final castList =
-        widget.content.cast?.where((name) => name.isNotEmpty).toList() ?? [];
+        _content.cast?.where((name) => name.isNotEmpty).toList() ?? [];
     final fullCast = [
-      if (widget.content.director?.isNotEmpty ?? false)
-        {'name': widget.content.director!, 'role': 'Director', 'image': null},
+      if (_content.director?.isNotEmpty ?? false)
+        {'name': _content.director!, 'role': 'Director', 'image': null},
       ...List.generate(
         castList.length,
         (index) => {
@@ -315,29 +419,20 @@ class _InfoDialogState extends State<InfoDialog> {
   }
 
   Widget _buildSeasonsSection(ThemeData theme) {
-    if (!widget.content.isSeries) return const SizedBox();
+    if (!_content.isSeries || _content.seasonList.isEmpty) return const SizedBox();
 
     final loc = AppLocalizations.of(context)!;
-    final seasonsList =
-        widget.content.seasons is List
-            ? widget.content.seasons as List
-            : [
-              {'season': 1, 'episodes': widget.content.episodeCount ?? 10},
-            ];
+    final seasons = List<Season>.of(_content.seasonList)
+      ..sort((a, b) => a.number.compareTo(b.number));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          loc.seasons,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.onSurface,
-          ),
-        ),
+        Text(loc.seasons, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
-        ...List.generate(seasonsList.length, (index) {
-          final season = seasonsList[index];
+        ...seasons.map((season) {
+          final episodes = List<Episode>.of(season.episodes)
+            ..sort((a, b) => a.number.compareTo(b.number));
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
@@ -345,62 +440,42 @@ class _InfoDialogState extends State<InfoDialog> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: ExpansionTile(
-              title: Text(
-                '${loc.season} ${season['season']}',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              subtitle: Text(
-                '${season['episodes']} ${loc.episodes}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(
-                    alpha: 0.7,
-                  ), // Texte secondaire
-                ),
-              ),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    children: List.generate(
-                      3,
-                      (episodeIndex) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: CachedNetworkImage(
-                            imageUrl:
-                                'https://picsum.photos/100/100?random=$episodeIndex',
+              title: Text('${loc.season} ${season.number}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+              subtitle: Text('${episodes.length} ${loc.episodes}'),
+              children: episodes.map((episode) {
+                final duration = episode.duration > Duration.zero ? ' • ${episode.duration.inMinutes} min' : '';
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: episode.imageUrl.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: episode.imageUrl,
                             width: 60,
                             height: 60,
                             fit: BoxFit.cover,
-                          ),
-                        ),
-                        title: Text(
-                          '${loc.episode} ${episodeIndex + 1}',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        subtitle: Text(
-                          'Episode title ${episodeIndex + 1} • 45 min',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.play_arrow),
-                          onPressed: () => _playContent(context),
-                        ),
-                      ),
-                    ),
+                            errorWidget: (_, _, _) => _episodePlaceholder(theme),
+                          )
+                        : _episodePlaceholder(theme),
                   ),
-                ),
-              ],
+                  title: Text(episode.title.isEmpty ? '${loc.episode} ${episode.number}' : episode.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text('${loc.episode} ${episode.number}$duration'),
+                  trailing: IconButton(tooltip: loc.play, icon: const Icon(Icons.play_arrow), onPressed: () => _playEpisode(episode)),
+                );
+              }).toList(),
             ),
           );
         }),
       ],
     );
   }
+
+  Widget _episodePlaceholder(ThemeData theme) => Container(
+    width: 60,
+    height: 60,
+    color: theme.colorScheme.surfaceContainerHighest,
+    child: const Icon(Icons.movie_outlined),
+  );
 
   Widget _buildSimilarContentSlider(ThemeData theme, bool isMobile) {
     if (widget.similarContent.isEmpty) return const SizedBox();
@@ -487,6 +562,12 @@ class _InfoDialogState extends State<InfoDialog> {
     );
   }
 
+  String _clock(Duration value) {
+    final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return value.inHours > 0 ? '${value.inHours}:$minutes:$seconds' : '$minutes:$seconds';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -508,50 +589,104 @@ class _InfoDialogState extends State<InfoDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  if (_isPlayingTrailer &&
-                      _trailerController.value.isInitialized)
-                    AspectRatio(
-                      aspectRatio: _trailerController.value.aspectRatio,
-                      child: VideoPlayer(_trailerController),
-                    )
-                  else
-                    CachedNetworkImage(
-                      imageUrl:
-                          widget.content.backdropUrl.isNotEmpty
-                              ? widget.content.backdropUrl
-                              : widget.content.posterUrl,
-                      width: double.infinity,
-                      height: isMobile ? 180 : 250,
-                      fit: BoxFit.cover,
-                      errorWidget:
-                          (_, _, _) => Container(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            child: const Icon(Icons.broken_image, size: 50),
-                          ),
-                    ),
-
-                  if (_trailerController.value.isInitialized)
-                    IconButton(
-                      icon: Icon(
-                        _isPlayingTrailer ? Icons.pause : Icons.play_arrow,
-                        size: 50,
-                        color: Colors.white,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (_trailerController?.value.isInitialized == true)
+                      AspectRatio(
+                        aspectRatio: _trailerController!.value.aspectRatio,
+                        child: VideoPlayer(_trailerController!),
+                      )
+                    else
+                      CachedNetworkImage(
+                        imageUrl: _content.backdropUrl.isNotEmpty ? _content.backdropUrl : _content.posterUrl,
+                        width: double.infinity,
+                        height: isMobile ? 180 : 250,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, _, _) => Container(
+                          height: isMobile ? 180 : 250,
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          child: const Icon(Icons.broken_image, size: 50),
+                        ),
                       ),
-                      onPressed: _toggleTrailerPlayback,
+                    if (_isLoadingDetail && _trailerController == null)
+                      const Positioned.fill(child: Center(child: CircularProgressIndicator())),
+                    if (_trailerController?.value.isInitialized == true)
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.black.withValues(alpha: 0.18), Colors.transparent, Colors.black.withValues(alpha: 0.72)],
+                              stops: const [0, 0.48, 1],
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_trailerController?.value.isInitialized == true)
+                      IconButton(
+                        icon: Icon(_trailerController!.value.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 64, color: Colors.white),
+                        onPressed: _toggleTrailerPlayback,
+                      )
+                    else if (_trailerController == null && !_isLoadingDetail)
+                      const Icon(Icons.movie_outlined, size: 52, color: Colors.white70),
+                    if (_trailerController?.value.isInitialized == true)
+                      Positioned(
+                        left: 12,
+                        right: 12,
+                        bottom: 6,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            VideoProgressIndicator(
+                              _trailerController!,
+                              allowScrubbing: true,
+                              colors: const VideoProgressColors(playedColor: Colors.deepOrange, bufferedColor: Colors.white54, backgroundColor: Colors.white24),
+                            ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  tooltip: 'Reculer de 10 secondes',
+                                  icon: const Icon(Icons.replay_10, color: Colors.white),
+                                  onPressed: () {
+                                    final c = _trailerController!;
+                                    c.seekTo(c.value.position - const Duration(seconds: 10));
+                                  },
+                                ),
+                                Text('${_clock(_trailerController!.value.position)} / ${_clock(_trailerController!.value.duration)}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                                IconButton(
+                                  tooltip: 'Avancer de 10 secondes',
+                                  icon: const Icon(Icons.forward_10, color: Colors.white),
+                                  onPressed: () {
+                                    final c = _trailerController!;
+                                    c.seekTo(c.value.position + const Duration(seconds: 10));
+                                  },
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  tooltip: _trailerController!.value.volume > 0 ? 'Couper le son' : 'Activer le son',
+                                  icon: Icon(_trailerController!.value.volume > 0 ? Icons.volume_up : Icons.volume_off, color: Colors.white),
+                                  onPressed: () {
+                                    final c = _trailerController!;
+                                    c.setVolume(c.value.volume > 0 ? 0 : 1);
+                                    setState(() {});
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
                     ),
-
-                  Positioned(
-                    top: 16,
-                    right: 16,
-                    child: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
 
               Padding(
@@ -567,7 +702,7 @@ class _InfoDialogState extends State<InfoDialog> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                widget.content.title,
+                                _content.title,
                                 style: theme.textTheme.headlineSmall?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -577,25 +712,25 @@ class _InfoDialogState extends State<InfoDialog> {
                                 spacing: 16,
                                 runSpacing: 8,
                                 children: [
-                                  if (widget.content.releaseYear.isNotEmpty)
+                                  if (_content.releaseYear.isNotEmpty)
                                     _buildMetadataItem(
-                                      widget.content.releaseYear,
+                                      _content.releaseYear,
                                       Icons.calendar_today,
                                       theme,
                                     ),
-                                  if (widget.content.isSeries)
+                                  if (_content.isSeries)
                                     _buildMetadataItem(
-                                      widget.content.seasonInfo ?? '',
+                                      _content.seasonInfo ?? '',
                                       Icons.tv,
                                       theme,
                                     )
-                                  else
+                                  else if (_content.duration > Duration.zero)
                                     _buildMetadataItem(
-                                      widget.content.formattedDuration,
+                                      _content.formattedDuration,
                                       Icons.timer,
                                       theme,
                                     ),
-                                  if (widget.content.isHd) _buildHdBadge(theme),
+                                  if (_content.isHd) _buildHdBadge(theme),
                                 ],
                               ),
                             ],
@@ -636,7 +771,7 @@ class _InfoDialogState extends State<InfoDialog> {
                           label: Text(
                             _isPlayingTrailer ? (loc.pause) : (loc.trailer),
                           ),
-                          onPressed: _toggleTrailerPlayback,
+                          onPressed: _trailerController == null ? null : _toggleTrailerPlayback,
                         ),
                         _buildActionButton(Icons.share, loc.share, theme),
                         _buildActionButton(Icons.download, loc.download, theme),
@@ -662,21 +797,21 @@ class _InfoDialogState extends State<InfoDialog> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          widget.content.description.isEmpty
+                          _content.description.isEmpty
                               ? loc.noDescriptionAvailable
                               : _isExpanded
-                              ? widget.content.description
-                              : widget.content.description.length >
+                              ? _content.description
+                              : _content.description.length >
                                   (isMobile ? 100 : 150)
-                              ? '${widget.content.description.substring(0, isMobile ? 100 : 150)}...'
-                              : widget.content.description,
+                              ? '${_content.description.substring(0, isMobile ? 100 : 150)}...'
+                              : _content.description,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurface.withValues(
                               alpha: 0.9,
                             ), // Texte légèrement transparent
                           ),
                         ),
-                        if (widget.content.description.length >
+                        if (_content.description.length >
                             (isMobile ? 100 : 150))
                           TextButton(
                             onPressed:
@@ -691,20 +826,23 @@ class _InfoDialogState extends State<InfoDialog> {
 
                     const SizedBox(height: 24),
 
-                    if (widget.content.genres.isNotEmpty) ...[
+                    if (_content.genres.isNotEmpty) ...[
                       Wrap(
                         spacing: 8,
                         children:
-                            widget.content.genres
+                            _content.genres
                                 .map((genre) => Chip(label: Text(genre)))
                                 .toList(),
                       ),
                       const SizedBox(height: 24),
                     ],
 
-                    _buildDistributionSection(theme),
-
-                    _buildSeasonsSection(theme),
+                    if (_content.isSeries) ...[
+                      _buildSeasonsSection(theme),
+                      const SizedBox(height: 16),
+                      _buildDistributionSection(theme),
+                    ] else
+                      _buildDistributionSection(theme),
 
                     const SizedBox(height: 32),
 

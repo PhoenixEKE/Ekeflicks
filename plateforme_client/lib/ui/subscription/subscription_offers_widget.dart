@@ -153,12 +153,11 @@ class _SubscriptionOffersWidgetState extends State<SubscriptionOffersWidget> {
   }
 
   void _selectOffer(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    if (widget.onOfferSelected != null) {
-      widget.onOfferSelected!(offers[index]);
+    if (_selectedIndex == index) {
+      widget.onOfferSelected?.call(offers[index]);
+      return;
     }
+    setState(() => _selectedIndex = index);
   }
 
   @override
