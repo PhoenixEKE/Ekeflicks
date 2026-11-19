@@ -261,6 +261,7 @@ class ContentListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id',
+            'country',
             'producer',
             'producer_email',
             'producer_submission_status',
